@@ -142,6 +142,10 @@ void MainWindow::createCentralWidget() {
     QWidget* bottomPanel = createBottomPanel();
     mainLayout->addWidget(bottomPanel);
 
+    // Radio status grid (at very bottom)
+    QWidget* radioStatusGrid = createRadioStatusGrid();
+    mainLayout->addWidget(radioStatusGrid);
+
     setCentralWidget(central);
 }
 
@@ -247,6 +251,52 @@ QWidget* MainWindow::createBottomPanel() {
             this, &MainWindow::onLogQSO);
 
     return bottomPanel;
+}
+
+QWidget* MainWindow::createRadioStatusGrid() {
+    QWidget* radioStatusWidget = new QWidget(this);
+    QHBoxLayout* radioLayout = new QHBoxLayout(radioStatusWidget);
+    radioLayout->setSpacing(20);
+    radioLayout->setContentsMargins(10, 5, 10, 5);
+
+    // Set background color to match TR4W style
+    radioStatusWidget->setStyleSheet("QWidget { background-color: #f0f0f0; }");
+
+    QFont labelFont("Monospace", 11);
+    labelFont.setBold(true);
+
+    // Band/Mode label (e.g., "15SSB")
+    m_radioFreqBandLabel = new QLabel("--", this);
+    m_radioFreqBandLabel->setFont(labelFont);
+    m_radioFreqBandLabel->setMinimumWidth(80);
+    m_radioFreqBandLabel->setAlignment(Qt::AlignCenter);
+    m_radioFreqBandLabel->setStyleSheet("QLabel { background-color: white; padding: 5px; border: 1px solid #ccc; }");
+
+    // Frequency label (below will be in vertical layout)
+    QFont freqFont("Monospace", 10);
+    m_radioFreqLabel = new QLabel("0.000 MHz", this);
+    m_radioFreqLabel->setFont(freqFont);
+    m_radioFreqLabel->setMinimumWidth(100);
+    m_radioFreqLabel->setAlignment(Qt::AlignCenter);
+    m_radioFreqLabel->setStyleSheet("QLabel { background-color: white; padding: 3px; border: 1px solid #ccc; }");
+
+    // Vertical layout for band/mode and frequency
+    QVBoxLayout* freqLayout = new QVBoxLayout();
+    freqLayout->setSpacing(2);
+    freqLayout->addWidget(m_radioFreqBandLabel);
+    freqLayout->addWidget(m_radioFreqLabel);
+
+    // Date/Time label
+    m_radioDateTimeLabel = new QLabel("", this);
+    m_radioDateTimeLabel->setFont(labelFont);
+    m_radioDateTimeLabel->setAlignment(Qt::AlignCenter);
+    m_radioDateTimeLabel->setStyleSheet("QLabel { background-color: white; padding: 5px; border: 1px solid #ccc; }");
+
+    radioLayout->addLayout(freqLayout);
+    radioLayout->addWidget(m_radioDateTimeLabel);
+    radioLayout->addStretch();
+
+    return radioStatusWidget;
 }
 
 void MainWindow::createStatusBar() {
@@ -396,6 +446,9 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
 
     m_currentState = state;
     // Radio state is cached for use when logging QSOs
+
+    // Update radio status grid with new state
+    updateRadioStatusGrid();
 }
 
 void MainWindow::onRadioError(const QString& error) {
@@ -545,6 +598,30 @@ void MainWindow::updateTimeDisplay() {
     // Update labels
     m_thisHrLabel->setText(QString("This Hr = %1").arg(m_qsosThisHour));
     m_rateLabel->setText(QString("Rate = %1").arg(rate));
+
+    // Update radio status grid (date/time updates every second)
+    updateRadioStatusGrid();
+}
+
+void MainWindow::updateRadioStatusGrid() {
+    // Update band/mode (e.g., "15SSB")
+    if (m_radioConnected && m_currentState.frequencyA > 0) {
+        QString bandStr = bandToString(m_currentState.bandA).remove('M');  // Remove 'M' from "15M" -> "15"
+        QString modeStr = modeToString(m_currentState.modeA);
+        m_radioFreqBandLabel->setText(QString("%1%2").arg(bandStr).arg(modeStr));
+
+        // Update frequency (in MHz with 3 decimal places)
+        double freqMHz = m_currentState.frequencyA / 1000000.0;
+        m_radioFreqLabel->setText(QString("%1 MHz").arg(freqMHz, 0, 'f', 3));
+    } else {
+        m_radioFreqBandLabel->setText("--");
+        m_radioFreqLabel->setText("0.000 MHz");
+    }
+
+    // Update date/time (current local time)
+    QDateTime now = QDateTime::currentDateTime();
+    QString dateTimeStr = now.toString("ddd dd-MMM-yyyy hh:mm:ss");
+    m_radioDateTimeLabel->setText(dateTimeStr);
 }
 
 } // namespace TR4QT

@@ -62,10 +62,12 @@ private:
     void createStatusBar();
     void createCentralWidget();
     QWidget* createBottomPanel();
+    QWidget* createRadioStatusGrid();
     void loadSettings();
     void saveSettings();
     void updateConnectionStatus(bool connected);
     void updateScoreDisplay();
+    void updateRadioStatusGrid();
 
     // UI Components
     QLabel* m_statusLabel;
@@ -88,6 +90,11 @@ private:
     QLabel* m_cqCountLabel;
     QLabel* m_spCountLabel;
     QLabel* m_operatorLabel;
+
+    // Radio status grid (bottom)
+    QLabel* m_radioFreqBandLabel;  // Shows "15SSB"
+    QLabel* m_radioFreqLabel;      // Shows frequency
+    QLabel* m_radioDateTimeLabel;  // Shows current date/time
 
     // Radio control
     RadioController* m_radio;

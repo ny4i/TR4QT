@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "1.5.0";  // Phase 2: Auto-connect feature added
+constexpr const char* APP_VERSION = "1.6.0";  // Phase 2: Radio status grid added
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
