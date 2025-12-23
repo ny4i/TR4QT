@@ -14,6 +14,7 @@ set(SOURCES
     ui/MainWindow.cpp
     ui/models/QSOTableModel.cpp
     ui/dialogs/RadioConfigDialog.cpp
+    ui/dialogs/PreferencesDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
 )
 
@@ -35,6 +36,7 @@ set(HEADERS
     ui/MainWindow.h
     ui/models/QSOTableModel.h
     ui/dialogs/RadioConfigDialog.h
+    ui/dialogs/PreferencesDialog.h
     ui/widgets/BandSummaryGrid.h
 )
 

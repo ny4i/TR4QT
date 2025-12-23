@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "dialogs/RadioConfigDialog.h"
+#include "dialogs/PreferencesDialog.h"
 #include "../core/Constants.h"
 #include <QMenuBar>
 #include <QStatusBar>
@@ -76,6 +77,13 @@ void MainWindow::createMenuBar() {
 
     // File menu
     QMenu* fileMenu = menuBar->addMenu("&File");
+
+    QAction* preferencesAction = fileMenu->addAction("&Preferences...");
+    preferencesAction->setShortcut(QKeySequence::Preferences);
+    connect(preferencesAction, &QAction::triggered, this, &MainWindow::onPreferences);
+
+    fileMenu->addSeparator();
+
     QAction* exitAction = fileMenu->addAction("E&xit");
     connect(exitAction, &QAction::triggered, this, &MainWindow::onExit);
 
@@ -421,6 +429,30 @@ void MainWindow::onAbout() {
 
 void MainWindow::onExit() {
     close();
+}
+
+void MainWindow::onPreferences() {
+    PreferencesDialog dialog(this);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        m_statusLabel->setText("Preferences saved");
+
+        // If radio settings changed and radio is connected, ask to reconnect
+        if (m_radioConnected) {
+            QMessageBox::StandardButton reply = QMessageBox::question(
+                this, "Reconnect Radio?",
+                "Radio settings may have changed. Reconnect to apply new settings?",
+                QMessageBox::Yes | QMessageBox::No);
+
+            if (reply == QMessageBox::Yes) {
+                onRadioDisconnect();
+                QTimer::singleShot(500, this, &MainWindow::onRadioConnect);
+            }
+        }
+
+        // TODO: Apply font size changes to UI widgets
+        // TODO: Reload contest settings if changed
+    }
 }
 
 void MainWindow::onRadioConnected(bool connected) {

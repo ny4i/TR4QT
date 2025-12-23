@@ -1,0 +1,94 @@
+#ifndef PREFERENCESDIALOG_H
+#define PREFERENCESDIALOG_H
+
+#include <QDialog>
+#include <QTabWidget>
+#include <QLineEdit>
+#include <QSpinBox>
+#include <QComboBox>
+#include <QCheckBox>
+#include <QRadioButton>
+#include <QGroupBox>
+#include "../../radio/RadioInterface.h"
+
+namespace TR4QT {
+
+/**
+ * Preferences dialog with tabbed interface
+ * Consolidates all application settings in one place:
+ * - Station information (callsign, zone, grid, etc.)
+ * - Radio configuration (model, port, auto-connect)
+ * - Appearance settings (font sizes, colors)
+ * - Contest preferences
+ * - Advanced settings
+ */
+class PreferencesDialog : public QDialog {
+    Q_OBJECT
+
+public:
+    explicit PreferencesDialog(QWidget* parent = nullptr);
+    ~PreferencesDialog() override = default;
+
+    // Accept/Apply settings
+    void accept() override;
+
+private slots:
+    void onApply();
+    void onTestRadioConnection();
+    void onConnectionTypeChanged();
+    void onRadioModelChanged(int index);
+
+private:
+    void setupUI();
+    void loadSettings();
+    void saveSettings();
+
+    // Tab creation methods
+    QWidget* createStationTab();
+    QWidget* createRadioTab();
+    QWidget* createAppearanceTab();
+    QWidget* createContestTab();
+    QWidget* createAdvancedTab();
+
+    // Station tab widgets
+    QLineEdit* m_callsignEdit;
+    QLineEdit* m_gridSquareEdit;
+    QSpinBox* m_cqZoneSpin;
+    QSpinBox* m_ituZoneSpin;
+    QComboBox* m_continentCombo;
+    QLineEdit* m_operatorEdit;
+
+    // Radio tab widgets (from RadioConfigDialog)
+    QComboBox* m_radioModelCombo;
+    QLineEdit* m_customModelEdit;
+    QRadioButton* m_serialRadio;
+    QRadioButton* m_networkRadio;
+    QLineEdit* m_serialPortEdit;
+    QComboBox* m_baudRateCombo;
+    QLineEdit* m_ipAddressEdit;
+    QSpinBox* m_portSpin;
+    QSpinBox* m_civAddressSpin;
+    QSpinBox* m_pollIntervalSpin;
+    QCheckBox* m_autoConnectCheck;
+    QGroupBox* m_serialGroup;
+    QGroupBox* m_networkGroup;
+
+    // Appearance tab widgets
+    QSpinBox* m_entryFontSizeSpin;
+    QSpinBox* m_tableFontSizeSpin;
+    QSpinBox* m_gridFontSizeSpin;
+
+    // Contest tab widgets
+    QComboBox* m_defaultContestCombo;
+    QSpinBox* m_serialStartSpin;
+
+    // Advanced tab widgets
+    QLineEdit* m_countryFilePathEdit;
+    QCheckBox* m_autoUpdateCountryFileCheck;
+
+    QTabWidget* m_tabWidget;
+};
+
+} // namespace TR4QT
+
+#endif // PREFERENCESDIALOG_H
