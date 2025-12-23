@@ -11,6 +11,7 @@ set(SOURCES
     data/Database.cpp
     data/QSORepository.cpp
     contests/CQWWContest.cpp
+    contests/CQWPXContest.cpp
     ui/MainWindow.cpp
     ui/models/QSOTableModel.cpp
     ui/dialogs/RadioConfigDialog.cpp
@@ -32,6 +33,7 @@ set(HEADERS
     data/QSORepository.h
     contests/ContestBase.h
     contests/CQWWContest.h
+    contests/CQWPXContest.h
     models/QSO.h
     models/StationInfo.h
     ui/MainWindow.h
