@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "1.9.0";  // Phase 2: CQ WPX Contest added
+constexpr const char* APP_VERSION = "2.0.0";  // Phase 2 Complete: All 3 contests implemented
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
