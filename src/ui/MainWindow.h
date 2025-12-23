@@ -12,6 +12,7 @@
 #include "../utils/AppSettings.h"
 #include "models/QSOTableModel.h"
 #include "widgets/BandSummaryGrid.h"
+#include "dialogs/ContestChooserDialog.h"
 
 class QMenuBar;
 class QStatusBar;
@@ -36,6 +37,7 @@ protected:
 
 private slots:
     // Menu actions
+    void onNewOpenContest();
     void onPreferences();
     void onRadioConfigure();
     void onRadioConnect();
@@ -110,6 +112,10 @@ private:
     QTimer* m_updateTimer;
     QDateTime m_lastQSOTime;
     int m_qsosThisHour;
+
+    // Contest information
+    ContestInfo m_currentContest;
+    bool m_hasActiveContest;
 };
 
 } // namespace TR4QT
