@@ -36,6 +36,7 @@ protected:
 
 private slots:
     // Menu actions
+    void onPreferences();
     void onRadioConfigure();
     void onRadioConnect();
     void onRadioDisconnect();
