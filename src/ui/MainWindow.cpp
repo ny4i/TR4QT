@@ -23,6 +23,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_radio(new RadioController(this))
     , m_radioConnected(false)
     , m_qsosThisHour(0)
+    , m_hasActiveContest(false)
 {
     setWindowTitle(QString("%1 v%2").arg(APP_NAME).arg(APP_VERSION));
 
@@ -77,6 +78,12 @@ void MainWindow::createMenuBar() {
 
     // File menu
     QMenu* fileMenu = menuBar->addMenu("&File");
+
+    QAction* newContestAction = fileMenu->addAction("&New/Open Contest...");
+    newContestAction->setShortcut(QKeySequence("Ctrl+N"));
+    connect(newContestAction, &QAction::triggered, this, &MainWindow::onNewOpenContest);
+
+    fileMenu->addSeparator();
 
     QAction* preferencesAction = fileMenu->addAction("&Preferences...");
     preferencesAction->setShortcut(QKeySequence::Preferences);
@@ -429,6 +436,35 @@ void MainWindow::onAbout() {
 
 void MainWindow::onExit() {
     close();
+}
+
+void MainWindow::onNewOpenContest() {
+    ContestChooserDialog dialog(this);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        ContestInfo contestInfo = dialog.getContestInfo();
+
+        // Store contest info
+        m_currentContest = contestInfo;
+        m_hasActiveContest = true;
+
+        // Update window title with contest name
+        setWindowTitle(QString("%1 v%2 - %3")
+                          .arg(APP_NAME)
+                          .arg(APP_VERSION)
+                          .arg(contestInfo.contestName));
+
+        // Update status
+        if (contestInfo.isExisting) {
+            m_statusLabel->setText(QString("Resumed contest: %1").arg(contestInfo.contestName));
+        } else {
+            m_statusLabel->setText(QString("Created new contest: %1").arg(contestInfo.contestName));
+        }
+
+        // TODO: Load contest-specific scoring rules
+        // TODO: Initialize database for new contest
+        // TODO: Load QSOs from database if resuming existing contest
+    }
 }
 
 void MainWindow::onPreferences() {

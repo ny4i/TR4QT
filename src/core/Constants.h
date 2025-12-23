@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "1.7.0";  // Phase 2: Preferences dialog added
+constexpr const char* APP_VERSION = "1.8.0";  // Phase 2: Contest Chooser dialog added
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
