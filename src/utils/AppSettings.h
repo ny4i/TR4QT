@@ -1,0 +1,71 @@
+#ifndef APPSETTINGS_H
+#define APPSETTINGS_H
+
+#include <QSettings>
+#include <QString>
+#include "../radio/RadioInterface.h"
+
+namespace TR4QT {
+
+/**
+ * Application settings wrapper using QSettings
+ * Provides persistent storage for radio config, user preferences, etc.
+ */
+class AppSettings {
+public:
+    // Singleton access
+    static AppSettings& instance();
+
+    // Radio configuration
+    void saveRadioConfig(const RadioConfig& config);
+    RadioConfig loadRadioConfig() const;
+    bool hasRadioConfig() const;
+
+    // Radio auto-connect
+    void setRadioAutoConnect(bool autoConnect);
+    bool getRadioAutoConnect() const;
+
+    // Station information
+    void setMyCallsign(const QString& callsign);
+    QString getMyCallsign() const;
+
+    void setMyGridSquare(const QString& grid);
+    QString getMyGridSquare() const;
+
+    void setMyContinent(const QString& continent);
+    QString getMyContinent() const;
+
+    void setMyCQZone(int zone);
+    int getMyCQZone() const;
+
+    void setMyITUZone(int zone);
+    int getMyITUZone() const;
+
+    // Window geometry
+    void saveWindowGeometry(const QByteArray& geometry);
+    QByteArray loadWindowGeometry() const;
+
+    void saveWindowState(const QByteArray& state);
+    QByteArray loadWindowState() const;
+
+    // Country file
+    void setCountryFileVersion(int version);
+    int getCountryFileVersion() const;
+
+    void setCountryFilePath(const QString& path);
+    QString getCountryFilePath() const;
+
+private:
+    AppSettings();
+    ~AppSettings() = default;
+
+    // Prevent copying
+    AppSettings(const AppSettings&) = delete;
+    AppSettings& operator=(const AppSettings&) = delete;
+
+    mutable QSettings m_settings;
+};
+
+} // namespace TR4QT
+
+#endif // APPSETTINGS_H
