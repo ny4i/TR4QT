@@ -9,6 +9,8 @@
 #include <QFont>
 #include <QSettings>
 #include <QTimer>
+#include <QRegularExpression>
+#include <QTextCursor>
 
 namespace TR4QT {
 
@@ -125,7 +127,12 @@ void DXClusterWindow::setupUI() {
     m_textDisplay->setReadOnly(true);
     m_textDisplay->setFont(QFont("Monospace", 9));
     m_textDisplay->setStyleSheet("QTextEdit { background-color: white; color: black; }");
+    m_textDisplay->viewport()->setCursor(Qt::PointingHandCursor);  // Show it's clickable
     mainLayout->addWidget(m_textDisplay);
+
+    // Make text display clickable for QSY
+    connect(m_textDisplay, &QTextEdit::selectionChanged,
+            this, &DXClusterWindow::onTextDisplayClicked);
 
     // Command input
     QHBoxLayout* commandLayout = new QHBoxLayout();
@@ -371,6 +378,44 @@ void DXClusterWindow::appendText(const QString& text, const QColor& color) {
 
     cursor.setCharFormat(format);
     cursor.insertText(text + "\n");
+}
+
+void DXClusterWindow::onTextDisplayClicked() {
+    // Get the selected text or current line
+    QTextCursor cursor = m_textDisplay->textCursor();
+    cursor.select(QTextCursor::LineUnderCursor);
+    QString line = cursor.selectedText().trimmed();
+
+    if (line.isEmpty()) {
+        return;
+    }
+
+    // Parse DX spot line format:
+    // DX de CALL:     14025.0  W1AW       Comment here
+    // or
+    // DX de W1AW:     14.025.0  K1ABC      ...
+    //
+    // Frequency is typically after "DX de CALL:" and before the DX callsign
+
+    // Look for frequency pattern (digits with optional decimal point)
+    QRegularExpression freqRegex(R"(\b(\d{1,6}\.?\d{0,3})\s+[A-Z0-9]+)");
+    QRegularExpressionMatch match = freqRegex.match(line);
+
+    if (match.hasMatch()) {
+        QString freqStr = match.captured(1);
+        bool ok;
+        double frequency = freqStr.toDouble(&ok);
+
+        if (ok && frequency > 0) {
+            // Convert to Hz if needed (DX cluster uses kHz)
+            if (frequency < 1000) {
+                frequency *= 1000;  // Convert kHz to Hz
+            }
+
+            qDebug() << "DXClusterWindow: Click-to-QSY:" << frequency << "Hz from line:" << line;
+            emit qsyRequested(frequency);
+        }
+    }
 }
 
 } // namespace TR4QT

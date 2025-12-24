@@ -1233,6 +1233,17 @@ void MainWindow::onShowDXCluster() {
         // Connect spot signal to forward spots to band map
         connect(m_dxClusterWindow, &DXClusterWindow::spotReceived,
                 this, &MainWindow::onDXSpotReceived);
+
+        // Connect QSY signal to tune radio to clicked frequency
+        connect(m_dxClusterWindow, &DXClusterWindow::qsyRequested,
+                this, [this](double frequency) {
+                    if (m_radioConnected) {
+                        qDebug() << "DX Cluster click-to-QSY:" << QString::number(frequency) << "Hz";
+                        m_radio->setFrequency(static_cast<freq_t>(frequency));
+                    } else {
+                        qDebug() << "DX Cluster click-to-QSY: Radio not connected, cannot QSY to" << frequency;
+                    }
+                });
     }
     m_dxClusterWindow->show();
     m_dxClusterWindow->raise();
