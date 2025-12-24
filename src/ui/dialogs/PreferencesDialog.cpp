@@ -1,5 +1,6 @@
 #include "PreferencesDialog.h"
 #include "../../utils/AppSettings.h"
+#include "../../utils/RadioEnumerator.h"
 #include "../../core/Constants.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -113,20 +114,20 @@ QWidget* PreferencesDialog::createRadioTab() {
     connect(m_radioModelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &PreferencesDialog::onRadioModelChanged);
 
-    // Populate radio models
+    // Populate radio models dynamically from hamlib
     m_radioModelCombo->addItem("Select a radio...", 0);
-    m_radioModelCombo->addItem("Elecraft K3", 2029);
-    m_radioModelCombo->addItem("Elecraft K4", 2047);
-    m_radioModelCombo->addItem("Elecraft KX3", 2043);
-    m_radioModelCombo->addItem("Icom IC-7300", 3073);
-    m_radioModelCombo->addItem("Icom IC-7610", 3078);
-    m_radioModelCombo->addItem("Icom IC-7760", 3092);
-    m_radioModelCombo->addItem("Icom IC-9700", 3081);
-    m_radioModelCombo->addItem("Kenwood TS-890S", 2044);
-    m_radioModelCombo->addItem("Kenwood TS-990S", 2033);
-    m_radioModelCombo->addItem("Yaesu FT-991", 1035);
-    m_radioModelCombo->addItem("Yaesu FTDX10", 1045);
-    m_radioModelCombo->addItem("Yaesu FTDX101D", 1043);
+
+    QList<RadioModelInfo> radios = RadioEnumerator::getAvailableRadios();
+    for (const RadioModelInfo& radio : radios) {
+        // Display format: "Manufacturer Model (Status)"
+        // Only show status if not Stable to reduce clutter
+        QString displayText = radio.displayName();
+        if (radio.status != "Stable") {
+            displayText += QString(" (%1)").arg(radio.status);
+        }
+        m_radioModelCombo->addItem(displayText, radio.modelId);
+    }
+
     m_radioModelCombo->addItem("Custom (enter model ID below)...", -1);
 
     m_customModelEdit = new QLineEdit(this);

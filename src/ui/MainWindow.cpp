@@ -2,6 +2,7 @@
 #include "dialogs/RadioConfigDialog.h"
 #include "dialogs/PreferencesDialog.h"
 #include "../core/Constants.h"
+#include <QFile>
 #include <QMenuBar>
 #include <QStatusBar>
 #include <QToolBar>
@@ -24,8 +25,18 @@ MainWindow::MainWindow(QWidget* parent)
     , m_radioConnected(false)
     , m_qsosThisHour(0)
     , m_hasActiveContest(false)
+    , m_activeContest(nullptr)
+    , m_nextSerialNumber(1)
 {
     setWindowTitle(QString("%1 v%2").arg(APP_NAME).arg(APP_VERSION));
+
+    // Load country file for exchange auto-population
+    QString countryFilePath = AppSettings::instance().getCountryFilePath();
+    if (QFile::exists(countryFilePath)) {
+        if (!m_countryFile.loadFromFile(countryFilePath)) {
+            qWarning() << "Failed to load country file:" << countryFilePath;
+        }
+    }
 
     setupUI();
     loadSettings();
@@ -62,6 +73,12 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow() {
     saveSettings();
+
+    // Clean up active contest
+    if (m_activeContest) {
+        delete m_activeContest;
+        m_activeContest = nullptr;
+    }
 }
 
 void MainWindow::setupUI() {
@@ -444,15 +461,8 @@ void MainWindow::onNewOpenContest() {
     if (dialog.exec() == QDialog::Accepted) {
         ContestInfo contestInfo = dialog.getContestInfo();
 
-        // Store contest info
-        m_currentContest = contestInfo;
-        m_hasActiveContest = true;
-
-        // Update window title with contest name
-        setWindowTitle(QString("%1 v%2 - %3")
-                          .arg(APP_NAME)
-                          .arg(APP_VERSION)
-                          .arg(contestInfo.contestName));
+        // Activate the contest (creates contest object, updates UI)
+        activateContest(contestInfo);
 
         // Update status
         if (contestInfo.isExisting) {
@@ -461,7 +471,6 @@ void MainWindow::onNewOpenContest() {
             m_statusLabel->setText(QString("Created new contest: %1").arg(contestInfo.contestName));
         }
 
-        // TODO: Load contest-specific scoring rules
         // TODO: Initialize database for new contest
         // TODO: Load QSOs from database if resuming existing contest
     }
@@ -605,9 +614,11 @@ void MainWindow::onLogQSO() {
 }
 
 void MainWindow::onCallsignChanged(const QString& callsign) {
+    // Auto-populate exchange based on callsign lookup (e.g., zone from cty.dat)
+    autoPopulateExchange(callsign);
+
     // TODO: Real-time dupe checking
     // TODO: Callsign lookup/prediction from previous QSOs
-    Q_UNUSED(callsign);
 }
 
 void MainWindow::onClearEntry() {
@@ -690,6 +701,106 @@ void MainWindow::updateRadioStatusGrid() {
     QDateTime now = QDateTime::currentDateTime();
     QString dateTimeStr = now.toString("ddd dd-MMM-yyyy hh:mm:ss");
     m_radioDateTimeLabel->setText(dateTimeStr);
+}
+
+void MainWindow::activateContest(const ContestInfo& contestInfo) {
+    // Clean up previous contest if any
+    if (m_activeContest) {
+        delete m_activeContest;
+        m_activeContest = nullptr;
+    }
+
+    // Create appropriate contest instance based on type
+    if (contestInfo.contestType == "CQWW_CW") {
+        m_activeContest = new CQWWContest(ModeType::CW);
+    } else if (contestInfo.contestType == "CQWW_SSB") {
+        m_activeContest = new CQWWContest(ModeType::USB);
+    } else if (contestInfo.contestType == "CQWPX_CW") {
+        m_activeContest = new CQWPXContest(ModeType::CW);
+    } else if (contestInfo.contestType == "CQWPX_SSB") {
+        m_activeContest = new CQWPXContest(ModeType::USB);
+    } else if (contestInfo.contestType == "WFD") {
+        m_activeContest = new WinterFieldDayContest();
+    } else {
+        qWarning() << "Unknown contest type:" << contestInfo.contestType;
+        return;
+    }
+
+    // Store contest info
+    m_currentContest = contestInfo;
+    m_hasActiveContest = true;
+
+    // Reset serial number (will be loaded from DB if resuming existing contest)
+    m_nextSerialNumber = 1;
+
+    // Update window title to include contest name
+    setWindowTitle(QString("%1 v%2 - %3")
+                      .arg(APP_NAME)
+                      .arg(APP_VERSION)
+                      .arg(contestInfo.contestName));
+
+    // Update exchange fields for this contest
+    updateExchangeFieldsForContest();
+}
+
+void MainWindow::updateExchangeFieldsForContest() {
+    if (!m_activeContest) {
+        m_exchangeEntry->setPlaceholderText("No contest selected");
+        return;
+    }
+
+    // Get exchange fields from contest
+    QList<ExchangeField> receivedFields = m_activeContest->getReceivedExchangeFields();
+
+    // Build hint text from non-auto fields
+    QStringList hints;
+    for (const ExchangeField& field : receivedFields) {
+        if (!field.autoFill) {
+            hints.append(field.hint);
+        }
+    }
+
+    // Update exchange entry placeholder
+    if (hints.isEmpty()) {
+        m_exchangeEntry->setPlaceholderText("Exchange");
+    } else {
+        m_exchangeEntry->setPlaceholderText(hints.join(" "));
+    }
+
+    // Clear any existing exchange text
+    m_exchangeEntry->clear();
+}
+
+void MainWindow::autoPopulateExchange(const QString& callsign) {
+    if (!m_activeContest || callsign.isEmpty()) {
+        return;
+    }
+
+    // Look up callsign in country file
+    CountryData countryData = m_countryFile.lookup(callsign);
+
+    // Get exchange fields from contest
+    QList<ExchangeField> receivedFields = m_activeContest->getReceivedExchangeFields();
+
+    // Check what fields the contest uses and auto-populate if applicable
+    QStringList exchangeParts;
+
+    for (const ExchangeField& field : receivedFields) {
+        if (field.name == "Zone" && !field.autoFill) {
+            // CQ WW uses CQ Zone - populate from country file
+            exchangeParts.append(QString::number(countryData.cqZone));
+        } else if (field.name == "ITU Zone" && !field.autoFill) {
+            // Some contests might use ITU zone
+            exchangeParts.append(QString::number(countryData.ituZone));
+        }
+        // Note: Other fields like Serial Number, Class, Section cannot be auto-populated
+        // from country file - they must be entered by the operator
+    }
+
+    // If we have auto-populated data, set it in the exchange field
+    if (!exchangeParts.isEmpty()) {
+        m_exchangeEntry->setText(exchangeParts.join(" "));
+    }
 }
 
 } // namespace TR4QT
