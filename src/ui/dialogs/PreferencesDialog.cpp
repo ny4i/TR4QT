@@ -1567,7 +1567,10 @@ void PreferencesDialog::populateRadioList() {
     QList<RadioModelInfo> allRadios = RadioEnumerator::getAvailableRadios();
 
     // Filter based on status checkboxes
-    int addedCount = 0;
+    QList<RadioModelInfo> filteredRadios;
+    RadioModelInfo k4Radio;
+    bool k4Found = false;
+
     for (const RadioModelInfo& radio : allRadios) {
         bool include = false;
 
@@ -1582,15 +1585,37 @@ void PreferencesDialog::populateRadioList() {
         }
 
         if (include) {
-            // Display format: "Manufacturer Model (Status)"
-            // Only show status if not Stable to reduce clutter
-            QString displayText = radio.displayName();
-            if (radio.status != "Stable") {
-                displayText += QString(" (%1)").arg(radio.status);
+            // Check if this is the Elecraft K4
+            if (radio.manufacturer == "Elecraft" && radio.modelName == "K4") {
+                k4Radio = radio;
+                k4Found = true;
+            } else {
+                filteredRadios.append(radio);
             }
-            m_radioModelCombo->addItem(displayText, radio.modelId);
-            addedCount++;
         }
+    }
+
+    // Add K4 first if found (user preference)
+    int addedCount = 0;
+    if (k4Found) {
+        QString displayText = k4Radio.displayName();
+        if (k4Radio.status != "Stable") {
+            displayText += QString(" (%1)").arg(k4Radio.status);
+        }
+        m_radioModelCombo->addItem(displayText, k4Radio.modelId);
+        addedCount++;
+    }
+
+    // Add all other radios
+    for (const RadioModelInfo& radio : filteredRadios) {
+        // Display format: "Manufacturer Model (Status)"
+        // Only show status if not Stable to reduce clutter
+        QString displayText = radio.displayName();
+        if (radio.status != "Stable") {
+            displayText += QString(" (%1)").arg(radio.status);
+        }
+        m_radioModelCombo->addItem(displayText, radio.modelId);
+        addedCount++;
     }
 
     m_radioModelCombo->addItem("Custom (enter model ID below)...", -1);
