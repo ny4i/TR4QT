@@ -29,6 +29,8 @@ void DXClusterListDownloader::downloadList() {
     QUrl url(DXCLUSTERS_URL);
     QNetworkRequest request(url);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setRawHeader("User-Agent", "TR4QT/2.0 (Amateur Radio Contest Logger)");
+    request.setRawHeader("Accept", "*/*");
 
     qDebug() << "Downloading DX cluster list from:" << DXCLUSTERS_URL;
 

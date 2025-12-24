@@ -178,11 +178,11 @@ bool Database::initSchema() {
 }
 
 QString Database::loadSchemaSql() {
-    // Try to load from source file in development
+    // Try to load from embedded resource (production)
     QFile schemaFile(":/data/schema.sql");
     if (!schemaFile.exists()) {
         // Fallback to actual file path (development)
-        schemaFile.setFileName("../src/data/schema.sql");
+        schemaFile.setFileName("src/data/schema.sql");
     }
 
     if (!schemaFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
