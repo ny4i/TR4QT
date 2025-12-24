@@ -16,6 +16,8 @@ BandMapWidget::BandMapWidget(QWidget* parent)
     : QWidget(parent)
     , m_currentFrequency(0)
     , m_selectedIndex(-1)
+    , m_columnCount(1)
+    , m_columnWidth(200)
 {
     setMinimumWidth(200);
     setMinimumHeight(300);
@@ -77,6 +79,22 @@ void BandMapWidget::sortSpots() {
              });
 }
 
+void BandMapWidget::calculateColumnLayout() {
+    // Calculate column count based on widget width
+    // Each column needs minimum 150 pixels (for "14025.0 M W1ABC" format)
+    const int MIN_COLUMN_WIDTH = 150;
+    int availableWidth = width();
+
+    if (availableWidth < MIN_COLUMN_WIDTH) {
+        m_columnCount = 1;
+        m_columnWidth = availableWidth;
+    } else {
+        m_columnCount = availableWidth / MIN_COLUMN_WIDTH;
+        if (m_columnCount < 1) m_columnCount = 1;
+        m_columnWidth = availableWidth / m_columnCount;
+    }
+}
+
 void BandMapWidget::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
 
@@ -90,10 +108,21 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
     QFontMetrics fm(font);
     int lineHeight = rowHeight();
 
-    // Draw each spot
+    // Draw each spot in multi-column layout
     for (int i = 0; i < m_spots.size(); ++i) {
         const Spot& spot = m_spots[i];
-        int y = i * lineHeight;
+
+        // Calculate row and column for this spot
+        int col = i / ((height() - 50) / lineHeight);  // Which column
+        int row = i % ((height() - 50) / lineHeight);  // Which row in that column
+
+        // Skip if this spot would be off-screen
+        if (col >= m_columnCount) {
+            continue;
+        }
+
+        int x = col * m_columnWidth;
+        int y = row * lineHeight;
 
         // Determine text color
         QColor textColor;
@@ -107,24 +136,24 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
 
         painter.setPen(textColor);
 
-        // Draw frequency (left side)
+        // Draw frequency (left side of column)
         QString freqStr = formatFrequency(spot.frequency);
-        painter.drawText(5, y + fm.ascent() + 2, freqStr);
+        painter.drawText(x + 5, y + fm.ascent() + 2, freqStr);
 
         // Draw "M" marker for multipliers
         if (spot.isMultiplier) {
             painter.setPen(Qt::red);
-            painter.drawText(50, y + fm.ascent() + 2, "M");
+            painter.drawText(x + 50, y + fm.ascent() + 2, "M");
             painter.setPen(textColor);
         }
 
-        // Draw callsign (right side)
-        painter.drawText(70, y + fm.ascent() + 2, spot.callsign);
+        // Draw callsign (right side of column entry)
+        painter.drawText(x + 70, y + fm.ascent() + 2, spot.callsign);
 
         // Highlight selected spot
         if (i == m_selectedIndex) {
             painter.setPen(Qt::yellow);
-            painter.drawRect(2, y + 1, width() - 4, lineHeight - 2);
+            painter.drawRect(x + 2, y + 1, m_columnWidth - 4, lineHeight - 2);
         }
     }
 
@@ -138,7 +167,7 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
 
 void BandMapWidget::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        int spotIndex = findSpotAtPosition(event->pos().y());
+        int spotIndex = findSpotAtPosition(event->pos());
         if (spotIndex >= 0 && spotIndex < m_spots.size()) {
             m_selectedIndex = spotIndex;
             // Single click: QSY to frequency AND populate callsign
@@ -151,7 +180,7 @@ void BandMapWidget::mousePressEvent(QMouseEvent* event) {
 
 void BandMapWidget::mouseDoubleClickEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        int spotIndex = findSpotAtPosition(event->pos().y());
+        int spotIndex = findSpotAtPosition(event->pos());
         if (spotIndex >= 0 && spotIndex < m_spots.size()) {
             emit callsignSelected(m_spots[spotIndex].callsign);
         }
@@ -160,6 +189,7 @@ void BandMapWidget::mouseDoubleClickEvent(QMouseEvent* event) {
 
 void BandMapWidget::resizeEvent(QResizeEvent* event) {
     Q_UNUSED(event);
+    calculateColumnLayout();
     QWidget::update();
 }
 
@@ -167,7 +197,7 @@ void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
     QMenu menu(this);
 
     // Check if user right-clicked on a specific spot
-    int spotIndex = findSpotAtPosition(event->pos().y());
+    int spotIndex = findSpotAtPosition(event->pos());
     if (spotIndex >= 0 && spotIndex < m_spots.size()) {
         const Spot& spot = m_spots[spotIndex];
         QString deleteText = QString("Delete Spot: %1").arg(spot.callsign);
@@ -188,12 +218,28 @@ void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
     menu.exec(event->globalPos());
 }
 
-int BandMapWidget::findSpotAtPosition(int y) {
+int BandMapWidget::findSpotAtPosition(const QPoint& pos) {
     int lineHeight = rowHeight();
-    int spotIndex = y / lineHeight;
+    int rowsPerColumn = (height() - 50) / lineHeight;
+
+    // Determine which column was clicked
+    int col = pos.x() / m_columnWidth;
+    if (col < 0 || col >= m_columnCount) {
+        return -1;
+    }
+
+    // Determine which row in that column was clicked
+    int row = pos.y() / lineHeight;
+    if (row < 0 || row >= rowsPerColumn) {
+        return -1;
+    }
+
+    // Calculate spot index from column and row
+    int spotIndex = (col * rowsPerColumn) + row;
     if (spotIndex >= 0 && spotIndex < m_spots.size()) {
         return spotIndex;
     }
+
     return -1;
 }
 

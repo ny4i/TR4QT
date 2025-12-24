@@ -88,6 +88,8 @@ private:
     QList<Spot> m_spots;
     freq_t m_currentFrequency;
     int m_selectedIndex;
+    int m_columnCount;       // Number of columns to display
+    int m_columnWidth;       // Width of each column in pixels
 
     /**
      * Sort spots by frequency (ascending)
@@ -95,9 +97,14 @@ private:
     void sortSpots();
 
     /**
-     * Find spot at mouse position
+     * Calculate optimal column layout based on widget size
      */
-    int findSpotAtPosition(int y);
+    void calculateColumnLayout();
+
+    /**
+     * Find spot at mouse position (supports multi-column layout)
+     */
+    int findSpotAtPosition(const QPoint& pos);
 
     /**
      * Calculate row height

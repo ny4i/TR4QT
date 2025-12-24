@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.19.0";  // Add: DX Cluster click-to-QSY feature
+constexpr const char* APP_VERSION = "2.20.0";  // Add: BandMap dynamic multi-column layout
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
