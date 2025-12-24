@@ -66,6 +66,7 @@ set(HEADERS
 add_executable(tr4qt
     ${SOURCES}
     ${HEADERS}
+    ../resources/resources.qrc
 )
 
 # Link Qt6 libraries

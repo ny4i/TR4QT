@@ -1,0 +1,7 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource>
+        <file>icons/tr4qt.png</file>
+        <file>icons/tr4qt.ico</file>
+    </qresource>
+</RCC>
