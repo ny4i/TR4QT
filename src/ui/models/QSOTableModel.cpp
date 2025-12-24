@@ -1,4 +1,5 @@
 #include "QSOTableModel.h"
+#include "../../utils/ThemeManager.h"
 #include "../../core/Types.h"
 #include <QBrush>
 #include <QFont>
@@ -10,6 +11,9 @@ namespace TR4QT {
 QSOTableModel::QSOTableModel(QObject* parent)
     : QAbstractTableModel(parent)
 {
+    // Connect to theme changes
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, &QSOTableModel::onThemeChanged);
 }
 
 int QSOTableModel::rowCount(const QModelIndex& parent) const {
@@ -82,7 +86,8 @@ QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
     // Foreground role - text color
     if (role == Qt::ForegroundRole) {
         if (qso.isDupe) {
-            return QBrush(QColor(Qt::red));  // Dupes in red
+            ThemeManager& theme = ThemeManager::instance();
+            return QBrush(theme.color(ColorRole::DupeText));
         }
         return QVariant();  // Default color
     }
@@ -90,7 +95,8 @@ QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
     // Background role - background color
     if (role == Qt::BackgroundRole) {
         if (qso.isMultiplier) {
-            return QBrush(QColor(144, 238, 144));  // Light green for new mults
+            ThemeManager& theme = ThemeManager::instance();
+            return QBrush(theme.color(ColorRole::NewMultiplierBackground));
         }
         return QVariant();  // Default background
     }
@@ -245,6 +251,15 @@ QString QSOTableModel::getExchangeFieldValue(const QSO& qso, int fieldIndex) con
     }
 
     return QString();
+}
+
+void QSOTableModel::onThemeChanged() {
+    // Refresh all cells when theme changes
+    if (!m_qsos.isEmpty()) {
+        QModelIndex topLeft = index(0, 0);
+        QModelIndex bottomRight = index(m_qsos.size() - 1, ColCount - 1);
+        emit dataChanged(topLeft, bottomRight, {Qt::ForegroundRole, Qt::BackgroundRole});
+    }
 }
 
 } // namespace TR4QT

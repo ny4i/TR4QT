@@ -1,6 +1,7 @@
 #include "DXClusterWindow.h"
 #include "../../core/Constants.h"
 #include "../../utils/AppSettings.h"
+#include "../../utils/ThemeManager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QToolBar>
@@ -48,6 +49,11 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
                 this, &DXClusterWindow::onTelnetSpotReceived,
                 Qt::QueuedConnection);
     }
+
+    // Connect to theme changes
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, &DXClusterWindow::applyTheme);
+    applyTheme();  // Apply initial theme
 
     setWindowTitle("DX Cluster");
 
@@ -119,14 +125,14 @@ void DXClusterWindow::setupUI() {
 
     // Status label
     m_statusLabel = new QLabel("DISCONNECTED", this);
-    m_statusLabel->setStyleSheet("QLabel { color: red; font-weight: bold; }");
+    // Initial style will be set by applyTheme()
     mainLayout->addWidget(m_statusLabel);
 
     // Text display
     m_textDisplay = new QTextEdit(this);
     m_textDisplay->setReadOnly(true);
     m_textDisplay->setFont(QFont("Monospace", 9));
-    m_textDisplay->setStyleSheet("QTextEdit { background-color: white; color: black; }");
+    // Background style will be set by applyTheme()
     m_textDisplay->viewport()->setCursor(Qt::PointingHandCursor);  // Show it's clickable
     mainLayout->addWidget(m_textDisplay);
 
@@ -264,9 +270,12 @@ void DXClusterWindow::onFreezeClicked() {
     m_isFrozen = m_freezeButton->isChecked();
 
     // Update button appearance to show frozen state
+    ThemeManager& theme = ThemeManager::instance();
+
     if (m_isFrozen) {
         m_freezeButton->setText("FROZEN");
-        m_freezeButton->setStyleSheet("QPushButton { background-color: #FFB6C1; font-weight: bold; }");
+        m_freezeButton->setStyleSheet(QString("QPushButton { background-color: %1; font-weight: bold; }")
+            .arg(theme.color(ColorRole::FrozenIndicator).name()));
     } else {
         m_freezeButton->setText("Freeze");
         m_freezeButton->setStyleSheet("");
@@ -356,14 +365,18 @@ void DXClusterWindow::onTelnetSpotReceived(const QString& callsign,
 }
 
 void DXClusterWindow::updateConnectionStatus(bool connected) {
+    ThemeManager& theme = ThemeManager::instance();
+
     if (connected) {
         m_statusLabel->setText("CONNECTED");
-        m_statusLabel->setStyleSheet("QLabel { color: green; font-weight: bold; }");
+        m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
+            .arg(theme.color(ColorRole::ConnectedStatus).name()));
         m_connectButton->setEnabled(false);
         m_disconnectButton->setEnabled(true);
     } else {
         m_statusLabel->setText("DISCONNECTED");
-        m_statusLabel->setStyleSheet("QLabel { color: red; font-weight: bold; }");
+        m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
+            .arg(theme.color(ColorRole::DisconnectedStatus).name()));
         m_connectButton->setEnabled(true);
         m_disconnectButton->setEnabled(false);
     }
@@ -415,6 +428,24 @@ void DXClusterWindow::onTextDisplayClicked() {
             qDebug() << "DXClusterWindow: Click-to-QSY:" << frequency << "Hz from line:" << line;
             emit qsyRequested(frequency);
         }
+    }
+}
+
+void DXClusterWindow::applyTheme() {
+    ThemeManager& theme = ThemeManager::instance();
+
+    // Update text display background
+    m_textDisplay->setStyleSheet(QString("QTextEdit { background-color: %1; }")
+        .arg(theme.color(ColorRole::TextDisplayBackground).name()));
+
+    // Update status label (maintain current connection state)
+    bool isConnected = (m_statusLabel->text() == "CONNECTED");
+    updateConnectionStatus(isConnected);
+
+    // Update freeze button if frozen
+    if (m_isFrozen) {
+        m_freezeButton->setStyleSheet(QString("QPushButton { background-color: %1; font-weight: bold; }")
+            .arg(theme.color(ColorRole::FrozenIndicator).name()));
     }
 }
 

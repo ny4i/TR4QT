@@ -71,6 +71,7 @@ private:
     void saveSettings();
     void updateConnectionStatus(bool connected);
     void appendText(const QString& text, const QColor& color = Qt::black);
+    void applyTheme();
 
     // UI elements
     QComboBox* m_serverCombo;
