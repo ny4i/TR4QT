@@ -123,25 +123,22 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
 
     // Reserve space at bottom for spot count
     const int FOOTER_HEIGHT = fm.height() + 10;
-    int availableHeight = viewportHeight - FOOTER_HEIGHT;
-    int rowsPerColumn = availableHeight / lineHeight;
-    if (rowsPerColumn < 1) rowsPerColumn = 1;
 
-    // Draw each spot in multi-column layout
+    // Draw each spot in multi-column layout (row-first: left-to-right, then top-to-bottom)
     for (int i = 0; i < m_spots.size(); ++i) {
         const Spot& spot = m_spots[i];
 
-        // Calculate row and column for this spot
-        int col = i / rowsPerColumn;  // Which column
-        int row = i % rowsPerColumn;  // Which row in that column
-
-        // Skip if this spot would be off-screen horizontally
-        if (col >= m_columnCount) {
-            continue;
-        }
+        // Row-first layout: spots flow left-to-right, then top-to-bottom
+        int globalRow = i / m_columnCount;  // Which row across all columns
+        int col = i % m_columnCount;        // Which column in that row
 
         int x = col * m_columnWidth;
-        int y = row * lineHeight - scrollY;
+        int y = globalRow * lineHeight - scrollY;
+
+        // Skip if this spot would be off-screen vertically
+        if (y + lineHeight < 0 || y >= viewportHeight - FOOTER_HEIGHT) {
+            continue;
+        }
 
         // Determine text color (for white background)
         QColor textColor;
@@ -242,26 +239,21 @@ int BandMapWidget::findSpotAtPosition(const QPoint& pos) {
     int lineHeight = rowHeight();
     int scrollY = verticalScrollBar()->value();
 
-    QFontMetrics fm(QFont("Monospace", 9));
-    const int FOOTER_HEIGHT = fm.height() + 10;
-    int availableHeight = viewport()->height() - FOOTER_HEIGHT;
-    int rowsPerColumn = availableHeight / lineHeight;
-    if (rowsPerColumn < 1) rowsPerColumn = 1;
-
     // Determine which column was clicked
     int col = pos.x() / m_columnWidth;
     if (col < 0 || col >= m_columnCount) {
         return -1;
     }
 
-    // Determine which row in that column was clicked (accounting for scroll)
-    int row = (pos.y() + scrollY) / lineHeight;
-    if (row < 0 || row >= rowsPerColumn) {
+    // Determine which global row was clicked (accounting for scroll)
+    int globalRow = (pos.y() + scrollY) / lineHeight;
+    if (globalRow < 0) {
         return -1;
     }
 
-    // Calculate spot index from column and row
-    int spotIndex = (col * rowsPerColumn) + row;
+    // Calculate spot index from row-first layout (left-to-right, then top-to-bottom)
+    int spotIndex = (globalRow * m_columnCount) + col;
+
     if (spotIndex >= 0 && spotIndex < m_spots.size()) {
         return spotIndex;
     }
@@ -294,32 +286,19 @@ QString BandMapWidget::formatFrequency(freq_t freq) const {
 }
 
 void BandMapWidget::updateScrollBars() {
-    // Calculate content height based on number of spots and column layout
+    // Calculate content height based on row-first layout (left-to-right, then top-to-bottom)
     int lineHeight = rowHeight();
 
     QFontMetrics fm(QFont("Monospace", 9));
     const int FOOTER_HEIGHT = fm.height() + 10;
     int availableHeight = viewport()->height() - FOOTER_HEIGHT;
-    int rowsPerColumn = availableHeight / lineHeight;
-    if (rowsPerColumn < 1) rowsPerColumn = 1;
 
-    // Calculate total number of columns needed for all spots
-    int totalColumns = (m_spots.size() + rowsPerColumn - 1) / rowsPerColumn;
+    // Safety check
+    if (m_columnCount < 1) m_columnCount = 1;
 
-    // Content height is the height needed for one full column of spots
-    int contentHeight = rowsPerColumn * lineHeight;
-
-    // Only show scrollbar if we have more columns than can fit
-    if (totalColumns > m_columnCount) {
-        // Calculate overflow: extra rows that don't fit in visible columns
-        int visibleSpots = m_columnCount * rowsPerColumn;
-        int hiddenSpots = m_spots.size() - visibleSpots;
-        if (hiddenSpots > 0) {
-            // Add extra height for the overflow
-            int extraRows = (hiddenSpots + m_columnCount - 1) / m_columnCount;
-            contentHeight += extraRows * lineHeight;
-        }
-    }
+    // Calculate total rows needed (spots flow across columns, then down to next row)
+    int totalRows = (m_spots.size() + m_columnCount - 1) / m_columnCount;
+    int contentHeight = totalRows * lineHeight;
 
     // Set vertical scrollbar range
     verticalScrollBar()->setPageStep(availableHeight);
