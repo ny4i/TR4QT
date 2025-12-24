@@ -18,6 +18,7 @@ BandMapWidget::BandMapWidget(QWidget* parent)
     , m_selectedIndex(-1)
     , m_columnCount(1)
     , m_columnWidth(200)
+    , m_sortMode(BandMapSortMode::Frequency)  // Default: sort by frequency
 {
     setMinimumWidth(200);
     setMinimumHeight(50);  // Allow very short windows (reduced from 300)
@@ -84,10 +85,19 @@ void BandMapWidget::setCurrentFrequency(freq_t freq) {
 }
 
 void BandMapWidget::sortSpots() {
-    std::sort(m_spots.begin(), m_spots.end(),
-             [](const Spot& a, const Spot& b) {
-                 return a.frequency < b.frequency;
-             });
+    if (m_sortMode == BandMapSortMode::Frequency) {
+        // Sort by frequency (ascending)
+        std::sort(m_spots.begin(), m_spots.end(),
+                 [](const Spot& a, const Spot& b) {
+                     return a.frequency < b.frequency;
+                 });
+    } else {
+        // Sort alphabetically by callsign
+        std::sort(m_spots.begin(), m_spots.end(),
+                 [](const Spot& a, const Spot& b) {
+                     return a.callsign < b.callsign;
+                 });
+    }
 }
 
 void BandMapWidget::calculateColumnLayout() {
@@ -239,6 +249,27 @@ void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
 
         menu.addSeparator();
     }
+
+    // Sort options
+    QAction* sortByFreqAction = menu.addAction("Sort by Frequency");
+    sortByFreqAction->setCheckable(true);
+    sortByFreqAction->setChecked(m_sortMode == BandMapSortMode::Frequency);
+    connect(sortByFreqAction, &QAction::triggered, this, [this]() {
+        m_sortMode = BandMapSortMode::Frequency;
+        sortSpots();
+        viewport()->update();
+    });
+
+    QAction* sortByCallAction = menu.addAction("Sort by Callsign");
+    sortByCallAction->setCheckable(true);
+    sortByCallAction->setChecked(m_sortMode == BandMapSortMode::Callsign);
+    connect(sortByCallAction, &QAction::triggered, this, [this]() {
+        m_sortMode = BandMapSortMode::Callsign;
+        sortSpots();
+        viewport()->update();
+    });
+
+    menu.addSeparator();
 
     QAction* clearAction = menu.addAction("Clear All Spots");
     connect(clearAction, &QAction::triggered, this, &BandMapWidget::clearSpots);
