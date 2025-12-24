@@ -32,6 +32,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_nextSerialNumber(1)
 {
     setWindowTitle(QString("%1 v%2").arg(APP_NAME).arg(APP_VERSION));
+    setWindowIcon(QIcon(":/icons/tr4qt.png"));
 
     // Load country file for exchange auto-population
     QString countryFilePath = AppSettings::instance().getCountryFilePath();
