@@ -1,5 +1,6 @@
 #include "RadioEnumerator.h"
 #include <QDebug>
+#include <QMap>
 #include <algorithm>
 
 namespace TR4QT {
@@ -30,9 +31,17 @@ int RadioEnumerator::enumerateCallback(const struct rig_caps* caps, rig_ptr_t da
     if (caps->rig_model == RIG_MODEL_NONE ||
         caps->rig_model == RIG_MODEL_DUMMY ||
         caps->rig_model == RIG_MODEL_NETRIGCTL ||
-        caps->rig_model == RIG_MODEL_DUMMY_NOVFO ||
-        !caps->model_name ||
-        !caps->mfg_name) {
+        caps->rig_model == RIG_MODEL_DUMMY_NOVFO) {
+        // These are intentionally filtered - don't log
+        return 1;  // Continue enumeration
+    }
+
+    // Check for NULL manufacturer or model name
+    if (!caps->model_name || !caps->mfg_name) {
+        qWarning() << "Filtering radio" << caps->rig_model
+                   << "- NULL data:"
+                   << "mfg=" << (caps->mfg_name ? caps->mfg_name : "NULL")
+                   << "model=" << (caps->model_name ? caps->model_name : "NULL");
         return 1;  // Continue enumeration
     }
 
@@ -67,6 +76,22 @@ QList<RadioModelInfo> RadioEnumerator::getAvailableRadios() {
         });
 
     qDebug() << "Enumerated" << radios.size() << "radios from hamlib";
+
+    // Log manufacturer counts for diagnostic purposes
+    QMap<QString, int> mfgCounts;
+    for (const RadioModelInfo& radio : radios) {
+        mfgCounts[radio.manufacturer]++;
+    }
+
+    // Log counts for major manufacturers
+    QStringList majorMfgs = {"Icom", "Yaesu", "Kenwood", "Elecraft", "FlexRadio"};
+    for (const QString& mfg : majorMfgs) {
+        if (mfgCounts.contains(mfg)) {
+            qDebug() << "  -" << mfg << ":" << mfgCounts[mfg] << "radios";
+        } else {
+            qDebug() << "  -" << mfg << ": 0 radios (NOT FOUND)";
+        }
+    }
 
     return radios;
 }
