@@ -64,13 +64,8 @@ MainWindow::MainWindow(QWidget* parent)
     loadSettings();
     loadUdpBroadcastSettings();
 
-    // Initialize backup manager with defaults
-    // TODO: Load from settings when PreferencesDialog integration is complete
-    BackupManager& backup = BackupManager::instance();
-    backup.setAutoBackupEnabled(false);  // Disabled by default - user must enable
-    backup.setAutoBackupInterval(50);    // Every 50 QSOs
-    backup.setBackupDirectory(QDir::homePath() + "/.tr4qt/backups");
-    backup.setMaxBackups(10);           // Keep 10 most recent
+    // Initialize backup manager from settings
+    loadBackupSettings();
 
     // Setup update timer for time since last QSO and rate calculations
     m_updateTimer = new QTimer(this);
@@ -1331,6 +1326,23 @@ void MainWindow::loadUdpBroadcastSettings() {
              << "RadioInfo=" << settings.getUDPRadioInfoEnabled()
              << "ContactInfo=" << settings.getUDPContactInfoEnabled()
              << "Destinations=" << destinations.size();
+}
+
+void MainWindow::loadBackupSettings() {
+    AppSettings& settings = AppSettings::instance();
+    BackupManager& backup = BackupManager::instance();
+
+    // Configure backup manager from settings
+    backup.setAutoBackupEnabled(settings.getAutoBackupEnabled());
+    backup.setAutoBackupInterval(settings.getAutoBackupInterval());
+    backup.setBackupDirectory(settings.getBackupDirectory());
+    backup.setMaxBackups(settings.getMaxBackups());
+
+    qDebug() << "Backup settings loaded:"
+             << "Enabled=" << settings.getAutoBackupEnabled()
+             << "Interval=" << settings.getAutoBackupInterval()
+             << "Directory=" << settings.getBackupDirectory()
+             << "MaxBackups=" << settings.getMaxBackups();
 }
 
 void MainWindow::activateContest(const ContestInfo& contestInfo) {

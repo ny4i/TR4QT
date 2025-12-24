@@ -11,6 +11,7 @@
 #include <QGroupBox>
 #include <QListWidget>
 #include <QPushButton>
+#include <QLabel>
 #include "../../radio/RadioInterface.h"
 #include "../../utils/DXClusterListDownloader.h"
 
@@ -59,6 +60,9 @@ private slots:
     void onDownloadClusterList();
     void onClusterListDownloadFinished(bool success, const QList<DXClusterServer>& servers);
 
+    // Backup slots
+    void onBrowseBackupDirectory();
+
 private:
     void setupUI();
     void loadSettings();
@@ -71,6 +75,7 @@ private:
     QWidget* createUDPBroadcastTab();
     QWidget* createAppearanceTab();
     QWidget* createLoggingTab();
+    QWidget* createBackupTab();
     QWidget* createContestTab();
     QWidget* createAdvancedTab();
 
@@ -129,6 +134,14 @@ private:
     QLineEdit* m_logFilePathEdit;
     QSpinBox* m_logMaxFileSizeSpin;
     QSpinBox* m_logMaxBackupFilesSpin;
+
+    // Backup tab widgets
+    QCheckBox* m_autoBackupEnabledCheck;
+    QSpinBox* m_autoBackupIntervalSpin;
+    QLineEdit* m_backupDirectoryEdit;
+    QPushButton* m_browseBackupDirButton;
+    QSpinBox* m_maxBackupsSpin;
+    QLabel* m_backupInfoLabel;
 
     // Contest tab widgets
     QComboBox* m_defaultContestCombo;

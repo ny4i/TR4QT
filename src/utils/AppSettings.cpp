@@ -235,6 +235,44 @@ QStringList AppSettings::getDXClusterList() const {
     return m_settings.value("DXCluster/serverList", QStringList()).toStringList();
 }
 
+void AppSettings::setAutoBackupEnabled(bool enabled) {
+    m_settings.setValue("Backup/autoBackupEnabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getAutoBackupEnabled() const {
+    return m_settings.value("Backup/autoBackupEnabled", false).toBool();
+}
+
+void AppSettings::setAutoBackupInterval(int qsoCount) {
+    m_settings.setValue("Backup/autoBackupInterval", qsoCount);
+    m_settings.sync();
+}
+
+int AppSettings::getAutoBackupInterval() const {
+    return m_settings.value("Backup/autoBackupInterval", 50).toInt();
+}
+
+void AppSettings::setBackupDirectory(const QString& path) {
+    m_settings.setValue("Backup/backupDirectory", path);
+    m_settings.sync();
+}
+
+QString AppSettings::getBackupDirectory() const {
+    // Default to ~/.tr4qt/backups
+    QString defaultPath = QDir::homePath() + "/.tr4qt/backups";
+    return m_settings.value("Backup/backupDirectory", defaultPath).toString();
+}
+
+void AppSettings::setMaxBackups(int count) {
+    m_settings.setValue("Backup/maxBackups", count);
+    m_settings.sync();
+}
+
+int AppSettings::getMaxBackups() const {
+    return m_settings.value("Backup/maxBackups", 10).toInt();
+}
+
 void AppSettings::setCountryFileVersion(int version) {
     m_settings.setValue("CountryFile/version", version);
     m_settings.sync();

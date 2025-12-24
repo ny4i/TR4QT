@@ -87,6 +87,19 @@ public:
     void saveDXClusterList(const QStringList& servers);
     QStringList getDXClusterList() const;
 
+    // Backup settings
+    void setAutoBackupEnabled(bool enabled);
+    bool getAutoBackupEnabled() const;
+
+    void setAutoBackupInterval(int qsoCount);
+    int getAutoBackupInterval() const;
+
+    void setBackupDirectory(const QString& path);
+    QString getBackupDirectory() const;
+
+    void setMaxBackups(int count);
+    int getMaxBackups() const;
+
     // Country file
     void setCountryFileVersion(int version);
     int getCountryFileVersion() const;
