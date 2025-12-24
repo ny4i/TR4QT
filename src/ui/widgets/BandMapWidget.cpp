@@ -23,19 +23,22 @@ BandMapWidget::BandMapWidget(QWidget* parent)
     setMinimumHeight(300);
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 
-    // Dark background like TR4W
+    // White background with black text (system default style)
     QPalette pal = viewport()->palette();
-    pal.setColor(QPalette::Base, QColor(0, 0, 0));
-    pal.setColor(QPalette::Text, QColor(255, 255, 255));
+    pal.setColor(QPalette::Base, Qt::white);
+    pal.setColor(QPalette::Text, Qt::black);
     viewport()->setAutoFillBackground(true);
     viewport()->setPalette(pal);
 
-    // Enable vertical scrolling
-    setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    // Enable vertical scrolling - always show to make it clear scrolling is available
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     // Enable context menu
     setContextMenuPolicy(Qt::DefaultContextMenu);
+
+    // Initialize scrollbar ranges
+    updateScrollBars();
 }
 
 void BandMapWidget::addSpot(const Spot& spot) {
@@ -107,7 +110,7 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
 
     QPainter painter(viewport());
-    painter.fillRect(viewport()->rect(), Qt::black);
+    painter.fillRect(viewport()->rect(), Qt::white);
 
     QFont font("Monospace", 9);
     font.setBold(true);
@@ -140,14 +143,14 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
         int x = col * m_columnWidth;
         int y = row * lineHeight - scrollY;
 
-        // Determine text color
+        // Determine text color (for white background)
         QColor textColor;
         if (spot.isMultiplier) {
-            textColor = QColor(100, 149, 237);  // Cornflower blue for multipliers
+            textColor = Qt::blue;  // Blue for multipliers (more visible on white)
         } else if (spot.isWorked) {
-            textColor = QColor(128, 128, 128);  // Gray for worked stations
+            textColor = QColor(160, 160, 160);  // Light gray for worked stations
         } else {
-            textColor = Qt::white;  // White for unworked non-mults
+            textColor = Qt::black;  // Black for unworked non-mults
         }
 
         painter.setPen(textColor);
@@ -166,15 +169,15 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
         // Draw callsign (right side of column entry)
         painter.drawText(x + 70, y + fm.ascent() + 2, spot.callsign);
 
-        // Highlight selected spot
+        // Highlight selected spot with blue rectangle
         if (i == m_selectedIndex) {
-            painter.setPen(Qt::yellow);
+            painter.setPen(QPen(Qt::blue, 2));
             painter.drawRect(x + 2, y + 1, m_columnWidth - 4, lineHeight - 2);
         }
     }
 
     // Draw spot count at bottom (always visible, not scrolled)
-    painter.setPen(Qt::cyan);
+    painter.setPen(Qt::darkBlue);
     QString countStr = QString("%1 spots").arg(m_spots.size());
     int countY = viewportHeight - fm.height() - 5;
     painter.drawText(viewport()->width() / 2 - fm.horizontalAdvance(countStr) / 2,
