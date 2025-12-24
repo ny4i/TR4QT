@@ -1,7 +1,7 @@
 #ifndef BANDMAPWIDGET_H
 #define BANDMAPWIDGET_H
 
-#include <QWidget>
+#include <QAbstractScrollArea>
 #include <QList>
 #include <QDateTime>
 #include <hamlib/rig.h>
@@ -33,8 +33,9 @@ struct Spot {
  * - Automatic aging/removal of old spots
  * - Manual spot entry
  * - Integration with DX Cluster
+ * - Scrollable when content exceeds viewport
  */
-class BandMapWidget : public QWidget {
+class BandMapWidget : public QAbstractScrollArea {
     Q_OBJECT
 
 public:
@@ -83,6 +84,7 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void contextMenuEvent(QContextMenuEvent* event) override;
+    void scrollContentsBy(int dx, int dy) override;
 
 private:
     QList<Spot> m_spots;
@@ -115,6 +117,11 @@ private:
      * Format frequency for display (e.g., "7050.0")
      */
     QString formatFrequency(freq_t freq) const;
+
+    /**
+     * Update scrollbar ranges based on content size
+     */
+    void updateScrollBars();
 };
 
 } // namespace TR4QT
