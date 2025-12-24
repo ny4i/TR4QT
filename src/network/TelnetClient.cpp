@@ -125,10 +125,11 @@ bool TelnetClient::parseSpotLine(const QString& line) {
     // DX de SPOTTER:   FREQUENCY  CALLSIGN  COMMENT                 TIME Z
     // Example:
     // DX de W1AW:     14025.0  DL1ABC        CQ                      2345 Z
+    // DX de WX7V/5-#:   7032.0  G7MVH        CW 18 dB 15 WPM CQ             0433Z
 
-    // Regex pattern for DX spots
+    // Regex pattern for DX spots (allows /, -, # in callsigns)
     static QRegularExpression spotRegex(
-        R"(^DX\s+de\s+([A-Z0-9/]+):\s+([0-9.]+)\s+([A-Z0-9/]+)\s+(.+?)\s+(\d{4})Z?$)",
+        R"(^DX\s+de\s+([A-Z0-9/\-#]+):\s+([0-9.]+)\s+([A-Z0-9/\-]+)\s+(.+?)\s+(\d{4})Z?$)",
         QRegularExpression::CaseInsensitiveOption
     );
 

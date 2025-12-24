@@ -1,6 +1,10 @@
 #include "MainWindow.h"
 #include "dialogs/RadioConfigDialog.h"
 #include "dialogs/PreferencesDialog.h"
+#include "widgets/DXClusterWindow.h"
+#include "widgets/BandMapWidget.h"
+#include "widgets/RadioControlWidget.h"
+#include "widgets/MultiplierWidget.h"
 #include "../core/Constants.h"
 #include "../utils/ADIFExporter.h"
 #include "../utils/CabrilloExporter.h"
@@ -26,6 +30,10 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , m_radio(new RadioController(this))
     , m_radioConnected(false)
+    , m_dxClusterWindow(nullptr)
+    , m_bandMapWindow(nullptr)
+    , m_radioControlWindow(nullptr)
+    , m_multiplierWindow(nullptr)
     , m_qsosThisHour(0)
     , m_hasActiveContest(false)
     , m_activeContest(nullptr)
@@ -76,7 +84,8 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 MainWindow::~MainWindow() {
-    saveSettings();
+    // Settings are already saved in closeEvent()
+    // Don't save here as windows will be closed and visibility will be wrong
 
     // Clean up active contest
     if (m_activeContest) {
@@ -150,6 +159,25 @@ void MainWindow::createMenuBar() {
     m_disconnectAction->setEnabled(false);
     connect(m_disconnectAction, &QAction::triggered, this, &MainWindow::onRadioDisconnect);
 
+    // Window menu
+    QMenu* windowMenu = menuBar->addMenu("&Window");
+
+    QAction* dxClusterAction = windowMenu->addAction("DX &Cluster");
+    dxClusterAction->setShortcut(QKeySequence("Ctrl+Shift+D"));
+    connect(dxClusterAction, &QAction::triggered, this, &MainWindow::onShowDXCluster);
+
+    QAction* bandMapAction = windowMenu->addAction("&Band Map");
+    bandMapAction->setShortcut(QKeySequence("Ctrl+Shift+B"));
+    connect(bandMapAction, &QAction::triggered, this, &MainWindow::onShowBandMap);
+
+    QAction* radioControlAction = windowMenu->addAction("&Radio Control");
+    radioControlAction->setShortcut(QKeySequence("Ctrl+Shift+R"));
+    connect(radioControlAction, &QAction::triggered, this, &MainWindow::onShowRadioControl);
+
+    QAction* multipliersAction = windowMenu->addAction("&Multipliers");
+    multipliersAction->setShortcut(QKeySequence("Ctrl+Shift+M"));
+    connect(multipliersAction, &QAction::triggered, this, &MainWindow::onShowMultipliers);
+
     // Help menu
     QMenu* helpMenu = menuBar->addMenu("&Help");
     QAction* aboutAction = helpMenu->addAction("&About");
@@ -164,6 +192,8 @@ void MainWindow::createCentralWidget() {
 
     // Top: Band summary grid
     m_bandSummaryGrid = new BandSummaryGrid(this);
+    connect(m_bandSummaryGrid, &BandSummaryGrid::bandClicked,
+            this, &MainWindow::onBandClicked);
     mainLayout->addWidget(m_bandSummaryGrid);
 
     // Middle: QSO table (takes most space)
@@ -410,22 +440,122 @@ void MainWindow::loadSettings() {
 
     // Apply font settings
     applyFontSettings();
+
+    // Restore child windows if they were visible
+    qDebug() << "DX Cluster was visible:" << settings.getDXClusterVisible();
+    if (settings.getDXClusterVisible()) {
+        qDebug() << "Restoring DX Cluster window";
+        onShowDXCluster();
+        QByteArray dxGeometry = settings.loadDXClusterGeometry();
+        if (!dxGeometry.isEmpty()) {
+            m_dxClusterWindow->restoreGeometry(dxGeometry);
+        }
+    }
+
+    qDebug() << "Band Map was visible:" << settings.getBandMapVisible();
+    if (settings.getBandMapVisible()) {
+        qDebug() << "Restoring Band Map window";
+        onShowBandMap();
+        QByteArray bmGeometry = settings.loadBandMapGeometry();
+        if (!bmGeometry.isEmpty()) {
+            m_bandMapWindow->restoreGeometry(bmGeometry);
+        }
+    }
+
+    qDebug() << "Radio Control was visible:" << settings.getRadioControlVisible();
+    if (settings.getRadioControlVisible()) {
+        qDebug() << "Restoring Radio Control window";
+        onShowRadioControl();
+        QByteArray rcGeometry = settings.loadRadioControlGeometry();
+        if (!rcGeometry.isEmpty()) {
+            m_radioControlWindow->restoreGeometry(rcGeometry);
+        }
+    }
+
+    qDebug() << "Multipliers was visible:" << settings.getMultipliersVisible();
+    if (settings.getMultipliersVisible()) {
+        qDebug() << "Restoring Multipliers window";
+        onShowMultipliers();
+        QByteArray multGeometry = settings.loadMultipliersGeometry();
+        if (!multGeometry.isEmpty()) {
+            m_multiplierWindow->restoreGeometry(multGeometry);
+        }
+    }
 }
 
 void MainWindow::saveSettings() {
     AppSettings& settings = AppSettings::instance();
     settings.saveWindowGeometry(saveGeometry());
     settings.saveWindowState(saveState());
+
+    // Save child window geometry and visibility states
+    if (m_dxClusterWindow) {
+        bool visible = m_dxClusterWindow->isVisible();
+        qDebug() << "Saving DX Cluster window - visible:" << visible;
+        settings.saveDXClusterGeometry(m_dxClusterWindow->saveGeometry());
+        settings.setDXClusterVisible(visible);
+    }
+
+    if (m_bandMapWindow) {
+        bool visible = m_bandMapWindow->isVisible();
+        qDebug() << "Saving Band Map window - visible:" << visible;
+        settings.saveBandMapGeometry(m_bandMapWindow->saveGeometry());
+        settings.setBandMapVisible(visible);
+    }
+
+    if (m_radioControlWindow) {
+        bool visible = m_radioControlWindow->isVisible();
+        qDebug() << "Saving Radio Control window - visible:" << visible;
+        settings.saveRadioControlGeometry(m_radioControlWindow->saveGeometry());
+        settings.setRadioControlVisible(visible);
+    }
+
+    if (m_multiplierWindow) {
+        bool visible = m_multiplierWindow->isVisible();
+        qDebug() << "Saving Multipliers window - visible:" << visible;
+        settings.saveMultipliersGeometry(m_multiplierWindow->saveGeometry());
+        settings.setMultipliersVisible(visible);
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
+    // Ask for confirmation before closing
+    QMessageBox::StandardButton reply;
+    reply = QMessageBox::question(this, "Confirm Exit",
+                                  "Are you sure you want to exit TR4QT?",
+                                  QMessageBox::Yes | QMessageBox::No);
+
+    if (reply == QMessageBox::No) {
+        event->ignore();
+        return;
+    }
+
+    // Save settings BEFORE closing windows (so visibility state is correct)
+    saveSettings();
+
+    // Close all child windows
+    if (m_dxClusterWindow) {
+        m_dxClusterWindow->close();
+    }
+    if (m_bandMapWindow) {
+        m_bandMapWindow->close();
+    }
+    if (m_radioControlWindow) {
+        m_radioControlWindow->close();
+    }
+    if (m_multiplierWindow) {
+        m_multiplierWindow->close();
+    }
+
     // Disconnect radio before closing
     if (m_radioConnected) {
         m_radio->disconnectFromRadio();
     }
 
-    saveSettings();
     event->accept();
+
+    // Ensure application quits
+    QApplication::quit();
 }
 
 void MainWindow::onRadioConfigure() {
@@ -738,6 +868,11 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
 
     // Update radio status grid with new state
     updateRadioStatusGrid();
+
+    // Update radio control window if it's open
+    if (m_radioControlWindow && m_radioControlWindow->isVisible()) {
+        m_radioControlWindow->updateRadioState(state);
+    }
 }
 
 void MainWindow::onRadioError(const QString& error) {
@@ -1036,6 +1171,153 @@ void MainWindow::autoPopulateExchange(const QString& callsign) {
     // If we have auto-populated data, set it in the exchange field
     if (!exchangeParts.isEmpty()) {
         m_exchangeEntry->setText(exchangeParts.join(" "));
+    }
+}
+
+// Window menu slot implementations
+
+void MainWindow::onShowDXCluster() {
+    if (!m_dxClusterWindow) {
+        m_dxClusterWindow = new DXClusterWindow();
+        m_dxClusterWindow->setWindowTitle("DX Cluster");
+        m_dxClusterWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Connect spot signal to forward spots to band map
+        connect(m_dxClusterWindow, &DXClusterWindow::spotReceived,
+                this, &MainWindow::onDXSpotReceived);
+    }
+    m_dxClusterWindow->show();
+    m_dxClusterWindow->raise();
+    m_dxClusterWindow->activateWindow();
+}
+
+void MainWindow::onShowBandMap() {
+    if (!m_bandMapWindow) {
+        m_bandMapWindow = new BandMapWidget();
+        m_bandMapWindow->setWindowTitle("Band Map");
+        m_bandMapWindow->setWindowFlags(Qt::Window);
+        m_bandMapWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Connect band map signals
+        connect(m_bandMapWindow, &BandMapWidget::qsyRequested,
+                this, [this](freq_t frequency) {
+                    if (m_radioConnected) {
+                        qDebug() << "Band Map QSY to" << QString::number(frequency) << "Hz";
+                        m_radio->setFrequency(frequency);
+                    }
+                });
+
+        connect(m_bandMapWindow, &BandMapWidget::callsignSelected,
+                this, [this](const QString& callsign) {
+                    qDebug() << "Band Map selected callsign:" << callsign;
+                    m_callsignEntry->setText(callsign);
+                    m_callsignEntry->setFocus();
+                });
+    }
+    m_bandMapWindow->show();
+    m_bandMapWindow->raise();
+    m_bandMapWindow->activateWindow();
+}
+
+void MainWindow::onShowRadioControl() {
+    if (!m_radioControlWindow) {
+        m_radioControlWindow = new RadioControlWidget();
+        m_radioControlWindow->setWindowTitle("Radio Control");
+        m_radioControlWindow->setWindowFlags(Qt::Window);
+        m_radioControlWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Update with current radio state
+        if (m_radioConnected) {
+            m_radioControlWindow->updateRadioState(m_currentState);
+        }
+    }
+    m_radioControlWindow->show();
+    m_radioControlWindow->raise();
+    m_radioControlWindow->activateWindow();
+}
+
+void MainWindow::onShowMultipliers() {
+    if (!m_multiplierWindow) {
+        m_multiplierWindow = new MultiplierWidget();
+        m_multiplierWindow->setWindowTitle("Multipliers");
+        m_multiplierWindow->setWindowFlags(Qt::Window);
+        m_multiplierWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+    }
+    m_multiplierWindow->show();
+    m_multiplierWindow->raise();
+    m_multiplierWindow->activateWindow();
+}
+
+void MainWindow::onDXSpotReceived(const QString& callsign,
+                                   double frequency,
+                                   const QString& spotter,
+                                   const QString& comment) {
+    qDebug() << "DX Spot received:" << callsign << "at" << frequency << "MHz from" << spotter;
+
+    // If band map window exists, forward the spot to it
+    if (m_bandMapWindow) {
+        Spot spot;
+        spot.callsign = callsign;
+        spot.frequency = static_cast<freq_t>(frequency * 1e6);  // Convert MHz to Hz
+        spot.timestamp = QDateTime::currentDateTime();
+        spot.isMultiplier = false;  // TODO: Check if this is a needed multiplier
+        spot.isWorked = false;       // TODO: Check if we've worked this station
+        spot.source = QString("DX Cluster (%1)").arg(spotter);
+
+        m_bandMapWindow->addSpot(spot);
+        qDebug() << "Added spot to band map:" << callsign;
+    } else {
+        qDebug() << "Band map window not open - spot not added";
+    }
+}
+
+void MainWindow::onBandClicked(BandType band) {
+    if (!m_radioConnected) {
+        qDebug() << "Cannot change band: radio not connected";
+        return;
+    }
+
+    // Get frequency for the clicked band based on current mode
+    freq_t frequency = getFrequencyForBand(band, m_currentState.modeA);
+
+    qDebug() << "Band clicked:" << static_cast<int>(band)
+             << "Setting frequency to:" << QString::number(frequency) << "Hz";
+
+    // Send frequency change to radio
+    m_radio->setFrequency(frequency);
+}
+
+void MainWindow::onBandUp() {
+    // TODO: Implement band up
+    qDebug() << "Band up";
+}
+
+void MainWindow::onBandDown() {
+    // TODO: Implement band down
+    qDebug() << "Band down";
+}
+
+freq_t MainWindow::getFrequencyForBand(BandType band, ModeType mode) const {
+    // Determine if we're in a CW mode
+    bool isCW = (mode == ModeType::CW || mode == ModeType::RTTY);
+
+    // Return appropriate frequency for band and mode
+    // CW portions are typically lower in frequency than SSB
+    switch (band) {
+    case BandType::Band160M:
+        return isCW ? 1830000 : 1850000;  // 1.830 MHz CW, 1.850 MHz SSB
+    case BandType::Band80M:
+        return isCW ? 3530000 : 3750000;  // 3.530 MHz CW, 3.750 MHz SSB
+    case BandType::Band40M:
+        return isCW ? 7030000 : 7200000;  // 7.030 MHz CW, 7.200 MHz SSB
+    case BandType::Band20M:
+        return isCW ? 14030000 : 14200000;  // 14.030 MHz CW, 14.200 MHz SSB
+    case BandType::Band15M:
+        return isCW ? 21030000 : 21300000;  // 21.030 MHz CW, 21.300 MHz SSB
+    case BandType::Band10M:
+        return isCW ? 28030000 : 28400000;  // 28.030 MHz CW, 28.400 MHz SSB
+    default:
+        return 14030000;  // Default to 20m CW
     }
 }
 

@@ -40,6 +40,15 @@ public:
     // Font size
     void setFontSize(int pointSize);
 
+signals:
+    /**
+     * Emitted when user clicks on a band header to change bands
+     */
+    void bandClicked(BandType band);
+
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override;
+
 private:
     void setupUI();
     QString bandToColumnLabel(BandType band) const;
@@ -52,6 +61,7 @@ private:
     QMap<BandType, QLabel*> m_qsoLabels;
     QMap<BandType, QLabel*> m_multLabels;
     QMap<BandType, QLabel*> m_zoneLabels;
+    QMap<BandType, QLabel*> m_bandHeaders;  // Clickable band headers
 
     QLabel* m_qsoAllLabel;
     QLabel* m_multAllLabel;

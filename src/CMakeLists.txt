@@ -62,12 +62,34 @@ set(HEADERS
     ui/widgets/DXClusterWindow.h
 )
 
+# Set icon file for macOS
+set(MACOSX_ICON_FILE "${CMAKE_SOURCE_DIR}/resources/icons/tr4qt.icns")
+
 # Create executable
-add_executable(tr4qt
-    ${SOURCES}
-    ${HEADERS}
-    ../resources/resources.qrc
-)
+if(APPLE)
+    add_executable(tr4qt MACOSX_BUNDLE
+        ${SOURCES}
+        ${HEADERS}
+        ../resources/resources.qrc
+        ${MACOSX_ICON_FILE}
+    )
+
+    # Set macOS bundle properties
+    set_target_properties(tr4qt PROPERTIES
+        MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
+        MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "2.13.0"
+        MACOSX_BUNDLE_BUNDLE_VERSION "2.13.0"
+        RESOURCE "${MACOSX_ICON_FILE}"
+    )
+else()
+    add_executable(tr4qt
+        ${SOURCES}
+        ${HEADERS}
+        ../resources/resources.qrc
+    )
+endif()
 
 # Link Qt6 libraries
 target_link_libraries(tr4qt PRIVATE

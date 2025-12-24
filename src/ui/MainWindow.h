@@ -26,6 +26,11 @@ class QPushButton;
 
 namespace TR4QT {
 
+class DXClusterWindow;
+class BandMapWidget;
+class RadioControlWidget;
+class MultiplierWidget;
+
 /**
  * Main application window
  * Provides radio control, logging, and contest management
@@ -52,6 +57,23 @@ private slots:
     void onRadioDisconnect();
     void onAbout();
     void onExit();
+
+    // Window menu actions
+    void onShowDXCluster();
+    void onShowBandMap();
+    void onShowRadioControl();
+    void onShowMultipliers();
+
+    // DX Cluster integration
+    void onDXSpotReceived(const QString& callsign,
+                          double frequency,
+                          const QString& spotter,
+                          const QString& comment);
+
+    // Band switching
+    void onBandClicked(BandType band);
+    void onBandUp();
+    void onBandDown();
 
     // Radio signals
     void onRadioConnected(bool connected);
@@ -85,6 +107,12 @@ private:
     void activateContest(const ContestInfo& contestInfo);
     void updateExchangeFieldsForContest();
     void autoPopulateExchange(const QString& callsign);
+
+    // Band switching helpers
+    freq_t getFrequencyForBand(BandType band, ModeType mode) const;
+    BandType getNextBand(BandType currentBand) const;
+    BandType getPreviousBand(BandType currentBand) const;
+    BandType getBandFromFrequency(freq_t frequency) const;
 
     // UI Components
     QLabel* m_statusLabel;
@@ -121,6 +149,12 @@ private:
     // Menus
     QAction* m_connectAction;
     QAction* m_disconnectAction;
+
+    // Window widgets
+    DXClusterWindow* m_dxClusterWindow;
+    BandMapWidget* m_bandMapWindow;
+    RadioControlWidget* m_radioControlWindow;
+    MultiplierWidget* m_multiplierWindow;
 
     // Time tracking
     QTimer* m_updateTimer;

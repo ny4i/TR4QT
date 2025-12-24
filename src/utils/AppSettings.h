@@ -41,12 +41,43 @@ public:
     void setMyITUZone(int zone);
     int getMyITUZone() const;
 
-    // Window geometry
+    // Main window geometry
     void saveWindowGeometry(const QByteArray& geometry);
     QByteArray loadWindowGeometry() const;
 
     void saveWindowState(const QByteArray& state);
     QByteArray loadWindowState() const;
+
+    // Child window geometry and visibility
+    void saveDXClusterGeometry(const QByteArray& geometry);
+    QByteArray loadDXClusterGeometry() const;
+    void setDXClusterVisible(bool visible);
+    bool getDXClusterVisible() const;
+
+    void saveBandMapGeometry(const QByteArray& geometry);
+    QByteArray loadBandMapGeometry() const;
+    void setBandMapVisible(bool visible);
+    bool getBandMapVisible() const;
+
+    void saveRadioControlGeometry(const QByteArray& geometry);
+    QByteArray loadRadioControlGeometry() const;
+    void setRadioControlVisible(bool visible);
+    bool getRadioControlVisible() const;
+
+    void saveMultipliersGeometry(const QByteArray& geometry);
+    QByteArray loadMultipliersGeometry() const;
+    void setMultipliersVisible(bool visible);
+    bool getMultipliersVisible() const;
+
+    // DX Cluster settings
+    void setDXClusterCallsign(const QString& callsign);
+    QString getDXClusterCallsign() const;
+
+    void setDXClusterServer(const QString& server);
+    QString getDXClusterServer() const;
+
+    void setDXClusterAutoConnect(bool autoConnect);
+    bool getDXClusterAutoConnect() const;
 
     // Country file
     void setCountryFileVersion(int version);

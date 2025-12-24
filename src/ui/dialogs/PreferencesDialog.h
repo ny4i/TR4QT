@@ -46,6 +46,7 @@ private:
     // Tab creation methods
     QWidget* createStationTab();
     QWidget* createRadioTab();
+    QWidget* createDXClusterTab();
     QWidget* createAppearanceTab();
     QWidget* createContestTab();
     QWidget* createAdvancedTab();
@@ -72,6 +73,11 @@ private:
     QCheckBox* m_autoConnectCheck;
     QGroupBox* m_serialGroup;
     QGroupBox* m_networkGroup;
+
+    // DX Cluster tab widgets
+    QLineEdit* m_dxClusterCallsignEdit;
+    QLineEdit* m_dxClusterServerEdit;
+    QCheckBox* m_dxClusterAutoConnectCheck;
 
     // Appearance tab widgets
     QSpinBox* m_entryFontSizeSpin;

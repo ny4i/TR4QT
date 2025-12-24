@@ -130,14 +130,14 @@ void RadioControlWidget::setupUI() {
 void RadioControlWidget::updateRadioState(const RadioState& state) {
     m_currentState = state;
 
-    // Update VFO A frequency
+    // Update VFO A frequency (show full precision from hamlib - typically 1 Hz or 10 Hz)
     double freqMhz = state.frequencyA / 1000000.0;
-    m_vfoAFreqLabel->setText(QString::number(freqMhz, 'f', 2));
+    m_vfoAFreqLabel->setText(QString::number(freqMhz, 'f', 5));
 
     // Update VFO B frequency
     if (state.frequencyB > 0) {
         double freqBMhz = state.frequencyB / 1000000.0;
-        m_vfoBFreqLabel->setText(QString::number(freqBMhz, 'f', 2));
+        m_vfoBFreqLabel->setText(QString::number(freqBMhz, 'f', 5));
     } else {
         m_vfoBFreqLabel->setText("---");
     }
