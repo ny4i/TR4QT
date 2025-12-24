@@ -272,35 +272,30 @@ bool BackupManager::validateBackupFile(const QString& filePath) {
         return false;
     }
 
-    // Try to open as SQLite database
-    QSqlDatabase testDb = QSqlDatabase::addDatabase("QSQLITE", "backup_validation");
-    testDb.setDatabaseName(filePath);
-
-    if (!testDb.open()) {
-        QSqlDatabase::removeDatabase("backup_validation");
-        return false;
-    }
-
     bool isValid = false;
 
-    // Run integrity check (scope ensures query is destroyed before removeDatabase)
+    // Scope ensures both db and query are destroyed before removeDatabase
     {
-        QSqlQuery query(testDb);
-        if (!query.exec("PRAGMA integrity_check")) {
+        QSqlDatabase testDb = QSqlDatabase::addDatabase("QSQLITE", "backup_validation");
+        testDb.setDatabaseName(filePath);
+
+        if (!testDb.open()) {
             testDb.close();
-            QSqlDatabase::removeDatabase("backup_validation");
-            return false;
+            // Fall through to removeDatabase outside scope
+        } else {
+            // Run integrity check
+            QSqlQuery query(testDb);
+            if (query.exec("PRAGMA integrity_check")) {
+                if (query.next()) {
+                    QString result = query.value(0).toString();
+                    isValid = (result == "ok");
+                }
+            }
+            testDb.close();
         }
+    }  // testDb and query destroyed here
 
-        if (query.next()) {
-            QString result = query.value(0).toString();
-            isValid = (result == "ok");
-        }
-    }  // query destroyed here
-
-    testDb.close();
     QSqlDatabase::removeDatabase("backup_validation");
-
     return isValid;
 }
 
@@ -309,35 +304,30 @@ int BackupManager::getBackupQSOCount(const QString& backupPath) {
         return -1;
     }
 
-    // Open backup database with temporary connection
-    QString connectionName = QString("backup_count_%1").arg(QDateTime::currentMSecsSinceEpoch());
-    QSqlDatabase backupDb = QSqlDatabase::addDatabase("QSQLITE", connectionName);
-    backupDb.setDatabaseName(backupPath);
-
-    if (!backupDb.open()) {
-        QSqlDatabase::removeDatabase(connectionName);
-        return -1;
-    }
-
     int count = -1;
+    QString connectionName = QString("backup_count_%1").arg(QDateTime::currentMSecsSinceEpoch());
 
-    // Count QSOs (scope ensures query is destroyed before removeDatabase)
+    // Scope ensures both db and query are destroyed before removeDatabase
     {
-        QSqlQuery query(backupDb);
-        if (!query.exec("SELECT COUNT(*) FROM qsos WHERE deleted = 0")) {
+        QSqlDatabase backupDb = QSqlDatabase::addDatabase("QSQLITE", connectionName);
+        backupDb.setDatabaseName(backupPath);
+
+        if (!backupDb.open()) {
             backupDb.close();
-            QSqlDatabase::removeDatabase(connectionName);
-            return -1;
+            // Fall through to removeDatabase outside scope
+        } else {
+            // Count QSOs
+            QSqlQuery query(backupDb);
+            if (query.exec("SELECT COUNT(*) FROM qsos WHERE deleted = 0")) {
+                if (query.next()) {
+                    count = query.value(0).toInt();
+                }
+            }
+            backupDb.close();
         }
+    }  // backupDb and query destroyed here
 
-        if (query.next()) {
-            count = query.value(0).toInt();
-        }
-    }  // query destroyed here
-
-    backupDb.close();
     QSqlDatabase::removeDatabase(connectionName);
-
     return count;
 }
 

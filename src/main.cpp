@@ -25,6 +25,10 @@ int main(int argc, char *argv[]) {
     logger.setConsoleLoggingEnabled(settings.getConsoleLoggingEnabled());
     logger.setLogFilePath(settings.getLogFilePath());
 
+    // Log startup banner FIRST (before any other output)
+    LOG_INFO("TR4QTMain", "******************** PROGRAM STARTUP ************************");
+    LOG_INFO_F("TR4QTMain", "TR4QT Version %s", TR4QT::APP_VERSION);
+
     // Install Qt message handler (routes qDebug/qWarning/etc through our logger)
     qInstallMessageHandler(TR4QT::Logger::messageHandler);
 
@@ -59,11 +63,6 @@ int main(int argc, char *argv[]) {
     app.setOrganizationName(TR4QT::APP_ORG);
     app.setApplicationName(TR4QT::APP_NAME);
     app.setApplicationVersion(TR4QT::APP_VERSION);
-
-    // Log startup banner (using TR4W-style format)
-    LOG_INFO("TR4QTMain", "******************** PROGRAM STARTUP ************************");
-    LOG_INFO_F("TR4QTMain", "TR4QT Version %s", TR4QT::APP_VERSION);
-    qDebug() << "TR4QT Version" << TR4QT::APP_VERSION;
 
     // Initialize country file on first run
     TR4QT::CountryFile countryFile;
