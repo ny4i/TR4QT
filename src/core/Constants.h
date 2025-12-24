@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.39.0";  // Load all hamlib backends for complete radio enumeration
+constexpr const char* APP_VERSION = "2.40.0";  // Add radio status filtering (Stable/Beta/Alpha/Untested)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

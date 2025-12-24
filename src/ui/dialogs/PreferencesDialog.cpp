@@ -148,32 +148,8 @@ QWidget* PreferencesDialog::createRadioTab() {
     m_radioModelCombo->setEditable(true);  // Make searchable
     m_radioModelCombo->setInsertPolicy(QComboBox::NoInsert);  // Don't add typed text as new items
 
-    // Block signals while populating to avoid triggering onRadioModelChanged before widgets are created
-    m_radioModelCombo->blockSignals(true);
-
-    // Populate radio models dynamically from hamlib
-    m_radioModelCombo->addItem("Select a radio...", 0);
-
-    QList<RadioModelInfo> radios = RadioEnumerator::getAvailableRadios();
-    for (const RadioModelInfo& radio : radios) {
-        // Display format: "Manufacturer Model (Status)"
-        // Only show status if not Stable to reduce clutter
-        QString displayText = radio.displayName();
-        if (radio.status != "Stable") {
-            displayText += QString(" (%1)").arg(radio.status);
-        }
-        m_radioModelCombo->addItem(displayText, radio.modelId);
-    }
-
-    m_radioModelCombo->addItem("Custom (enter model ID below)...", -1);
-
-    // Add auto-completion for easy searching (300+ radios!)
-    QCompleter* completer = new QCompleter(this);
-    completer->setModel(m_radioModelCombo->model());
-    completer->setCompletionMode(QCompleter::PopupCompletion);
-    completer->setCaseSensitivity(Qt::CaseInsensitive);
-    completer->setFilterMode(Qt::MatchContains);  // Match anywhere in string, not just start
-    m_radioModelCombo->setCompleter(completer);
+    // Populate radio list will be called after checkboxes are created
+    // (so filtering works correctly)
 
     m_customModelEdit = new QLineEdit(this);
     m_customModelEdit->setPlaceholderText("Enter hamlib model ID (e.g., 2046)");
@@ -181,6 +157,39 @@ QWidget* PreferencesDialog::createRadioTab() {
 
     modelLayout->addRow("Model:", m_radioModelCombo);
     modelLayout->addRow("Custom Model ID:", m_customModelEdit);
+
+    // Radio status filter checkboxes (in same group)
+    m_showStableRadiosCheck = new QCheckBox("Stable", this);
+    m_showBetaRadiosCheck = new QCheckBox("Beta", this);
+    m_showAlphaRadiosCheck = new QCheckBox("Alpha", this);
+    m_showUntestedRadiosCheck = new QCheckBox("Untested", this);
+
+    // Default to only Stable checked
+    m_showStableRadiosCheck->setChecked(true);
+    m_showBetaRadiosCheck->setChecked(false);
+    m_showAlphaRadiosCheck->setChecked(false);
+    m_showUntestedRadiosCheck->setChecked(false);
+
+    connect(m_showStableRadiosCheck, &QCheckBox::stateChanged,
+            this, &PreferencesDialog::onRadioStatusFilterChanged);
+    connect(m_showBetaRadiosCheck, &QCheckBox::stateChanged,
+            this, &PreferencesDialog::onRadioStatusFilterChanged);
+    connect(m_showAlphaRadiosCheck, &QCheckBox::stateChanged,
+            this, &PreferencesDialog::onRadioStatusFilterChanged);
+    connect(m_showUntestedRadiosCheck, &QCheckBox::stateChanged,
+            this, &PreferencesDialog::onRadioStatusFilterChanged);
+
+    QHBoxLayout* filterLayout = new QHBoxLayout();
+    filterLayout->addWidget(new QLabel("Show Status:", this));
+    filterLayout->addWidget(m_showStableRadiosCheck);
+    filterLayout->addWidget(m_showBetaRadiosCheck);
+    filterLayout->addWidget(m_showAlphaRadiosCheck);
+    filterLayout->addWidget(m_showUntestedRadiosCheck);
+    filterLayout->addStretch();
+    filterLayout->setAlignment(Qt::AlignLeft);
+
+    modelLayout->addRow("", filterLayout);
+
     layout->addWidget(modelGroup);
 
     // Connection type
@@ -267,7 +276,10 @@ QWidget* PreferencesDialog::createRadioTab() {
 
     layout->addStretch();
 
-    // Now that all widgets are created, connect signals and unblock
+    // Now that all widgets are created, populate radio list with filtering
+    populateRadioList();
+
+    // Connect signals and unblock
     connect(m_radioModelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &PreferencesDialog::onRadioModelChanged);
     m_radioModelCombo->blockSignals(false);
@@ -780,6 +792,13 @@ void PreferencesDialog::loadSettings() {
     }
 
     m_autoConnectCheck->setChecked(settings.getRadioAutoConnect());
+
+    // Radio status filter checkboxes
+    m_showStableRadiosCheck->setChecked(settings.getShowStableRadios());
+    m_showBetaRadiosCheck->setChecked(settings.getShowBetaRadios());
+    m_showAlphaRadiosCheck->setChecked(settings.getShowAlphaRadios());
+    m_showUntestedRadiosCheck->setChecked(settings.getShowUntestedRadios());
+
     onConnectionTypeChanged();
 
     // DX Cluster tab
@@ -877,6 +896,12 @@ void PreferencesDialog::saveSettings() {
 
     settings.saveRadioConfig(config);
     settings.setRadioAutoConnect(m_autoConnectCheck->isChecked());
+
+    // Radio status filter checkboxes
+    settings.setShowStableRadios(m_showStableRadiosCheck->isChecked());
+    settings.setShowBetaRadios(m_showBetaRadiosCheck->isChecked());
+    settings.setShowAlphaRadios(m_showAlphaRadiosCheck->isChecked());
+    settings.setShowUntestedRadios(m_showUntestedRadiosCheck->isChecked());
 
     // DX Cluster tab
     settings.setDXClusterCallsign(m_dxClusterCallsignEdit->text());
@@ -1525,6 +1550,73 @@ void PreferencesDialog::onDXClusterServerChanged(const QString& text) {
 
     // Valid format
     m_dxClusterServerCombo->lineEdit()->setStyleSheet("");
+}
+
+void PreferencesDialog::populateRadioList() {
+    // Save current selection
+    int currentModelId = m_radioModelCombo->currentData().toInt();
+
+    // Block signals while repopulating
+    m_radioModelCombo->blockSignals(true);
+    m_radioModelCombo->clear();
+
+    // Add default item
+    m_radioModelCombo->addItem("Select a radio...", 0);
+
+    // Get all radios from hamlib
+    QList<RadioModelInfo> allRadios = RadioEnumerator::getAvailableRadios();
+
+    // Filter based on status checkboxes
+    int addedCount = 0;
+    for (const RadioModelInfo& radio : allRadios) {
+        bool include = false;
+
+        if (radio.status == "Stable" && m_showStableRadiosCheck->isChecked()) {
+            include = true;
+        } else if (radio.status == "Beta" && m_showBetaRadiosCheck->isChecked()) {
+            include = true;
+        } else if (radio.status == "Alpha" && m_showAlphaRadiosCheck->isChecked()) {
+            include = true;
+        } else if (radio.status == "Untested" && m_showUntestedRadiosCheck->isChecked()) {
+            include = true;
+        }
+
+        if (include) {
+            // Display format: "Manufacturer Model (Status)"
+            // Only show status if not Stable to reduce clutter
+            QString displayText = radio.displayName();
+            if (radio.status != "Stable") {
+                displayText += QString(" (%1)").arg(radio.status);
+            }
+            m_radioModelCombo->addItem(displayText, radio.modelId);
+            addedCount++;
+        }
+    }
+
+    m_radioModelCombo->addItem("Custom (enter model ID below)...", -1);
+
+    // Set up auto-completion
+    QCompleter* completer = new QCompleter(this);
+    completer->setModel(m_radioModelCombo->model());
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);
+    m_radioModelCombo->setCompleter(completer);
+
+    // Restore selection if possible
+    int index = m_radioModelCombo->findData(currentModelId);
+    if (index >= 0) {
+        m_radioModelCombo->setCurrentIndex(index);
+    }
+
+    m_radioModelCombo->blockSignals(false);
+
+    qDebug() << "Radio list filtered:" << addedCount << "radios shown (out of" << allRadios.size() << "total)";
+}
+
+void PreferencesDialog::onRadioStatusFilterChanged() {
+    // Repopulate radio list with new filter settings
+    populateRadioList();
 }
 
 } // namespace TR4QT
