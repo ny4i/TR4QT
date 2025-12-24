@@ -1,15 +1,20 @@
 #include "MainWindow.h"
 #include "dialogs/RadioConfigDialog.h"
 #include "dialogs/PreferencesDialog.h"
+#include "dialogs/BackupRestoreDialog.h"
 #include "widgets/DXClusterWindow.h"
 #include "widgets/BandMapWidget.h"
 #include "widgets/RadioControlWidget.h"
 #include "widgets/MultiplierWidget.h"
 #include "../network/UdpBroadcastManager.h"
 #include "../core/Constants.h"
+#include "../utils/ThemeManager.h"
 #include "../utils/ADIFExporter.h"
 #include "../utils/CabrilloExporter.h"
 #include "../utils/CountryFileDownloader.h"
+#include "../data/Database.h"
+#include "../data/QSORepository.h"
+#include "../data/BackupManager.h"
 #include <QFile>
 #include <QFileDialog>
 #include <QProgressDialog>
@@ -40,6 +45,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_qsosThisHour(0)
     , m_hasActiveContest(false)
     , m_activeContest(nullptr)
+    , m_currentContestDbId(-1)
     , m_nextSerialNumber(1)
     , m_udpBroadcastManager(new UdpBroadcastManager(this))
 {
@@ -57,6 +63,14 @@ MainWindow::MainWindow(QWidget* parent)
     setupUI();
     loadSettings();
     loadUdpBroadcastSettings();
+
+    // Initialize backup manager with defaults
+    // TODO: Load from settings when PreferencesDialog integration is complete
+    BackupManager& backup = BackupManager::instance();
+    backup.setAutoBackupEnabled(false);  // Disabled by default - user must enable
+    backup.setAutoBackupInterval(50);    // Every 50 QSOs
+    backup.setBackupDirectory(QDir::homePath() + "/.tr4qt/backups");
+    backup.setMaxBackups(10);           // Keep 10 most recent
 
     // Setup update timer for time since last QSO and rate calculations
     m_updateTimer = new QTimer(this);
@@ -518,8 +532,7 @@ QWidget* MainWindow::createRadioStatusGrid() {
     radioLayout->setSpacing(20);
     radioLayout->setContentsMargins(10, 5, 10, 5);
 
-    // Set background color to match TR4W style
-    radioStatusWidget->setStyleSheet("QWidget { background-color: #f0f0f0; }");
+    // Background color will be set by applyTheme()
 
     QFont labelFont("Monospace", 11);
     labelFont.setBold(true);
@@ -529,7 +542,7 @@ QWidget* MainWindow::createRadioStatusGrid() {
     m_radioFreqBandLabel->setFont(labelFont);
     m_radioFreqBandLabel->setMinimumWidth(80);
     m_radioFreqBandLabel->setAlignment(Qt::AlignCenter);
-    m_radioFreqBandLabel->setStyleSheet("QLabel { background-color: white; padding: 5px; border: 1px solid #ccc; }");
+    // Style will be set by applyTheme()
 
     // Frequency label (below will be in vertical layout)
     QFont freqFont("Monospace", 10);
@@ -537,7 +550,7 @@ QWidget* MainWindow::createRadioStatusGrid() {
     m_radioFreqLabel->setFont(freqFont);
     m_radioFreqLabel->setMinimumWidth(100);
     m_radioFreqLabel->setAlignment(Qt::AlignCenter);
-    m_radioFreqLabel->setStyleSheet("QLabel { background-color: white; padding: 3px; border: 1px solid #ccc; }");
+    // Style will be set by applyTheme()
 
     // Vertical layout for band/mode and frequency
     QVBoxLayout* freqLayout = new QVBoxLayout();
@@ -549,7 +562,7 @@ QWidget* MainWindow::createRadioStatusGrid() {
     m_radioDateTimeLabel = new QLabel("", this);
     m_radioDateTimeLabel->setFont(labelFont);
     m_radioDateTimeLabel->setAlignment(Qt::AlignCenter);
-    m_radioDateTimeLabel->setStyleSheet("QLabel { background-color: white; padding: 5px; border: 1px solid #ccc; }");
+    // Style will be set by applyTheme()
 
     radioLayout->addLayout(freqLayout);
     radioLayout->addWidget(m_radioDateTimeLabel);
@@ -585,6 +598,11 @@ void MainWindow::loadSettings() {
 
     // Apply font settings
     applyFontSettings();
+
+    // Connect to theme changes and apply initial theme
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, &MainWindow::applyTheme);
+    applyTheme();
 
     // Restore child windows if they were visible
     qDebug() << "DX Cluster was visible:" << settings.getDXClusterVisible();
@@ -1104,14 +1122,39 @@ void MainWindow::onLogQSO() {
     qso.rstReceived = (qso.mode == ModeType::CW) ? "599" : "59";
     qso.exchangeReceived = exchange;
 
+    // Serial number handling
+    if (m_activeContest && m_activeContest->usesSerialNumbers()) {
+        qso.serialNumber = m_nextSerialNumber++;
+        qso.exchangeSent = QString::number(qso.serialNumber);
+    } else {
+        qso.exchangeSent = "";  // Will be set by contest rules later
+    }
+
     // TODO: Lookup country/zone from cty.dat
     // TODO: Check for dupe
     // TODO: Calculate points via contest
     // TODO: Check for new multipliers
-    // TODO: Save to database
 
-    // For now, just add to table
+    // Add to table model (UI)
     m_qsoTableModel->addQSO(qso);
+
+    // Save to database if contest is active
+    if (m_hasActiveContest) {
+        QSORepository repo;
+        if (!repo.saveQSO(qso, m_currentContestDbId)) {
+            qWarning() << "Failed to save QSO to database:" << repo.lastError();
+            m_statusLabel->setText("Warning: QSO logged but not saved to database");
+            // Continue anyway - QSO is in table model
+        } else {
+            qDebug() << "QSO saved to database with ID:" << qso.id;
+
+            // Auto-backup check (if enabled)
+            int currentQSOCount = repo.getQSOCount(m_currentContestDbId);
+            BackupManager::instance().autoBackupIfNeeded(
+                m_currentContest.databasePath,
+                currentQSOCount);
+        }
+    }
 
     // Send UDP broadcast for new QSO
     QString stationCall = AppSettings::instance().getMyCallsign();
@@ -1245,6 +1288,31 @@ void MainWindow::applyFontSettings() {
     }
 }
 
+void MainWindow::applyTheme() {
+    ThemeManager& theme = ThemeManager::instance();
+
+    // Update radio status widget background
+    QWidget* radioStatusWidget = m_radioFreqBandLabel->parentWidget();
+    if (radioStatusWidget) {
+        radioStatusWidget->setStyleSheet(QString("QWidget { background-color: %1; }")
+            .arg(theme.color(ColorRole::WindowBackground).name()));
+    }
+
+    // Update radio status labels
+    QString labelStyle = QString("QLabel { background-color: %1; padding: 5px; border: 1px solid %2; }")
+        .arg(theme.color(ColorRole::TextDisplayBackground).name())
+        .arg(theme.color(ColorRole::BorderColor).name());
+
+    m_radioFreqBandLabel->setStyleSheet(labelStyle);
+    m_radioDateTimeLabel->setStyleSheet(labelStyle);
+
+    QString freqLabelStyle = QString("QLabel { background-color: %1; padding: 3px; border: 1px solid %2; }")
+        .arg(theme.color(ColorRole::TextDisplayBackground).name())
+        .arg(theme.color(ColorRole::BorderColor).name());
+
+    m_radioFreqLabel->setStyleSheet(freqLabelStyle);
+}
+
 void MainWindow::loadUdpBroadcastSettings() {
     AppSettings& settings = AppSettings::instance();
 
@@ -1272,6 +1340,66 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         m_activeContest = nullptr;
     }
 
+    // Open database
+    Database& db = Database::instance();
+    if (!db.open(contestInfo.databasePath)) {
+        QMessageBox::critical(this, "Database Error",
+                            QString("Failed to open database:\n%1").arg(db.lastError()));
+        return;
+    }
+
+    qDebug() << "Database opened:" << contestInfo.databasePath;
+
+    // Find or create contest record
+    QSqlQuery query = db.execute(
+        "SELECT id, current_serial FROM contests WHERE contest_id = ?",
+        {contestInfo.contestId});
+
+    if (query.next()) {
+        // Existing contest - load data
+        m_currentContestDbId = query.value(0).toInt();
+        m_nextSerialNumber = query.value(1).toInt();
+        qDebug() << "Resumed contest with DB ID:" << m_currentContestDbId
+                 << "next serial:" << m_nextSerialNumber;
+
+        // Load existing QSOs into table
+        QSORepository repo;
+        QList<QSO> existingQSOs = repo.findByContest(m_currentContestDbId);
+        m_qsoTableModel->clear();
+        for (const QSO& qso : existingQSOs) {
+            m_qsoTableModel->addQSO(qso);
+        }
+        qDebug() << "Loaded" << existingQSOs.size() << "existing QSOs";
+
+    } else {
+        // New contest - create record
+        AppSettings& settings = AppSettings::instance();
+        QDateTime now = QDateTime::currentDateTimeUtc();
+
+        query = db.execute(
+            "INSERT INTO contests (contest_id, contest_name, start_time, my_call, "
+            "my_grid, my_continent, my_cq_zone, my_itu_zone, "
+            "current_serial, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            {contestInfo.contestId, contestInfo.contestName,
+             contestInfo.startDate.toSecsSinceEpoch(),
+             settings.getMyCallsign(), settings.getMyGridSquare(),
+             settings.getMyContinent(),
+             settings.getMyCQZone(), settings.getMyITUZone(),
+             1, now.toSecsSinceEpoch()});
+
+        if (!query.isActive()) {
+            QMessageBox::critical(this, "Database Error",
+                                QString("Failed to create contest record:\n%1").arg(db.lastError()));
+            return;
+        }
+
+        m_currentContestDbId = db.lastInsertId();
+        m_nextSerialNumber = 1;
+        m_qsoTableModel->clear();
+        qDebug() << "Created new contest with DB ID:" << m_currentContestDbId;
+    }
+
     // Create appropriate contest instance based on type
     if (contestInfo.contestType == "CQWW_CW") {
         m_activeContest = new CQWWContest(ModeType::CW);
@@ -1291,9 +1419,6 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     // Store contest info
     m_currentContest = contestInfo;
     m_hasActiveContest = true;
-
-    // Reset serial number (will be loaded from DB if resuming existing contest)
-    m_nextSerialNumber = 1;
 
     // Update window title to include contest name
     setWindowTitle(QString("%1 v%2 - %3")
@@ -1506,10 +1631,14 @@ void MainWindow::onWKMode() {
 }
 
 void MainWindow::onBackupLog() {
-    qDebug() << "Backup Log (Alt+F) - Not yet implemented";
-    QMessageBox::information(this, "Not Implemented",
-                           "Backup Log will be implemented in a future version.\n\n"
-                           "This will create a backup copy of the current contest log.");
+    if (!m_hasActiveContest) {
+        QMessageBox::warning(this, "No Active Contest",
+            "No contest is currently active. Please open or create a contest first.");
+        return;
+    }
+
+    BackupRestoreDialog dialog(m_currentContest, this);
+    dialog.exec();
 }
 
 void MainWindow::onDownloadCTY() {

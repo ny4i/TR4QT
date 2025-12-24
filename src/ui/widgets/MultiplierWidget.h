@@ -69,6 +69,7 @@ private:
     void loadMultiplierList();
     void updateDisplay();
     QColor getColorForStatus(MultiplierStatus status) const;
+    void applyTheme();
 
     QTableWidget* m_table;
     MultiplierType m_type;

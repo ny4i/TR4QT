@@ -1,4 +1,5 @@
 #include "BandSummaryGrid.h"
+#include "../../utils/ThemeManager.h"
 #include <QHBoxLayout>
 #include <QFont>
 #include <QMouseEvent>
@@ -10,6 +11,11 @@ BandSummaryGrid::BandSummaryGrid(QWidget* parent)
     : QWidget(parent)
 {
     setupUI();
+
+    // Connect to theme changes
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, &BandSummaryGrid::applyTheme);
+    applyTheme();
 }
 
 void BandSummaryGrid::setupUI() {
@@ -38,7 +44,7 @@ void BandSummaryGrid::setupUI() {
         // Make band headers clickable (except "All")
         if (col < headerBands.size()) {
             header->setCursor(Qt::PointingHandCursor);
-            header->setStyleSheet("QLabel:hover { background-color: #e0e0e0; }");
+            // Hover style will be set by applyTheme()
             header->installEventFilter(this);
             m_bandHeaders[headerBands[col]] = header;
         }
@@ -237,6 +243,18 @@ bool BandSummaryGrid::eventFilter(QObject* obj, QEvent* event) {
         }
     }
     return QWidget::eventFilter(obj, event);
+}
+
+void BandSummaryGrid::applyTheme() {
+    ThemeManager& theme = ThemeManager::instance();
+
+    // Update hover style for band headers
+    QString hoverStyle = QString("QLabel:hover { background-color: %1; }")
+        .arg(theme.color(ColorRole::HoverHighlight).name());
+
+    for (auto it = m_bandHeaders.begin(); it != m_bandHeaders.end(); ++it) {
+        it.value()->setStyleSheet(hoverStyle);
+    }
 }
 
 } // namespace TR4QT
