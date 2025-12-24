@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.40.0";  // Add radio status filtering (Stable/Beta/Alpha/Untested)
+constexpr const char* APP_VERSION = "2.40.1";  // Always show Elecraft K4 at top of radio list
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
