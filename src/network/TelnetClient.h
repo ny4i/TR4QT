@@ -41,6 +41,11 @@ public slots:
      */
     void sendCommand(const QString& command);
 
+    /**
+     * Set callsign for auto-login
+     */
+    void setAutoLoginCallsign(const QString& callsign);
+
 signals:
     /**
      * Emitted when connection state changes
@@ -78,6 +83,8 @@ private:
     int m_port;
     bool m_isConnected;
     QString m_dataBuffer;  // Buffer for incomplete lines
+    QString m_autoLoginCallsign;  // Callsign for auto-login
+    bool m_loginSent;  // Track if we've already sent login
 };
 
 /**

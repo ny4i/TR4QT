@@ -12,6 +12,10 @@ set(SOURCES
     radio/HamlibRadio.cpp
     radio/RadioController.cpp
     network/TelnetClient.cpp
+    network/RadioInfo.cpp
+    network/ContactInfo.cpp
+    network/UdpBroadcaster.cpp
+    network/UdpBroadcastManager.cpp
     data/Database.cpp
     data/QSORepository.cpp
     contests/CQWWContest.cpp
@@ -42,6 +46,10 @@ set(HEADERS
     radio/HamlibRadio.h
     radio/RadioController.h
     network/TelnetClient.h
+    network/RadioInfo.h
+    network/ContactInfo.h
+    network/UdpBroadcaster.h
+    network/UdpBroadcastManager.h
     data/Database.h
     data/QSORepository.h
     contests/ContestBase.h

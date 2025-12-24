@@ -5,6 +5,7 @@
 #include "widgets/BandMapWidget.h"
 #include "widgets/RadioControlWidget.h"
 #include "widgets/MultiplierWidget.h"
+#include "../network/UdpBroadcastManager.h"
 #include "../core/Constants.h"
 #include "../utils/ADIFExporter.h"
 #include "../utils/CabrilloExporter.h"
@@ -38,6 +39,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_hasActiveContest(false)
     , m_activeContest(nullptr)
     , m_nextSerialNumber(1)
+    , m_udpBroadcastManager(new UdpBroadcastManager(this))
 {
     setWindowTitle(QString("%1 v%2").arg(APP_NAME).arg(APP_VERSION));
     setWindowIcon(QIcon(":/icons/tr4qt.png"));
@@ -52,6 +54,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     setupUI();
     loadSettings();
+    loadUdpBroadcastSettings();
 
     // Setup update timer for time since last QSO and rate calculations
     m_updateTimer = new QTimer(this);
@@ -137,7 +140,13 @@ void MainWindow::createMenuBar() {
 
     QAction* preferencesAction = fileMenu->addAction("&Preferences...");
     preferencesAction->setShortcut(QKeySequence::Preferences);
-    connect(preferencesAction, &QAction::triggered, this, &MainWindow::onPreferences);
+    preferencesAction->setMenuRole(QAction::PreferencesRole);  // Explicitly set macOS menu role
+    connect(preferencesAction, &QAction::triggered, this, [this]() {
+        qDebug() << "*** Preferences action triggered ***";
+        onPreferences();
+    });
+    qDebug() << "*** Preferences menu created with shortcut:" << preferencesAction->shortcut().toString()
+             << "menuRole:" << preferencesAction->menuRole();
 
     fileMenu->addSeparator();
 
@@ -148,7 +157,12 @@ void MainWindow::createMenuBar() {
     QMenu* radioMenu = menuBar->addMenu("&Radio");
 
     QAction* configAction = radioMenu->addAction("&Configure...");
-    connect(configAction, &QAction::triggered, this, &MainWindow::onRadioConfigure);
+    configAction->setMenuRole(QAction::NoRole);  // Prevent macOS from moving this to app menu
+    connect(configAction, &QAction::triggered, this, [this]() {
+        qDebug() << "*** Radio Configure action triggered ***";
+        onRadioConfigure();
+    });
+    qDebug() << "*** Radio Configure menu created with menuRole:" << configAction->menuRole();
 
     radioMenu->addSeparator();
 
@@ -559,6 +573,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 }
 
 void MainWindow::onRadioConfigure() {
+    qDebug() << "*** onRadioConfigure() called - opening RadioConfigDialog ***";
     RadioConfigDialog dialog(this);
 
     // Load existing config if available
@@ -662,6 +677,7 @@ void MainWindow::onNewOpenContest() {
 }
 
 void MainWindow::onPreferences() {
+    qDebug() << "*** onPreferences() called - opening PreferencesDialog ***";
     PreferencesDialog dialog(this);
 
     if (dialog.exec() == QDialog::Accepted) {
@@ -669,6 +685,9 @@ void MainWindow::onPreferences() {
 
         // Apply font size changes immediately
         applyFontSettings();
+
+        // Reload UDP broadcast settings
+        loadUdpBroadcastSettings();
 
         // If radio settings changed and radio is connected, ask to reconnect
         if (m_radioConnected) {
@@ -855,6 +874,10 @@ void MainWindow::onRadioConnected(bool connected) {
 }
 
 void MainWindow::onRadioStateUpdated(const RadioState& state) {
+    // Send UDP broadcast for radio state change (throttled in manager)
+    QString stationCall = AppSettings::instance().getMyCallsign();
+    m_udpBroadcastManager->onRadioStateChanged(state, stationCall);
+
     // Log radio model if it changed
     static QString lastModel;
     if (!state.radioModel.isEmpty() && state.radioModel != lastModel) {
@@ -943,6 +966,11 @@ void MainWindow::onLogQSO() {
 
     // For now, just add to table
     m_qsoTableModel->addQSO(qso);
+
+    // Send UDP broadcast for new QSO
+    QString stationCall = AppSettings::instance().getMyCallsign();
+    QString contestName = m_hasActiveContest ? m_currentContest.contestName : "Unknown";
+    m_udpBroadcastManager->onQSOLogged(qso, stationCall, contestName);
 
     // Update last QSO time for time since last QSO calculation
     m_lastQSOTime = qso.timestamp;
@@ -1069,6 +1097,26 @@ void MainWindow::applyFontSettings() {
     if (m_bandSummaryGrid) {
         m_bandSummaryGrid->setFontSize(gridFontSize);
     }
+}
+
+void MainWindow::loadUdpBroadcastSettings() {
+    AppSettings& settings = AppSettings::instance();
+
+    // Configure UDP broadcast manager
+    m_udpBroadcastManager->setEnabled(settings.getUDPBroadcastEnabled());
+    m_udpBroadcastManager->setRadioInfoEnabled(settings.getUDPRadioInfoEnabled());
+    m_udpBroadcastManager->setContactInfoEnabled(settings.getUDPContactInfoEnabled());
+    m_udpBroadcastManager->setThrottleInterval(settings.getUDPThrottleInterval());
+
+    // Load destinations
+    QList<UdpDestination> destinations = settings.getUDPDestinations();
+    m_udpBroadcastManager->setDestinations(destinations);
+
+    qDebug() << "UDP Broadcast settings loaded:"
+             << "Enabled=" << settings.getUDPBroadcastEnabled()
+             << "RadioInfo=" << settings.getUDPRadioInfoEnabled()
+             << "ContactInfo=" << settings.getUDPContactInfoEnabled()
+             << "Destinations=" << destinations.size();
 }
 
 void MainWindow::activateContest(const ContestInfo& contestInfo) {
@@ -1252,13 +1300,13 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
                                    double frequency,
                                    const QString& spotter,
                                    const QString& comment) {
-    qDebug() << "DX Spot received:" << callsign << "at" << frequency << "MHz from" << spotter;
+    qDebug() << "DX Spot received:" << callsign << "at" << frequency << "Hz from" << spotter;
 
     // If band map window exists, forward the spot to it
     if (m_bandMapWindow) {
         Spot spot;
         spot.callsign = callsign;
-        spot.frequency = static_cast<freq_t>(frequency * 1e6);  // Convert MHz to Hz
+        spot.frequency = static_cast<freq_t>(frequency);  // Already in Hz from TelnetClient
         spot.timestamp = QDateTime::currentDateTime();
         spot.isMultiplier = false;  // TODO: Check if this is a needed multiplier
         spot.isWorked = false;       // TODO: Check if we've worked this station

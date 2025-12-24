@@ -1,6 +1,7 @@
 #include "PreferencesDialog.h"
 #include "../../utils/AppSettings.h"
 #include "../../utils/RadioEnumerator.h"
+#include "../../network/UdpBroadcaster.h"
 #include "../../core/Constants.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -16,22 +17,38 @@ namespace TR4QT {
 PreferencesDialog::PreferencesDialog(QWidget* parent)
     : QDialog(parent)
 {
+    qDebug() << "*** PreferencesDialog constructor called ***";
+    qDebug() << "*** Setting window title ***";
     setWindowTitle("Preferences");
+    qDebug() << "*** Calling setupUI ***";
     setupUI();
+    qDebug() << "*** setupUI completed, calling loadSettings ***";
     loadSettings();
+    qDebug() << "*** loadSettings completed, resizing ***";
     resize(600, 500);
+    qDebug() << "*** PreferencesDialog fully initialized with window title:" << windowTitle();
 }
 
 void PreferencesDialog::setupUI() {
+    qDebug() << "*** setupUI: Creating main layout ***";
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
+    qDebug() << "*** setupUI: Creating tab widget ***";
     // Tab widget
     m_tabWidget = new QTabWidget(this);
+    qDebug() << "*** setupUI: Creating Station tab ***";
     m_tabWidget->addTab(createStationTab(), "Station");
+    qDebug() << "*** setupUI: Creating Radio tab ***";
     m_tabWidget->addTab(createRadioTab(), "Radio");
+    qDebug() << "*** setupUI: Creating DX Cluster tab ***";
     m_tabWidget->addTab(createDXClusterTab(), "DX Cluster");
+    qDebug() << "*** setupUI: Creating UDP Broadcast tab ***";
+    m_tabWidget->addTab(createUDPBroadcastTab(), "UDP Broadcast");
+    qDebug() << "*** setupUI: Creating Appearance tab ***";
     m_tabWidget->addTab(createAppearanceTab(), "Appearance");
+    qDebug() << "*** setupUI: Creating Contest tab ***";
     m_tabWidget->addTab(createContestTab(), "Contest");
+    qDebug() << "*** setupUI: Creating Advanced tab ***";
     m_tabWidget->addTab(createAdvancedTab(), "Advanced");
 
     mainLayout->addWidget(m_tabWidget);
@@ -112,8 +129,9 @@ QWidget* PreferencesDialog::createRadioTab() {
 
     m_radioModelCombo = new QComboBox(this);
     m_radioModelCombo->setEditable(false);
-    connect(m_radioModelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &PreferencesDialog::onRadioModelChanged);
+
+    // Block signals while populating to avoid triggering onRadioModelChanged before widgets are created
+    m_radioModelCombo->blockSignals(true);
 
     // Populate radio models dynamically from hamlib
     m_radioModelCombo->addItem("Select a radio...", 0);
@@ -223,6 +241,11 @@ QWidget* PreferencesDialog::createRadioTab() {
 
     layout->addStretch();
 
+    // Now that all widgets are created, connect signals and unblock
+    connect(m_radioModelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onRadioModelChanged);
+    m_radioModelCombo->blockSignals(false);
+
     return radioTab;
 }
 
@@ -266,6 +289,103 @@ QWidget* PreferencesDialog::createDXClusterTab() {
     layout->addStretch();
 
     return dxClusterTab;
+}
+
+QWidget* PreferencesDialog::createUDPBroadcastTab() {
+    QWidget* udpTab = new QWidget(this);
+    QVBoxLayout* mainLayout = new QVBoxLayout(udpTab);
+
+    // Enable/Disable group
+    QGroupBox* enableGroup = new QGroupBox("UDP Broadcast Settings", this);
+    QVBoxLayout* enableLayout = new QVBoxLayout(enableGroup);
+
+    m_udpBroadcastEnabledCheck = new QCheckBox("Enable UDP broadcast", this);
+    m_udpBroadcastEnabledCheck->setToolTip("Send real-time updates via UDP to other applications");
+    enableLayout->addWidget(m_udpBroadcastEnabledCheck);
+
+    m_udpRadioInfoEnabledCheck = new QCheckBox("Send RadioInfo messages (frequency/mode changes)", this);
+    m_udpRadioInfoEnabledCheck->setToolTip("Broadcast radio state changes (throttled)");
+    enableLayout->addWidget(m_udpRadioInfoEnabledCheck);
+
+    m_udpContactInfoEnabledCheck = new QCheckBox("Send ContactInfo messages (new QSOs)", this);
+    m_udpContactInfoEnabledCheck->setToolTip("Broadcast new QSO entries immediately");
+    enableLayout->addWidget(m_udpContactInfoEnabledCheck);
+
+    QHBoxLayout* throttleLayout = new QHBoxLayout();
+    throttleLayout->addWidget(new QLabel("Throttle interval:", this));
+    m_udpThrottleIntervalSpin = new QSpinBox(this);
+    m_udpThrottleIntervalSpin->setRange(100, 5000);
+    m_udpThrottleIntervalSpin->setSingleStep(100);
+    m_udpThrottleIntervalSpin->setValue(500);
+    m_udpThrottleIntervalSpin->setSuffix(" ms");
+    m_udpThrottleIntervalSpin->setToolTip("Minimum time between RadioInfo messages");
+    throttleLayout->addWidget(m_udpThrottleIntervalSpin);
+    throttleLayout->addStretch();
+    enableLayout->addLayout(throttleLayout);
+
+    mainLayout->addWidget(enableGroup);
+
+    // Destinations group
+    QGroupBox* destGroup = new QGroupBox("Broadcast Destinations", this);
+    QVBoxLayout* destLayout = new QVBoxLayout(destGroup);
+
+    m_udpDestinationsList = new QListWidget(this);
+    m_udpDestinationsList->setToolTip("List of UDP destinations (host:port)");
+    destLayout->addWidget(m_udpDestinationsList);
+
+    // Add/Edit controls
+    QHBoxLayout* addLayout = new QHBoxLayout();
+    addLayout->addWidget(new QLabel("Host:", this));
+    m_udpHostEdit = new QLineEdit(this);
+    m_udpHostEdit->setPlaceholderText("127.0.0.1 or 239.255.0.1");
+    m_udpHostEdit->setToolTip("IP address or multicast address");
+    addLayout->addWidget(m_udpHostEdit);
+
+    addLayout->addWidget(new QLabel("Port:", this));
+    m_udpPortSpin = new QSpinBox(this);
+    m_udpPortSpin->setRange(1, 65535);
+    m_udpPortSpin->setValue(12060);  // N1MM+ default RadioInfo port
+    m_udpPortSpin->setToolTip("UDP port number");
+    addLayout->addWidget(m_udpPortSpin);
+
+    destLayout->addLayout(addLayout);
+
+    // Buttons
+    QHBoxLayout* buttonLayout = new QHBoxLayout();
+    m_udpAddButton = new QPushButton("Add", this);
+    m_udpRemoveButton = new QPushButton("Remove", this);
+    m_udpTestButton = new QPushButton("Test", this);
+    buttonLayout->addWidget(m_udpAddButton);
+    buttonLayout->addWidget(m_udpRemoveButton);
+    buttonLayout->addWidget(m_udpTestButton);
+    buttonLayout->addStretch();
+    destLayout->addLayout(buttonLayout);
+
+    mainLayout->addWidget(destGroup);
+
+    // Help text
+    QLabel* helpLabel = new QLabel(
+        "UDP broadcast sends real-time updates to other applications (e.g., N1MM+, logging software).\n"
+        "Uses N1MM+ compatible RadioInfo and ContactInfo XML formats.\n\n"
+        "Multicast addresses: 224.0.0.0 - 239.255.255.255\n"
+        "Default N1MM+ ports: 12060 (RadioInfo), 12061 (ContactInfo)",
+        this
+    );
+    helpLabel->setWordWrap(true);
+    helpLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; }");
+    mainLayout->addWidget(helpLabel);
+
+    mainLayout->addStretch();
+
+    // Connect signals
+    connect(m_udpAddButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onUdpAddDestination);
+    connect(m_udpRemoveButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onUdpRemoveDestination);
+    connect(m_udpTestButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onUdpTestDestination);
+
+    return udpTab;
 }
 
 QWidget* PreferencesDialog::createAppearanceTab() {
@@ -425,6 +545,23 @@ void PreferencesDialog::loadSettings() {
     m_dxClusterServerEdit->setText(settings.getDXClusterServer());
     m_dxClusterAutoConnectCheck->setChecked(settings.getDXClusterAutoConnect());
 
+    // UDP Broadcast tab
+    m_udpBroadcastEnabledCheck->setChecked(settings.getUDPBroadcastEnabled());
+    m_udpRadioInfoEnabledCheck->setChecked(settings.getUDPRadioInfoEnabled());
+    m_udpContactInfoEnabledCheck->setChecked(settings.getUDPContactInfoEnabled());
+    m_udpThrottleIntervalSpin->setValue(settings.getUDPThrottleInterval());
+
+    // Load destinations
+    QList<UdpDestination> destinations = settings.getUDPDestinations();
+    m_udpDestinationsList->clear();
+    for (const auto& dest : destinations) {
+        QString itemText = QString("%1:%2%3")
+            .arg(dest.host)
+            .arg(dest.port)
+            .arg(dest.enabled ? "" : " (disabled)");
+        m_udpDestinationsList->addItem(itemText);
+    }
+
     // Appearance tab
     m_entryFontSizeSpin->setValue(settings.getEntryFontSize());
     m_tableFontSizeSpin->setValue(settings.getTableFontSize());
@@ -476,6 +613,30 @@ void PreferencesDialog::saveSettings() {
     settings.setDXClusterCallsign(m_dxClusterCallsignEdit->text());
     settings.setDXClusterServer(m_dxClusterServerEdit->text());
     settings.setDXClusterAutoConnect(m_dxClusterAutoConnectCheck->isChecked());
+
+    // UDP Broadcast tab
+    settings.setUDPBroadcastEnabled(m_udpBroadcastEnabledCheck->isChecked());
+    settings.setUDPRadioInfoEnabled(m_udpRadioInfoEnabledCheck->isChecked());
+    settings.setUDPContactInfoEnabled(m_udpContactInfoEnabledCheck->isChecked());
+    settings.setUDPThrottleInterval(m_udpThrottleIntervalSpin->value());
+
+    // Save destinations
+    QList<UdpDestination> destinations;
+    for (int i = 0; i < m_udpDestinationsList->count(); ++i) {
+        QString itemText = m_udpDestinationsList->item(i)->text();
+        // Parse "host:port" or "host:port (disabled)"
+        bool enabled = !itemText.contains("(disabled)");
+        QString hostPort = itemText.remove(" (disabled)");
+        QStringList parts = hostPort.split(':');
+        if (parts.size() == 2) {
+            UdpDestination dest;
+            dest.host = parts[0];
+            dest.port = parts[1].toUInt();
+            dest.enabled = enabled;
+            destinations.append(dest);
+        }
+    }
+    settings.setUDPDestinations(destinations);
 
     // Appearance tab
     settings.setEntryFontSize(m_entryFontSizeSpin->value());
@@ -529,6 +690,81 @@ void PreferencesDialog::onTestRadioConnection() {
     QMessageBox::information(this, "Test Connection",
                            "Radio connection testing will be implemented when integrated with MainWindow.\n\n"
                            "For now, save these settings and use Radio → Connect to test.");
+}
+
+void PreferencesDialog::onUdpAddDestination() {
+    QString host = m_udpHostEdit->text().trimmed();
+    quint16 port = m_udpPortSpin->value();
+
+    if (host.isEmpty()) {
+        QMessageBox::warning(this, "Add Destination",
+                           "Please enter a host address.");
+        return;
+    }
+
+    // Check for duplicates
+    QString newItem = QString("%1:%2").arg(host).arg(port);
+    for (int i = 0; i < m_udpDestinationsList->count(); ++i) {
+        QString existingItem = m_udpDestinationsList->item(i)->text();
+        if (existingItem.startsWith(newItem)) {
+            QMessageBox::warning(this, "Add Destination",
+                               "This destination already exists in the list.");
+            return;
+        }
+    }
+
+    // Add to list
+    m_udpDestinationsList->addItem(newItem);
+
+    // Clear input fields
+    m_udpHostEdit->clear();
+    m_udpPortSpin->setValue(12060);
+}
+
+void PreferencesDialog::onUdpRemoveDestination() {
+    QListWidgetItem* currentItem = m_udpDestinationsList->currentItem();
+    if (!currentItem) {
+        QMessageBox::warning(this, "Remove Destination",
+                           "Please select a destination to remove.");
+        return;
+    }
+
+    delete currentItem;
+}
+
+void PreferencesDialog::onUdpTestDestination() {
+    QString host = m_udpHostEdit->text().trimmed();
+    quint16 port = m_udpPortSpin->value();
+
+    if (host.isEmpty()) {
+        QMessageBox::warning(this, "Test Destination",
+                           "Please enter a host address to test.");
+        return;
+    }
+
+    // Create test broadcaster
+    UdpBroadcaster testBroadcaster;
+    UdpDestination testDest;
+    testDest.host = host;
+    testDest.port = port;
+    testDest.enabled = true;
+    testBroadcaster.addDestination(testDest);
+
+    // Send test message
+    QByteArray testData = "<?xml version=\"1.0\"?><TestMessage><app>TR4QT</app><message>UDP Test</message></TestMessage>";
+    bool success = testBroadcaster.sendRawData(testData);
+
+    if (success) {
+        QMessageBox::information(this, "Test Destination",
+                               QString("Successfully sent test message to %1:%2\n\n"
+                                      "Check the receiving application to verify.")
+                                   .arg(host).arg(port));
+    } else {
+        QMessageBox::critical(this, "Test Destination",
+                            QString("Failed to send test message to %1:%2\n\n"
+                                   "Error: %3")
+                                .arg(host).arg(port).arg(testBroadcaster.lastError()));
+    }
 }
 
 } // namespace TR4QT

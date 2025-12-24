@@ -1,5 +1,6 @@
 #include "DXClusterWindow.h"
 #include "../../core/Constants.h"
+#include "../../utils/AppSettings.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QToolBar>
@@ -7,6 +8,7 @@
 #include <QMessageBox>
 #include <QFont>
 #include <QSettings>
+#include <QTimer>
 
 namespace TR4QT {
 
@@ -46,6 +48,19 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
     }
 
     setWindowTitle("DX Cluster");
+
+    // Auto-connect if enabled in settings
+    if (AppSettings::instance().getDXClusterAutoConnect()) {
+        QString server = AppSettings::instance().getDXClusterServer();
+        if (!server.isEmpty()) {
+            qDebug() << "DXClusterWindow: Auto-connect enabled, connecting to:" << server;
+            // Use QTimer to delay connection slightly to ensure UI is fully initialized
+            QTimer::singleShot(500, this, [this, server]() {
+                m_serverCombo->setCurrentText(server);
+                onConnectClicked();
+            });
+        }
+    }
 }
 
 DXClusterWindow::~DXClusterWindow() {
@@ -213,6 +228,12 @@ void DXClusterWindow::onConnectClicked() {
                            "Invalid port number");
         return;
     }
+
+    // Set auto-login callsign from settings before connecting
+    QString callsign = AppSettings::instance().getDXClusterCallsign();
+    QMetaObject::invokeMethod(m_telnetClient, "setAutoLoginCallsign",
+                             Qt::QueuedConnection,
+                             Q_ARG(QString, callsign));
 
     // Connect using cross-thread signal
     QMetaObject::invokeMethod(m_telnetClient, "connectToServer",

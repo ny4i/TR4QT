@@ -1,5 +1,6 @@
 #include "AppSettings.h"
 #include "../core/Constants.h"
+#include "../network/UdpBroadcaster.h"
 #include <QDir>
 
 namespace TR4QT {
@@ -270,6 +271,88 @@ void AppSettings::setGridFontSize(int size) {
 
 int AppSettings::getGridFontSize() const {
     return m_settings.value("Appearance/gridFontSize", 11).toInt();
+}
+
+// UDP Broadcast settings
+
+void AppSettings::setUDPBroadcastEnabled(bool enabled) {
+    m_settings.setValue("UDPBroadcast/enabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getUDPBroadcastEnabled() const {
+    return m_settings.value("UDPBroadcast/enabled", false).toBool();
+}
+
+void AppSettings::setUDPRadioInfoEnabled(bool enabled) {
+    m_settings.setValue("UDPBroadcast/radioInfoEnabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getUDPRadioInfoEnabled() const {
+    return m_settings.value("UDPBroadcast/radioInfoEnabled", true).toBool();
+}
+
+void AppSettings::setUDPContactInfoEnabled(bool enabled) {
+    m_settings.setValue("UDPBroadcast/contactInfoEnabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getUDPContactInfoEnabled() const {
+    return m_settings.value("UDPBroadcast/contactInfoEnabled", true).toBool();
+}
+
+void AppSettings::setUDPThrottleInterval(int milliseconds) {
+    m_settings.setValue("UDPBroadcast/throttleInterval", milliseconds);
+    m_settings.sync();
+}
+
+int AppSettings::getUDPThrottleInterval() const {
+    return m_settings.value("UDPBroadcast/throttleInterval", 500).toInt();
+}
+
+void AppSettings::setUDPDestinations(const QList<UdpDestination>& destinations) {
+    m_settings.beginGroup("UDPBroadcast");
+    m_settings.remove("Destinations");  // Clear old entries
+
+    m_settings.beginWriteArray("Destinations");
+    for (int i = 0; i < destinations.size(); ++i) {
+        m_settings.setArrayIndex(i);
+        m_settings.setValue("host", destinations[i].host);
+        m_settings.setValue("port", destinations[i].port);
+        m_settings.setValue("enabled", destinations[i].enabled);
+    }
+    m_settings.endArray();
+    m_settings.endGroup();
+    m_settings.sync();
+}
+
+QList<UdpDestination> AppSettings::getUDPDestinations() const {
+    QList<UdpDestination> destinations;
+
+    m_settings.beginGroup("UDPBroadcast");
+    int size = m_settings.beginReadArray("Destinations");
+    for (int i = 0; i < size; ++i) {
+        m_settings.setArrayIndex(i);
+        UdpDestination dest;
+        dest.host = m_settings.value("host").toString();
+        dest.port = m_settings.value("port").toUInt();
+        dest.enabled = m_settings.value("enabled", true).toBool();
+        destinations.append(dest);
+    }
+    m_settings.endArray();
+    m_settings.endGroup();
+
+    // If no destinations configured, return default N1MM+ localhost destination
+    if (destinations.isEmpty()) {
+        UdpDestination defaultDest;
+        defaultDest.host = "127.0.0.1";
+        defaultDest.port = 12060;  // N1MM+ RadioInfo default port
+        defaultDest.enabled = true;
+        destinations.append(defaultDest);
+    }
+
+    return destinations;
 }
 
 } // namespace TR4QT

@@ -30,6 +30,7 @@ class DXClusterWindow;
 class BandMapWidget;
 class RadioControlWidget;
 class MultiplierWidget;
+class UdpBroadcastManager;
 
 /**
  * Main application window
@@ -99,6 +100,7 @@ private:
     void loadSettings();
     void saveSettings();
     void applyFontSettings();
+    void loadUdpBroadcastSettings();
     void updateConnectionStatus(bool connected);
     void updateScoreDisplay();
     void updateRadioStatusGrid();
@@ -169,6 +171,9 @@ private:
 
     // Country file for lookups
     CountryFile m_countryFile;
+
+    // UDP Broadcast manager
+    UdpBroadcastManager* m_udpBroadcastManager;
 };
 
 } // namespace TR4QT

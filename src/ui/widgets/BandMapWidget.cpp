@@ -1,10 +1,13 @@
 #include "BandMapWidget.h"
 #include <QPainter>
 #include <QMouseEvent>
+#include <QContextMenuEvent>
 #include <QFontMetrics>
 #include <QScrollBar>
 #include <QVBoxLayout>
 #include <QLabel>
+#include <QMenu>
+#include <QAction>
 #include <algorithm>
 
 namespace TR4QT {
@@ -24,6 +27,9 @@ BandMapWidget::BandMapWidget(QWidget* parent)
     pal.setColor(QPalette::WindowText, QColor(255, 255, 255));
     setAutoFillBackground(true);
     setPalette(pal);
+
+    // Enable context menu
+    setContextMenuPolicy(Qt::DefaultContextMenu);
 }
 
 void BandMapWidget::addSpot(const Spot& spot) {
@@ -157,6 +163,31 @@ void BandMapWidget::resizeEvent(QResizeEvent* event) {
     QWidget::update();
 }
 
+void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
+    QMenu menu(this);
+
+    // Check if user right-clicked on a specific spot
+    int spotIndex = findSpotAtPosition(event->pos().y());
+    if (spotIndex >= 0 && spotIndex < m_spots.size()) {
+        const Spot& spot = m_spots[spotIndex];
+        QString deleteText = QString("Delete Spot: %1").arg(spot.callsign);
+        QAction* deleteAction = menu.addAction(deleteText);
+
+        // Capture callsign by value for the lambda
+        QString callsign = spot.callsign;
+        connect(deleteAction, &QAction::triggered, this, [this, callsign]() {
+            removeSpot(callsign);
+        });
+
+        menu.addSeparator();
+    }
+
+    QAction* clearAction = menu.addAction("Clear All Spots");
+    connect(clearAction, &QAction::triggered, this, &BandMapWidget::clearSpots);
+
+    menu.exec(event->globalPos());
+}
+
 int BandMapWidget::findSpotAtPosition(int y) {
     int lineHeight = rowHeight();
     int spotIndex = y / lineHeight;
@@ -173,11 +204,21 @@ int BandMapWidget::rowHeight() const {
 }
 
 QString BandMapWidget::formatFrequency(freq_t freq) const {
-    // Convert Hz to kHz with 1 decimal place
-    // Max frequency: 435000.0 kHz = 8 chars (435 MHz)
-    // Format with fixed width (right-aligned, 8 chars) for consistent column
-    double freqKhz = freq / 1000.0;
-    return QString("%1").arg(freqKhz, 8, 'f', 1);
+    // Convert Hz to MHz with 3 decimal places (like TR4W)
+    // Examples: 7.051, 14.074, 28.200
+    // Max frequency: 435.000 MHz = 7 chars
+    // Format with fixed width (right-aligned, 7 chars) for consistent column
+    double freqMhz = freq / 1000000.0;
+    QString result = QString("%1").arg(freqMhz, 7, 'f', 3);
+
+    // Debug: log first few conversions to verify format
+    static int debugCount = 0;
+    if (debugCount < 5) {
+        qDebug() << "BandMapWidget::formatFrequency:" << freq << "Hz ->" << result << "MHz";
+        debugCount++;
+    }
+
+    return result;
 }
 
 } // namespace TR4QT

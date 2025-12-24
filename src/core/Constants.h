@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.14.0";  // DX Cluster preferences, Band Map enhancements, spot parsing fixes
+constexpr const char* APP_VERSION = "2.16.0";  // Add: UDP multicast/broadcast messaging (N1MM+ compatible)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

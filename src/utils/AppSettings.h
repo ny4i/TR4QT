@@ -3,9 +3,13 @@
 
 #include <QSettings>
 #include <QString>
+#include <QList>
 #include "../radio/RadioInterface.h"
 
 namespace TR4QT {
+
+// Forward declaration
+struct UdpDestination;
 
 /**
  * Application settings wrapper using QSettings
@@ -95,6 +99,22 @@ public:
 
     void setGridFontSize(int size);
     int getGridFontSize() const;
+
+    // UDP Broadcast settings
+    void setUDPBroadcastEnabled(bool enabled);
+    bool getUDPBroadcastEnabled() const;
+
+    void setUDPRadioInfoEnabled(bool enabled);
+    bool getUDPRadioInfoEnabled() const;
+
+    void setUDPContactInfoEnabled(bool enabled);
+    bool getUDPContactInfoEnabled() const;
+
+    void setUDPThrottleInterval(int milliseconds);
+    int getUDPThrottleInterval() const;
+
+    void setUDPDestinations(const QList<UdpDestination>& destinations);
+    QList<UdpDestination> getUDPDestinations() const;
 
 private:
     AppSettings();
