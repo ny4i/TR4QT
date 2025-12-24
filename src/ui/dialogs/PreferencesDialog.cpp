@@ -377,8 +377,10 @@ void PreferencesDialog::loadSettings() {
     m_autoConnectCheck->setChecked(settings.getRadioAutoConnect());
     onConnectionTypeChanged();
 
-    // Appearance tab - will need to add getters to AppSettings
-    // For now, use defaults
+    // Appearance tab
+    m_entryFontSizeSpin->setValue(settings.getEntryFontSize());
+    m_tableFontSizeSpin->setValue(settings.getTableFontSize());
+    m_gridFontSizeSpin->setValue(settings.getGridFontSize());
 
     // Contest tab - will need to add getters to AppSettings
 
@@ -422,7 +424,10 @@ void PreferencesDialog::saveSettings() {
     settings.saveRadioConfig(config);
     settings.setRadioAutoConnect(m_autoConnectCheck->isChecked());
 
-    // Appearance tab - will add setters to AppSettings
+    // Appearance tab
+    settings.setEntryFontSize(m_entryFontSizeSpin->value());
+    settings.setTableFontSize(m_tableFontSizeSpin->value());
+    settings.setGridFontSize(m_gridFontSizeSpin->value());
 
     // Contest tab - will add setters to AppSettings
 
