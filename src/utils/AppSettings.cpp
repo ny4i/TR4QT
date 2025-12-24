@@ -135,4 +135,32 @@ QString AppSettings::getCountryFilePath() const {
     return m_settings.value("CountryFile/path", defaultPath).toString();
 }
 
+// Appearance settings
+void AppSettings::setEntryFontSize(int size) {
+    m_settings.setValue("Appearance/entryFontSize", size);
+    m_settings.sync();
+}
+
+int AppSettings::getEntryFontSize() const {
+    return m_settings.value("Appearance/entryFontSize", 12).toInt();
+}
+
+void AppSettings::setTableFontSize(int size) {
+    m_settings.setValue("Appearance/tableFontSize", size);
+    m_settings.sync();
+}
+
+int AppSettings::getTableFontSize() const {
+    return m_settings.value("Appearance/tableFontSize", 9).toInt();
+}
+
+void AppSettings::setGridFontSize(int size) {
+    m_settings.setValue("Appearance/gridFontSize", size);
+    m_settings.sync();
+}
+
+int AppSettings::getGridFontSize() const {
+    return m_settings.value("Appearance/gridFontSize", 11).toInt();
+}
+
 } // namespace TR4QT

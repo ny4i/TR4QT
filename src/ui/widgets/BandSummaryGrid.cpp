@@ -179,4 +179,33 @@ QString BandSummaryGrid::bandToColumnLabel(BandType band) const {
     }
 }
 
+void BandSummaryGrid::setFontSize(int pointSize) {
+    QFont font("Monospace", pointSize);
+
+    // Apply to all labels
+    for (auto label : m_qsoLabels.values()) {
+        if (label) label->setFont(font);
+    }
+    for (auto label : m_multLabels.values()) {
+        if (label) label->setFont(font);
+    }
+    for (auto label : m_zoneLabels.values()) {
+        if (label) label->setFont(font);
+    }
+
+    if (m_qsoAllLabel) m_qsoAllLabel->setFont(font);
+    if (m_multAllLabel) m_multAllLabel->setFont(font);
+    if (m_zoneAllLabel) m_zoneAllLabel->setFont(font);
+    if (m_totalPointsLabel) m_totalPointsLabel->setFont(font);
+    if (m_bothLabel) m_bothLabel->setFont(font);
+
+    // Also update all labels in the grid layout (headers)
+    for (int i = 0; i < m_gridLayout->count(); ++i) {
+        QWidget* widget = m_gridLayout->itemAt(i)->widget();
+        if (QLabel* label = qobject_cast<QLabel*>(widget)) {
+            label->setFont(font);
+        }
+    }
+}
+
 } // namespace TR4QT

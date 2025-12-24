@@ -73,6 +73,7 @@ private:
     QWidget* createRadioStatusGrid();
     void loadSettings();
     void saveSettings();
+    void applyFontSettings();
     void updateConnectionStatus(bool connected);
     void updateScoreDisplay();
     void updateRadioStatusGrid();

@@ -55,6 +55,16 @@ public:
     void setCountryFilePath(const QString& path);
     QString getCountryFilePath() const;
 
+    // Appearance settings
+    void setEntryFontSize(int size);
+    int getEntryFontSize() const;
+
+    void setTableFontSize(int size);
+    int getTableFontSize() const;
+
+    void setGridFontSize(int size);
+    int getGridFontSize() const;
+
 private:
     AppSettings();
     ~AppSettings() = default;

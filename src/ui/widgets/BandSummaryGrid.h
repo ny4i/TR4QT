@@ -37,6 +37,9 @@ public:
     // Clear all counts
     void clearAll();
 
+    // Font size
+    void setFontSize(int pointSize);
+
 private:
     void setupUI();
     QString bandToColumnLabel(BandType band) const;

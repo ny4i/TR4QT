@@ -385,6 +385,9 @@ void MainWindow::loadSettings() {
     if (!state.isEmpty()) {
         restoreState(state);
     }
+
+    // Apply font settings
+    applyFontSettings();
 }
 
 void MainWindow::saveSettings() {
@@ -512,6 +515,9 @@ void MainWindow::onPreferences() {
     if (dialog.exec() == QDialog::Accepted) {
         m_statusLabel->setText("Preferences saved");
 
+        // Apply font size changes immediately
+        applyFontSettings();
+
         // If radio settings changed and radio is connected, ask to reconnect
         if (m_radioConnected) {
             QMessageBox::StandardButton reply = QMessageBox::question(
@@ -525,7 +531,6 @@ void MainWindow::onPreferences() {
             }
         }
 
-        // TODO: Apply font size changes to UI widgets
         // TODO: Reload contest settings if changed
     }
 }
@@ -731,6 +736,27 @@ void MainWindow::updateRadioStatusGrid() {
     QDateTime now = QDateTime::currentDateTime();
     QString dateTimeStr = now.toString("ddd dd-MMM-yyyy hh:mm:ss");
     m_radioDateTimeLabel->setText(dateTimeStr);
+}
+
+void MainWindow::applyFontSettings() {
+    AppSettings& settings = AppSettings::instance();
+
+    // Apply entry field font sizes
+    int entryFontSize = settings.getEntryFontSize();
+    QFont entryFont("Monospace", entryFontSize);
+    m_callsignEntry->setFont(entryFont);
+    m_exchangeEntry->setFont(entryFont);
+
+    // Apply QSO table font size
+    int tableFontSize = settings.getTableFontSize();
+    QFont tableFont("Monospace", tableFontSize);
+    m_qsoTableView->setFont(tableFont);
+
+    // Apply band summary grid font size
+    int gridFontSize = settings.getGridFontSize();
+    if (m_bandSummaryGrid) {
+        m_bandSummaryGrid->setFontSize(gridFontSize);
+    }
 }
 
 void MainWindow::activateContest(const ContestInfo& contestInfo) {
