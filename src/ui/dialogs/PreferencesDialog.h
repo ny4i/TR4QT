@@ -45,6 +45,11 @@ private slots:
     void onUdpRemoveDestination();
     void onUdpTestDestination();
 
+    // Logging slots
+    void onOpenLogFile();
+    void onClearLogFile();
+    void onBrowseLogFile();
+
 private:
     void setupUI();
     void loadSettings();
@@ -56,6 +61,7 @@ private:
     QWidget* createDXClusterTab();
     QWidget* createUDPBroadcastTab();
     QWidget* createAppearanceTab();
+    QWidget* createLoggingTab();
     QWidget* createContestTab();
     QWidget* createAdvancedTab();
 
@@ -103,6 +109,14 @@ private:
     QSpinBox* m_entryFontSizeSpin;
     QSpinBox* m_tableFontSizeSpin;
     QSpinBox* m_gridFontSizeSpin;
+
+    // Logging tab widgets
+    QComboBox* m_logLevelCombo;
+    QCheckBox* m_fileLoggingEnabledCheck;
+    QCheckBox* m_consoleLoggingEnabledCheck;
+    QLineEdit* m_logFilePathEdit;
+    QSpinBox* m_logMaxFileSizeSpin;
+    QSpinBox* m_logMaxBackupFilesSpin;
 
     // Contest tab widgets
     QComboBox* m_defaultContestCombo;

@@ -2,6 +2,8 @@
 #include "../../utils/AppSettings.h"
 #include "../../utils/RadioEnumerator.h"
 #include "../../network/UdpBroadcaster.h"
+#include "../../logging/Logger.h"
+#include "../../logging/LogLevel.h"
 #include "../../core/Constants.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -12,6 +14,10 @@
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QCompleter>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QFile>
+#include <QDir>
 
 namespace TR4QT {
 
@@ -47,6 +53,8 @@ void PreferencesDialog::setupUI() {
     m_tabWidget->addTab(createUDPBroadcastTab(), "UDP Broadcast");
     qDebug() << "*** setupUI: Creating Appearance tab ***";
     m_tabWidget->addTab(createAppearanceTab(), "Appearance");
+    qDebug() << "*** setupUI: Creating Logging tab ***";
+    m_tabWidget->addTab(createLoggingTab(), "Logging");
     qDebug() << "*** setupUI: Creating Contest tab ***";
     m_tabWidget->addTab(createContestTab(), "Contest");
     qDebug() << "*** setupUI: Creating Advanced tab ***";
@@ -435,6 +443,105 @@ QWidget* PreferencesDialog::createAppearanceTab() {
     return appearanceTab;
 }
 
+QWidget* PreferencesDialog::createLoggingTab() {
+    QWidget* loggingTab = new QWidget(this);
+    QVBoxLayout* mainLayout = new QVBoxLayout(loggingTab);
+
+    // Log Level group
+    QGroupBox* levelGroup = new QGroupBox("Log Level", this);
+    QFormLayout* levelLayout = new QFormLayout(levelGroup);
+
+    m_logLevelCombo = new QComboBox(this);
+    m_logLevelCombo->addItem("Trace (Most Verbose)", static_cast<int>(LogLevel::Trace));
+    m_logLevelCombo->addItem("Debug", static_cast<int>(LogLevel::Debug));
+    m_logLevelCombo->addItem("Info (Recommended)", static_cast<int>(LogLevel::Info));
+    m_logLevelCombo->addItem("Warning", static_cast<int>(LogLevel::Warn));
+    m_logLevelCombo->addItem("Error", static_cast<int>(LogLevel::Error));
+    m_logLevelCombo->addItem("Fatal Only", static_cast<int>(LogLevel::Fatal));
+    m_logLevelCombo->addItem("Off (No Logging)", static_cast<int>(LogLevel::Off));
+    m_logLevelCombo->setToolTip("Minimum log level - messages below this level will be filtered");
+    levelLayout->addRow("Log Level:", m_logLevelCombo);
+
+    mainLayout->addWidget(levelGroup);
+
+    // Output Settings group
+    QGroupBox* outputGroup = new QGroupBox("Output Settings", this);
+    QVBoxLayout* outputLayout = new QVBoxLayout(outputGroup);
+
+    m_fileLoggingEnabledCheck = new QCheckBox("Enable file logging", this);
+    m_fileLoggingEnabledCheck->setToolTip("Write log messages to file");
+    outputLayout->addWidget(m_fileLoggingEnabledCheck);
+
+    m_consoleLoggingEnabledCheck = new QCheckBox("Enable console logging", this);
+    m_consoleLoggingEnabledCheck->setToolTip("Write log messages to stderr (visible in terminal)");
+    outputLayout->addWidget(m_consoleLoggingEnabledCheck);
+
+    mainLayout->addWidget(outputGroup);
+
+    // File Settings group
+    QGroupBox* fileGroup = new QGroupBox("File Settings", this);
+    QFormLayout* fileLayout = new QFormLayout(fileGroup);
+
+    // Log file path
+    QHBoxLayout* pathLayout = new QHBoxLayout();
+    m_logFilePathEdit = new QLineEdit(this);
+    m_logFilePathEdit->setPlaceholderText("~/.tr4qt/logs/tr4qt.log");
+    m_logFilePathEdit->setToolTip("Path to log file");
+
+    QPushButton* browseButton = new QPushButton("Browse...", this);
+    connect(browseButton, &QPushButton::clicked, this, &PreferencesDialog::onBrowseLogFile);
+
+    pathLayout->addWidget(m_logFilePathEdit);
+    pathLayout->addWidget(browseButton);
+    fileLayout->addRow("Log File Path:", pathLayout);
+
+    // Max file size
+    m_logMaxFileSizeSpin = new QSpinBox(this);
+    m_logMaxFileSizeSpin->setRange(1, 100);
+    m_logMaxFileSizeSpin->setValue(10);
+    m_logMaxFileSizeSpin->setSuffix(" MB");
+    m_logMaxFileSizeSpin->setToolTip("Maximum log file size before rotation");
+    fileLayout->addRow("Max File Size:", m_logMaxFileSizeSpin);
+
+    // Backup files
+    m_logMaxBackupFilesSpin = new QSpinBox(this);
+    m_logMaxBackupFilesSpin->setRange(0, 10);
+    m_logMaxBackupFilesSpin->setValue(5);
+    m_logMaxBackupFilesSpin->setToolTip("Number of backup log files to keep (tr4qt.log.1, .2, etc.)");
+    fileLayout->addRow("Backup Files:", m_logMaxBackupFilesSpin);
+
+    mainLayout->addWidget(fileGroup);
+
+    // Log file actions
+    QHBoxLayout* actionLayout = new QHBoxLayout();
+    QPushButton* openLogButton = new QPushButton("Open Log File", this);
+    QPushButton* clearLogButton = new QPushButton("Clear Log File", this);
+    connect(openLogButton, &QPushButton::clicked, this, &PreferencesDialog::onOpenLogFile);
+    connect(clearLogButton, &QPushButton::clicked, this, &PreferencesDialog::onClearLogFile);
+    actionLayout->addWidget(openLogButton);
+    actionLayout->addWidget(clearLogButton);
+    actionLayout->addStretch();
+    mainLayout->addLayout(actionLayout);
+
+    // Help text
+    QLabel* helpLabel = new QLabel(
+        "TR4QT uses TR4W-compatible logging format:\n"
+        "  DD MMM YYYY HH:MM:SS.mmm elapsed [thread] level category - message\n\n"
+        "Example:\n"
+        "  24 Dec 2025 18:14:02.968 2650 [10252] info TR4QTMain - Program startup\n\n"
+        "Log files automatically rotate when reaching max size.\n"
+        "Changes to log level take effect immediately.",
+        this
+    );
+    helpLabel->setWordWrap(true);
+    helpLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; }");
+    mainLayout->addWidget(helpLabel);
+
+    mainLayout->addStretch();
+
+    return loggingTab;
+}
+
 QWidget* PreferencesDialog::createContestTab() {
     QWidget* contestTab = new QWidget(this);
     QVBoxLayout* layout = new QVBoxLayout(contestTab);
@@ -577,6 +684,17 @@ void PreferencesDialog::loadSettings() {
     m_tableFontSizeSpin->setValue(settings.getTableFontSize());
     m_gridFontSizeSpin->setValue(settings.getGridFontSize());
 
+    // Logging tab
+    int logLevelIndex = m_logLevelCombo->findData(static_cast<int>(settings.getLogLevel()));
+    if (logLevelIndex >= 0) {
+        m_logLevelCombo->setCurrentIndex(logLevelIndex);
+    }
+    m_fileLoggingEnabledCheck->setChecked(settings.getFileLoggingEnabled());
+    m_consoleLoggingEnabledCheck->setChecked(settings.getConsoleLoggingEnabled());
+    m_logFilePathEdit->setText(settings.getLogFilePath());
+    m_logMaxFileSizeSpin->setValue(settings.getLogMaxFileSize() / (1024 * 1024));  // Convert bytes to MB
+    m_logMaxBackupFilesSpin->setValue(settings.getLogMaxBackupFiles());
+
     // Contest tab - will need to add getters to AppSettings
 
     // Advanced tab
@@ -652,6 +770,24 @@ void PreferencesDialog::saveSettings() {
     settings.setEntryFontSize(m_entryFontSizeSpin->value());
     settings.setTableFontSize(m_tableFontSizeSpin->value());
     settings.setGridFontSize(m_gridFontSizeSpin->value());
+
+    // Logging tab
+    LogLevel logLevel = static_cast<LogLevel>(m_logLevelCombo->currentData().toInt());
+    settings.setLogLevel(logLevel);
+    settings.setFileLoggingEnabled(m_fileLoggingEnabledCheck->isChecked());
+    settings.setConsoleLoggingEnabled(m_consoleLoggingEnabledCheck->isChecked());
+    settings.setLogFilePath(m_logFilePathEdit->text());
+    settings.setLogMaxFileSize(static_cast<qint64>(m_logMaxFileSizeSpin->value()) * 1024 * 1024);  // Convert MB to bytes
+    settings.setLogMaxBackupFiles(m_logMaxBackupFilesSpin->value());
+
+    // Apply logging changes immediately to the Logger
+    Logger& logger = Logger::instance();
+    logger.setLogLevel(logLevel);
+    logger.setFileLoggingEnabled(m_fileLoggingEnabledCheck->isChecked());
+    logger.setConsoleLoggingEnabled(m_consoleLoggingEnabledCheck->isChecked());
+    logger.setLogFilePath(m_logFilePathEdit->text());
+    logger.setMaxFileSize(static_cast<qint64>(m_logMaxFileSizeSpin->value()) * 1024 * 1024);
+    logger.setMaxBackupFiles(m_logMaxBackupFilesSpin->value());
 
     // Contest tab - will add setters to AppSettings
 
@@ -774,6 +910,110 @@ void PreferencesDialog::onUdpTestDestination() {
                             QString("Failed to send test message to %1:%2\n\n"
                                    "Error: %3")
                                 .arg(host).arg(port).arg(testBroadcaster.lastError()));
+    }
+}
+
+void PreferencesDialog::onOpenLogFile() {
+    QString logPath = m_logFilePathEdit->text();
+    if (logPath.isEmpty()) {
+        logPath = AppSettings::instance().getLogFilePath();
+    }
+
+    // Expand home directory if present
+    if (logPath.startsWith("~/")) {
+        logPath = QDir::homePath() + logPath.mid(1);
+    }
+
+    if (!QFile::exists(logPath)) {
+        QMessageBox::warning(this, "Open Log File",
+                           QString("Log file does not exist:\n%1\n\n"
+                                  "Start the application to create the log file.")
+                               .arg(logPath));
+        return;
+    }
+
+    // Open with default application
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(logPath))) {
+        QMessageBox::critical(this, "Open Log File",
+                            QString("Failed to open log file:\n%1").arg(logPath));
+    }
+}
+
+void PreferencesDialog::onClearLogFile() {
+    QString logPath = m_logFilePathEdit->text();
+    if (logPath.isEmpty()) {
+        logPath = AppSettings::instance().getLogFilePath();
+    }
+
+    // Expand home directory if present
+    if (logPath.startsWith("~/")) {
+        logPath = QDir::homePath() + logPath.mid(1);
+    }
+
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this,
+        "Clear Log File",
+        QString("Are you sure you want to clear the log file?\n\n%1\n\n"
+               "This will permanently delete all log contents.")
+            .arg(logPath),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No
+    );
+
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+
+    // Close the log file, truncate it, and reopen
+    Logger& logger = Logger::instance();
+    logger.shutdown();
+
+    QFile logFile(logPath);
+    if (logFile.exists()) {
+        if (logFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            logFile.close();
+            QMessageBox::information(this, "Clear Log File",
+                                   "Log file cleared successfully.");
+        } else {
+            QMessageBox::critical(this, "Clear Log File",
+                                QString("Failed to clear log file:\n%1\n\nError: %2")
+                                    .arg(logPath).arg(logFile.errorString()));
+        }
+    }
+
+    // Reinitialize the logger
+    logger.initialize();
+    logger.setLogLevel(AppSettings::instance().getLogLevel());
+    logger.setFileLoggingEnabled(AppSettings::instance().getFileLoggingEnabled());
+    logger.setConsoleLoggingEnabled(AppSettings::instance().getConsoleLoggingEnabled());
+    logger.setLogFilePath(AppSettings::instance().getLogFilePath());
+}
+
+void PreferencesDialog::onBrowseLogFile() {
+    QString currentPath = m_logFilePathEdit->text();
+    if (currentPath.isEmpty()) {
+        currentPath = AppSettings::instance().getLogFilePath();
+    }
+
+    // Expand home directory if present
+    if (currentPath.startsWith("~/")) {
+        currentPath = QDir::homePath() + currentPath.mid(1);
+    }
+
+    QString fileName = QFileDialog::getSaveFileName(
+        this,
+        "Select Log File Location",
+        currentPath,
+        "Log Files (*.log);;All Files (*)"
+    );
+
+    if (!fileName.isEmpty()) {
+        // Convert back to ~/ notation if within home directory
+        QString homePath = QDir::homePath();
+        if (fileName.startsWith(homePath)) {
+            fileName = "~" + fileName.mid(homePath.length());
+        }
+        m_logFilePathEdit->setText(fileName);
     }
 }
 
