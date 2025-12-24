@@ -39,8 +39,8 @@ private:
     QNetworkReply* m_currentReply{nullptr};
     QString m_saveDir;
 
-    // Parse version number from HTML (e.g., "CTY-3540")
-    int parseVersionFromHtml(const QString& html);
+    // Parse version number from RSS feed (e.g., "CTY-3540" from title)
+    int parseVersionFromRss(const QString& rssXml);
 };
 
 } // namespace TR4QT

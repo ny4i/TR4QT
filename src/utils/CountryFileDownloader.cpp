@@ -3,6 +3,7 @@
 #include <QFile>
 #include <QDir>
 #include <QRegularExpression>
+#include <QXmlStreamReader>
 #include <QDebug>
 
 namespace TR4QT {
@@ -37,7 +38,9 @@ void CountryFileDownloader::checkLatestVersion() {
         m_currentReply->deleteLater();
     }
 
-    QNetworkRequest request{QUrl(COUNTRY_FILE_URL)};
+    // Fetch RSS feed to get latest version
+    QUrl rssUrl("https://www.country-files.com/feed/");
+    QNetworkRequest request{rssUrl};
     m_currentReply = m_networkManager->get(request);
 
     connect(m_currentReply, &QNetworkReply::finished,
@@ -54,11 +57,11 @@ void CountryFileDownloader::onVersionCheckFinished() {
         return;
     }
 
-    QString html = QString::fromUtf8(m_currentReply->readAll());
+    QString rssXml = QString::fromUtf8(m_currentReply->readAll());
     m_currentReply->deleteLater();
     m_currentReply = nullptr;
 
-    int latestVersion = parseVersionFromHtml(html);
+    int latestVersion = parseVersionFromRss(rssXml);
 
     if (latestVersion > 0) {
         emit versionChecked(latestVersion);
@@ -67,6 +70,7 @@ void CountryFileDownloader::onVersionCheckFinished() {
         QString downloadUrl = QString("https://www.country-files.com/cty-%1/cty.dat")
                                       .arg(latestVersion);
 
+        qDebug() << "Latest CTY version from RSS feed:" << latestVersion;
         qDebug() << "Downloading" << downloadUrl;
 
         QNetworkRequest request{QUrl(downloadUrl)};
@@ -77,7 +81,7 @@ void CountryFileDownloader::onVersionCheckFinished() {
         connect(m_currentReply, &QNetworkReply::downloadProgress,
                 this, &CountryFileDownloader::onDownloadProgress);
     } else {
-        emit errorOccurred("Failed to parse latest version from website");
+        emit errorOccurred("Failed to parse latest version from RSS feed");
     }
 }
 
@@ -123,16 +127,50 @@ void CountryFileDownloader::cancel() {
     }
 }
 
-int CountryFileDownloader::parseVersionFromHtml(const QString& html) {
-    // Look for patterns like "CTY-3540" in the HTML
-    static QRegularExpression re(R"(CTY-(\d{4}))");
-    QRegularExpressionMatch match = re.match(html);
+int CountryFileDownloader::parseVersionFromRss(const QString& rssXml) {
+    // Parse RSS feed using QXmlStreamReader
+    // Looking for the first <item><title> which contains "CTY-3540 – 18 December 2025"
+    QXmlStreamReader xml(rssXml);
 
-    if (match.hasMatch()) {
-        return match.captured(1).toInt();
+    while (!xml.atEnd()) {
+        xml.readNext();
+
+        if (xml.isStartElement() && xml.name() == QStringLiteral("item")) {
+            // Found an item, now look for title
+            while (!xml.atEnd()) {
+                xml.readNext();
+
+                if (xml.isStartElement() && xml.name() == QStringLiteral("title")) {
+                    QString title = xml.readElementText();
+                    qDebug() << "RSS feed first item title:" << title;
+
+                    // Extract version number from title like "CTY-3540 – 18 December 2025"
+                    static QRegularExpression re(R"(CTY-(\d{4}))");
+                    QRegularExpressionMatch match = re.match(title);
+
+                    if (match.hasMatch()) {
+                        int version = match.captured(1).toInt();
+                        qDebug() << "Parsed version from RSS:" << version;
+                        return version;
+                    }
+                }
+
+                // Break when we reach end of first item
+                if (xml.isEndElement() && xml.name() == QStringLiteral("item")) {
+                    break;
+                }
+            }
+            // Only process first item
+            break;
+        }
+    }
+
+    if (xml.hasError()) {
+        qWarning() << "XML parsing error:" << xml.errorString();
     }
 
     // Fallback: use hardcoded version from Constants.h
+    qDebug() << "Failed to parse version from RSS, using fallback:" << CURRENT_CTY_VERSION;
     return CURRENT_CTY_VERSION;
 }
 
