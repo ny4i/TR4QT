@@ -28,6 +28,19 @@ public:
     explicit CQWPXContest(ModeType mode);
     ~CQWPXContest() override = default;
 
+    // ===== Contest Identifiers =====
+    // WA7BNM Contest Calendar IDs
+    static constexpr int WA7BNM_ID_CW = 7;
+    static constexpr int WA7BNM_ID_SSB = 8;
+
+    // Cabrillo contest names
+    static inline const QString CABRILLO_NAME_CW = "CQ-WPX-CW";
+    static inline const QString CABRILLO_NAME_SSB = "CQ-WPX-SSB";
+
+    // ADIF Contest-ID values
+    static inline const QString ADIF_CONTEST_ID_CW = "CQ-WPX-CW";
+    static inline const QString ADIF_CONTEST_ID_SSB = "CQ-WPX-SSB";
+
     // ===== Contest Identity =====
     QString getContestId() const override;
     QString getContestName() const override;

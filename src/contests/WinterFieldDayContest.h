@@ -33,6 +33,16 @@ public:
     WinterFieldDayContest();
     ~WinterFieldDayContest() override = default;
 
+    // ===== Contest Identifiers =====
+    // WA7BNM Contest Calendar ID
+    static constexpr int WA7BNM_ID = 421;
+
+    // Cabrillo contest name
+    static inline const QString CABRILLO_NAME = "WINTER-FIELD-DAY";
+
+    // ADIF Contest-ID value
+    static inline const QString ADIF_CONTEST_ID = "WINTER-FIELD-DAY";
+
     // ===== Contest Identity =====
     QString getContestId() const override;
     QString getContestName() const override;
