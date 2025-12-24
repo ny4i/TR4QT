@@ -1,8 +1,8 @@
 #include "CountryFile.h"
+#include "../logging/LogMacros.h"
 #include <QFile>
 #include <QTextStream>
 #include <QRegularExpression>
-#include <QDebug>
 
 namespace TR4QT {
 
@@ -12,7 +12,7 @@ CountryFile::CountryFile() {
 bool CountryFile::loadFromFile(const QString& filePath) {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning() << "Failed to open country file:" << filePath;
+        LOG_WARN("CountryFile", QString("Failed to open country file: %1").arg(filePath));
         return false;
     }
 
@@ -63,7 +63,7 @@ bool CountryFile::loadFromFile(const QString& filePath) {
 
     file.close();
 
-    qDebug() << "Loaded" << m_countries.size() << "countries from" << filePath;
+    LOG_DEBUG("CountryFile", QString("Loaded %1 countries from %2").arg(m_countries.size()).arg(filePath));
     return !m_countries.isEmpty();
 }
 
@@ -95,7 +95,7 @@ bool CountryFile::parseMainLine(const QString& line, CountryData& country) {
 
     QStringList parts = line.split(':');
     if (parts.size() < 8) {
-        qWarning() << "Invalid main line format:" << line;
+        LOG_WARN("CountryFile", QString("Invalid main line format: %1").arg(line));
         return false;
     }
 

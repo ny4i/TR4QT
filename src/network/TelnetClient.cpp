@@ -1,4 +1,5 @@
 #include "TelnetClient.h"
+#include "../logging/LogMacros.h"
 #include <QRegularExpression>
 #include <QDateTime>
 #include <hamlib/rig.h>
@@ -60,7 +61,7 @@ void TelnetClient::sendCommand(const QString& command) {
 
 void TelnetClient::setAutoLoginCallsign(const QString& callsign) {
     m_autoLoginCallsign = callsign.trimmed().toUpper();
-    qDebug() << "TelnetClient: Auto-login callsign set to:" << m_autoLoginCallsign;
+    LOG_DEBUG("TelnetClient", QString("Auto-login callsign set to: %1").arg(m_autoLoginCallsign));
 }
 
 void TelnetClient::onConnected() {
@@ -106,7 +107,7 @@ void TelnetClient::onReadyRead() {
                     cleanLine.contains("Please enter your call", Qt::CaseInsensitive) ||
                     cleanLine.contains("login:", Qt::CaseInsensitive)) {
 
-                    qDebug() << "TelnetClient: Login prompt detected, sending callsign:" << m_autoLoginCallsign;
+                    LOG_DEBUG("TelnetClient", QString("Login prompt detected, sending callsign: %1").arg(m_autoLoginCallsign));
                     sendCommand(m_autoLoginCallsign);
                     m_loginSent = true;
                 }

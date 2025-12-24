@@ -1,10 +1,10 @@
 #include "Database.h"
+#include "../logging/LogMacros.h"
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
-#include <QDebug>
 #include <QVariant>
 
 namespace TR4QT {
@@ -34,7 +34,7 @@ bool Database::open(const QString& dbPath) {
     if (!dir.exists()) {
         if (!dir.mkpath(".")) {
             m_lastError = QString("Failed to create directory: %1").arg(dir.path());
-            qWarning() << m_lastError;
+            LOG_WARN("Database", m_lastError);
             return false;
         }
     }
@@ -46,11 +46,11 @@ bool Database::open(const QString& dbPath) {
 
     if (!m_db.open()) {
         m_lastError = m_db.lastError().text();
-        qWarning() << "Failed to open database:" << m_lastError;
+        LOG_WARN("Database", QString("Failed to open database: %1").arg(m_lastError));
         return false;
     }
 
-    qDebug() << "Database opened:" << dbPath;
+    LOG_DEBUG("Database", QString("Database opened: %1").arg(dbPath));
 
     // Enable foreign keys
     QSqlQuery query(m_db);
@@ -69,8 +69,8 @@ bool Database::open(const QString& dbPath) {
             m_lastError = "Database file exists but schema is missing or incompatible.\n"
                          "This database was likely created with an older version of TR4QT.\n"
                          "Please create a new contest or delete the old database file.";
-            qWarning() << m_lastError;
-            qWarning() << "Database path:" << dbPath;
+            LOG_WARN("Database", m_lastError);
+            LOG_WARN("Database", QString("Database path: %1").arg(dbPath));
             // TODO: Offer to migrate/upgrade database schema in a future version
             //       Show dialog: "Upgrade database schema?" [Yes] [No] [Delete and recreate]
             close();
@@ -85,7 +85,7 @@ void Database::close() {
     if (m_db.isOpen()) {
         QString dbName = m_db.databaseName();
         m_db.close();
-        qDebug() << "Database closed:" << dbName;
+        LOG_DEBUG("Database", QString("Database closed: %1").arg(dbName));
     }
 }
 
@@ -102,8 +102,8 @@ QSqlQuery Database::execute(const QString& query, const QVariantList& values) {
 
     if (!q.prepare(query)) {
         m_lastError = q.lastError().text();
-        qWarning() << "Failed to prepare query:" << m_lastError;
-        qWarning() << "Query:" << query;
+        LOG_WARN("Database", QString("Failed to prepare query: %1").arg(m_lastError));
+        LOG_WARN("Database", QString("Query: %1").arg(query));
         return q;
     }
 
@@ -114,8 +114,8 @@ QSqlQuery Database::execute(const QString& query, const QVariantList& values) {
 
     if (!q.exec()) {
         m_lastError = q.lastError().text();
-        qWarning() << "Failed to execute query:" << m_lastError;
-        qWarning() << "Query:" << query;
+        LOG_WARN("Database", QString("Failed to execute query: %1").arg(m_lastError));
+        LOG_WARN("Database", QString("Query: %1").arg(query));
         return q;
     }
 
@@ -128,7 +128,7 @@ QSqlQuery Database::execute(const QString& query, const QVariantList& values) {
 bool Database::beginTransaction() {
     if (!m_db.transaction()) {
         m_lastError = m_db.lastError().text();
-        qWarning() << "Failed to begin transaction:" << m_lastError;
+        LOG_WARN("Database", QString("Failed to begin transaction: %1").arg(m_lastError));
         return false;
     }
     return true;
@@ -137,7 +137,7 @@ bool Database::beginTransaction() {
 bool Database::commitTransaction() {
     if (!m_db.commit()) {
         m_lastError = m_db.lastError().text();
-        qWarning() << "Failed to commit transaction:" << m_lastError;
+        LOG_WARN("Database", QString("Failed to commit transaction: %1").arg(m_lastError));
         return false;
     }
     return true;
@@ -146,7 +146,7 @@ bool Database::commitTransaction() {
 bool Database::rollbackTransaction() {
     if (!m_db.rollback()) {
         m_lastError = m_db.lastError().text();
-        qWarning() << "Failed to rollback transaction:" << m_lastError;
+        LOG_WARN("Database", QString("Failed to rollback transaction: %1").arg(m_lastError));
         return false;
     }
     return true;
@@ -161,7 +161,7 @@ int Database::lastInsertId() const {
 }
 
 bool Database::initSchema() {
-    qDebug() << "Initializing database schema...";
+    LOG_DEBUG("Database", "Initializing database schema...");
 
     QString schemaSql = loadSchemaSql();
     if (schemaSql.isEmpty()) {
@@ -191,13 +191,13 @@ bool Database::initSchema() {
         QSqlQuery query(m_db);
         if (!query.exec(cleaned)) {
             m_lastError = QString("Schema init failed: %1").arg(query.lastError().text());
-            qWarning() << m_lastError;
-            qWarning() << "Statement:" << cleaned;
+            LOG_WARN("Database", m_lastError);
+            LOG_WARN("Database", QString("Statement: %1").arg(cleaned));
             return false;
         }
     }
 
-    qDebug() << "Database schema initialized successfully";
+    LOG_DEBUG("Database", "Database schema initialized successfully");
     return true;
 }
 
@@ -205,26 +205,26 @@ QString Database::loadSchemaSql() {
     // Try to load from embedded resource (production)
     QFile schemaFile(":/data/schema.sql");
     if (!schemaFile.exists()) {
-        qWarning() << "Resource :/data/schema.sql not found, trying fallback path";
+        LOG_WARN("Database", "Resource :/data/schema.sql not found, trying fallback path");
         // Fallback to actual file path (development)
         schemaFile.setFileName("src/data/schema.sql");
     } else {
-        qWarning() << "Found schema in Qt resources";
+        LOG_WARN("Database", "Found schema in Qt resources");
     }
 
     if (!schemaFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning() << "Failed to open schema file:" << schemaFile.fileName();
+        LOG_WARN("Database", QString("Failed to open schema file: %1").arg(schemaFile.fileName()));
         return QString();
     }
 
     QString sql = QString::fromUtf8(schemaFile.readAll());
     schemaFile.close();
 
-    qWarning() << "Loaded schema SQL:" << sql.length() << "bytes";
+    LOG_WARN("Database", QString("Loaded schema SQL: %1 bytes").arg(sql.length()));
     if (sql.length() > 0) {
-        qWarning() << "First 200 chars:" << sql.left(200);
+        LOG_WARN("Database", QString("First 200 chars: %1").arg(sql.left(200)));
     } else {
-        qWarning() << "ERROR: Schema SQL is empty!";
+        LOG_WARN("Database", "ERROR: Schema SQL is empty!");
     }
 
     return sql;

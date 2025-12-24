@@ -1,5 +1,6 @@
 #include "DXClusterListDownloader.h"
 #include "../utils/CountryFile.h"
+#include "../logging/LogMacros.h"
 #include <QNetworkRequest>
 #include <QUrl>
 #include <QRegularExpression>
@@ -22,7 +23,7 @@ DXClusterListDownloader::~DXClusterListDownloader() {
 
 void DXClusterListDownloader::downloadList() {
     if (m_currentReply) {
-        qWarning() << "Download already in progress";
+        LOG_WARN("DXClusterListDownloader", "Download already in progress");
         return;
     }
 
@@ -32,7 +33,7 @@ void DXClusterListDownloader::downloadList() {
     request.setRawHeader("User-Agent", "TR4QT/2.0 (Amateur Radio Contest Logger)");
     request.setRawHeader("Accept", "*/*");
 
-    qDebug() << "Downloading DX cluster list from:" << DXCLUSTERS_URL;
+    LOG_DEBUG("DXClusterListDownloader", QString("Downloading DX cluster list from: %1").arg(DXCLUSTERS_URL));
 
     m_currentReply = m_networkManager->get(request);
 
@@ -64,7 +65,7 @@ void DXClusterListDownloader::onDownloadFinished() {
 
     if (reply->error() != QNetworkReply::NoError) {
         QString error = QString("Download failed: %1").arg(reply->errorString());
-        qWarning() << error;
+        LOG_WARN("DXClusterListDownloader", error);
         emit errorOccurred(error);
         emit downloadFinished(false, QList<DXClusterServer>());
         reply->deleteLater();
@@ -75,13 +76,13 @@ void DXClusterListDownloader::onDownloadFinished() {
     QByteArray data = reply->readAll();
     reply->deleteLater();
 
-    qDebug() << "Downloaded" << data.size() << "bytes";
+    LOG_DEBUG("DXClusterListDownloader", QString("Downloaded %1 bytes").arg(data.size()));
 
     // Parse cluster list
     QString dataStr = QString::fromUtf8(data);
     QList<DXClusterServer> servers = parseClusterList(dataStr);
 
-    qDebug() << "Parsed" << servers.size() << "cluster servers";
+    LOG_DEBUG("DXClusterListDownloader", QString("Parsed %1 cluster servers").arg(servers.size()));
 
     emit downloadFinished(true, servers);
 }
@@ -111,7 +112,7 @@ QList<DXClusterServer> DXClusterListDownloader::parseClusterList(const QString& 
             bool ok;
             server.port = match.captured(3).toInt(&ok);
             if (!ok || server.port <= 0 || server.port > 65535) {
-                qWarning() << "Invalid port in line:" << trimmed;
+                LOG_WARN("DXClusterListDownloader", QString("Invalid port in line: %1").arg(trimmed));
                 continue;
             }
             server.clusterType = match.captured(4);
@@ -119,7 +120,7 @@ QList<DXClusterServer> DXClusterListDownloader::parseClusterList(const QString& 
 
             servers.append(server);
         } else {
-            qWarning() << "Failed to parse line:" << trimmed;
+            LOG_WARN("DXClusterListDownloader", QString("Failed to parse line: %1").arg(trimmed));
         }
     }
 

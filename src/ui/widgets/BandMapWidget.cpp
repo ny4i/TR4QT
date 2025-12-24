@@ -1,5 +1,6 @@
 #include "BandMapWidget.h"
 #include "../../utils/ThemeManager.h"
+#include "../../logging/LogMacros.h"
 #include <QPainter>
 #include <QMouseEvent>
 #include <QContextMenuEvent>
@@ -337,7 +338,7 @@ QString BandMapWidget::formatFrequency(freq_t freq) const {
     // Debug: log first few conversions to verify format
     static int debugCount = 0;
     if (debugCount < 5) {
-        qDebug() << "BandMapWidget::formatFrequency:" << freq << "Hz ->" << result << "MHz";
+        LOG_DEBUG("BandMapWidget", QString("formatFrequency: %1 Hz -> %2 MHz").arg(freq).arg(result));
         debugCount++;
     }
 

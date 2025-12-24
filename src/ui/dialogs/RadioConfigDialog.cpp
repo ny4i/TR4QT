@@ -1,5 +1,6 @@
 #include "RadioConfigDialog.h"
 #include "../../utils/AppSettings.h"
+#include "../../logging/LogMacros.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -14,11 +15,11 @@ namespace TR4QT {
 RadioConfigDialog::RadioConfigDialog(QWidget* parent)
     : QDialog(parent)
 {
-    qDebug() << "*** RadioConfigDialog constructor called ***";
+    LOG_DEBUG("RadioConfigDialog", "*** RadioConfigDialog constructor called ***");
     setWindowTitle("Radio Configuration");
     setupUI();
     populateRadioModels();
-    qDebug() << "*** RadioConfigDialog fully initialized with window title:" << windowTitle();
+    LOG_DEBUG("RadioConfigDialog", QString("*** RadioConfigDialog fully initialized with window title: %1").arg(windowTitle()));
 }
 
 void RadioConfigDialog::setupUI() {

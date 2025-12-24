@@ -6,6 +6,7 @@
 #include "../../network/UdpBroadcaster.h"
 #include "../../logging/Logger.h"
 #include "../../logging/LogLevel.h"
+#include "../../logging/LogMacros.h"
 #include "../../core/Constants.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -30,42 +31,42 @@ namespace TR4QT {
 PreferencesDialog::PreferencesDialog(QWidget* parent)
     : QDialog(parent)
 {
-    qDebug() << "*** PreferencesDialog constructor called ***";
-    qDebug() << "*** Setting window title ***";
+    LOG_DEBUG("PreferencesDialog", "*** PreferencesDialog constructor called ***");
+    LOG_DEBUG("PreferencesDialog", "*** Setting window title ***");
     setWindowTitle("Preferences");
-    qDebug() << "*** Calling setupUI ***";
+    LOG_DEBUG("PreferencesDialog", "*** Calling setupUI ***");
     setupUI();
-    qDebug() << "*** setupUI completed, calling loadSettings ***";
+    LOG_DEBUG("PreferencesDialog", "*** setupUI completed, calling loadSettings ***");
     loadSettings();
-    qDebug() << "*** loadSettings completed, resizing ***";
+    LOG_DEBUG("PreferencesDialog", "*** loadSettings completed, resizing ***");
     resize(600, 500);
-    qDebug() << "*** PreferencesDialog fully initialized with window title:" << windowTitle();
+    LOG_DEBUG("PreferencesDialog", QString("*** PreferencesDialog fully initialized with window title: %1").arg(windowTitle()));
 }
 
 void PreferencesDialog::setupUI() {
-    qDebug() << "*** setupUI: Creating main layout ***";
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating main layout ***");
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
-    qDebug() << "*** setupUI: Creating tab widget ***";
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating tab widget ***");
     // Tab widget
     m_tabWidget = new QTabWidget(this);
-    qDebug() << "*** setupUI: Creating Station tab ***";
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Station tab ***");
     m_tabWidget->addTab(createStationTab(), "Station");
-    qDebug() << "*** setupUI: Creating Radio tab ***";
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Radio tab ***");
     m_tabWidget->addTab(createRadioTab(), "Radio");
-    qDebug() << "*** setupUI: Creating DX Cluster tab ***";
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating DX Cluster tab ***");
     m_tabWidget->addTab(createDXClusterTab(), "DX Cluster");
-    qDebug() << "*** setupUI: Creating UDP Broadcast tab ***";
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating UDP Broadcast tab ***");
     m_tabWidget->addTab(createUDPBroadcastTab(), "UDP Broadcast");
-    qDebug() << "*** setupUI: Creating Appearance tab ***";
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Appearance tab ***");
     m_tabWidget->addTab(createAppearanceTab(), "Appearance");
-    qDebug() << "*** setupUI: Creating Logging tab ***";
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Logging tab ***");
     m_tabWidget->addTab(createLoggingTab(), "Logging");
-    qDebug() << "*** setupUI: Creating Backup tab ***";
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Backup tab ***");
     m_tabWidget->addTab(createBackupTab(), "Backup");
-    qDebug() << "*** setupUI: Creating Contest tab ***";
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Contest tab ***");
     m_tabWidget->addTab(createContestTab(), "Contest");
-    qDebug() << "*** setupUI: Creating Advanced tab ***";
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Advanced tab ***");
     m_tabWidget->addTab(createAdvancedTab(), "Advanced");
 
     mainLayout->addWidget(m_tabWidget);
@@ -1424,7 +1425,7 @@ void PreferencesDialog::onClusterListDownloadFinished(bool success, const QList<
         return;  // Error already handled in error signal
     }
 
-    qDebug() << "Downloaded" << servers.size() << "cluster servers";
+    LOG_DEBUG("PreferencesDialog", QString("Downloaded %1 cluster servers").arg(servers.size()));
 
     if (servers.isEmpty()) {
         QMessageBox::warning(this, "Download Complete",
@@ -1636,7 +1637,7 @@ void PreferencesDialog::populateRadioList() {
 
     m_radioModelCombo->blockSignals(false);
 
-    qDebug() << "Radio list filtered:" << addedCount << "radios shown (out of" << allRadios.size() << "total)";
+    LOG_DEBUG("PreferencesDialog", QString("Radio list filtered: %1 radios shown (out of %2 total)").arg(addedCount).arg(allRadios.size()));
 }
 
 void PreferencesDialog::onRadioStatusFilterChanged() {

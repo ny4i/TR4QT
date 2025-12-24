@@ -1,8 +1,8 @@
 #include "UdpBroadcaster.h"
 #include "RadioInfo.h"
 #include "ContactInfo.h"
+#include "../logging/LogMacros.h"
 #include <QNetworkInterface>
-#include <QDebug>
 
 namespace TR4QT {
 
@@ -72,12 +72,12 @@ bool UdpBroadcaster::sendContactInfo(const ContactInfo& info)
 
 bool UdpBroadcaster::sendRawData(const QByteArray& data)
 {
-    qDebug() << "UdpBroadcaster::sendRawData called, data size:" << data.size()
-             << "destinations:" << m_destinations.size();
+    LOG_DEBUG("UdpBroadcaster", QString("sendRawData called, data size: %1 destinations: %2")
+              .arg(data.size()).arg(m_destinations.size()));
 
     if (m_destinations.isEmpty()) {
         m_lastError = "No destinations configured";
-        qDebug() << "ERROR: No destinations configured";
+        LOG_DEBUG("UdpBroadcaster", "ERROR: No destinations configured");
         return false;
     }
 
@@ -87,7 +87,8 @@ bool UdpBroadcaster::sendRawData(const QByteArray& data)
 
     // Send to all enabled destinations
     for (const auto& dest : m_destinations) {
-        qDebug() << "Checking destination:" << dest.toString() << "enabled:" << dest.enabled;
+        LOG_DEBUG("UdpBroadcaster", QString("Checking destination: %1 enabled: %2")
+                  .arg(dest.toString()).arg(dest.enabled));
         if (!dest.enabled) {
             continue;  // Skip disabled destinations
         }
@@ -96,14 +97,16 @@ bool UdpBroadcaster::sendRawData(const QByteArray& data)
         if (sendToDestination(data, dest)) {
             successCount++;
             totalBytesSent += data.size();
-            qDebug() << "Successfully sent" << data.size() << "bytes to" << dest.toString();
+            LOG_DEBUG("UdpBroadcaster", QString("Successfully sent %1 bytes to %2")
+                      .arg(data.size()).arg(dest.toString()));
         } else {
-            qDebug() << "Failed to send to" << dest.toString() << "error:" << m_lastError;
+            LOG_DEBUG("UdpBroadcaster", QString("Failed to send to %1 error: %2")
+                      .arg(dest.toString()).arg(m_lastError));
         }
     }
 
-    qDebug() << "Send summary: enabled destinations:" << enabledCount
-             << "successful sends:" << successCount;
+    LOG_DEBUG("UdpBroadcaster", QString("Send summary: enabled destinations: %1 successful sends: %2")
+              .arg(enabledCount).arg(successCount));
 
     // Emit signal if at least one send succeeded
     if (successCount > 0) {

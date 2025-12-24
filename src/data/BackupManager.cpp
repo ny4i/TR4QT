@@ -1,5 +1,6 @@
 #include "BackupManager.h"
 #include "Database.h"
+#include "../logging/LogMacros.h"
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
@@ -8,7 +9,6 @@
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QSqlError>
-#include <QDebug>
 #include <algorithm>
 
 namespace TR4QT {
@@ -34,7 +34,7 @@ bool BackupManager::createBackup(const QString& sourceDatabasePath,
     // Validate source database exists
     if (!QFile::exists(sourceDatabasePath)) {
         m_lastError = "Source database does not exist: " + sourceDatabasePath;
-        qWarning() << m_lastError;
+        LOG_WARN("BackupManager", m_lastError);
         return false;
     }
 
@@ -53,10 +53,10 @@ bool BackupManager::createBackup(const QString& sourceDatabasePath,
     if (!dir.exists()) {
         if (!dir.mkpath(".")) {
             m_lastError = "Failed to create backup directory: " + backupDir;
-            qWarning() << m_lastError;
+            LOG_WARN("BackupManager", m_lastError);
             return false;
         }
-        qDebug() << "Created backup directory:" << backupDir;
+        LOG_DEBUG("BackupManager", QString("Created backup directory: %1").arg(backupDir));
     }
 
     // Full path to backup
@@ -71,19 +71,19 @@ bool BackupManager::createBackup(const QString& sourceDatabasePath,
 
     if (!query.isActive() && db.lastError().isEmpty() == false) {
         m_lastError = "Backup failed: " + db.lastError();
-        qWarning() << m_lastError;
+        LOG_WARN("BackupManager", m_lastError);
         return false;
     }
 
     // Verify backup was created
     if (!QFile::exists(backupPath)) {
         m_lastError = "Backup file was not created: " + backupPath;
-        qWarning() << m_lastError;
+        LOG_WARN("BackupManager", m_lastError);
         return false;
     }
 
     QFileInfo backupInfo(backupPath);
-    qDebug() << "Backup created:" << backupPath << "Size:" << backupInfo.size() << "bytes";
+    LOG_DEBUG("BackupManager", QString("Backup created: %1 Size: %2 bytes").arg(backupPath).arg(backupInfo.size()));
 
     outBackupPath = backupPath;
 
@@ -112,7 +112,7 @@ bool BackupManager::autoBackupIfNeeded(const QString& sourceDatabasePath,
         return false;
     }
 
-    qDebug() << "Auto-backup triggered:" << qsosSinceLastBackup << "QSOs since last backup";
+    LOG_DEBUG("BackupManager", QString("Auto-backup triggered: %1 QSOs since last backup").arg(qsosSinceLastBackup));
 
     // Perform backup
     QString backupPath;
@@ -121,9 +121,9 @@ bool BackupManager::autoBackupIfNeeded(const QString& sourceDatabasePath,
     if (success) {
         // Update last backup count
         m_lastBackupQSOCount[sourceDatabasePath] = currentQSOCount;
-        qDebug() << "Auto-backup successful:" << backupPath;
+        LOG_DEBUG("BackupManager", QString("Auto-backup successful: %1").arg(backupPath));
     } else {
-        qWarning() << "Auto-backup failed:" << m_lastError;
+        LOG_WARN("BackupManager", QString("Auto-backup failed: %1").arg(m_lastError));
     }
 
     return success;
@@ -150,7 +150,7 @@ bool BackupManager::restoreFromBackup(const QString& backupPath,
         if (QFile::exists(brokenPath)) {
             if (!QFile::remove(brokenPath)) {
                 m_lastError = "Failed to remove old .broken file: " + brokenPath;
-                qWarning() << m_lastError;
+                LOG_WARN("BackupManager", m_lastError);
                 return false;
             }
         }
@@ -158,32 +158,32 @@ bool BackupManager::restoreFromBackup(const QString& backupPath,
         // Rename current database to .broken
         if (!QFile::rename(targetDatabasePath, brokenPath)) {
             m_lastError = "Failed to backup existing database to .broken";
-            qWarning() << m_lastError;
+            LOG_WARN("BackupManager", m_lastError);
             return false;
         }
-        qDebug() << "Saved existing database as:" << brokenPath;
+        LOG_DEBUG("BackupManager", QString("Saved existing database as: %1").arg(brokenPath));
     }
 
     // Copy backup to target location
     if (!QFile::copy(backupPath, targetDatabasePath)) {
         m_lastError = "Failed to copy backup file to target location";
-        qWarning() << m_lastError;
+        LOG_WARN("BackupManager", m_lastError);
 
         // Try to restore original database
         QString brokenPath = targetDatabasePath + ".broken";
         if (QFile::exists(brokenPath)) {
             QFile::rename(brokenPath, targetDatabasePath);
-            qWarning() << "Restored original database after failed restore";
+            LOG_WARN("BackupManager", "Restored original database after failed restore");
         }
         return false;
     }
 
-    qDebug() << "Restore successful:" << targetDatabasePath;
+    LOG_DEBUG("BackupManager", QString("Restore successful: %1").arg(targetDatabasePath));
 
     // Reopen database
     if (!Database::instance().open(targetDatabasePath)) {
         m_lastError = "Failed to reopen restored database: " + Database::instance().lastError();
-        qWarning() << m_lastError;
+        LOG_WARN("BackupManager", m_lastError);
         return false;
     }
 
@@ -196,7 +196,7 @@ QList<BackupInfo> BackupManager::listBackups(const QString& directory,
 
     QDir dir(directory);
     if (!dir.exists()) {
-        qWarning() << "Backup directory does not exist:" << directory;
+        LOG_WARN("BackupManager", QString("Backup directory does not exist: %1").arg(directory));
         return backups;
     }
 
@@ -254,14 +254,14 @@ void BackupManager::rotateBackups(const QString& directory,
     // Delete oldest backups beyond the limit
     if (backups.size() > maxBackups) {
         int toDelete = backups.size() - maxBackups;
-        qDebug() << "Rotating backups: deleting" << toDelete << "old backups";
+        LOG_DEBUG("BackupManager", QString("Rotating backups: deleting %1 old backups").arg(toDelete));
 
         // backups is sorted newest first, so delete from end
         for (int i = backups.size() - 1; i >= maxBackups; --i) {
             if (QFile::remove(backups[i].filePath)) {
-                qDebug() << "Deleted old backup:" << backups[i].fileName;
+                LOG_DEBUG("BackupManager", QString("Deleted old backup: %1").arg(backups[i].fileName));
             } else {
-                qWarning() << "Failed to delete backup:" << backups[i].filePath;
+                LOG_WARN("BackupManager", QString("Failed to delete backup: %1").arg(backups[i].filePath));
             }
         }
     }

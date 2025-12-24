@@ -1,5 +1,5 @@
 #include "ContestRegistry.h"
-#include <QDebug>
+#include "../logging/LogMacros.h"
 
 namespace TR4QT {
 
@@ -14,7 +14,7 @@ void ContestRegistry::registerContest(
     std::function<ContestBase*(ModeType)> factory)
 {
     if (m_contests.contains(id)) {
-        qWarning() << "Contest already registered:" << id;
+        LOG_WARN("ContestRegistry", QString("Contest already registered: %1").arg(id));
         return;
     }
     
@@ -23,8 +23,8 @@ void ContestRegistry::registerContest(
     entry.factory = factory;
     
     m_contests[id] = entry;
-    
-    qDebug() << "Registered contest:" << id << "-" << metadata.displayName;
+
+    LOG_DEBUG("ContestRegistry", QString("Registered contest: %1 - %2").arg(id, metadata.displayName));
 }
 
 QList<ContestMetadata> ContestRegistry::availableContests() const {
@@ -52,21 +52,21 @@ ContestMetadata ContestRegistry::getMetadata(const QString& id) const {
 
 ContestBase* ContestRegistry::createContest(const QString& id, ModeType mode) {
     if (!m_contests.contains(id)) {
-        qWarning() << "Contest not found:" << id;
+        LOG_WARN("ContestRegistry", QString("Contest not found: %1").arg(id));
         return nullptr;
     }
-    
+
     return m_contests[id].factory(mode);
 }
 
 void ContestRegistry::printRegistry() const {
-    qDebug() << "=== Contest Registry ===";
-    qDebug() << "Total contests:" << m_contests.size();
+    LOG_DEBUG("ContestRegistry", "=== Contest Registry ===");
+    LOG_DEBUG("ContestRegistry", QString("Total contests: %1").arg(m_contests.size()));
     for (const QString& id : m_contests.keys()) {
         const ContestMetadata& meta = m_contests[id].metadata;
-        qDebug() << "  -" << id << ":" << meta.displayName;
-        qDebug() << "    Modes:" << meta.supportedModes.size();
-        qDebug() << "    Website:" << meta.website;
+        LOG_DEBUG("ContestRegistry", QString("  - %1: %2").arg(id, meta.displayName));
+        LOG_DEBUG("ContestRegistry", QString("    Modes: %1").arg(meta.supportedModes.size()));
+        LOG_DEBUG("ContestRegistry", QString("    Website: %1").arg(meta.website));
     }
 }
 
