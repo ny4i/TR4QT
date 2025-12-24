@@ -1,461 +1,365 @@
 # Contest Development Guide
 
+This guide explains how to create a new contest implementation in TR4QT.
+
 ## Overview
 
-TR4QT uses a modular, plugin-based contest system that makes it easy to add new contests without modifying core code. Each contest is a self-contained class that implements the `ContestBase` interface.
+TR4QT uses a **strategy pattern** for contest-specific logic. Each contest is implemented as a subclass of `ContestBase`, which defines the interface for:
 
-## Architecture
+- Exchange field definitions (sent and received)
+- Scoring rules (QSO points calculation)
+- Multiplier definitions and tracking
+- Exchange validation and parsing
+- Cabrillo/ADIF export metadata
 
-### Key Design Principles
+## Contest Identifiers
 
-1. **Contest classes are stateless** - All information needed for scoring/multipliers is passed as parameters
-2. **Contest classes are queried** - The logging system asks the contest "what are the points?" and "is this a multiplier?"
-3. **No core code changes needed** - Add a new contest by creating a new class and registering it
-4. **Clean separation** - Scoring logic, multiplier logic, and exchange validation are isolated in the contest class
+Each contest class **must** define three public static identifiers:
 
-### ContestBase Interface
+### 1. WA7BNM Contest Calendar ID
 
-Every contest implements these methods:
-
-#### Identity Methods
-- `getContestId()` - Unique ID (e.g., "CQWW_CW")
-- `getContestName()` - Display name for UI
-- `getContestMode()` - Contest mode restriction (CW, SSB, Mixed)
-
-#### Exchange Configuration
-- `getReceivedExchangeFields()` - What fields to collect from other station
-- `getSentExchangeFields()` - What fields we send (for settings dialog)
-- `formatSentExchange()` - Format our exchange (with serial numbers if needed)
-- `validateReceivedExchange()` - Check if received exchange is valid
-- `parseReceivedExchange()` - Parse exchange into field components
-
-#### Scoring
-- `calculateQSOPoints(qso, myInfo...)` - **Core method**: Returns points for one QSO
-- `calculateTotalScore(qsoPoints, multCounts)` - Compute final score from points and mults
-
-#### Multipliers
-- `getMultiplierTypes()` - List of multiplier types (Country, Zone, etc.) and their scope
-- `getMultiplierValue(qso, multType, alreadyWorked)` - **Core method**: Returns mult value or empty if not a new mult
-
-#### Special Rules
-- `isValidQSO()` - Apply contest-specific rules (e.g., can't work own country)
-- `usesSerialNumbers()` - Does contest use auto-increment serial numbers?
-- `getCabrilloHeaders()` - Cabrillo export header fields
-
-## Adding a New Contest
-
-### Step 1: Create Contest Class
-
-Create `src/contests/YourContest.h`:
+The WA7BNM Contest Calendar (https://www.contestcalendar.com/) assigns a unique numeric ID to each contest. This ID is used for contest lookups and references.
 
 ```cpp
-#ifndef YOURCONTEST_H
-#define YOURCONTEST_H
+// Single-mode contest (e.g., Winter Field Day)
+static constexpr int WA7BNM_ID = 421;
+
+// Multi-mode contest (e.g., CQ WW)
+static constexpr int WA7BNM_ID_CW = 3;
+static constexpr int WA7BNM_ID_SSB = 4;
+```
+
+**How to find WA7BNM ID:**
+1. Visit https://www.contestcalendar.com/weeklycont.php
+2. Click on the contest name
+3. Look at the URL: `https://www.contestcalendar.com/contestdetails.php?ref=421`
+4. The `ref=` parameter is the WA7BNM ID
+
+### 2. Cabrillo Contest Name
+
+The Cabrillo file format requires a standardized contest name in the header (`CONTEST:` field). This must match the official Cabrillo specification.
+
+```cpp
+// Single-mode contest
+static inline const QString CABRILLO_NAME = "WINTER-FIELD-DAY";
+
+// Multi-mode contest
+static inline const QString CABRILLO_NAME_CW = "CQ-WW-CW";
+static inline const QString CABRILLO_NAME_SSB = "CQ-WW-SSB";
+```
+
+**How to find Cabrillo name:**
+1. Check the contest's official rules page
+2. Look for Cabrillo log submission requirements
+3. Or visit: https://wwrof.org/cabrillo/ for standardized names
+
+### 3. ADIF Contest-ID
+
+The ADIF (Amateur Data Interchange Format) specification defines standardized contest identifiers for use in the `CONTEST_ID` field when exporting ADIF files.
+
+```cpp
+// Single-mode contest
+static inline const QString ADIF_CONTEST_ID = "WINTER-FIELD-DAY";
+
+// Multi-mode contest
+static inline const QString ADIF_CONTEST_ID_CW = "CQ-WW-CW";
+static inline const QString ADIF_CONTEST_ID_SSB = "CQ-WW-SSB";
+```
+
+**How to find ADIF Contest-ID:**
+1. Visit: https://adif.org.uk/316/ADIF_316.htm#Contest_ID_Enumeration
+2. Search for your contest name
+3. Use the exact string from the specification (case-sensitive)
+
+**Note:** In most cases, the Cabrillo name and ADIF Contest-ID are identical, but always verify both specifications.
+
+## Creating a New Contest Class
+
+### Step 1: Create Header File
+
+Create `src/contests/YourContestName.h`:
+
+```cpp
+#ifndef YOURCONTESTNAME_H
+#define YOURCONTESTNAME_H
 
 #include "ContestBase.h"
 
 namespace TR4QT {
 
-class YourContest : public ContestBase {
+/**
+ * Your Contest Name
+ *
+ * Exchange: Brief description (e.g., "RST + Serial Number")
+ * Modes: CW/SSB/Mixed/Digital
+ * Multipliers:
+ *   - List of multiplier types (e.g., "DXCC Countries (per band)")
+ * Scoring:
+ *   - Brief description of points per QSO
+ * Total Score: Formula (e.g., "QSO points × Total multipliers")
+ *
+ * Contest website: https://...
+ */
+class YourContestName : public ContestBase {
 public:
-    explicit YourContest(ModeType mode = ModeType::Mixed);
-    ~YourContest() override = default;
+    explicit YourContestName(ModeType mode = ModeType::CW);
+    ~YourContestName() override = default;
 
-    // Implement all pure virtual methods from ContestBase
+    // ===== Contest Identifiers =====
+    // WA7BNM Contest Calendar ID
+    static constexpr int WA7BNM_ID_CW = ???;  // Find at contestcalendar.com
+    static constexpr int WA7BNM_ID_SSB = ???;
+
+    // Cabrillo contest names
+    static inline const QString CABRILLO_NAME_CW = "YOUR-CONTEST-CW";
+    static inline const QString CABRILLO_NAME_SSB = "YOUR-CONTEST-SSB";
+
+    // ADIF Contest-ID values
+    static inline const QString ADIF_CONTEST_ID_CW = "YOUR-CONTEST-CW";
+    static inline const QString ADIF_CONTEST_ID_SSB = "YOUR-CONTEST-SSB";
+
+    // ===== Contest Identity =====
     QString getContestId() const override;
     QString getContestName() const override;
-    ModeType getContestMode() const override;
+    ModeType getContestMode() const override { return m_mode; }
 
-    // ... etc (see ContestBase.h for full list)
+    // ===== Exchange Configuration =====
+    QList<ExchangeField> getReceivedExchangeFields() const override;
+    QList<ExchangeField> getSentExchangeFields() const override;
+    QString formatSentExchange(int serialNumber, const QString& rst = "599") const override;
+    bool validateReceivedExchange(const QString& exchange, QString& errorMsg) const override;
+    QMap<QString, QString> parseReceivedExchange(const QString& exchange) const override;
+
+    // ===== Scoring =====
+    int calculateQSOPoints(
+        const QSO& qso,
+        const StationInfo& myStation) const override;
+
+    int calculateTotalScore(
+        int totalQSOPoints,
+        const QMap<MultiplierType, int>& multiplierCounts) const override;
+
+    // ===== Multipliers =====
+    QList<MultiplierDefinition> getMultiplierTypes() const override;
+
+    QString getMultiplierValue(
+        const QSO& qso,
+        MultiplierType multType,
+        const QStringList& alreadyWorkedValues) const override;
+
+    // ===== Special Rules =====
+    bool usesSerialNumbers() const override { return true; }  // or false
+
+    QMap<QString, QString> getCabrilloHeaders() const override;
 
 private:
-    ModeType m_mode;
+    ModeType m_mode;  // If contest is mode-specific
 };
 
 } // namespace TR4QT
 
-#endif
+#endif // YOURCONTESTNAME_H
 ```
 
-### Step 2: Implement Scoring Logic
+### Step 2: Implement Contest Methods
 
-The most important method is `calculateQSOPoints()`. This is where your contest's unique scoring rules go.
+Create `src/contests/YourContestName.cpp` and implement all virtual methods.
 
-Example from CQ WW Contest:
+**Key Implementation Notes:**
 
-```cpp
-int CQWWContest::calculateQSOPoints(
-    const QSO& qso,
-    const QString& myCountry,
-    const QString& myContinent,
-    int myCQZone,
-    const QString& myState) const
-{
-    const QString& theirCountry = qso.dxccEntity;
-    const QString& theirContinent = qso.continent;
+1. **getReceivedExchangeFields()**: Define what you expect to receive from other stations
+   - Example: RST, Serial Number, Section, etc.
 
-    // Special W/VE rule
-    bool imWVE = (myCountry == "United States" || myCountry == "Canada");
-    bool theyWVE = (theirCountry == "United States" || theirCountry == "Canada");
-    if (imWVE && theyWVE) {
-        return 2;  // W/VE working each other
-    }
+2. **getSentExchangeFields()**: Define what you send to other stations
+   - Often simpler than received (e.g., just RST + your section)
 
-    // Same continent, different country
-    if (myContinent == theirContinent && myCountry != theirCountry) {
-        return 1;
-    }
+3. **validateReceivedExchange()**: Parse and validate incoming exchange
+   - Use CTY.DAT for country/prefix lookups
+   - Validate section codes against ARRL/RAC lists
+   - Check serial number format, zone ranges, etc.
 
-    // Different continent (DX)
-    if (myContinent != theirContinent) {
-        return (m_mode == ModeType::CW) ? 3 : 2;
-    }
+4. **calculateQSOPoints()**: Implement contest-specific scoring
+   - Consider: same/different continent, band, mode
+   - Use `myStation.continent`, `qso.dxccPrefix`, etc.
 
-    return 0;
-}
-```
+5. **getMultiplierTypes()**: Define multiplier categories
+   - Per-band or all-band
+   - Example: Countries, Zones, States, Sections
 
-### Step 3: Implement Multiplier Logic
+6. **getCabrilloHeaders()**: Return contest-specific Cabrillo headers
+   - Use the `CABRILLO_NAME_*` constants defined in the header
 
-Define what multipliers your contest uses:
+### Step 3: Add to Build System
 
-```cpp
-QList<MultiplierDefinition> CQWWContest::getMultiplierTypes() const {
-    QList<MultiplierDefinition> mults;
-
-    // DXCC Countries (per band)
-    MultiplierDefinition country;
-    country.type = MultiplierType::Country;
-    country.scope = MultiplierScope::PerBand;  // Or AllBands
-    country.displayName = "Countries";
-    mults.append(country);
-
-    // CQ Zones (per band)
-    MultiplierDefinition zone;
-    zone.type = MultiplierType::CQZone;
-    zone.scope = MultiplierScope::PerBand;
-    zone.displayName = "CQ Zones";
-    mults.append(zone);
-
-    return mults;
-}
-```
-
-Then implement the multiplier checking:
-
-```cpp
-QString CQWWContest::getMultiplierValue(
-    const QSO& qso,
-    MultiplierType multType,
-    const QStringList& alreadyWorkedValues) const
-{
-    QString value;
-
-    switch (multType) {
-    case MultiplierType::Country:
-        value = qso.dxccPrefix;  // e.g., "K", "JA", "G"
-        break;
-
-    case MultiplierType::CQZone:
-        value = QString::number(qso.cqZone);
-        break;
-
-    default:
-        return QString();  // Not a multiplier for this contest
-    }
-
-    // Check if already worked
-    if (alreadyWorkedValues.contains(value)) {
-        return QString();  // Already worked, not new
-    }
-
-    return value;
-}
-```
-
-### Step 4: Implement Exchange Handling
-
-Define what exchange fields you need:
-
-```cpp
-QList<ExchangeField> YourContest::getReceivedExchangeFields() const {
-    QList<ExchangeField> fields;
-
-    // RST
-    ExchangeField rst;
-    rst.name = "RST";
-    rst.hint = "599";
-    rst.autoFill = true;  // Auto-populate
-    rst.maxLength = 3;
-    fields.append(rst);
-
-    // Serial Number
-    ExchangeField serial;
-    serial.name = "Serial";
-    serial.hint = "001";
-    serial.autoFill = false;
-    serial.maxLength = 4;
-    fields.append(serial);
-
-    return fields;
-}
-```
-
-Validate the exchange:
-
-```cpp
-bool YourContest::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
-    QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
-
-    if (parts.size() < 2) {
-        errorMsg = "Exchange must be RST + Serial (e.g., '599 042')";
-        return false;
-    }
-
-    // Validate RST format
-    // Validate serial number format
-    // etc.
-
-    return true;
-}
-```
-
-### Step 5: Add to Build System
-
-Edit `src/CMakeLists.txt`:
+Edit `src/CMakeLists.txt` and add your new files:
 
 ```cmake
-set(SOURCES
-    # ... existing sources ...
-    contests/YourContest.cpp
-)
-
-set(HEADERS
-    # ... existing headers ...
-    contests/YourContest.h
+set(CONTEST_SOURCES
+    contests/ContestBase.cpp
+    contests/CQWWContest.cpp
+    contests/CQWPXContest.cpp
+    contests/WinterFieldDayContest.cpp
+    contests/YourContestName.cpp       # ADD THIS
 )
 ```
 
-### Step 6: Register in MainWindow
+### Step 4: Register Contest
 
-Add your contest to the contest activation logic in `src/ui/MainWindow.cpp`:
+Add your contest to the contest selection system (location TBD - likely in a ContestRegistry or MainWindow).
 
-```cpp
-void MainWindow::activateContest(const ContestInfo& contestInfo) {
-    // Clean up previous contest
-    if (m_activeContest) {
-        delete m_activeContest;
-        m_activeContest = nullptr;
-    }
+## Exchange Field Types
 
-    // Create appropriate contest instance
-    if (contestInfo.contestType == "YOUR_CONTEST_ID") {
-        m_activeContest = new YourContest(ModeType::Mixed);
-    } else if (contestInfo.contestType == "CQWW_CW") {
-        m_activeContest = new CQWWContest(ModeType::CW);
-    }
-    // ... etc
-}
-```
-
-Add your contest to the Contest Chooser Dialog in `src/ui/dialogs/ContestChooserDialog.cpp`:
+The `ExchangeField` struct defines each component of the exchange:
 
 ```cpp
-void ContestChooserDialog::populateContestTypes() {
-    m_contestTypeCombo->addItem("CQ WW DX Contest (CW)", "CQWW_CW");
-    m_contestTypeCombo->addItem("CQ WW DX Contest (SSB)", "CQWW_SSB");
-    // ... existing contests ...
-    m_contestTypeCombo->addItem("Your Contest Name", "YOUR_CONTEST_ID");
-}
-```
-
-## QSO Data Structure
-
-Contest methods receive QSO objects with all available information:
-
-```cpp
-struct QSO {
-    QString callsign;        // Callsign worked
-    freq_t frequency;        // Frequency in Hz
-    ModeType mode;           // Mode (CW, SSB, etc.)
-    BandType band;           // Band (160M, 80M, etc.)
-    QDateTime timestamp;     // When contact was made
-
-    // Exchange
-    QString rstSent;
-    QString rstReceived;
-    QString exchangeSent;
-    QString exchangeReceived;
-    QMap<QString, QString> parsedExchange;  // Parsed fields
-
-    // Geographic info (from cty.dat)
-    QString dxccEntity;      // Country name
-    QString dxccPrefix;      // DXCC prefix
-    int cqZone;              // CQ Zone
-    int ituZone;             // ITU Zone
-    QString continent;       // Continent code
-    QString state;           // US/VE state
-
-    // Scoring (populated by contest)
-    int qsoPoints;
-    bool isDupe;
-    bool isMultiplier;
-    QStringList multipliers;
+struct ExchangeField {
+    QString name;           // "RST", "Serial", "Section", "Zone", etc.
+    QString description;    // Human-readable description
+    bool required;          // Is this field mandatory?
+    QString regex;          // Validation regex (optional)
 };
 ```
 
-## Multiplier Types
+## Common Exchange Patterns
 
-Available multiplier types (from `ContestBase.h`):
+### RST + Serial Number (e.g., CQ WPX)
+```cpp
+QList<ExchangeField> getReceivedExchangeFields() const override {
+    return {
+        {"RST", "Signal Report", true, "^[1-5][1-9][1-9]$"},
+        {"Serial", "Serial Number", true, "^[0-9]{1,4}$"}
+    };
+}
+```
 
-- `MultiplierType::Country` - DXCC countries
-- `MultiplierType::CQZone` - CQ zones (1-40)
-- `MultiplierType::ITUZone` - ITU zones
-- `MultiplierType::State` - US/Canadian states/provinces
-- `MultiplierType::Section` - ARRL/RAC sections
-- `MultiplierType::Prefix` - Callsign prefix (WPX)
-- `MultiplierType::Grid` - Maidenhead grid squares
-- `MultiplierType::Custom` - Contest-specific
+### RST + Zone (e.g., CQ WW)
+```cpp
+QList<ExchangeField> getReceivedExchangeFields() const override {
+    return {
+        {"RST", "Signal Report", true, "^[1-5][1-9][1-9]$"},
+        {"Zone", "CQ Zone", true, "^[1-9]|[1-3][0-9]|40$"}  // 1-40
+    };
+}
+```
 
-Each multiplier has a scope:
-- `MultiplierScope::PerBand` - Counts separately on each band
-- `MultiplierScope::AllBands` - Counts once across all bands
+### Class + Section (e.g., Field Day)
+```cpp
+QList<ExchangeField> getReceivedExchangeFields() const override {
+    return {
+        {"Class", "Station Class", true, "^[1-9][0-9]?[ABCDEF]$"},
+        {"Section", "ARRL/RAC Section", true, ""}  // Validate via section list
+    };
+}
+```
 
-## Example Contests
+### Multi-Field Exchange (e.g., Sweepstakes)
+```cpp
+QList<ExchangeField> getReceivedExchangeFields() const override {
+    return {
+        {"Serial", "Serial Number", true, "^[0-9]{1,4}$"},
+        {"Precedence", "Precedence", true, "^[QABUMS]$"},
+        {"Check", "Check (Year Licensed)", true, "^[0-9]{2}$"},
+        {"Section", "ARRL/RAC Section", true, ""},
+        {"YearLicensed", "Year Licensed", true, "^[0-9]{2}$"}
+    };
+}
+```
 
-TR4QT currently includes three fully implemented contests that serve as excellent examples:
+## Using CTY.DAT for Country Lookups
 
-### CQ WW DX Contest
+For contests that depend on country/continent (e.g., CQ WW, WPX), use the CTY.DAT parser:
 
-- **File:** `src/contests/CQWWContest.h/cpp`
-- **Exchange:** RST + CQ Zone
-- **Multipliers:** Countries (per-band), CQ Zones (per-band)
-- **Scoring:** 1-3 points based on continent, multiply by (countries + zones)
-- **Special rules:** W/VE working each other = 2 points
-- **Modes:** Separate CW and SSB contests
+```cpp
+#include "../utils/CTYParser.h"
 
-### CQ WPX Contest
+// In your scoring or multiplier method:
+CTYParser& ctyParser = CTYParser::instance();
+CountryInfo dxCountry = ctyParser.lookup(qso.callsign);
 
-- **File:** `src/contests/CQWPXContest.h/cpp`
-- **Exchange:** RST + Serial Number
-- **Multipliers:** Callsign prefixes (all-band)
-- **Scoring:** Variable points based on continent/band, double on 160m/10m, multiply by prefixes
-- **Serial numbers:** Auto-increment (uses `m_nextSerialNumber` from MainWindow)
-- **Prefix extraction:** W1AW→W1, DL1ABC→DL1, JA1234XYZ→JA1
-- **Modes:** Separate CW and SSB contests
+if (dxCountry.isValid) {
+    QString continent = dxCountry.continent;  // "NA", "EU", "AS", etc.
+    int cqZone = dxCountry.cqZone;
+    int ituZone = dxCountry.ituZone;
+    // ... use for scoring or multiplier logic
+}
+```
 
-### Winter Field Day
+## Multiplier Definitions
 
-- **File:** `src/contests/WinterFieldDayContest.h/cpp`
-- **Exchange:** Class + Section (e.g., "1O WMA")
-- **Multipliers:** ARRL/RAC Sections (all-band)
-- **Scoring:** 2pts CW/Digital, 1pt Phone (multipliers are tracked but not multiplied in score)
-- **Class validation:** 1O, 2O, 3O, 1I, 2I, 3I, Home, etc.
-- **Section validation:** Complete list of 80+ ARRL/RAC sections
-- **Modes:** All modes (Mixed)
-- **Bonus points:** To be added via Cabrillo export dialog
+Define multipliers using the `MultiplierDefinition` struct:
 
-## Contest-UI Integration
-
-TR4QT automatically configures the UI based on the selected contest. Here's how it works:
-
-### Contest Activation Flow
-
-1. **User selects contest** via File → New/Open Contest menu
-2. **ContestChooserDialog** shows available contests or allows creating new one
-3. **MainWindow::activateContest()** creates contest instance based on type
-4. **updateExchangeFieldsForContest()** queries contest for exchange fields
-5. **UI updates** exchange field placeholder text (e.g., "59 Zone" for CQ WW, "599 001" for CQ WPX)
-
-### Auto-Population
-
-When the user enters a callsign and tabs to the exchange field:
-
-1. **onCallsignChanged()** slot is triggered
-2. **autoPopulateExchange()** looks up callsign in cty.dat
-3. **Exchange field is populated** with zone if contest uses zones
-4. **User can override** the auto-populated value if needed
-
-Example:
-- **CQ WW Contest:** User types "JA1ABC" → exchange auto-fills with "25" (CQ Zone from cty.dat)
-- **CQ WPX Contest:** Serial number is NOT auto-populated (must be entered)
-- **Winter Field Day:** Class and Section are NOT auto-populated (must be entered)
-
-### Exchange Validation
-
-Before logging a QSO:
-
-1. **MainWindow::onLogQSO()** calls contest's `validateReceivedExchange()`
-2. **Contest validates** format and content
-3. **Error message shown** if validation fails
-4. **QSO logged** only if validation passes
-
-### Serial Number Handling
-
-For contests that use serial numbers (like CQ WPX):
-
-1. **MainWindow** maintains `m_nextSerialNumber` counter
-2. **formatSentExchange()** includes current serial number
-3. **Serial increments** after successful QSO log
-4. **Serial persisted** to database for contest resume
-
-## Best Practices
-
-1. **Keep contest classes stateless** - Don't store QSO counts or scores in the contest object
-2. **Return empty string for non-multipliers** - `getMultiplierValue()` should return "" if not a new mult
-3. **Use QSO geographic fields** - Leverage `dxccPrefix`, `continent`, `cqZone` populated by cty.dat lookup
-4. **Validate early** - Check exchange format in `validateReceivedExchange()` before accepting QSO
-5. **Document your scoring** - Add comments explaining point values and special rules
-6. **Test with real data** - Use actual contest logs to verify scoring matches official results
+```cpp
+QList<MultiplierDefinition> getMultiplierTypes() const override {
+    return {
+        {
+            MultiplierType::Country,
+            "DXCC Country",
+            true,  // per-band = true
+            false  // all-time = false
+        },
+        {
+            MultiplierType::Zone,
+            "CQ Zone",
+            true,  // per-band = true
+            false
+        }
+    };
+}
+```
 
 ## Testing Your Contest
 
-```cpp
-// Create contest instance
-CQWWContest contest(ModeType::CW);
+1. **Build**: `cmake --build build`
+2. **Run**: `./build/src/tr4qt.app/Contents/MacOS/tr4qt`
+3. **Select Contest**: File → New Contest → Your Contest
+4. **Test Exchange Validation**: Log some QSOs with valid/invalid exchanges
+5. **Check Scoring**: Verify QSO points calculated correctly
+6. **Check Multipliers**: Verify multiplier detection and counting
+7. **Export Cabrillo**: Verify CONTEST: header has correct name
+8. **Export ADIF**: Verify CONTEST_ID field has correct value
 
-// Create test QSO
-QSO qso;
-qso.callsign = "JA1ABC";
-qso.mode = ModeType::CW;
-qso.band = BandType::Band20M;
-qso.dxccEntity = "Japan";
-qso.dxccPrefix = "JA";
-qso.continent = "AS";
-qso.cqZone = 25;
-qso.exchangeReceived = "599 25";
+## Examples
 
-// Test scoring
-int points = contest.calculateQSOPoints(qso, "United States", "NA", 5);
-// Should return 3 points (DX, CW mode)
+See existing contest implementations for reference:
 
-// Test multiplier
-QStringList worked;
-QString mult = contest.getMultiplierValue(qso, MultiplierType::Country, worked);
-// Should return "JA"
+- **src/contests/CQWWContest.cpp** - RST + Zone exchange, per-band multipliers
+- **src/contests/CQWPXContest.cpp** - RST + Serial, prefix extraction logic
+- **src/contests/WinterFieldDayContest.cpp** - Class + Section, all-band multipliers
 
-worked.append("JA");
-mult = contest.getMultiplierValue(qso, MultiplierType::Country, worked);
-// Should return "" (already worked)
-```
+## Best Practices
 
-## Implemented Features
+1. **Always define all three identifiers** (WA7BNM ID, Cabrillo name, ADIF Contest-ID)
+2. **Use static constexpr for integer constants** (compile-time)
+3. **Use static inline const QString for string constants** (C++17 inline variables)
+4. **Document exchange format in header comment block**
+5. **Validate exchange fields thoroughly** (prevents bad data in log)
+6. **Test with real contest data** if possible
+7. **Check official contest rules** for scoring edge cases
+8. **Use CTY.DAT for all country/prefix lookups** (don't hardcode)
 
-- ✅ **Contest Selector Dialog** - ContestChooserDialog for contest selection
-- ✅ **Contest-UI Integration** - Automatic exchange field configuration
-- ✅ **Auto-Population** - Zone auto-fill from cty.dat
-- ✅ **Exchange Validation** - Contest-specific validation before logging
-- ✅ **Serial Number Support** - Auto-increment for contests that use serials
+## Troubleshooting
+
+**Build errors with static QString?**
+- Use `static inline const QString` instead of just `static const QString`
+- C++17 inline variables are required for non-integral static const members
+
+**Contest not appearing in selection menu?**
+- Ensure you registered the contest in the contest registry
+- Check that CMakeLists.txt includes your .cpp file
+
+**Exchange validation always failing?**
+- Print debug output in validateReceivedExchange()
+- Check regex patterns are correct (test with regex101.com)
+- Verify section/zone lists are loaded
+
+**Multipliers not counting?**
+- Check getMultiplierValue() returns non-empty string for new multipliers
+- Verify alreadyWorkedValues list is passed correctly
+- Test per-band vs all-band logic
 
 ## Future Enhancements
 
-- **Contest Factory** - Auto-registration and discovery system
-- **Enhanced Validation** - Check against official contest rules (work hours, bands, etc.)
-- **Cabrillo Export** - Per-contest Cabrillo formatting with proper headers
-- **Contest-specific UI** - Custom widgets for special contests (e.g., WFD bonus points dialog)
-- **Dupe Checking** - Real-time duplicate detection per contest rules
-- **Multiplier Tracking** - Visual display of worked/needed multipliers
-
-## Questions?
-
-This modular system makes TR4QT highly extensible. To add support for your favorite contest, just implement the `ContestBase` interface and add your class to the build!
+- Contest wizard for auto-generating boilerplate
+- Exchange field auto-complete based on callsign lookup
+- Real-time exchange validation UI feedback
+- Contest rule conflict detection (e.g., W/VE special scoring in CQ WW)
