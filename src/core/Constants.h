@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.3.0";  // Configurable font sizes for entry fields, table, and grid
+constexpr const char* APP_VERSION = "2.4.0";  // Contest-dependent table columns and fixed time display padding
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

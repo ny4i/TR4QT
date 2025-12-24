@@ -4,14 +4,20 @@
 #include <QAbstractTableModel>
 #include <QList>
 #include "../../models/QSO.h"
+#include "../../contests/ContestBase.h"
 
 namespace TR4QT {
 
 /**
  * Table model for displaying QSO log
  *
- * Displays QSOs in a table with columns:
- * Time, Callsign, Frequency, Mode, RST Sent, RST Rcvd, Exchange, Mult, Points
+ * Displays QSOs in a table with contest-dependent columns.
+ * Exchange columns (Exch1, Exch2) adapt their headers based on the active contest.
+ *
+ * Examples:
+ * - CQ WW:  Exch1 = "DX" (country), Exch2 = "Zn" (zone)
+ * - CQ WPX: Exch1 = "DX" (country), Exch2 = "#" (serial number)
+ * - WFD:    Exch1 = "CL" (class), Exch2 = "QTH" (section)
  *
  * Supports color coding:
  * - Dupes shown in red
@@ -19,6 +25,7 @@ namespace TR4QT {
  *
  * Usage:
  *   QSOTableModel* model = new QSOTableModel(this);
+ *   model->setContestExchangeFields(contest->getReceivedExchangeFields());
  *   tableView->setModel(model);
  *   model->addQSO(qso);  // Add new QSO to display
  */
@@ -32,8 +39,8 @@ public:
         ColUTC,           // "22:45"
         ColQSOs,          // Sequential number (1, 2, 3...)
         ColCallsign,      // "W1AW"
-        ColDX,            // Country/entity abbreviation
-        ColZn,            // CQ Zone
+        ColExch1,         // Contest-dependent exchange field 1
+        ColExch2,         // Contest-dependent exchange field 2
         ColPts,           // QSO Points
         ColM,             // Markers (x = new mult on this band, z = new mult all-time)
         ColMult,          // $ indicator for multiplier
@@ -64,10 +71,16 @@ public:
     // Get total count
     int count() const { return m_qsos.size(); }
 
+    // Contest-dependent exchange fields
+    void setContestExchangeFields(const QList<ExchangeField>& fields);
+
 private:
     QList<QSO> m_qsos;
+    QList<ExchangeField> m_exchangeFields;  // Contest exchange field definitions
 
     QString formatFrequency(freq_t freq) const;
+    QString getExchangeFieldHeader(int fieldIndex) const;
+    QString getExchangeFieldValue(const QSO& qso, int fieldIndex) const;
 };
 
 } // namespace TR4QT

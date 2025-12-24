@@ -52,12 +52,12 @@ QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
             return index.row() + 1;
         case ColCallsign:
             return qso.callsign;
-        case ColDX:
-            // Country abbreviation from dxccPrefix (e.g., "K", "JA", "G")
-            return qso.dxccPrefix;
-        case ColZn:
-            // CQ Zone number
-            return qso.cqZone > 0 ? QString::number(qso.cqZone) : QString();
+        case ColExch1:
+            // Contest-dependent exchange field 1
+            return getExchangeFieldValue(qso, 0);
+        case ColExch2:
+            // Contest-dependent exchange field 2
+            return getExchangeFieldValue(qso, 1);
         case ColPts:
             // QSO points
             return qso.qsoPoints > 0 ? QString::number(qso.qsoPoints) : QString();
@@ -120,8 +120,8 @@ QVariant QSOTableModel::headerData(int section, Qt::Orientation orientation, int
         case ColUTC:        return "UTC";
         case ColQSOs:       return "NR";
         case ColCallsign:   return "Callsign";
-        case ColDX:         return "DX";
-        case ColZn:         return "Zn";
+        case ColExch1:      return getExchangeFieldHeader(0);
+        case ColExch2:      return getExchangeFieldHeader(1);
         case ColPts:        return "Pts";
         case ColM:          return "M";
         case ColMult:       return "$";
@@ -185,6 +185,66 @@ QString QSOTableModel::formatFrequency(freq_t freq) const {
 
     // Format with 1 decimal place
     return QString::number(freqKhz, 'f', 1);
+}
+
+void QSOTableModel::setContestExchangeFields(const QList<ExchangeField>& fields) {
+    m_exchangeFields = fields;
+
+    // Notify views that headers have changed
+    emit headerDataChanged(Qt::Horizontal, ColExch1, ColExch2);
+}
+
+QString QSOTableModel::getExchangeFieldHeader(int fieldIndex) const {
+    if (fieldIndex >= 0 && fieldIndex < m_exchangeFields.size()) {
+        // Use field name for header (e.g., "Zone", "Class", "Section")
+        // Abbreviate for TR4W-style compactness
+        QString name = m_exchangeFields[fieldIndex].name;
+        if (name == "Zone") return "Zn";
+        if (name == "ITU Zone") return "ITU";
+        if (name == "Class") return "CL";
+        if (name == "Section") return "QTH";
+        if (name == "Serial") return "#";
+        // Default: return first 3 chars uppercase
+        return name.left(3).toUpper();
+    }
+    // Default headers if no contest set
+    return fieldIndex == 0 ? "DX" : "Zn";
+}
+
+QString QSOTableModel::getExchangeFieldValue(const QSO& qso, int fieldIndex) const {
+    if (fieldIndex >= 0 && fieldIndex < m_exchangeFields.size()) {
+        QString fieldName = m_exchangeFields[fieldIndex].name;
+
+        // Map field name to QSO data
+        if (fieldName == "Zone") {
+            return qso.cqZone > 0 ? QString::number(qso.cqZone) : QString();
+        } else if (fieldName == "ITU Zone") {
+            return qso.ituZone > 0 ? QString::number(qso.ituZone) : QString();
+        } else if (fieldName == "Class") {
+            // Class is stored in parsed exchange
+            return qso.parsedExchange.value("Class", QString());
+        } else if (fieldName == "Section") {
+            // Section is stored in state field for WFD
+            return qso.state;
+        } else if (fieldName == "Serial") {
+            // Serial number from parsed exchange
+            return qso.parsedExchange.value("Serial", QString());
+        } else {
+            // Try to find in parsed exchange
+            return qso.parsedExchange.value(fieldName, QString());
+        }
+    }
+
+    // Default values if no contest set
+    if (fieldIndex == 0) {
+        // Default to DXCC prefix (country)
+        return qso.dxccPrefix;
+    } else if (fieldIndex == 1) {
+        // Default to CQ Zone
+        return qso.cqZone > 0 ? QString::number(qso.cqZone) : QString();
+    }
+
+    return QString();
 }
 
 } // namespace TR4QT
