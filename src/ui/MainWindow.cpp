@@ -870,6 +870,11 @@ void MainWindow::onRadioConnected(bool connected) {
         m_statusLabel->setText("Connected to radio (waiting for state...)");
     } else {
         m_statusLabel->setText("Radio disconnected");
+
+        // Clear radio control display when disconnected
+        if (m_radioControlWindow) {
+            m_radioControlWindow->clearDisplay();
+        }
     }
 }
 

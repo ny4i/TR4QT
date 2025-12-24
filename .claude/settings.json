@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /Users/toms/projects/TR4QT && git:*)"
+    ]
+  }
+}

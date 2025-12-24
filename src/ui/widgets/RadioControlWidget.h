@@ -32,6 +32,11 @@ public:
     void updateRadioState(const RadioState& state);
 
     /**
+     * Clear display when radio disconnects
+     */
+    void clearDisplay();
+
+    /**
      * Set radio number (1 or 2 for multi-radio setups)
      */
     void setRadioNumber(int number);
