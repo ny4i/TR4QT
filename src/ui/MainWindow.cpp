@@ -86,6 +86,10 @@ void MainWindow::setupUI() {
     createCentralWidget();
     createStatusBar();
 
+    // Set minimum size to prevent UI from becoming unusable
+    setMinimumSize(800, 600);
+
+    // Set initial size (user can resize larger or smaller, but not below minimum)
     resize(1024, 768);
 }
 
@@ -149,24 +153,43 @@ void MainWindow::createCentralWidget() {
     m_qsoTableView->setAlternatingRowColors(true);
     m_qsoTableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_qsoTableView->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_qsoTableView->horizontalHeader()->setStretchLastSection(false);
-    m_qsoTableView->horizontalHeader()->setDefaultSectionSize(70);
+    m_qsoTableView->horizontalHeader()->setStretchLastSection(true);  // Op column stretches
     m_qsoTableView->verticalHeader()->setVisible(false);
     m_qsoTableView->setFont(QFont("Monospace", 9));
 
-    // Set specific column widths for TR4W look
+    // Set column widths and resize modes for proper scaling
+    QHeaderView* header = m_qsoTableView->horizontalHeader();
+
+    // Fixed-width columns (small data)
+    header->setSectionResizeMode(QSOTableModel::ColM, QHeaderView::Fixed);
+    header->setSectionResizeMode(QSOTableModel::ColZn, QHeaderView::Fixed);
+    header->setSectionResizeMode(QSOTableModel::ColPts, QHeaderView::Fixed);
+    header->setSectionResizeMode(QSOTableModel::ColDX, QHeaderView::Fixed);
+    header->setSectionResizeMode(QSOTableModel::ColMult, QHeaderView::Fixed);
+
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColM, 30);
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColZn, 30);
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColPts, 40);
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColDX, 40);
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColMult, 30);
+
+    // Interactive columns (medium data, user can resize)
+    header->setSectionResizeMode(QSOTableModel::ColBand, QHeaderView::Interactive);
+    header->setSectionResizeMode(QSOTableModel::ColDate, QHeaderView::Interactive);
+    header->setSectionResizeMode(QSOTableModel::ColUTC, QHeaderView::Interactive);
+    header->setSectionResizeMode(QSOTableModel::ColQSOs, QHeaderView::Interactive);
+    header->setSectionResizeMode(QSOTableModel::ColCallsign, QHeaderView::Interactive);
+    header->setSectionResizeMode(QSOTableModel::ColFreq, QHeaderView::Interactive);
+
     m_qsoTableView->setColumnWidth(QSOTableModel::ColBand, 60);
     m_qsoTableView->setColumnWidth(QSOTableModel::ColDate, 80);
     m_qsoTableView->setColumnWidth(QSOTableModel::ColUTC, 50);
     m_qsoTableView->setColumnWidth(QSOTableModel::ColQSOs, 50);
     m_qsoTableView->setColumnWidth(QSOTableModel::ColCallsign, 100);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColDX, 40);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColZn, 30);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColPts, 40);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColM, 30);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColMult, 30);
     m_qsoTableView->setColumnWidth(QSOTableModel::ColFreq, 80);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColOp, 60);
+
+    // Op column stretches to fill remaining space (last column with stretchLastSection=true)
+    header->setSectionResizeMode(QSOTableModel::ColOp, QHeaderView::Stretch);
 
     mainLayout->addWidget(m_qsoTableView, 1);  // Stretch factor 1 = takes remaining space
 
@@ -197,12 +220,16 @@ QWidget* MainWindow::createBottomPanel() {
     m_callsignEntry = new QLineEdit(this);
     m_callsignEntry->setPlaceholderText("Callsign");
     m_callsignEntry->setMinimumWidth(150);
+    m_callsignEntry->setMaximumWidth(300);
+    m_callsignEntry->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_callsignEntry->setFont(QFont("Monospace", 12));
 
     QLabel* exchLabel = new QLabel("Exch:", this);
     m_exchangeEntry = new QLineEdit(this);
     m_exchangeEntry->setPlaceholderText("RST + Zone");
     m_exchangeEntry->setMinimumWidth(150);
+    m_exchangeEntry->setMaximumWidth(300);
+    m_exchangeEntry->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_exchangeEntry->setFont(QFont("Monospace", 12));
 
     m_logButton = new QPushButton("Log", this);
@@ -269,7 +296,10 @@ QWidget* MainWindow::createBottomPanel() {
     statsLayout->addLayout(opRow);
     statsLayout->addStretch();
 
-    statsWidget->setMaximumWidth(250);
+    // Set size policy: prefer fixed width but can shrink if needed
+    statsWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    statsWidget->setMinimumWidth(200);
+    statsWidget->setMaximumWidth(300);
     bottomLayout->addWidget(statsWidget);
 
     // Connect signals
