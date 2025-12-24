@@ -84,6 +84,9 @@ public:
     void setDXClusterAutoConnect(bool autoConnect);
     bool getDXClusterAutoConnect() const;
 
+    void saveDXClusterList(const QStringList& servers);
+    QStringList getDXClusterList() const;
+
     // Country file
     void setCountryFileVersion(int version);
     int getCountryFileVersion() const;

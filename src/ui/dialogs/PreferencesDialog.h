@@ -12,6 +12,7 @@
 #include <QListWidget>
 #include <QPushButton>
 #include "../../radio/RadioInterface.h"
+#include "../../utils/DXClusterListDownloader.h"
 
 namespace TR4QT {
 
@@ -53,6 +54,10 @@ private slots:
     // Theme slots
     void onThemeChanged(int index);
     void onCustomizeColors();
+
+    // DX Cluster list slots
+    void onDownloadClusterList();
+    void onClusterListDownloadFinished(bool success, const QList<DXClusterServer>& servers);
 
 private:
     void setupUI();
@@ -96,6 +101,7 @@ private:
     QLineEdit* m_dxClusterCallsignEdit;
     QLineEdit* m_dxClusterServerEdit;
     QCheckBox* m_dxClusterAutoConnectCheck;
+    QPushButton* m_downloadClusterListButton;
 
     // UDP Broadcast tab widgets
     QCheckBox* m_udpBroadcastEnabledCheck;
