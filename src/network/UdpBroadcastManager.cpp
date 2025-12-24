@@ -97,13 +97,20 @@ void UdpBroadcastManager::onRadioStateChanged(const RadioState& state,
 void UdpBroadcastManager::onQSOLogged(const QSO& qso, const QString& stationCall,
                                      const QString& contestName)
 {
+    qDebug() << "UdpBroadcastManager::onQSOLogged called:"
+             << "enabled=" << m_enabled
+             << "contactInfoEnabled=" << m_contactInfoEnabled
+             << "callsign=" << qso.callsign;
+
     // Check if broadcasting is enabled
     if (!m_enabled || !m_contactInfoEnabled) {
+        qDebug() << "UDP broadcast skipped (disabled)";
         return;
     }
 
     // Send immediately (no throttling for QSO logging)
     ContactInfo info = createContactInfo(qso, stationCall, contestName);
+    qDebug() << "Sending ContactInfo UDP broadcast for" << qso.callsign;
     m_broadcaster->sendContactInfo(info);
 }
 

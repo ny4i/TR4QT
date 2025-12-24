@@ -72,25 +72,38 @@ bool UdpBroadcaster::sendContactInfo(const ContactInfo& info)
 
 bool UdpBroadcaster::sendRawData(const QByteArray& data)
 {
+    qDebug() << "UdpBroadcaster::sendRawData called, data size:" << data.size()
+             << "destinations:" << m_destinations.size();
+
     if (m_destinations.isEmpty()) {
         m_lastError = "No destinations configured";
+        qDebug() << "ERROR: No destinations configured";
         return false;
     }
 
     int successCount = 0;
+    int enabledCount = 0;
     qint64 totalBytesSent = 0;
 
     // Send to all enabled destinations
     for (const auto& dest : m_destinations) {
+        qDebug() << "Checking destination:" << dest.toString() << "enabled:" << dest.enabled;
         if (!dest.enabled) {
             continue;  // Skip disabled destinations
         }
+        enabledCount++;
 
         if (sendToDestination(data, dest)) {
             successCount++;
             totalBytesSent += data.size();
+            qDebug() << "Successfully sent" << data.size() << "bytes to" << dest.toString();
+        } else {
+            qDebug() << "Failed to send to" << dest.toString() << "error:" << m_lastError;
         }
     }
+
+    qDebug() << "Send summary: enabled destinations:" << enabledCount
+             << "successful sends:" << successCount;
 
     // Emit signal if at least one send succeeded
     if (successCount > 0) {
