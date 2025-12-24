@@ -9,9 +9,25 @@
 #include "utils/CountryFileDownloader.h"
 #include "utils/AppSettings.h"
 #include "radio/RadioInterface.h"
+#include "logging/Logger.h"
+#include "logging/LogMacros.h"
 #include "ui/MainWindow.h"
 
 int main(int argc, char *argv[]) {
+    // Initialize logger FIRST (before QApplication) to capture all startup messages
+    TR4QT::Logger& logger = TR4QT::Logger::instance();
+    logger.initialize();
+
+    // Load logger configuration from settings
+    TR4QT::AppSettings& settings = TR4QT::AppSettings::instance();
+    logger.setLogLevel(settings.getLogLevel());
+    logger.setFileLoggingEnabled(settings.getFileLoggingEnabled());
+    logger.setConsoleLoggingEnabled(settings.getConsoleLoggingEnabled());
+    logger.setLogFilePath(settings.getLogFilePath());
+
+    // Install Qt message handler (routes qDebug/qWarning/etc through our logger)
+    qInstallMessageHandler(TR4QT::Logger::messageHandler);
+
     QApplication app(argc, argv);
 
     // Parse command line arguments
@@ -44,6 +60,9 @@ int main(int argc, char *argv[]) {
     app.setApplicationName(TR4QT::APP_NAME);
     app.setApplicationVersion(TR4QT::APP_VERSION);
 
+    // Log startup banner (using TR4W-style format)
+    LOG_INFO("TR4QTMain", "******************** PROGRAM STARTUP ************************");
+    LOG_INFO_F("TR4QTMain", "TR4QT Version %s", TR4QT::APP_VERSION);
     qDebug() << "TR4QT Version" << TR4QT::APP_VERSION;
 
     // Initialize country file on first run
@@ -63,5 +82,10 @@ int main(int argc, char *argv[]) {
     TR4QT::MainWindow mainWindow;
     mainWindow.show();
 
-    return app.exec();
+    int result = app.exec();
+
+    // Shutdown logger before exit
+    logger.shutdown();
+
+    return result;
 }

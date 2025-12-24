@@ -22,6 +22,10 @@ set(SOURCES
     contests/CQWWContest.cpp
     contests/CQWPXContest.cpp
     contests/WinterFieldDayContest.cpp
+    logging/LogLevel.cpp
+    logging/LogFormatter.cpp
+    logging/FileAppender.cpp
+    logging/Logger.cpp
     ui/MainWindow.cpp
     ui/models/QSOTableModel.cpp
     ui/dialogs/RadioConfigDialog.cpp
@@ -59,6 +63,11 @@ set(HEADERS
     contests/CQWWContest.h
     contests/CQWPXContest.h
     contests/WinterFieldDayContest.h
+    logging/LogLevel.h
+    logging/LogFormatter.h
+    logging/FileAppender.h
+    logging/Logger.h
+    logging/LogMacros.h
     models/QSO.h
     models/StationInfo.h
     ui/MainWindow.h

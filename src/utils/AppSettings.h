@@ -5,6 +5,7 @@
 #include <QString>
 #include <QList>
 #include "../radio/RadioInterface.h"
+#include "../logging/LogLevel.h"
 
 namespace TR4QT {
 
@@ -115,6 +116,25 @@ public:
 
     void setUDPDestinations(const QList<UdpDestination>& destinations);
     QList<UdpDestination> getUDPDestinations() const;
+
+    // Logging settings
+    void setLogLevel(LogLevel level);
+    LogLevel getLogLevel() const;
+
+    void setFileLoggingEnabled(bool enabled);
+    bool getFileLoggingEnabled() const;
+
+    void setConsoleLoggingEnabled(bool enabled);
+    bool getConsoleLoggingEnabled() const;
+
+    void setLogFilePath(const QString& path);
+    QString getLogFilePath() const;
+
+    void setLogMaxFileSize(qint64 bytes);
+    qint64 getLogMaxFileSize() const;
+
+    void setLogMaxBackupFiles(int count);
+    int getLogMaxBackupFiles() const;
 
 private:
     AppSettings();

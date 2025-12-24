@@ -355,4 +355,61 @@ QList<UdpDestination> AppSettings::getUDPDestinations() const {
     return destinations;
 }
 
+// Logging settings
+void AppSettings::setLogLevel(LogLevel level) {
+    m_settings.setValue("Logging/level", static_cast<int>(level));
+    m_settings.sync();
+}
+
+LogLevel AppSettings::getLogLevel() const {
+    int levelInt = m_settings.value("Logging/level", static_cast<int>(LogLevel::Info)).toInt();
+    return static_cast<LogLevel>(levelInt);
+}
+
+void AppSettings::setFileLoggingEnabled(bool enabled) {
+    m_settings.setValue("Logging/fileEnabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getFileLoggingEnabled() const {
+    return m_settings.value("Logging/fileEnabled", true).toBool();
+}
+
+void AppSettings::setConsoleLoggingEnabled(bool enabled) {
+    m_settings.setValue("Logging/consoleEnabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getConsoleLoggingEnabled() const {
+    return m_settings.value("Logging/consoleEnabled", true).toBool();
+}
+
+void AppSettings::setLogFilePath(const QString& path) {
+    m_settings.setValue("Logging/filePath", path);
+    m_settings.sync();
+}
+
+QString AppSettings::getLogFilePath() const {
+    QString defaultPath = QDir::homePath() + "/.tr4qt/logs/tr4qt.log";
+    return m_settings.value("Logging/filePath", defaultPath).toString();
+}
+
+void AppSettings::setLogMaxFileSize(qint64 bytes) {
+    m_settings.setValue("Logging/maxFileSize", bytes);
+    m_settings.sync();
+}
+
+qint64 AppSettings::getLogMaxFileSize() const {
+    return m_settings.value("Logging/maxFileSize", 10 * 1024 * 1024).toLongLong(); // 10 MB default
+}
+
+void AppSettings::setLogMaxBackupFiles(int count) {
+    m_settings.setValue("Logging/maxBackupFiles", count);
+    m_settings.sync();
+}
+
+int AppSettings::getLogMaxBackupFiles() const {
+    return m_settings.value("Logging/maxBackupFiles", 5).toInt();
+}
+
 } // namespace TR4QT

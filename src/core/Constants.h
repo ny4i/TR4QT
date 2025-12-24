@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.34.0";  // Fix BandMap scrollbar and debug message formatting
+constexpr const char* APP_VERSION = "2.35.0";  // TR4W-style logging system with Preferences UI
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

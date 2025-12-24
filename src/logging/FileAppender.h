@@ -30,7 +30,10 @@ public:
 
     // Configuration
     void setMaxFileSize(qint64 bytes);  // Default: 10 MB
+    qint64 maxFileSize() const { return m_maxFileSize; }
+
     void setMaxBackupFiles(int count);   // Default: 5
+    int maxBackupFiles() const { return m_maxBackupFiles; }
 
     // File management
     bool open();
