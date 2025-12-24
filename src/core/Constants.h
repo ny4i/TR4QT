@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.21.0";  // Add enhanced radio enumeration logging for diagnostics
+constexpr const char* APP_VERSION = "2.22.0";  // Add searchable radio model selector for easier navigation
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

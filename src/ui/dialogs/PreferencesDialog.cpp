@@ -11,6 +11,7 @@
 #include <QDialogButtonBox>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QCompleter>
 
 namespace TR4QT {
 
@@ -128,7 +129,8 @@ QWidget* PreferencesDialog::createRadioTab() {
     QFormLayout* modelLayout = new QFormLayout(modelGroup);
 
     m_radioModelCombo = new QComboBox(this);
-    m_radioModelCombo->setEditable(false);
+    m_radioModelCombo->setEditable(true);  // Make searchable
+    m_radioModelCombo->setInsertPolicy(QComboBox::NoInsert);  // Don't add typed text as new items
 
     // Block signals while populating to avoid triggering onRadioModelChanged before widgets are created
     m_radioModelCombo->blockSignals(true);
@@ -148,6 +150,14 @@ QWidget* PreferencesDialog::createRadioTab() {
     }
 
     m_radioModelCombo->addItem("Custom (enter model ID below)...", -1);
+
+    // Add auto-completion for easy searching (300+ radios!)
+    QCompleter* completer = new QCompleter(this);
+    completer->setModel(m_radioModelCombo->model());
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);  // Match anywhere in string, not just start
+    m_radioModelCombo->setCompleter(completer);
 
     m_customModelEdit = new QLineEdit(this);
     m_customModelEdit->setPlaceholderText("Enter hamlib model ID (e.g., 2046)");
