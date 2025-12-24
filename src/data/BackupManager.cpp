@@ -281,19 +281,22 @@ bool BackupManager::validateBackupFile(const QString& filePath) {
         return false;
     }
 
-    // Run integrity check
-    QSqlQuery query(testDb);
-    if (!query.exec("PRAGMA integrity_check")) {
-        testDb.close();
-        QSqlDatabase::removeDatabase("backup_validation");
-        return false;
-    }
-
     bool isValid = false;
-    if (query.next()) {
-        QString result = query.value(0).toString();
-        isValid = (result == "ok");
-    }
+
+    // Run integrity check (scope ensures query is destroyed before removeDatabase)
+    {
+        QSqlQuery query(testDb);
+        if (!query.exec("PRAGMA integrity_check")) {
+            testDb.close();
+            QSqlDatabase::removeDatabase("backup_validation");
+            return false;
+        }
+
+        if (query.next()) {
+            QString result = query.value(0).toString();
+            isValid = (result == "ok");
+        }
+    }  // query destroyed here
 
     testDb.close();
     QSqlDatabase::removeDatabase("backup_validation");
@@ -316,18 +319,21 @@ int BackupManager::getBackupQSOCount(const QString& backupPath) {
         return -1;
     }
 
-    // Count QSOs
-    QSqlQuery query(backupDb);
-    if (!query.exec("SELECT COUNT(*) FROM qsos WHERE deleted = 0")) {
-        backupDb.close();
-        QSqlDatabase::removeDatabase(connectionName);
-        return -1;
-    }
-
     int count = -1;
-    if (query.next()) {
-        count = query.value(0).toInt();
-    }
+
+    // Count QSOs (scope ensures query is destroyed before removeDatabase)
+    {
+        QSqlQuery query(backupDb);
+        if (!query.exec("SELECT COUNT(*) FROM qsos WHERE deleted = 0")) {
+            backupDb.close();
+            QSqlDatabase::removeDatabase(connectionName);
+            return -1;
+        }
+
+        if (query.next()) {
+            count = query.value(0).toInt();
+        }
+    }  // query destroyed here
 
     backupDb.close();
     QSqlDatabase::removeDatabase(connectionName);
