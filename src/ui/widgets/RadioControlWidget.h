@@ -64,6 +64,11 @@ private slots:
 
 private:
     void setupUI();
+    void applyTheme();
+
+    // VFO widgets (for theme updates)
+    QWidget* m_vfoAWidget;
+    QWidget* m_vfoBWidget;
 
     // Display labels
     QLabel* m_titleLabel;

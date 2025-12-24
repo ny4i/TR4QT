@@ -1,5 +1,6 @@
 #include "PreferencesDialog.h"
 #include "../../utils/AppSettings.h"
+#include "../../utils/ThemeManager.h"
 #include "../../utils/RadioEnumerator.h"
 #include "../../network/UdpBroadcaster.h"
 #include "../../logging/Logger.h"
@@ -8,11 +9,13 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QDialogButtonBox>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QColorDialog>
 #include <QCompleter>
 #include <QDesktopServices>
 #include <QUrl>
@@ -438,6 +441,42 @@ QWidget* PreferencesDialog::createAppearanceTab() {
     formLayout->addRow("Band Summary:", m_gridFontSizeSpin);
 
     layout->addWidget(fontGroup);
+
+    // Color Theme group
+    QGroupBox* themeGroup = new QGroupBox("Color Theme", this);
+    QVBoxLayout* themeLayout = new QVBoxLayout(themeGroup);
+
+    // Theme selector
+    QHBoxLayout* themeSelectLayout = new QHBoxLayout();
+    QLabel* themeLabel = new QLabel("Theme Preset:", this);
+    m_themeCombo = new QComboBox(this);
+    m_themeCombo->addItem("TR4W Default", static_cast<int>(ThemeType::TR4WDefault));
+    m_themeCombo->addItem("Dark Mode", static_cast<int>(ThemeType::DarkMode));
+    m_themeCombo->addItem("High Contrast", static_cast<int>(ThemeType::HighContrast));
+    m_themeCombo->addItem("Custom", static_cast<int>(ThemeType::Custom));
+    m_themeCombo->setToolTip("Select a pre-defined color theme or create your own custom theme");
+    connect(m_themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onThemeChanged);
+
+    themeSelectLayout->addWidget(themeLabel);
+    themeSelectLayout->addWidget(m_themeCombo);
+    themeSelectLayout->addStretch();
+
+    themeLayout->addLayout(themeSelectLayout);
+
+    // Customize colors button
+    m_customizeColorsButton = new QPushButton("Customize Colors...", this);
+    m_customizeColorsButton->setToolTip("Open color customization dialog to set individual element colors");
+    connect(m_customizeColorsButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onCustomizeColors);
+
+    QHBoxLayout* buttonLayout = new QHBoxLayout();
+    buttonLayout->addWidget(m_customizeColorsButton);
+    buttonLayout->addStretch();
+
+    themeLayout->addLayout(buttonLayout);
+
+    layout->addWidget(themeGroup);
     layout->addStretch();
 
     return appearanceTab;
@@ -684,6 +723,16 @@ void PreferencesDialog::loadSettings() {
     m_tableFontSizeSpin->setValue(settings.getTableFontSize());
     m_gridFontSizeSpin->setValue(settings.getGridFontSize());
 
+    // Load current theme
+    ThemeManager& theme = ThemeManager::instance();
+    ThemeType currentTheme = theme.currentTheme();
+    for (int i = 0; i < m_themeCombo->count(); i++) {
+        if (m_themeCombo->itemData(i).toInt() == static_cast<int>(currentTheme)) {
+            m_themeCombo->setCurrentIndex(i);
+            break;
+        }
+    }
+
     // Logging tab
     int logLevelIndex = m_logLevelCombo->findData(static_cast<int>(settings.getLogLevel()));
     if (logLevelIndex >= 0) {
@@ -770,6 +819,13 @@ void PreferencesDialog::saveSettings() {
     settings.setEntryFontSize(m_entryFontSizeSpin->value());
     settings.setTableFontSize(m_tableFontSizeSpin->value());
     settings.setGridFontSize(m_gridFontSizeSpin->value());
+
+    // Save theme
+    ThemeManager& theme = ThemeManager::instance();
+    int themeIndex = m_themeCombo->currentData().toInt();
+    ThemeType selectedTheme = static_cast<ThemeType>(themeIndex);
+    theme.setTheme(selectedTheme);
+    theme.saveToSettings();
 
     // Logging tab
     LogLevel logLevel = static_cast<LogLevel>(m_logLevelCombo->currentData().toInt());
@@ -1015,6 +1071,155 @@ void PreferencesDialog::onBrowseLogFile() {
         }
         m_logFilePathEdit->setText(fileName);
     }
+}
+
+void PreferencesDialog::onThemeChanged(int index) {
+    // When theme combo changes, just mark that settings have changed
+    // Actual theme will be applied when user clicks Apply or OK
+    Q_UNUSED(index);
+}
+
+void PreferencesDialog::onCustomizeColors() {
+    // Create and show color customization dialog
+    QDialog* colorDialog = new QDialog(this);
+    colorDialog->setWindowTitle("Customize Colors");
+    colorDialog->setModal(true);
+
+    QVBoxLayout* mainLayout = new QVBoxLayout(colorDialog);
+
+    // Create grid for color buttons
+    QGroupBox* colorsGroup = new QGroupBox("Color Elements", colorDialog);
+    QGridLayout* gridLayout = new QGridLayout(colorsGroup);
+
+    ThemeManager& theme = ThemeManager::instance();
+
+    // Helper struct to hold color button data
+    struct ColorButton {
+        ColorRole role;
+        QPushButton* button;
+        QColor currentColor;
+    };
+
+    QList<ColorButton*> colorButtons;
+
+    // All 17 ColorRoles
+    QList<ColorRole> roles = {
+        // Display Colors
+        ColorRole::VfoBackground,
+        ColorRole::VfoText,
+        ColorRole::WindowBackground,
+        ColorRole::TextDisplayBackground,
+
+        // Status Colors
+        ColorRole::ConnectedStatus,
+        ColorRole::DisconnectedStatus,
+        ColorRole::FrozenIndicator,
+
+        // Functional Colors
+        ColorRole::DupeText,
+        ColorRole::NewMultiplierBackground,
+        ColorRole::WorkedStationText,
+        ColorRole::MultiplierText,
+        ColorRole::NeededMultiplierBackground,
+        ColorRole::ConfirmedMultiplierBackground,
+
+        // UI Colors
+        ColorRole::PrimaryText,
+        ColorRole::SecondaryText,
+        ColorRole::HoverHighlight,
+        ColorRole::BorderColor
+    };
+
+    // Create buttons in a 3-column grid
+    int row = 0;
+    int col = 0;
+
+    for (ColorRole role : roles) {
+        // Label with color role name
+        QLabel* label = new QLabel(ThemeManager::colorRoleName(role) + ":", colorDialog);
+        gridLayout->addWidget(label, row, col * 3);
+
+        // Color preview button
+        QPushButton* colorButton = new QPushButton(colorDialog);
+        QColor currentColor = theme.color(role);
+
+        colorButton->setFixedSize(100, 30);
+        colorButton->setStyleSheet(QString("background-color: %1; border: 1px solid #888;").arg(currentColor.name()));
+        colorButton->setToolTip("Click to change color");
+
+        // Store button data for later
+        ColorButton* btnData = new ColorButton{role, colorButton, currentColor};
+        colorButtons.append(btnData);
+
+        // Connect to color picker
+        connect(colorButton, &QPushButton::clicked, [=, &theme]() mutable {
+            QColor newColor = QColorDialog::getColor(btnData->currentColor, colorDialog, "Select Color");
+            if (newColor.isValid()) {
+                btnData->currentColor = newColor;
+                btnData->button->setStyleSheet(QString("background-color: %1; border: 1px solid #888;").arg(newColor.name()));
+            }
+        });
+
+        gridLayout->addWidget(colorButton, row, col * 3 + 1);
+
+        // Reset button
+        QPushButton* resetButton = new QPushButton("Reset", colorDialog);
+        resetButton->setToolTip("Reset to theme default");
+        connect(resetButton, &QPushButton::clicked, [=, &theme]() mutable {
+            // Get default color from TR4W theme by temporarily switching
+            ThemeType originalTheme = theme.currentTheme();
+            theme.setTheme(ThemeType::TR4WDefault);
+            QColor defaultColor = theme.color(role);
+            theme.setTheme(originalTheme);
+
+            btnData->currentColor = defaultColor;
+            btnData->button->setStyleSheet(QString("background-color: %1; border: 1px solid #888;").arg(defaultColor.name()));
+        });
+
+        gridLayout->addWidget(resetButton, row, col * 3 + 2);
+
+        // Move to next position
+        col++;
+        if (col >= 2) {  // 2 columns of 3 widgets each = 6 columns total
+            col = 0;
+            row++;
+        }
+    }
+
+    mainLayout->addWidget(colorsGroup);
+
+    // Dialog buttons
+    QDialogButtonBox* buttonBox = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, colorDialog);
+
+    connect(buttonBox, &QDialogButtonBox::accepted, [=, &theme]() {
+        // Apply all custom colors
+        for (ColorButton* btnData : colorButtons) {
+            theme.setCustomColor(btnData->role, btnData->currentColor);
+        }
+        theme.saveToSettings();
+
+        // Update theme combo to show "Custom"
+        for (int i = 0; i < m_themeCombo->count(); i++) {
+            if (m_themeCombo->itemData(i).toInt() == static_cast<int>(ThemeType::Custom)) {
+                m_themeCombo->setCurrentIndex(i);
+                break;
+            }
+        }
+
+        colorDialog->accept();
+    });
+
+    connect(buttonBox, &QDialogButtonBox::rejected, colorDialog, &QDialog::reject);
+
+    mainLayout->addWidget(buttonBox);
+
+    colorDialog->resize(700, 500);
+    colorDialog->exec();
+
+    // Clean up
+    qDeleteAll(colorButtons);
+    colorDialog->deleteLater();
 }
 
 } // namespace TR4QT

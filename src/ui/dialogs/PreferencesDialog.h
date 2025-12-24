@@ -50,6 +50,10 @@ private slots:
     void onClearLogFile();
     void onBrowseLogFile();
 
+    // Theme slots
+    void onThemeChanged(int index);
+    void onCustomizeColors();
+
 private:
     void setupUI();
     void loadSettings();
@@ -109,6 +113,8 @@ private:
     QSpinBox* m_entryFontSizeSpin;
     QSpinBox* m_tableFontSizeSpin;
     QSpinBox* m_gridFontSizeSpin;
+    QComboBox* m_themeCombo;
+    QPushButton* m_customizeColorsButton;
 
     // Logging tab widgets
     QComboBox* m_logLevelCombo;

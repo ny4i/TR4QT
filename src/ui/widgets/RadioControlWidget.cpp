@@ -1,4 +1,5 @@
 #include "RadioControlWidget.h"
+#include "../../utils/ThemeManager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -13,6 +14,11 @@ RadioControlWidget::RadioControlWidget(QWidget* parent)
 {
     setupUI();
     clearDisplay();  // Start with cleared display (radio not connected)
+
+    // Connect to theme changes
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, &RadioControlWidget::applyTheme);
+    applyTheme();  // Apply initial theme
 }
 
 void RadioControlWidget::setupUI() {
@@ -35,16 +41,11 @@ void RadioControlWidget::setupUI() {
     vfoLayout->setSpacing(2);
     vfoLayout->setContentsMargins(0, 0, 0, 0);
 
-    // Create cyan background for frequency displays (like TR4W)
-    QPalette vfoPalette;
-    vfoPalette.setColor(QPalette::Window, QColor(0, 255, 255));  // Cyan
-    vfoPalette.setColor(QPalette::WindowText, Qt::black);
-
     // VFO A
-    QWidget* vfoAWidget = new QWidget(this);
-    vfoAWidget->setAutoFillBackground(true);
-    vfoAWidget->setPalette(vfoPalette);
-    QHBoxLayout* vfoALayout = new QHBoxLayout(vfoAWidget);
+    m_vfoAWidget = new QWidget(this);
+    m_vfoAWidget->setAutoFillBackground(true);
+    // Palette will be set in applyTheme()
+    QHBoxLayout* vfoALayout = new QHBoxLayout(m_vfoAWidget);
     vfoALayout->setContentsMargins(5, 5, 5, 5);
 
     m_vfoALabel = new QLabel("VFO A", this);
@@ -63,10 +64,10 @@ void RadioControlWidget::setupUI() {
     vfoALayout->addWidget(m_vfoAFreqLabel, 1);
 
     // VFO B
-    QWidget* vfoBWidget = new QWidget(this);
-    vfoBWidget->setAutoFillBackground(true);
-    vfoBWidget->setPalette(vfoPalette);
-    QHBoxLayout* vfoBLayout = new QHBoxLayout(vfoBWidget);
+    m_vfoBWidget = new QWidget(this);
+    m_vfoBWidget->setAutoFillBackground(true);
+    // Palette will be set in applyTheme()
+    QHBoxLayout* vfoBLayout = new QHBoxLayout(m_vfoBWidget);
     vfoBLayout->setContentsMargins(5, 5, 5, 5);
 
     m_vfoBLabel = new QLabel("VFO B", this);
@@ -79,8 +80,8 @@ void RadioControlWidget::setupUI() {
     vfoBLayout->addWidget(m_vfoBLabel);
     vfoBLayout->addWidget(m_vfoBFreqLabel, 1);
 
-    vfoLayout->addWidget(vfoAWidget);
-    vfoLayout->addWidget(vfoBWidget);
+    vfoLayout->addWidget(m_vfoAWidget);
+    vfoLayout->addWidget(m_vfoBWidget);
 
     mainLayout->addWidget(vfoWidget);
 
@@ -96,8 +97,6 @@ void RadioControlWidget::setupUI() {
 
     // Control buttons
     QWidget* buttonWidget = new QWidget(this);
-    buttonWidget->setAutoFillBackground(true);
-    buttonWidget->setPalette(vfoPalette);
     QHBoxLayout* buttonLayout = new QHBoxLayout(buttonWidget);
     buttonLayout->setSpacing(5);
     buttonLayout->setContentsMargins(5, 5, 5, 5);
@@ -214,6 +213,18 @@ void RadioControlWidget::onXitClicked() {
 
 void RadioControlWidget::onSplitClicked() {
     emit splitToggled(m_splitButton->isChecked());
+}
+
+void RadioControlWidget::applyTheme() {
+    ThemeManager& theme = ThemeManager::instance();
+
+    // Apply VFO colors (background and text)
+    QPalette vfoPalette;
+    vfoPalette.setColor(QPalette::Window, theme.color(ColorRole::VfoBackground));
+    vfoPalette.setColor(QPalette::WindowText, theme.color(ColorRole::VfoText));
+
+    m_vfoAWidget->setPalette(vfoPalette);
+    m_vfoBWidget->setPalette(vfoPalette);
 }
 
 } // namespace TR4QT

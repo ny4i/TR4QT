@@ -74,6 +74,9 @@ public:
     // Contest-dependent exchange fields
     void setContestExchangeFields(const QList<ExchangeField>& fields);
 
+private slots:
+    void onThemeChanged();
+
 private:
     QList<QSO> m_qsos;
     QList<ExchangeField> m_exchangeFields;  // Contest exchange field definitions
