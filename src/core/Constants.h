@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.23.0";  // Add scrollbar support to BandMap for overflow content
+constexpr const char* APP_VERSION = "2.24.0";  // Add ALT- and CTRL- keyboard shortcut menus like TR4W
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

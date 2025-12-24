@@ -64,6 +64,15 @@ private slots:
     void onShowBandMap();
     void onShowRadioControl();
     void onShowMultipliers();
+    void onShowLogWindow();         // TODO: Implement log window display
+    void onShowStatistics();        // TODO: Implement statistics window
+    void onShowCWMessages();        // TODO: Implement CW messages window
+
+    // Edit menu actions
+    void onEditQSO();               // TODO: Implement edit QSO dialog
+    void onDeleteQSO();             // TODO: Implement delete QSO confirmation
+    void onDupeCheck();             // TODO: Implement dupe check highlighting
+    void onGrabSpot();              // TODO: Implement grab spot from cluster
 
     // DX Cluster integration
     void onDXSpotReceived(const QString& callsign,

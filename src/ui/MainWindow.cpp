@@ -173,24 +173,59 @@ void MainWindow::createMenuBar() {
     m_disconnectAction->setEnabled(false);
     connect(m_disconnectAction, &QAction::triggered, this, &MainWindow::onRadioDisconnect);
 
-    // Window menu
+    // Edit menu (CTRL- shortcuts for editing operations)
+    QMenu* editMenu = menuBar->addMenu("&Edit");
+
+    QAction* editQSOAction = editMenu->addAction("&Edit QSO...");
+    editQSOAction->setShortcut(QKeySequence("Ctrl+E"));
+    connect(editQSOAction, &QAction::triggered, this, &MainWindow::onEditQSO);
+
+    QAction* deleteQSOAction = editMenu->addAction("&Delete QSO");
+    deleteQSOAction->setShortcut(QKeySequence("Ctrl+K"));
+    connect(deleteQSOAction, &QAction::triggered, this, &MainWindow::onDeleteQSO);
+
+    editMenu->addSeparator();
+
+    QAction* dupeCheckAction = editMenu->addAction("&Dupe Check");
+    dupeCheckAction->setShortcut(QKeySequence("Ctrl+D"));
+    connect(dupeCheckAction, &QAction::triggered, this, &MainWindow::onDupeCheck);
+
+    QAction* grabSpotAction = editMenu->addAction("&Grab Spot");
+    grabSpotAction->setShortcut(QKeySequence("Ctrl+G"));
+    connect(grabSpotAction, &QAction::triggered, this, &MainWindow::onGrabSpot);
+
+    // Window menu (ALT- shortcuts for window/view operations)
     QMenu* windowMenu = menuBar->addMenu("&Window");
 
     QAction* dxClusterAction = windowMenu->addAction("DX &Cluster");
-    dxClusterAction->setShortcut(QKeySequence("Ctrl+Shift+D"));
+    dxClusterAction->setShortcut(QKeySequence("Alt+D"));
     connect(dxClusterAction, &QAction::triggered, this, &MainWindow::onShowDXCluster);
 
     QAction* bandMapAction = windowMenu->addAction("&Band Map");
-    bandMapAction->setShortcut(QKeySequence("Ctrl+Shift+B"));
+    bandMapAction->setShortcut(QKeySequence("Alt+B"));
     connect(bandMapAction, &QAction::triggered, this, &MainWindow::onShowBandMap);
 
     QAction* radioControlAction = windowMenu->addAction("&Radio Control");
-    radioControlAction->setShortcut(QKeySequence("Ctrl+Shift+R"));
+    radioControlAction->setShortcut(QKeySequence("Alt+R"));
     connect(radioControlAction, &QAction::triggered, this, &MainWindow::onShowRadioControl);
 
     QAction* multipliersAction = windowMenu->addAction("&Multipliers");
-    multipliersAction->setShortcut(QKeySequence("Ctrl+Shift+M"));
+    multipliersAction->setShortcut(QKeySequence("Alt+M"));
     connect(multipliersAction, &QAction::triggered, this, &MainWindow::onShowMultipliers);
+
+    windowMenu->addSeparator();
+
+    QAction* logWindowAction = windowMenu->addAction("&Log Window");
+    logWindowAction->setShortcut(QKeySequence("Alt+L"));
+    connect(logWindowAction, &QAction::triggered, this, &MainWindow::onShowLogWindow);
+
+    QAction* statisticsAction = windowMenu->addAction("&Statistics");
+    statisticsAction->setShortcut(QKeySequence("Alt+S"));
+    connect(statisticsAction, &QAction::triggered, this, &MainWindow::onShowStatistics);
+
+    QAction* cwMessagesAction = windowMenu->addAction("CW &Messages");
+    cwMessagesAction->setShortcut(QKeySequence("Alt+X"));
+    connect(cwMessagesAction, &QAction::triggered, this, &MainWindow::onShowCWMessages);
 
     // Help menu
     QMenu* helpMenu = menuBar->addMenu("&Help");
@@ -1321,6 +1356,62 @@ void MainWindow::onShowMultipliers() {
     m_multiplierWindow->show();
     m_multiplierWindow->raise();
     m_multiplierWindow->activateWindow();
+}
+
+void MainWindow::onShowLogWindow() {
+    // TODO: Implement log window showing all QSOs in a table view
+    qDebug() << "Log Window (Alt+L) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Log Window feature will be implemented in a future version.\n\n"
+                           "This will display all logged QSOs in a searchable table.");
+}
+
+void MainWindow::onShowStatistics() {
+    // TODO: Implement statistics window with QSO/Mult/Score breakdown
+    qDebug() << "Statistics Window (Alt+S) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Statistics Window feature will be implemented in a future version.\n\n"
+                           "This will show QSOs per band/mode, multipliers, score, rate, etc.");
+}
+
+void MainWindow::onShowCWMessages() {
+    // TODO: Implement CW/Voice keyer message editor
+    qDebug() << "CW Messages (Alt+X) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "CW Messages feature will be implemented in a future version.\n\n"
+                           "This will allow editing function key messages for CW/Voice keying.");
+}
+
+void MainWindow::onEditQSO() {
+    // TODO: Implement edit QSO dialog for modifying existing log entry
+    qDebug() << "Edit QSO (Ctrl+E) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Edit QSO feature will be implemented in a future version.\n\n"
+                           "This will allow editing of logged QSO details.");
+}
+
+void MainWindow::onDeleteQSO() {
+    // TODO: Implement delete QSO with confirmation
+    qDebug() << "Delete QSO (Ctrl+K) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Delete QSO feature will be implemented in a future version.\n\n"
+                           "This will allow removal of QSOs from the log.");
+}
+
+void MainWindow::onDupeCheck() {
+    // TODO: Implement dupe check that highlights/searches for callsign in log
+    qDebug() << "Dupe Check (Ctrl+D) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Dupe Check feature will be implemented in a future version.\n\n"
+                           "This will check if the current callsign is a duplicate.");
+}
+
+void MainWindow::onGrabSpot() {
+    // TODO: Implement grab spot from DX Cluster to populate entry fields
+    qDebug() << "Grab Spot (Ctrl+G) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Grab Spot feature will be implemented in a future version.\n\n"
+                           "This will populate callsign from the nearest DX Cluster spot.");
 }
 
 void MainWindow::onDXSpotReceived(const QString& callsign,
