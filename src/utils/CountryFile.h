@@ -45,7 +45,10 @@ public:
     bool loadFromFile(const QString& filePath);
 
     // Get current version
-    int getVersion() const { return m_version; }
+    QString getVersion() const { return m_version; }
+
+    // Set version (called after loading from download)
+    void setVersion(const QString& version) { m_version = version; }
 
     // Lookup a callsign and return country data
     CountryData lookup(const QString& callsign) const;
@@ -80,7 +83,7 @@ private:
     QHash<QString, QString> m_prefixMap;      // Alias prefix → Primary prefix
     QHash<QString, QString> m_exactMatches;   // Exact callsign → Primary prefix
 
-    int m_version{0};
+    QString m_version;
 };
 
 } // namespace TR4QT
