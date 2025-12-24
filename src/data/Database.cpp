@@ -173,16 +173,26 @@ bool Database::initSchema() {
     QStringList statements = schemaSql.split(';', Qt::SkipEmptyParts);
 
     for (const QString& statement : statements) {
-        QString trimmed = statement.trimmed();
-        if (trimmed.isEmpty() || trimmed.startsWith("--")) {
+        // Remove comment lines (lines starting with --)
+        QStringList lines = statement.split('\n');
+        QStringList cleanedLines;
+        for (const QString& line : lines) {
+            QString trimmedLine = line.trimmed();
+            if (!trimmedLine.isEmpty() && !trimmedLine.startsWith("--")) {
+                cleanedLines.append(line);
+            }
+        }
+
+        QString cleaned = cleanedLines.join('\n').trimmed();
+        if (cleaned.isEmpty()) {
             continue;
         }
 
         QSqlQuery query(m_db);
-        if (!query.exec(trimmed)) {
+        if (!query.exec(cleaned)) {
             m_lastError = QString("Schema init failed: %1").arg(query.lastError().text());
             qWarning() << m_lastError;
-            qWarning() << "Statement:" << trimmed;
+            qWarning() << "Statement:" << cleaned;
             return false;
         }
     }
@@ -195,8 +205,11 @@ QString Database::loadSchemaSql() {
     // Try to load from embedded resource (production)
     QFile schemaFile(":/data/schema.sql");
     if (!schemaFile.exists()) {
+        qWarning() << "Resource :/data/schema.sql not found, trying fallback path";
         // Fallback to actual file path (development)
         schemaFile.setFileName("src/data/schema.sql");
+    } else {
+        qWarning() << "Found schema in Qt resources";
     }
 
     if (!schemaFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -206,6 +219,13 @@ QString Database::loadSchemaSql() {
 
     QString sql = QString::fromUtf8(schemaFile.readAll());
     schemaFile.close();
+
+    qWarning() << "Loaded schema SQL:" << sql.length() << "bytes";
+    if (sql.length() > 0) {
+        qWarning() << "First 200 chars:" << sql.left(200);
+    } else {
+        qWarning() << "ERROR: Schema SQL is empty!";
+    }
 
     return sql;
 }

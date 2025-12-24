@@ -104,7 +104,7 @@ QWidget* BackupRestoreDialog::createBackupTab() {
 }
 
 QWidget* BackupRestoreDialog::createRestoreTab() {
-    QWidget* widget = new QWidget(widget);
+    QWidget* widget = new QWidget(this);
     QVBoxLayout* layout = new QVBoxLayout(widget);
 
     // List group
