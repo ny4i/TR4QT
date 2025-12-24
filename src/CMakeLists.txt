@@ -5,6 +5,7 @@ set(SOURCES
     core/Types.cpp
     utils/CountryFile.cpp
     utils/CountryFileDownloader.cpp
+    utils/DXClusterListDownloader.cpp
     utils/AppSettings.cpp
     utils/ThemeManager.cpp
     utils/RadioEnumerator.cpp
@@ -19,6 +20,7 @@ set(SOURCES
     network/UdpBroadcastManager.cpp
     data/Database.cpp
     data/QSORepository.cpp
+    data/BackupManager.cpp
     contests/ContestRegistry.cpp
     contests/CQWWContest.cpp
     contests/CQWPXContest.cpp
@@ -32,6 +34,7 @@ set(SOURCES
     ui/dialogs/RadioConfigDialog.cpp
     ui/dialogs/PreferencesDialog.cpp
     ui/dialogs/ContestChooserDialog.cpp
+    ui/dialogs/BackupRestoreDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
     ui/widgets/RadioControlWidget.cpp
@@ -44,6 +47,7 @@ set(HEADERS
     core/Constants.h
     utils/CountryFile.h
     utils/CountryFileDownloader.h
+    utils/DXClusterListDownloader.h
     utils/AppSettings.h
     utils/ThemeManager.h
     utils/RadioEnumerator.h
@@ -59,6 +63,7 @@ set(HEADERS
     network/UdpBroadcastManager.h
     data/Database.h
     data/QSORepository.h
+    data/BackupManager.h
     contests/ContestBase.h
     contests/ContestMetadata.h
     contests/ContestRegistry.h
@@ -77,6 +82,7 @@ set(HEADERS
     ui/dialogs/RadioConfigDialog.h
     ui/dialogs/PreferencesDialog.h
     ui/dialogs/ContestChooserDialog.h
+    ui/dialogs/BackupRestoreDialog.h
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
     ui/widgets/RadioControlWidget.h

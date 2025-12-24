@@ -226,6 +226,15 @@ bool AppSettings::getDXClusterAutoConnect() const {
     return m_settings.value("DXCluster/autoConnect", false).toBool();
 }
 
+void AppSettings::saveDXClusterList(const QStringList& servers) {
+    m_settings.setValue("DXCluster/serverList", servers);
+    m_settings.sync();
+}
+
+QStringList AppSettings::getDXClusterList() const {
+    return m_settings.value("DXCluster/serverList", QStringList()).toStringList();
+}
+
 void AppSettings::setCountryFileVersion(int version) {
     m_settings.setValue("CountryFile/version", version);
     m_settings.sync();

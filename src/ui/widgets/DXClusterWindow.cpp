@@ -176,19 +176,31 @@ void DXClusterWindow::setupUI() {
 void DXClusterWindow::loadSettings() {
     QSettings settings(APP_ORG, APP_NAME);
 
-    // Load recent servers
-    int serverCount = settings.value("DXCluster/ServerCount", 0).toInt();
-    for (int i = 0; i < serverCount; ++i) {
-        QString server = settings.value(QString("DXCluster/Server%1").arg(i)).toString();
-        if (!server.isEmpty() && m_serverCombo->findText(server) == -1) {
+    // Load downloaded cluster list from AppSettings
+    AppSettings& appSettings = AppSettings::instance();
+    QStringList clusterList = appSettings.getDXClusterList();
+
+    if (!clusterList.isEmpty()) {
+        // Clear default servers and use downloaded list
+        m_serverCombo->clear();
+        for (const QString& server : clusterList) {
             m_serverCombo->addItem(server);
+        }
+    } else {
+        // Load recent servers (fallback if no downloaded list)
+        int serverCount = settings.value("DXCluster/ServerCount", 0).toInt();
+        for (int i = 0; i < serverCount; ++i) {
+            QString server = settings.value(QString("DXCluster/Server%1").arg(i)).toString();
+            if (!server.isEmpty() && m_serverCombo->findText(server) == -1) {
+                m_serverCombo->addItem(server);
+            }
         }
     }
 
     // Load last server
     QString lastServer = settings.value("DXCluster/LastServer").toString();
     if (!lastServer.isEmpty()) {
-        int index = m_serverCombo->findText(lastServer);
+        int index = m_serverCombo->findText(lastServer, Qt::MatchContains);
         if (index >= 0) {
             m_serverCombo->setCurrentIndex(index);
         }
@@ -224,8 +236,20 @@ void DXClusterWindow::onConnectClicked() {
         return;
     }
 
+    // Extract host:port from display format: "W9ODD (134.48.91.82:23) - AR-Cluster"
+    // Or handle plain format: "dxc.nc7j.com:7373"
+    QString connectionString = serverString;
+
+    QRegularExpression displayRegex(R"(\(([^:]+):(\d+)\))");
+    QRegularExpressionMatch match = displayRegex.match(serverString);
+
+    if (match.hasMatch()) {
+        // Extracted from display format
+        connectionString = match.captured(1) + ":" + match.captured(2);
+    }
+
     // Parse server:port
-    QStringList parts = serverString.split(':');
+    QStringList parts = connectionString.split(':');
     if (parts.size() != 2) {
         QMessageBox::warning(this, "DX Cluster",
                            "Invalid format. Use: hostname:port (e.g., DXC.NC7J.COM:7373)");

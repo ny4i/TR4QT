@@ -1,6 +1,7 @@
 #include "PreferencesDialog.h"
 #include "../../utils/AppSettings.h"
 #include "../../utils/ThemeManager.h"
+#include "../../utils/DXClusterListDownloader.h"
 #include "../../utils/RadioEnumerator.h"
 #include "../../network/UdpBroadcaster.h"
 #include "../../logging/Logger.h"
@@ -21,6 +22,7 @@
 #include <QUrl>
 #include <QFile>
 #include <QDir>
+#include <QProgressDialog>
 
 namespace TR4QT {
 
@@ -290,6 +292,12 @@ QWidget* PreferencesDialog::createDXClusterTab() {
     // Auto-connect
     m_dxClusterAutoConnectCheck = new QCheckBox("Auto-connect to DX Cluster on startup", this);
     formLayout->addRow("", m_dxClusterAutoConnectCheck);
+
+    // Download cluster list button
+    m_downloadClusterListButton = new QPushButton("Download Server List", this);
+    connect(m_downloadClusterListButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onDownloadClusterList);
+    formLayout->addRow("", m_downloadClusterListButton);
 
     layout->addWidget(clusterGroup);
 
@@ -1220,6 +1228,85 @@ void PreferencesDialog::onCustomizeColors() {
     // Clean up
     qDeleteAll(colorButtons);
     colorDialog->deleteLater();
+}
+
+void PreferencesDialog::onDownloadClusterList() {
+    // Create and configure downloader
+    DXClusterListDownloader* downloader = new DXClusterListDownloader(this);
+
+    // Create progress dialog
+    QProgressDialog* progressDialog = new QProgressDialog(
+        "Downloading DX cluster server list...",
+        "Cancel",
+        0, 100,
+        this
+    );
+    progressDialog->setWindowModality(Qt::WindowModal);
+    progressDialog->setMinimumDuration(0);
+
+    // Connect signals
+    connect(downloader, &DXClusterListDownloader::downloadProgress,
+            this, [progressDialog](qint64 bytesReceived, qint64 bytesTotal) {
+        if (bytesTotal > 0) {
+            int percentage = (bytesReceived * 100) / bytesTotal;
+            progressDialog->setValue(percentage);
+        }
+    });
+
+    connect(downloader, &DXClusterListDownloader::downloadFinished,
+            this, &PreferencesDialog::onClusterListDownloadFinished);
+
+    connect(downloader, &DXClusterListDownloader::errorOccurred,
+            this, [this, progressDialog](const QString& error) {
+        progressDialog->cancel();
+        QMessageBox::warning(this, "Download Error",
+            QString("Failed to download cluster list:\n%1").arg(error));
+    });
+
+    connect(progressDialog, &QProgressDialog::canceled,
+            downloader, &DXClusterListDownloader::cancel);
+
+    // Clean up when done
+    connect(downloader, &DXClusterListDownloader::downloadFinished,
+            downloader, &QObject::deleteLater);
+    connect(downloader, &DXClusterListDownloader::downloadFinished,
+            progressDialog, &QObject::deleteLater);
+
+    // Start download
+    downloader->downloadList();
+}
+
+void PreferencesDialog::onClusterListDownloadFinished(bool success, const QList<DXClusterServer>& servers) {
+    if (!success) {
+        return;  // Error already handled in error signal
+    }
+
+    qDebug() << "Downloaded" << servers.size() << "cluster servers";
+
+    if (servers.isEmpty()) {
+        QMessageBox::warning(this, "Download Complete",
+            "No cluster servers found in downloaded list.");
+        return;
+    }
+
+    // Sort by country with user's country first
+    QList<DXClusterServer> sortedServers = servers;
+    AppSettings& settings = AppSettings::instance();
+    DXClusterListDownloader::sortByCountry(sortedServers, settings.getMyCallsign());
+
+    // Convert to QStringList for storage
+    QStringList serverList;
+    for (const DXClusterServer& server : sortedServers) {
+        serverList.append(server.displayString());
+    }
+
+    // Save to settings
+    settings.saveDXClusterList(serverList);
+
+    QMessageBox::information(this, "Download Complete",
+        QString("Successfully downloaded and saved %1 DX cluster servers.\n\n"
+                "The server list is now available in the DX Cluster window.")
+            .arg(servers.size()));
 }
 
 } // namespace TR4QT
