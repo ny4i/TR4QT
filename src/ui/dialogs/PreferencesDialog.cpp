@@ -29,6 +29,7 @@ void PreferencesDialog::setupUI() {
     m_tabWidget = new QTabWidget(this);
     m_tabWidget->addTab(createStationTab(), "Station");
     m_tabWidget->addTab(createRadioTab(), "Radio");
+    m_tabWidget->addTab(createDXClusterTab(), "DX Cluster");
     m_tabWidget->addTab(createAppearanceTab(), "Appearance");
     m_tabWidget->addTab(createContestTab(), "Contest");
     m_tabWidget->addTab(createAdvancedTab(), "Advanced");
@@ -225,6 +226,48 @@ QWidget* PreferencesDialog::createRadioTab() {
     return radioTab;
 }
 
+QWidget* PreferencesDialog::createDXClusterTab() {
+    QWidget* dxClusterTab = new QWidget(this);
+    QVBoxLayout* layout = new QVBoxLayout(dxClusterTab);
+
+    QGroupBox* clusterGroup = new QGroupBox("DX Cluster Settings", this);
+    QFormLayout* formLayout = new QFormLayout(clusterGroup);
+
+    // DX Cluster callsign
+    m_dxClusterCallsignEdit = new QLineEdit(this);
+    m_dxClusterCallsignEdit->setPlaceholderText("Leave blank to use station callsign");
+    formLayout->addRow("DX Cluster Callsign:", m_dxClusterCallsignEdit);
+
+    // Default server
+    m_dxClusterServerEdit = new QLineEdit(this);
+    m_dxClusterServerEdit->setPlaceholderText("server.example.com:7373");
+    formLayout->addRow("Default Server:", m_dxClusterServerEdit);
+
+    // Auto-connect
+    m_dxClusterAutoConnectCheck = new QCheckBox("Auto-connect to DX Cluster on startup", this);
+    formLayout->addRow("", m_dxClusterAutoConnectCheck);
+
+    layout->addWidget(clusterGroup);
+
+    // Help text
+    QLabel* helpLabel = new QLabel(
+        "The DX Cluster callsign is used for login authentication.\n"
+        "If left blank, your station callsign will be used.\n\n"
+        "Common DX Cluster servers:\n"
+        "  • dxc.nc7j.com:7373 (NC7J)\n"
+        "  • cluster.w6kk.org:7373 (W6KK)\n"
+        "  • dxc.k9eq.net:7373 (K9EQ)",
+        this
+    );
+    helpLabel->setWordWrap(true);
+    helpLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; }");
+    layout->addWidget(helpLabel);
+
+    layout->addStretch();
+
+    return dxClusterTab;
+}
+
 QWidget* PreferencesDialog::createAppearanceTab() {
     QWidget* appearanceTab = new QWidget(this);
     QVBoxLayout* layout = new QVBoxLayout(appearanceTab);
@@ -377,6 +420,11 @@ void PreferencesDialog::loadSettings() {
     m_autoConnectCheck->setChecked(settings.getRadioAutoConnect());
     onConnectionTypeChanged();
 
+    // DX Cluster tab
+    m_dxClusterCallsignEdit->setText(settings.getDXClusterCallsign());
+    m_dxClusterServerEdit->setText(settings.getDXClusterServer());
+    m_dxClusterAutoConnectCheck->setChecked(settings.getDXClusterAutoConnect());
+
     // Appearance tab
     m_entryFontSizeSpin->setValue(settings.getEntryFontSize());
     m_tableFontSizeSpin->setValue(settings.getTableFontSize());
@@ -423,6 +471,11 @@ void PreferencesDialog::saveSettings() {
 
     settings.saveRadioConfig(config);
     settings.setRadioAutoConnect(m_autoConnectCheck->isChecked());
+
+    // DX Cluster tab
+    settings.setDXClusterCallsign(m_dxClusterCallsignEdit->text());
+    settings.setDXClusterServer(m_dxClusterServerEdit->text());
+    settings.setDXClusterAutoConnect(m_dxClusterAutoConnectCheck->isChecked());
 
     // Appearance tab
     settings.setEntryFontSize(m_entryFontSizeSpin->value());

@@ -2,6 +2,8 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QCommandLineParser>
+#include <hamlib/rig.h>
 #include "core/Constants.h"
 #include "utils/CountryFile.h"
 #include "utils/CountryFileDownloader.h"
@@ -11,6 +13,26 @@
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
+
+    // Parse command line arguments
+    QCommandLineParser parser;
+    parser.setApplicationDescription("TR4QT - Ham Radio Contest Logger");
+    parser.addHelpOption();
+    parser.addVersionOption();
+
+    QCommandLineOption hamlibDebugOption("hamlib-debug",
+        "Enable verbose hamlib debug output");
+    parser.addOption(hamlibDebugOption);
+
+    parser.process(app);
+
+    // Set hamlib debug level (default: none, unless --hamlib-debug specified)
+    if (parser.isSet(hamlibDebugOption)) {
+        rig_set_debug(RIG_DEBUG_VERBOSE);
+        qDebug() << "Hamlib debug output enabled";
+    } else {
+        rig_set_debug(RIG_DEBUG_NONE);
+    }
 
     // Register custom types for Qt meta-object system (required for queued connections)
     qRegisterMetaType<TR4QT::RadioConfig>("RadioConfig");

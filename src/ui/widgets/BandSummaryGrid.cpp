@@ -1,6 +1,8 @@
 #include "BandSummaryGrid.h"
 #include <QHBoxLayout>
 #include <QFont>
+#include <QMouseEvent>
+#include <QCursor>
 
 namespace TR4QT {
 
@@ -21,13 +23,26 @@ void BandSummaryGrid::setupUI() {
 
     QFont dataFont("Monospace", 11);  // Larger data font
 
-    // Row 0: Band headers
+    // Row 0: Band headers (clickable)
+    QList<BandType> headerBands = {
+        BandType::Band160M, BandType::Band80M, BandType::Band40M,
+        BandType::Band20M, BandType::Band15M, BandType::Band10M
+    };
     QStringList bandHeaders = {"160", "80", "40", "20", "15", "10", "All"};
     for (int col = 0; col < bandHeaders.size(); ++col) {
         QLabel* header = new QLabel(bandHeaders[col], this);
         header->setFont(headerFont);
         header->setAlignment(Qt::AlignCenter);
         header->setMinimumWidth(50);  // Ensure readable width
+
+        // Make band headers clickable (except "All")
+        if (col < headerBands.size()) {
+            header->setCursor(Qt::PointingHandCursor);
+            header->setStyleSheet("QLabel:hover { background-color: #e0e0e0; }");
+            header->installEventFilter(this);
+            m_bandHeaders[headerBands[col]] = header;
+        }
+
         m_gridLayout->addWidget(header, 0, col + 1);
     }
 
@@ -206,6 +221,22 @@ void BandSummaryGrid::setFontSize(int pointSize) {
             label->setFont(font);
         }
     }
+}
+
+bool BandSummaryGrid::eventFilter(QObject* obj, QEvent* event) {
+    if (event->type() == QEvent::MouseButtonPress) {
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() == Qt::LeftButton) {
+            // Check if clicked object is one of our band headers
+            for (auto it = m_bandHeaders.begin(); it != m_bandHeaders.end(); ++it) {
+                if (it.value() == obj) {
+                    emit bandClicked(it.key());
+                    return true;
+                }
+            }
+        }
+    }
+    return QWidget::eventFilter(obj, event);
 }
 
 } // namespace TR4QT

@@ -135,7 +135,9 @@ void BandMapWidget::mousePressEvent(QMouseEvent* event) {
         int spotIndex = findSpotAtPosition(event->pos().y());
         if (spotIndex >= 0 && spotIndex < m_spots.size()) {
             m_selectedIndex = spotIndex;
+            // Single click: QSY to frequency AND populate callsign
             emit qsyRequested(m_spots[spotIndex].frequency);
+            emit callsignSelected(m_spots[spotIndex].callsign);
             QWidget::update();
         }
     }
@@ -172,8 +174,10 @@ int BandMapWidget::rowHeight() const {
 
 QString BandMapWidget::formatFrequency(freq_t freq) const {
     // Convert Hz to kHz with 1 decimal place
+    // Max frequency: 435000.0 kHz = 8 chars (435 MHz)
+    // Format with fixed width (right-aligned, 8 chars) for consistent column
     double freqKhz = freq / 1000.0;
-    return QString::number(freqKhz, 'f', 1);
+    return QString("%1").arg(freqKhz, 8, 'f', 1);
 }
 
 } // namespace TR4QT

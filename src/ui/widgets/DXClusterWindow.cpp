@@ -234,6 +234,15 @@ void DXClusterWindow::onDisconnectClicked() {
 
 void DXClusterWindow::onFreezeClicked() {
     m_isFrozen = m_freezeButton->isChecked();
+
+    // Update button appearance to show frozen state
+    if (m_isFrozen) {
+        m_freezeButton->setText("FROZEN");
+        m_freezeButton->setStyleSheet("QPushButton { background-color: #FFB6C1; font-weight: bold; }");
+    } else {
+        m_freezeButton->setText("Freeze");
+        m_freezeButton->setStyleSheet("");
+    }
 }
 
 void DXClusterWindow::onClearClicked() {

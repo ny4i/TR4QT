@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.10.0";  // Custom TR4QT application icon
+constexpr const char* APP_VERSION = "2.14.0";  // DX Cluster preferences, Band Map enhancements, spot parsing fixes
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

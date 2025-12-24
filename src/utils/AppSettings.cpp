@@ -116,6 +116,115 @@ QByteArray AppSettings::loadWindowState() const {
     return m_settings.value("MainWindow/state").toByteArray();
 }
 
+// DX Cluster window
+void AppSettings::saveDXClusterGeometry(const QByteArray& geometry) {
+    m_settings.setValue("DXClusterWindow/geometry", geometry);
+    m_settings.sync();
+}
+
+QByteArray AppSettings::loadDXClusterGeometry() const {
+    return m_settings.value("DXClusterWindow/geometry").toByteArray();
+}
+
+void AppSettings::setDXClusterVisible(bool visible) {
+    m_settings.setValue("DXClusterWindow/visible", visible);
+    m_settings.sync();
+}
+
+bool AppSettings::getDXClusterVisible() const {
+    return m_settings.value("DXClusterWindow/visible", false).toBool();
+}
+
+// Band Map window
+void AppSettings::saveBandMapGeometry(const QByteArray& geometry) {
+    m_settings.setValue("BandMapWindow/geometry", geometry);
+    m_settings.sync();
+}
+
+QByteArray AppSettings::loadBandMapGeometry() const {
+    return m_settings.value("BandMapWindow/geometry").toByteArray();
+}
+
+void AppSettings::setBandMapVisible(bool visible) {
+    m_settings.setValue("BandMapWindow/visible", visible);
+    m_settings.sync();
+}
+
+bool AppSettings::getBandMapVisible() const {
+    return m_settings.value("BandMapWindow/visible", false).toBool();
+}
+
+// Radio Control window
+void AppSettings::saveRadioControlGeometry(const QByteArray& geometry) {
+    m_settings.setValue("RadioControlWindow/geometry", geometry);
+    m_settings.sync();
+}
+
+QByteArray AppSettings::loadRadioControlGeometry() const {
+    return m_settings.value("RadioControlWindow/geometry").toByteArray();
+}
+
+void AppSettings::setRadioControlVisible(bool visible) {
+    m_settings.setValue("RadioControlWindow/visible", visible);
+    m_settings.sync();
+}
+
+bool AppSettings::getRadioControlVisible() const {
+    return m_settings.value("RadioControlWindow/visible", false).toBool();
+}
+
+// Multipliers window
+void AppSettings::saveMultipliersGeometry(const QByteArray& geometry) {
+    m_settings.setValue("MultipliersWindow/geometry", geometry);
+    m_settings.sync();
+}
+
+QByteArray AppSettings::loadMultipliersGeometry() const {
+    return m_settings.value("MultipliersWindow/geometry").toByteArray();
+}
+
+void AppSettings::setMultipliersVisible(bool visible) {
+    m_settings.setValue("MultipliersWindow/visible", visible);
+    m_settings.sync();
+}
+
+bool AppSettings::getMultipliersVisible() const {
+    return m_settings.value("MultipliersWindow/visible", false).toBool();
+}
+
+// DX Cluster settings
+void AppSettings::setDXClusterCallsign(const QString& callsign) {
+    m_settings.setValue("DXCluster/callsign", callsign.toUpper());
+    m_settings.sync();
+}
+
+QString AppSettings::getDXClusterCallsign() const {
+    // Default to station callsign if not set
+    QString dxCall = m_settings.value("DXCluster/callsign", "").toString();
+    if (dxCall.isEmpty()) {
+        dxCall = getMyCallsign();
+    }
+    return dxCall;
+}
+
+void AppSettings::setDXClusterServer(const QString& server) {
+    m_settings.setValue("DXCluster/server", server);
+    m_settings.sync();
+}
+
+QString AppSettings::getDXClusterServer() const {
+    return m_settings.value("DXCluster/server", "dxc.nc7j.com:7373").toString();
+}
+
+void AppSettings::setDXClusterAutoConnect(bool autoConnect) {
+    m_settings.setValue("DXCluster/autoConnect", autoConnect);
+    m_settings.sync();
+}
+
+bool AppSettings::getDXClusterAutoConnect() const {
+    return m_settings.value("DXCluster/autoConnect", false).toBool();
+}
+
 void AppSettings::setCountryFileVersion(int version) {
     m_settings.setValue("CountryFile/version", version);
     m_settings.sync();
