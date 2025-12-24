@@ -4,4 +4,7 @@
         <file>icons/tr4qt.png</file>
         <file>icons/tr4qt.ico</file>
     </qresource>
+    <qresource prefix="/data">
+        <file alias="schema.sql">../src/data/schema.sql</file>
+    </qresource>
 </RCC>
