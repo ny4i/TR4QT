@@ -41,6 +41,7 @@ private slots:
     void onTestRadioConnection();
     void onConnectionTypeChanged();
     void onRadioModelChanged(int index);
+    void onRadioStatusFilterChanged();
 
     // UDP Broadcast slots
     void onUdpAddDestination();
@@ -80,6 +81,9 @@ private:
     QWidget* createContestTab();
     QWidget* createAdvancedTab();
 
+    // Helper methods
+    void populateRadioList();
+
     // Station tab widgets
     QLineEdit* m_callsignEdit;
     QLineEdit* m_gridSquareEdit;
@@ -91,6 +95,10 @@ private:
     // Radio tab widgets (from RadioConfigDialog)
     QComboBox* m_radioModelCombo;
     QLineEdit* m_customModelEdit;
+    QCheckBox* m_showStableRadiosCheck;
+    QCheckBox* m_showBetaRadiosCheck;
+    QCheckBox* m_showAlphaRadiosCheck;
+    QCheckBox* m_showUntestedRadiosCheck;
     QRadioButton* m_serialRadio;
     QRadioButton* m_networkRadio;
     QLineEdit* m_serialPortEdit;

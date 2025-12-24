@@ -30,6 +30,16 @@ public:
     void setRadioAutoConnect(bool autoConnect);
     bool getRadioAutoConnect() const;
 
+    // Radio status filter (for preferences dropdown)
+    void setShowStableRadios(bool show);
+    bool getShowStableRadios() const;
+    void setShowBetaRadios(bool show);
+    bool getShowBetaRadios() const;
+    void setShowAlphaRadios(bool show);
+    bool getShowAlphaRadios() const;
+    void setShowUntestedRadios(bool show);
+    bool getShowUntestedRadios() const;
+
     // Station information
     void setMyCallsign(const QString& callsign);
     QString getMyCallsign() const;

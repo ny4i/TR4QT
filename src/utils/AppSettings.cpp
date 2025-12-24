@@ -54,6 +54,42 @@ bool AppSettings::getRadioAutoConnect() const {
     return m_settings.value("Radio/autoConnect", true).toBool();  // Default: true
 }
 
+void AppSettings::setShowStableRadios(bool show) {
+    m_settings.setValue("Radio/showStableRadios", show);
+    m_settings.sync();
+}
+
+bool AppSettings::getShowStableRadios() const {
+    return m_settings.value("Radio/showStableRadios", true).toBool();  // Default: true (show stable)
+}
+
+void AppSettings::setShowBetaRadios(bool show) {
+    m_settings.setValue("Radio/showBetaRadios", show);
+    m_settings.sync();
+}
+
+bool AppSettings::getShowBetaRadios() const {
+    return m_settings.value("Radio/showBetaRadios", false).toBool();  // Default: false
+}
+
+void AppSettings::setShowAlphaRadios(bool show) {
+    m_settings.setValue("Radio/showAlphaRadios", show);
+    m_settings.sync();
+}
+
+bool AppSettings::getShowAlphaRadios() const {
+    return m_settings.value("Radio/showAlphaRadios", false).toBool();  // Default: false
+}
+
+void AppSettings::setShowUntestedRadios(bool show) {
+    m_settings.setValue("Radio/showUntestedRadios", show);
+    m_settings.sync();
+}
+
+bool AppSettings::getShowUntestedRadios() const {
+    return m_settings.value("Radio/showUntestedRadios", false).toBool();  // Default: false
+}
+
 void AppSettings::setMyCallsign(const QString& callsign) {
     m_settings.setValue("Station/callsign", callsign.toUpper());
     m_settings.sync();
