@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.7.0";  // Radio Control widget with VFO A/B, mode, RIT/XIT/SPLIT
+constexpr const char* APP_VERSION = "2.8.0";  // Multiplier widget showing worked/needed DXCC prefixes
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
