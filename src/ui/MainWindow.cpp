@@ -596,10 +596,23 @@ void MainWindow::onExportADIF() {
 }
 
 void MainWindow::onExportCabrillo() {
-    if (!m_hasActiveContest || !m_activeContest) {
-        QMessageBox::information(this, "Export Cabrillo",
-                               "No active contest. Please select a contest first.");
+    // Check if we have QSOs to export
+    if (m_qsoTableModel->count() == 0) {
+        QMessageBox::information(this, "Export Cabrillo", "No QSOs to export.");
         return;
+    }
+
+    // Warn if no contest is active
+    if (!m_hasActiveContest || !m_activeContest) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this, "Export Cabrillo",
+            "No active contest selected. Export anyway with generic formatting?",
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::No);
+
+        if (reply == QMessageBox::No) {
+            return;
+        }
     }
 
     // Get all QSOs from the table model
@@ -614,8 +627,12 @@ void MainWindow::onExportCabrillo() {
     }
 
     // Get file name from user
-    QString defaultFileName = QString("%1.cbr")
-                                 .arg(m_currentContest.contestName.replace(' ', '_'));
+    QString defaultFileName;
+    if (m_hasActiveContest && !m_currentContest.contestName.isEmpty()) {
+        defaultFileName = QString("%1.cbr").arg(m_currentContest.contestName.replace(' ', '_'));
+    } else {
+        defaultFileName = "log.cbr";
+    }
     QString fileName = QFileDialog::getSaveFileName(
         this,
         "Export Cabrillo File",
