@@ -44,6 +44,9 @@ private slots:
     // Menu actions
     void onNewOpenContest();
     void onPreferences();
+    void onExportADIF();
+    void onExportCabrillo();
+    void onClearLog();
     void onRadioConfigure();
     void onRadioConnect();
     void onRadioDisconnect();
