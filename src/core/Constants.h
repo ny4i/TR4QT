@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.20.1";  // Fix: Clear radio display when disconnected
+constexpr const char* APP_VERSION = "2.20.2";  // Fix: Disable band buttons when radio disconnected
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

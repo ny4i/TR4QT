@@ -206,6 +206,7 @@ void MainWindow::createCentralWidget() {
 
     // Top: Band summary grid
     m_bandSummaryGrid = new BandSummaryGrid(this);
+    m_bandSummaryGrid->setEnabled(false);  // Start disabled (radio not connected)
     connect(m_bandSummaryGrid, &BandSummaryGrid::bandClicked,
             this, &MainWindow::onBandClicked);
     mainLayout->addWidget(m_bandSummaryGrid);
@@ -868,12 +869,22 @@ void MainWindow::onRadioConnected(bool connected) {
 
     if (connected) {
         m_statusLabel->setText("Connected to radio (waiting for state...)");
+
+        // Enable band buttons when radio connected
+        if (m_bandSummaryGrid) {
+            m_bandSummaryGrid->setEnabled(true);
+        }
     } else {
         m_statusLabel->setText("Radio disconnected");
 
         // Clear radio control display when disconnected
         if (m_radioControlWindow) {
             m_radioControlWindow->clearDisplay();
+        }
+
+        // Disable band buttons when radio disconnected
+        if (m_bandSummaryGrid) {
+            m_bandSummaryGrid->setEnabled(false);
         }
     }
 }
