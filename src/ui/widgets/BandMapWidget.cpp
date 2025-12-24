@@ -48,6 +48,7 @@ void BandMapWidget::addSpot(const Spot& spot) {
         if (m_spots[i].callsign == spot.callsign) {
             m_spots[i] = spot;
             sortSpots();
+            calculateColumnLayout();  // Recalculate columns when spots change
             updateScrollBars();
             viewport()->update();
             return;
@@ -57,6 +58,7 @@ void BandMapWidget::addSpot(const Spot& spot) {
     // Add new spot
     m_spots.append(spot);
     sortSpots();
+    calculateColumnLayout();  // Recalculate columns when spots change
     updateScrollBars();
     viewport()->update();
 }
@@ -65,6 +67,7 @@ void BandMapWidget::removeSpot(const QString& callsign) {
     for (int i = 0; i < m_spots.size(); ++i) {
         if (m_spots[i].callsign == callsign) {
             m_spots.removeAt(i);
+            calculateColumnLayout();  // Recalculate columns when spots change
             updateScrollBars();
             viewport()->update();
             return;
@@ -75,6 +78,7 @@ void BandMapWidget::removeSpot(const QString& callsign) {
 void BandMapWidget::clearSpots() {
     m_spots.clear();
     m_selectedIndex = -1;
+    calculateColumnLayout();  // Recalculate columns when spots change
     updateScrollBars();
     viewport()->update();
 }

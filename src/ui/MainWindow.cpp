@@ -1709,7 +1709,7 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
                                    double frequency,
                                    const QString& spotter,
                                    const QString& comment) {
-    qDebug() << "DX Spot received:" << callsign << "at" << frequency << "Hz from" << spotter;
+    qDebug() << "DX Spot received:" << callsign << "at" << qint64(frequency) << "Hz from" << spotter;
 
     // If band map window exists, forward the spot to it
     if (m_bandMapWindow) {
