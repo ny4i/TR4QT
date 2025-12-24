@@ -23,6 +23,7 @@ set(SOURCES
     ui/dialogs/ContestChooserDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
+    ui/widgets/RadioControlWidget.cpp
 )
 
 set(HEADERS
@@ -52,6 +53,7 @@ set(HEADERS
     ui/dialogs/ContestChooserDialog.h
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
+    ui/widgets/RadioControlWidget.h
 )
 
 # Create executable
