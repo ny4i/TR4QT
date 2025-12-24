@@ -11,6 +11,7 @@ set(SOURCES
     utils/CabrilloExporter.cpp
     radio/HamlibRadio.cpp
     radio/RadioController.cpp
+    network/TelnetClient.cpp
     data/Database.cpp
     data/QSORepository.cpp
     contests/CQWWContest.cpp
@@ -25,6 +26,7 @@ set(SOURCES
     ui/widgets/BandMapWidget.cpp
     ui/widgets/RadioControlWidget.cpp
     ui/widgets/MultiplierWidget.cpp
+    ui/widgets/DXClusterWindow.cpp
 )
 
 set(HEADERS
@@ -39,6 +41,7 @@ set(HEADERS
     radio/RadioInterface.h
     radio/HamlibRadio.h
     radio/RadioController.h
+    network/TelnetClient.h
     data/Database.h
     data/QSORepository.h
     contests/ContestBase.h
@@ -56,6 +59,7 @@ set(HEADERS
     ui/widgets/BandMapWidget.h
     ui/widgets/RadioControlWidget.h
     ui/widgets/MultiplierWidget.h
+    ui/widgets/DXClusterWindow.h
 )
 
 # Create executable

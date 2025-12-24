@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.8.0";  // Multiplier widget showing worked/needed DXCC prefixes
+constexpr const char* APP_VERSION = "2.9.0";  // DX Cluster window with threaded telnet client
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
