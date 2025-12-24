@@ -52,6 +52,7 @@ private slots:
     void onClearClicked();
     void onCommandsClicked();
     void onSendClicked();
+    void onTextDisplayClicked();
 
     // Telnet client signals
     void onTelnetConnected();

@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.18.0";  // Add: Contest Factory pattern with auto-registration
+constexpr const char* APP_VERSION = "2.19.0";  // Add: DX Cluster click-to-QSY feature
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
