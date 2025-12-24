@@ -52,6 +52,7 @@ protected:
 private:
     void setupUI();
     QString bandToColumnLabel(BandType band) const;
+    void applyTheme();
 
     QGridLayout* m_gridLayout;
     QLabel* m_totalPointsLabel;

@@ -1,4 +1,5 @@
 #include "BandMapWidget.h"
+#include "../../utils/ThemeManager.h"
 #include <QPainter>
 #include <QMouseEvent>
 #include <QContextMenuEvent>
@@ -40,6 +41,11 @@ BandMapWidget::BandMapWidget(QWidget* parent)
 
     // Initialize scrollbar ranges
     updateScrollBars();
+
+    // Connect to theme changes
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, &BandMapWidget::applyTheme);
+    applyTheme();
 }
 
 void BandMapWidget::addSpot(const Spot& spot) {
@@ -166,11 +172,12 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
         }
 
         // Determine text color (for white background)
+        ThemeManager& theme = ThemeManager::instance();
         QColor textColor;
         if (spot.isMultiplier) {
-            textColor = Qt::blue;  // Blue for multipliers (more visible on white)
+            textColor = theme.color(ColorRole::MultiplierText);
         } else if (spot.isWorked) {
-            textColor = QColor(160, 160, 160);  // Light gray for worked stations
+            textColor = theme.color(ColorRole::WorkedStationText);
         } else {
             textColor = Qt::black;  // Black for unworked non-mults
         }
@@ -367,6 +374,11 @@ void BandMapWidget::updateScrollBars() {
 void BandMapWidget::scrollContentsBy(int dx, int dy) {
     Q_UNUSED(dx);
     Q_UNUSED(dy);
+    viewport()->update();
+}
+
+void BandMapWidget::applyTheme() {
+    // Repaint to update colors
     viewport()->update();
 }
 

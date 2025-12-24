@@ -103,6 +103,11 @@ private:
     BandMapSortMode m_sortMode;  // Current sort mode
 
     /**
+     * Apply current theme colors
+     */
+    void applyTheme();
+
+    /**
      * Sort spots according to current sort mode
      */
     void sortSpots();

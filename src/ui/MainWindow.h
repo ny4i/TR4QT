@@ -133,6 +133,7 @@ private:
     void loadSettings();
     void saveSettings();
     void applyFontSettings();
+    void applyTheme();
     void loadUdpBroadcastSettings();
     void updateConnectionStatus(bool connected);
     void updateScoreDisplay();
@@ -200,6 +201,7 @@ private:
     ContestInfo m_currentContest;
     bool m_hasActiveContest;
     ContestBase* m_activeContest;
+    int m_currentContestDbId;  // Database primary key for current contest
     int m_nextSerialNumber;
 
     // Country file for lookups

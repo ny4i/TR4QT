@@ -1,4 +1,5 @@
 #include "MultiplierWidget.h"
+#include "../../utils/ThemeManager.h"
 #include <QVBoxLayout>
 #include <QHeaderView>
 #include <QFont>
@@ -14,6 +15,11 @@ MultiplierWidget::MultiplierWidget(QWidget* parent)
     setupUI();
     loadMultiplierList();
     updateDisplay();
+
+    // Connect to theme changes
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, &MultiplierWidget::applyTheme);
+    applyTheme();
 }
 
 void MultiplierWidget::setupUI() {
@@ -148,7 +154,8 @@ void MultiplierWidget::updateDisplay() {
 
             // Worked multipliers in gray text
             if (status == MultiplierStatus::Worked) {
-                item->setForeground(QColor(128, 128, 128));
+                ThemeManager& theme = ThemeManager::instance();
+                item->setForeground(theme.color(ColorRole::WorkedStationText));
             }
 
             m_table->setItem(row, col, item);
@@ -163,16 +170,25 @@ void MultiplierWidget::updateDisplay() {
 }
 
 QColor MultiplierWidget::getColorForStatus(MultiplierStatus status) const {
+    ThemeManager& theme = ThemeManager::instance();
+
     switch (status) {
     case MultiplierStatus::Worked:
+        // Use slightly lighter version of WorkedStationText for background
+        // (WorkedStationText is for text color, so we use a light gray background)
         return QColor(220, 220, 220);  // Light gray for worked
     case MultiplierStatus::Needed:
-        return QColor(255, 255, 200);  // Light yellow for needed
+        return theme.color(ColorRole::NeededMultiplierBackground);
     case MultiplierStatus::Confirmed:
-        return QColor(144, 238, 144);  // Light green for confirmed
+        return theme.color(ColorRole::ConfirmedMultiplierBackground);
     default:
         return Qt::white;
     }
+}
+
+void MultiplierWidget::applyTheme() {
+    // Refresh display to update colors
+    updateDisplay();
 }
 
 } // namespace TR4QT
