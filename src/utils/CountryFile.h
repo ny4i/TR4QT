@@ -59,6 +59,9 @@ public:
     // Extract prefix from callsign for WPX contests
     static QString extractWPXPrefix(const QString& callsign);
 
+    // Strip portable indicators (/P, /M, /MM, /QRP, etc.)
+    static QString stripPortable(const QString& callsign);
+
 private:
     // Parse a single country entry (can span multiple lines)
     bool parseCountryEntry(const QString& mainLine, const QStringList& aliasLines);
@@ -74,9 +77,6 @@ private:
 
     // Find the longest matching prefix for a callsign
     QString findMatchingPrefix(const QString& callsign) const;
-
-    // Strip portable indicators (/P, /M, /MM, /QRP, etc.)
-    static QString stripPortable(const QString& callsign);
 
     // Storage
     QHash<QString, CountryData> m_countries;  // Key: primary prefix

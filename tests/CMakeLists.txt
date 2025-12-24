@@ -24,6 +24,11 @@ function(add_tr4qt_test test_name)
         ${HAMLIB_INCLUDE_DIRS}
     )
 
+    # Define TESTS_SOURCE_DIR for test fixture paths
+    target_compile_definitions(${test_name} PRIVATE
+        TESTS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+
     # Link against Hamlib (needed for types that reference hamlib)
     target_link_libraries(${test_name} PRIVATE
         ${HAMLIB_LIBRARIES}
@@ -59,5 +64,26 @@ add_tr4qt_test(test_types
 
 add_tr4qt_test(test_qso
     test_qso.cpp
+    ../src/core/Types.cpp
+)
+
+# Phase 2 tests - business logic
+add_tr4qt_test(test_countryfile
+    test_countryfile.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/core/Types.cpp
+)
+
+add_tr4qt_test(test_cqww
+    test_cqww.cpp
+    ../src/contests/CQWWContest.cpp
+    ../src/contests/ContestRegistry.cpp
+    ../src/core/Types.cpp
+)
+
+add_tr4qt_test(test_cqwpx
+    test_cqwpx.cpp
+    ../src/contests/CQWPXContest.cpp
+    ../src/contests/ContestRegistry.cpp
     ../src/core/Types.cpp
 )
