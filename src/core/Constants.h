@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.1.0";  // Dynamic radio enumeration from hamlib
+constexpr const char* APP_VERSION = "2.2.0";  // Improved window resizing with proper layout scaling
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
