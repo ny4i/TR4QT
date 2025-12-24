@@ -6,11 +6,12 @@ Comprehensive unit test suite for TR4QT using Qt Test framework.
 
 TR4QT uses the Qt Test framework for unit testing. Tests cover business logic, data validation, formatting, and type conversions. The test infrastructure is integrated with CMake's CTest for easy execution.
 
-**Current Status: Phase 1 Complete**
-- 3 test suites implemented
-- 44 total test cases
-- All tests passing
-- Estimated 15-20% code coverage
+**Current Status: Phase 2 Complete**
+- 6 test suites implemented
+- 152 total test cases (all passing)
+- Phase 1 (44 tests): LogFormatter, Types, QSO
+- Phase 2 (108 tests): CountryFile, CQ WW, CQ WPX
+- Estimated 35-40% code coverage
 
 ## Test Files
 
@@ -70,6 +71,92 @@ void TestQSO::testGetDupeKey_DifferentBand() {
     qso1.mode = qso2.mode = ModeType::CW;
 
     QVERIFY(qso1.getDupeKey() != qso2.getDupeKey());  // Not a dupe
+}
+```
+
+### test_countryfile.cpp (38 tests - Phase 2)
+Tests CTY.DAT file parsing and callsign lookup functionality.
+
+**Coverage:**
+- `loadFromFile()`: Country file loading and parsing
+- `stripPortable()`: Portable indicator removal (/P, /M, /MM, /QRP, etc.)
+- `extractWPXPrefix()`: WPX prefix extraction (W1AW → W1)
+- `lookup()`: Callsign lookup with exact matches, longest prefix matching
+- Zone overrides (CQ and ITU zones)
+- Case insensitivity
+- Country data validation
+
+**Example:**
+```cpp
+void TestCountryFile::testLookup_SimpleUS() {
+    CountryData result = m_countryFile.lookup("W1AW");
+    QVERIFY(result.isValid());
+    QCOMPARE(result.name, QString("United States"));
+    QCOMPARE(result.primaryPrefix, QString("K"));
+    QCOMPARE(result.cqZone, 5);
+    QCOMPARE(result.ituZone, 8);
+    QCOMPARE(result.continent, Continent::NA);
+}
+```
+
+### test_cqww.cpp (33 tests - Phase 2)
+Tests CQ World Wide DX Contest rules and scoring.
+
+**Coverage:**
+- Exchange validation (RST + CQ Zone 1-40)
+- Exchange parsing
+- QSO point calculation:
+  - Same continent: 1 point
+  - Different continent: 3 points (CW), 2 points (SSB)
+  - W/VE special rule: 2 points
+- Total score formula: QSO points × (Countries + Zones)
+- Multiplier tracking (Countries and CQ Zones, per-band)
+- Contest metadata and factory methods
+
+**Example:**
+```cpp
+void TestCQWW::testCalculatePoints_CW_WVE_Rule() {
+    CQWWContest contest(ModeType::CW);
+    StationInfo myStation;
+    myStation.country = "United States";
+
+    QSO qso;
+    qso.dxccEntity = "Canada";
+
+    int points = contest.calculateQSOPoints(qso, myStation);
+    QCOMPARE(points, 2);  // W/VE working each other = 2 points
+}
+```
+
+### test_cqwpx.cpp (37 tests - Phase 2)
+Tests CQ WPX (Worked All Prefixes) Contest rules and scoring.
+
+**Coverage:**
+- Exchange validation (RST + Serial Number 1-9999)
+- Exchange parsing and formatting
+- Prefix extraction from callsigns (W1AW → W1, DL1ABC → DL1)
+- Portable callsign handling (W1/G3XYZ → W1)
+- QSO point calculation:
+  - Same continent: 1 point
+  - Different continent: 3 points (CW), 2 points (SSB)
+  - 160m and 10m: Double points
+- Total score formula: QSO points × Total Prefixes
+- Multiplier tracking (Prefixes, all-band scope)
+- Serial number formatting (zero-padded)
+
+**Example:**
+```cpp
+void TestCQWPX::testCalculatePoints_CW_160m_Double() {
+    CQWPXContest contest(ModeType::CW);
+    StationInfo myStation;
+    myStation.continent = "NA";
+
+    QSO qso;
+    qso.continent = "AS";
+    qso.band = BandType::Band160M;  // 160m = double points
+
+    int points = contest.calculateQSOPoints(qso, myStation);
+    QCOMPARE(points, 6);  // (3 × 2) = 6 points
 }
 ```
 
@@ -321,13 +408,6 @@ endfunction()
 
 ## Future Phases
 
-### Phase 2: Business Logic Tests (Planned)
-- `test_countryfile.cpp`: Country file parsing and callsign lookup (~40 tests)
-- `test_cqww.cpp`: CQ WW contest scoring and validation (~30 tests)
-- `test_cqwpx.cpp`: CQ WPX prefix extraction and scoring (~25 tests)
-
-**Target**: 35-40% code coverage
-
 ### Phase 3: Data Layer Tests (Planned)
 - `test_qsorepository.cpp`: Database operations with in-memory SQLite (~30 tests)
 - `test_adifexporter.cpp`: ADIF format validation (~25 tests)
@@ -339,8 +419,8 @@ endfunction()
 
 | Phase | Test Files | Test Cases | Est. Coverage |
 |-------|------------|------------|---------------|
-| **Phase 1** (Current) | 3 | 44 | 15-20% |
-| Phase 2 (Planned) | 6 | ~170 | 35-40% |
+| Phase 1 (Complete) | 3 | 44 | 15-20% |
+| **Phase 2** (Current) | 6 | 152 | 35-40% |
 | Phase 3 (Planned) | 8+ | ~225+ | 50%+ |
 
 ## Troubleshooting
@@ -414,5 +494,6 @@ When adding new features to TR4QT:
 ---
 
 **Last Updated**: 2025-12-24
-**Phase**: 1 (Infrastructure Complete)
-**Status**: All tests passing (44/44)
+**Phase**: 2 (Business Logic Complete)
+**Status**: All tests passing (152/152)
+**Test Suites**: 6 (LogFormatter, Types, QSO, CountryFile, CQ WW, CQ WPX)

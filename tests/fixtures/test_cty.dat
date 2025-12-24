@@ -1,0 +1,32 @@
+# Test CTY.DAT file for unit testing
+# Format: Name:CQ:ITU:Continent:Lat:Lon:GMT:Prefix
+
+United States:        5: 8:NA:  37.53:   83.97:    5.0:K:
+    W,AA,AB,AC,AD,AE,AF,AG,AH,AI,AJ,AK,AL,K,N,W;
+
+Canada:               5: 9:NA:  45.42:   75.70:    5.0:VE:
+    VA,VB,VC,VD,VE,VF,VG,VH,VI,VJ,VK,VL,VM,VN,VO,VY,VZ;
+
+Hawaii:              31:61:OC: -21.23:  157.83:   10.0:KH6:
+    =KH6,AH6,KH6,NH6,WH6;
+
+Alaska:               1: 1:NA:  61.40:  148.87:    9.0:KL:
+    AL,KL,NL,WL;
+
+Germany:             14:28:EU:  51.00:   10.00:   -1.0:DL:
+    DA,DB,DC,DD,DE,DF,DG,DH,DI,DJ,DK,DL,DM,DN,DO,DP,DQ,DR,Y2,Y3,Y4,Y5,Y6,Y7,Y8,Y9;
+
+Japan:               25:45:AS:  36.00:  138.00:   -9.0:JA:
+    JA,JB,JC,JD,JE,JF,JG,JH,JI,JJ,JK,JL,JM,JN,JO,JP,JQ,JR,JS,7J,7K,7L,7M,7N,8J,8K,8L,8M,8N;
+
+Rotuma:              32:56:OC: -12.48:  177.08:  -12.0:3D2/R:
+    =3D2RR,3D2/R;
+
+Fiji:                32:56:OC: -17.87:  178.00:  -12.0:3D2:
+    3D2;
+
+Russia:              16:29:EU:  55.75:   37.57:   -3.0:UA:
+    R,UA,UB,UC,UD,UE,UF,UG,UH,UI;
+
+Guantanamo Bay:       8:11:NA:  20.00:   75.15:    5.0:KG4:
+    =KG4,KG4(8)[11];
