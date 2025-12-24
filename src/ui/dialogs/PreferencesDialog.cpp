@@ -23,6 +23,7 @@
 #include <QFile>
 #include <QDir>
 #include <QProgressDialog>
+#include <QRegularExpression>
 
 namespace TR4QT {
 
@@ -286,10 +287,24 @@ QWidget* PreferencesDialog::createDXClusterTab() {
     m_dxClusterCallsignEdit->setPlaceholderText("Leave blank to use station callsign");
     formLayout->addRow("DX Cluster Callsign:", m_dxClusterCallsignEdit);
 
-    // Default server
-    m_dxClusterServerEdit = new QLineEdit(this);
-    m_dxClusterServerEdit->setPlaceholderText("server.example.com:7373");
-    formLayout->addRow("Default Server:", m_dxClusterServerEdit);
+    // Default server (editable combo box with downloaded server list)
+    m_dxClusterServerCombo = new QComboBox(this);
+    m_dxClusterServerCombo->setEditable(true);
+    m_dxClusterServerCombo->setInsertPolicy(QComboBox::NoInsert);
+    m_dxClusterServerCombo->lineEdit()->setPlaceholderText("server.example.com:7373");
+
+    // Populate with downloaded server list
+    AppSettings& settings = AppSettings::instance();
+    QStringList serverList = settings.getDXClusterList();
+    if (!serverList.isEmpty()) {
+        m_dxClusterServerCombo->addItems(serverList);
+    }
+
+    // Add validation when text changes
+    connect(m_dxClusterServerCombo, &QComboBox::currentTextChanged,
+            this, &PreferencesDialog::onDXClusterServerChanged);
+
+    formLayout->addRow("Default Server:", m_dxClusterServerCombo);
 
     // Auto-connect
     m_dxClusterAutoConnectCheck = new QCheckBox("Auto-connect to DX Cluster on startup", this);
@@ -769,7 +784,7 @@ void PreferencesDialog::loadSettings() {
 
     // DX Cluster tab
     m_dxClusterCallsignEdit->setText(settings.getDXClusterCallsign());
-    m_dxClusterServerEdit->setText(settings.getDXClusterServer());
+    m_dxClusterServerCombo->setCurrentText(settings.getDXClusterServer());
     m_dxClusterAutoConnectCheck->setChecked(settings.getDXClusterAutoConnect());
 
     // UDP Broadcast tab
@@ -865,7 +880,7 @@ void PreferencesDialog::saveSettings() {
 
     // DX Cluster tab
     settings.setDXClusterCallsign(m_dxClusterCallsignEdit->text());
-    settings.setDXClusterServer(m_dxClusterServerEdit->text());
+    settings.setDXClusterServer(m_dxClusterServerCombo->currentText());
     settings.setDXClusterAutoConnect(m_dxClusterAutoConnectCheck->isChecked());
 
     // UDP Broadcast tab
@@ -1410,6 +1425,106 @@ void PreferencesDialog::onClusterListDownloadFinished(bool success, const QList<
         QString("Successfully downloaded and saved %1 DX cluster servers.\n\n"
                 "The server list is now available in the DX Cluster window.")
             .arg(servers.size()));
+
+    // Update combo box with newly downloaded servers
+    m_dxClusterServerCombo->clear();
+    m_dxClusterServerCombo->addItems(serverList);
+}
+
+void PreferencesDialog::onDXClusterServerChanged(const QString& text) {
+    if (text.isEmpty()) {
+        // Empty is allowed, clear any red styling
+        m_dxClusterServerCombo->lineEdit()->setStyleSheet("");
+        return;
+    }
+
+    // Check if this is a display format from downloaded list: "W9ODD (134.48.91.82:23) - AR-Cluster"
+    QRegularExpression displayFormat(R"(\([^:]+:\d+\))");
+    if (displayFormat.match(text).hasMatch()) {
+        // Valid display format from downloaded list
+        m_dxClusterServerCombo->lineEdit()->setStyleSheet("");
+        return;
+    }
+
+    // Validate plain formats: IPv4, IPv6, or hostname:port format
+    // Format: hostname:port or ip:port or just hostname
+
+    // Split by colon to separate host and port
+    QStringList parts = text.split(':');
+    if (parts.size() < 1 || parts.size() > 2) {
+        // Invalid format (too many colons for non-IPv6)
+        // But IPv6 has multiple colons, so check for that
+        if (!text.contains('[')) {
+            m_dxClusterServerCombo->lineEdit()->setStyleSheet("QLineEdit { color: red; }");
+            return;
+        }
+    }
+
+    QString host;
+    QString port;
+
+    // Check for IPv6 format: [::1]:7373
+    if (text.contains('[')) {
+        QRegularExpression ipv6Pattern(R"(\[([0-9a-fA-F:]+)\](?::(\d+))?)");
+        QRegularExpressionMatch match = ipv6Pattern.match(text);
+        if (match.hasMatch()) {
+            host = match.captured(1);
+            port = match.captured(2);
+
+            // Validate IPv6 address
+            QRegularExpression ipv6Regex(
+                R"(^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|::1|::)$)"
+            );
+
+            if (!ipv6Regex.match(host).hasMatch()) {
+                m_dxClusterServerCombo->lineEdit()->setStyleSheet("QLineEdit { color: red; }");
+                return;
+            }
+        } else {
+            m_dxClusterServerCombo->lineEdit()->setStyleSheet("QLineEdit { color: red; }");
+            return;
+        }
+    } else {
+        // IPv4 or hostname format: host:port
+        if (parts.size() == 2) {
+            host = parts[0];
+            port = parts[1];
+        } else if (parts.size() == 1) {
+            host = parts[0];
+            port = "";  // Port optional
+        }
+
+        // Validate IPv4 address
+        QRegularExpression ipv4Regex(
+            R"(^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$)"
+        );
+
+        // Validate hostname (RFC 1123)
+        QRegularExpression hostnameRegex(
+            R"(^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$)"
+        );
+
+        bool isValidIPv4 = ipv4Regex.match(host).hasMatch();
+        bool isValidHostname = hostnameRegex.match(host).hasMatch();
+
+        if (!isValidIPv4 && !isValidHostname) {
+            m_dxClusterServerCombo->lineEdit()->setStyleSheet("QLineEdit { color: red; }");
+            return;
+        }
+    }
+
+    // Validate port if present
+    if (!port.isEmpty()) {
+        bool ok;
+        int portNum = port.toInt(&ok);
+        if (!ok || portNum < 1 || portNum > 65535) {
+            m_dxClusterServerCombo->lineEdit()->setStyleSheet("QLineEdit { color: red; }");
+            return;
+        }
+    }
+
+    // Valid format
+    m_dxClusterServerCombo->lineEdit()->setStyleSheet("");
 }
 
 } // namespace TR4QT

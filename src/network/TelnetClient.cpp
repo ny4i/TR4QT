@@ -147,14 +147,14 @@ void TelnetClient::onError(QAbstractSocket::SocketError error) {
 
 bool TelnetClient::parseSpotLine(const QString& line) {
     // DX Cluster spot format:
-    // DX de SPOTTER:   FREQUENCY  CALLSIGN  COMMENT                 TIME Z
-    // Example:
-    // DX de W1AW:     14025.0  DL1ABC        CQ                      2345 Z
-    // DX de WX7V/5-#:   7032.0  G7MVH        CW 18 dB 15 WPM CQ             0433Z
+    // AR-Cluster:  DX de W1AW:     14025.0  DL1ABC        CQ                      2345 Z
+    // CC Cluster:  DX de NG7M-#:    14047.0  W1ND         CW 17 dB 28 WPM CQ           K 2019Z K
+    // DXSpider:    DX de WX7V/5-#:   7032.0  G7MVH        CW 18 dB 15 WPM CQ             0433Z
 
-    // Regex pattern for DX spots (allows /, -, # in callsigns)
+    // Regex pattern for DX spots (handles variable spacing and optional location codes)
+    // Allows /, -, # in callsigns
     static QRegularExpression spotRegex(
-        R"(^DX\s+de\s+([A-Z0-9/\-#]+):\s+([0-9.]+)\s+([A-Z0-9/\-]+)\s+(.+?)\s+(\d{4})Z?$)",
+        R"(^DX\s+de\s+([A-Z0-9/\-#]+):\s+([0-9.]+)\s+([A-Z0-9/\-]+)\s+(.+?)\s+(?:[A-Z]+\s+)?(\d{4})Z?)",
         QRegularExpression::CaseInsensitiveOption
     );
 

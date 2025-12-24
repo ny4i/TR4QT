@@ -197,12 +197,22 @@ void DXClusterWindow::loadSettings() {
         }
     }
 
-    // Load last server
-    QString lastServer = settings.value("DXCluster/LastServer").toString();
-    if (!lastServer.isEmpty()) {
-        int index = m_serverCombo->findText(lastServer, Qt::MatchContains);
+    // Load default server from preferences (always use on startup)
+    QString defaultServer = appSettings.getDXClusterServer();
+    if (!defaultServer.isEmpty()) {
+        // Try to find exact match first
+        int index = m_serverCombo->findText(defaultServer, Qt::MatchExactly);
         if (index >= 0) {
             m_serverCombo->setCurrentIndex(index);
+        } else {
+            // Try partial match (for display format vs plain format)
+            index = m_serverCombo->findText(defaultServer, Qt::MatchContains);
+            if (index >= 0) {
+                m_serverCombo->setCurrentIndex(index);
+            } else {
+                // Not in list, set as custom text
+                m_serverCombo->setCurrentText(defaultServer);
+            }
         }
     }
 }
@@ -248,21 +258,34 @@ void DXClusterWindow::onConnectClicked() {
         connectionString = match.captured(1) + ":" + match.captured(2);
     }
 
-    // Parse server:port
+    // Parse server:port (default to port 23 if not specified)
     QStringList parts = connectionString.split(':');
-    if (parts.size() != 2) {
+    QString host;
+    int port = 23;  // Default telnet port
+
+    if (parts.size() == 1) {
+        // No port specified, use default
+        host = parts[0].trimmed();
+    } else if (parts.size() == 2) {
+        // Port specified
+        host = parts[0].trimmed();
+        bool ok;
+        port = parts[1].trimmed().toInt(&ok);
+
+        if (!ok || port <= 0 || port > 65535) {
+            QMessageBox::warning(this, "DX Cluster",
+                               "Invalid port number");
+            return;
+        }
+    } else {
         QMessageBox::warning(this, "DX Cluster",
-                           "Invalid format. Use: hostname:port (e.g., DXC.NC7J.COM:7373)");
+                           "Invalid format. Use: hostname:port or just hostname (e.g., DXC.NC7J.COM:7373 or DXC.NC7J.COM)");
         return;
     }
 
-    QString host = parts[0].trimmed();
-    bool ok;
-    int port = parts[1].trimmed().toInt(&ok);
-
-    if (!ok || port <= 0 || port > 65535) {
+    if (host.isEmpty()) {
         QMessageBox::warning(this, "DX Cluster",
-                           "Invalid port number");
+                           "Please enter a valid hostname or IP address");
         return;
     }
 

@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.35.0";  // TR4W-style logging system with Preferences UI
+constexpr const char* APP_VERSION = "2.38.0";  // Add CC Cluster format support for spot parsing
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
