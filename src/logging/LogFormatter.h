@@ -42,7 +42,6 @@ public:
                          const QString& category,
                          const QString& message);
 
-private:
     // Format timestamp: "24 Dec 2025 14:23:45.123"
     static QString formatTimestamp(const QDateTime& timestamp);
 

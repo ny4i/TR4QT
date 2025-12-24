@@ -15,6 +15,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Widgets
     Sql
     Network
+    Test
 )
 
 # Use Hamlib from source build
@@ -31,6 +32,10 @@ endif()
 
 # Add source directory
 add_subdirectory(src)
+
+# Enable testing
+enable_testing()
+add_subdirectory(tests)
 
 # Installation rules
 install(TARGETS tr4qt
