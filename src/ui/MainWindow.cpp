@@ -173,59 +173,152 @@ void MainWindow::createMenuBar() {
     m_disconnectAction->setEnabled(false);
     connect(m_disconnectAction, &QAction::triggered, this, &MainWindow::onRadioDisconnect);
 
-    // Edit menu (CTRL- shortcuts for editing operations)
+    // Edit menu (CTRL- shortcuts matching TR4W)
     QMenu* editMenu = menuBar->addMenu("&Edit");
 
-    QAction* editQSOAction = editMenu->addAction("&Edit QSO...");
-    editQSOAction->setShortcut(QKeySequence("Ctrl+E"));
-    connect(editQSOAction, &QAction::triggered, this, &MainWindow::onEditQSO);
+    QAction* viewEditLogAction = editMenu->addAction("View/&Edit Log");
+    viewEditLogAction->setShortcut(QKeySequence("Ctrl+L"));
+    connect(viewEditLogAction, &QAction::triggered, this, &MainWindow::onViewEditLog);
 
-    QAction* deleteQSOAction = editMenu->addAction("&Delete QSO");
-    deleteQSOAction->setShortcut(QKeySequence("Ctrl+K"));
-    connect(deleteQSOAction, &QAction::triggered, this, &MainWindow::onDeleteQSO);
+    QAction* clearDupesAction = editMenu->addAction("Clear &Dupes");
+    clearDupesAction->setShortcut(QKeySequence("Ctrl+K"));
+    connect(clearDupesAction, &QAction::triggered, this, &MainWindow::onClearDupes);
 
-    editMenu->addSeparator();
+    QAction* noteAction = editMenu->addAction("&Note");
+    noteAction->setShortcut(QKeySequence("Ctrl+N"));
+    connect(noteAction, &QAction::triggered, this, &MainWindow::onNote);
 
-    QAction* dupeCheckAction = editMenu->addAction("&Dupe Check");
-    dupeCheckAction->setShortcut(QKeySequence("Ctrl+D"));
+    QAction* recallLastAction = editMenu->addAction("&Recall Last Entry");
+    recallLastAction->setShortcut(QKeySequence("Ctrl+R"));
+    connect(recallLastAction, &QAction::triggered, this, &MainWindow::onRecallLast);
+
+    // Tools menu (ALT- shortcuts matching TR4W)
+    QMenu* toolsMenu = menuBar->addMenu("&Tools");
+
+    QAction* wkModeAction = toolsMenu->addAction("WK Mode (Re-initialize WinKeyer)");
+    wkModeAction->setShortcut(QKeySequence("Alt+A"));
+    connect(wkModeAction, &QAction::triggered, this, &MainWindow::onWKMode);
+
+    QAction* backupLogAction = toolsMenu->addAction("Backup Log");
+    backupLogAction->setShortcut(QKeySequence("Alt+F"));
+    connect(backupLogAction, &QAction::triggered, this, &MainWindow::onBackupLog);
+
+    QAction* downloadCTYAction = toolsMenu->addAction("Download CTY.dat");
+    downloadCTYAction->setShortcut(QKeySequence("Alt+O"));
+    connect(downloadCTYAction, &QAction::triggered, this, &MainWindow::onDownloadCTY);
+
+    QAction* setDateTimeAction = toolsMenu->addAction("Set System Date/Time");
+    setDateTimeAction->setShortcut(QKeySequence("Alt+T"));
+    connect(setDateTimeAction, &QAction::triggered, this, &MainWindow::onSetDateTime);
+
+    QAction* initializeAction = toolsMenu->addAction("Initialize");
+    initializeAction->setShortcut(QKeySequence("Alt+W"));
+    connect(initializeAction, &QAction::triggered, this, &MainWindow::onInitialize);
+
+    toolsMenu->addSeparator();
+
+    QAction* optionsAction = toolsMenu->addAction("Options");
+    optionsAction->setShortcut(QKeySequence("Ctrl+J"));
+    connect(optionsAction, &QAction::triggered, this, &MainWindow::onPreferences);
+
+    // Operating menu (ALT- shortcuts for operating functions)
+    QMenu* operatingMenu = menuBar->addMenu("&Operating");
+
+    QAction* autoCQAction = operatingMenu->addAction("Auto CQ");
+    autoCQAction->setShortcut(QKeySequence("Alt+Q"));
+    connect(autoCQAction, &QAction::triggered, this, &MainWindow::onAutoCQ);
+
+    QAction* autoCQResumeAction = operatingMenu->addAction("Auto CQ Resume");
+    autoCQResumeAction->setShortcut(QKeySequence("Alt+C"));
+    connect(autoCQResumeAction, &QAction::triggered, this, &MainWindow::onAutoCQResume);
+
+    QAction* killCWAction = operatingMenu->addAction("Kill CW");
+    killCWAction->setShortcut(QKeySequence("Alt+K"));
+    connect(killCWAction, &QAction::triggered, this, &MainWindow::onKillCW);
+
+    operatingMenu->addSeparator();
+
+    QAction* dupeCheckAction = operatingMenu->addAction("Dupe Check");
+    dupeCheckAction->setShortcut(QKeySequence("Alt+D"));
     connect(dupeCheckAction, &QAction::triggered, this, &MainWindow::onDupeCheck);
 
-    QAction* grabSpotAction = editMenu->addAction("&Grab Spot");
-    grabSpotAction->setShortcut(QKeySequence("Ctrl+G"));
-    connect(grabSpotAction, &QAction::triggered, this, &MainWindow::onGrabSpot);
+    QAction* searchLogAction = operatingMenu->addAction("Search Log");
+    searchLogAction->setShortcut(QKeySequence("Alt+L"));
+    connect(searchLogAction, &QAction::triggered, this, &MainWindow::onSearchLog);
 
-    // Window menu (ALT- shortcuts for window/view operations)
+    QAction* deleteLastQSOAction = operatingMenu->addAction("Delete Last QSO");
+    deleteLastQSOAction->setShortcut(QKeySequence("Alt+Y"));
+    connect(deleteLastQSOAction, &QAction::triggered, this, &MainWindow::onDeleteLastQSO);
+
+    operatingMenu->addSeparator();
+
+    QAction* incNumberAction = operatingMenu->addAction("Inc Number");
+    incNumberAction->setShortcut(QKeySequence("Alt+I"));
+    connect(incNumberAction, &QAction::triggered, this, &MainWindow::onIncNumber);
+
+    QAction* initialExchangeAction = operatingMenu->addAction("Initial Exchange");
+    initialExchangeAction->setShortcut(QKeySequence("Alt+Z"));
+    connect(initialExchangeAction, &QAction::triggered, this, &MainWindow::onInitialExchange);
+
+    QAction* cwSpeedAction = operatingMenu->addAction("CW Speed");
+    cwSpeedAction->setShortcut(QKeySequence("Alt+S"));
+    connect(cwSpeedAction, &QAction::triggered, this, &MainWindow::onCWSpeed);
+
+    operatingMenu->addSeparator();
+
+    QAction* toggleSidetoneAction = operatingMenu->addAction("Toggle Sidetone");
+    toggleSidetoneAction->setShortcut(QKeySequence("Alt+="));
+    connect(toggleSidetoneAction, &QAction::triggered, this, &MainWindow::onToggleSidetone);
+
+    QAction* toggleAutosendAction = operatingMenu->addAction("Toggle Autosend");
+    toggleAutosendAction->setShortcut(QKeySequence("Alt+-"));
+    connect(toggleAutosendAction, &QAction::triggered, this, &MainWindow::onToggleAutosend);
+
+    // Window menu (window display functions)
     QMenu* windowMenu = menuBar->addMenu("&Window");
 
-    QAction* dxClusterAction = windowMenu->addAction("DX &Cluster");
-    dxClusterAction->setShortcut(QKeySequence("Alt+D"));
-    connect(dxClusterAction, &QAction::triggered, this, &MainWindow::onShowDXCluster);
-
     QAction* bandMapAction = windowMenu->addAction("&Band Map");
-    bandMapAction->setShortcut(QKeySequence("Alt+B"));
     connect(bandMapAction, &QAction::triggered, this, &MainWindow::onShowBandMap);
 
+    QAction* dxClusterAction = windowMenu->addAction("DX &Cluster");
+    connect(dxClusterAction, &QAction::triggered, this, &MainWindow::onShowDXCluster);
+
     QAction* radioControlAction = windowMenu->addAction("&Radio Control");
-    radioControlAction->setShortcut(QKeySequence("Alt+R"));
     connect(radioControlAction, &QAction::triggered, this, &MainWindow::onShowRadioControl);
 
     QAction* multipliersAction = windowMenu->addAction("&Multipliers");
-    multipliersAction->setShortcut(QKeySequence("Alt+M"));
     connect(multipliersAction, &QAction::triggered, this, &MainWindow::onShowMultipliers);
 
     windowMenu->addSeparator();
 
-    QAction* logWindowAction = windowMenu->addAction("&Log Window");
-    logWindowAction->setShortcut(QKeySequence("Alt+L"));
-    connect(logWindowAction, &QAction::triggered, this, &MainWindow::onShowLogWindow);
+    QAction* swapMultViewAction = windowMenu->addAction("Swap Mult View");
+    swapMultViewAction->setShortcut(QKeySequence("Alt+G"));
+    connect(swapMultViewAction, &QAction::triggered, this, &MainWindow::onSwapMultView);
 
-    QAction* statisticsAction = windowMenu->addAction("&Statistics");
-    statisticsAction->setShortcut(QKeySequence("Alt+S"));
-    connect(statisticsAction, &QAction::triggered, this, &MainWindow::onShowStatistics);
+    QAction* missingMultsAction = windowMenu->addAction("Missing Mults Report");
+    missingMultsAction->setShortcut(QKeySequence("Ctrl+O"));
+    connect(missingMultsAction, &QAction::triggered, this, &MainWindow::onMissingMultsReport);
 
-    QAction* cwMessagesAction = windowMenu->addAction("CW &Messages");
-    cwMessagesAction->setShortcut(QKeySequence("Alt+X"));
-    connect(cwMessagesAction, &QAction::triggered, this, &MainWindow::onShowCWMessages);
+    // Band menu (band changing shortcuts)
+    QMenu* bandMenu = menuBar->addMenu("&Band");
+
+    QAction* bandUpAction = bandMenu->addAction("Band Up");
+    bandUpAction->setShortcut(QKeySequence("Alt+B"));
+    connect(bandUpAction, &QAction::triggered, this, &MainWindow::onBandUp);
+
+    QAction* bandDownAction = bandMenu->addAction("Band Down");
+    bandDownAction->setShortcut(QKeySequence("Alt+V"));
+    connect(bandDownAction, &QAction::triggered, this, &MainWindow::onBandDown);
+
+    bandMenu->addSeparator();
+
+    QAction* toggleRigsAction = bandMenu->addAction("Toggle Rigs (SO2R)");
+    toggleRigsAction->setShortcut(QKeySequence("Alt+R"));
+    connect(toggleRigsAction, &QAction::triggered, this, &MainWindow::onToggleRigs);
+
+    QAction* editSO2RAction = bandMenu->addAction("Edit SO2R");
+    editSO2RAction->setShortcut(QKeySequence("Alt+E"));
+    connect(editSO2RAction, &QAction::triggered, this, &MainWindow::onEditSO2R);
 
     // Help menu
     QMenu* helpMenu = menuBar->addMenu("&Help");
@@ -1358,60 +1451,177 @@ void MainWindow::onShowMultipliers() {
     m_multiplierWindow->activateWindow();
 }
 
-void MainWindow::onShowLogWindow() {
-    // TODO: Implement log window showing all QSOs in a table view
-    qDebug() << "Log Window (Alt+L) - Not yet implemented";
+// Window menu placeholder implementations
+void MainWindow::onSwapMultView() {
+    qDebug() << "Swap Mult View (Alt+G) - Not yet implemented";
     QMessageBox::information(this, "Not Implemented",
-                           "Log Window feature will be implemented in a future version.\n\n"
-                           "This will display all logged QSOs in a searchable table.");
+                           "Swap Mult View feature will be implemented in a future version.\n\n"
+                           "This will toggle between different multiplier display modes.");
 }
 
-void MainWindow::onShowStatistics() {
-    // TODO: Implement statistics window with QSO/Mult/Score breakdown
-    qDebug() << "Statistics Window (Alt+S) - Not yet implemented";
+void MainWindow::onMissingMultsReport() {
+    qDebug() << "Missing Mults Report (Ctrl+O) - Not yet implemented";
     QMessageBox::information(this, "Not Implemented",
-                           "Statistics Window feature will be implemented in a future version.\n\n"
-                           "This will show QSOs per band/mode, multipliers, score, rate, etc.");
+                           "Missing Mults Report will be implemented in a future version.\n\n"
+                           "This will show a report of multipliers still needed.");
 }
 
-void MainWindow::onShowCWMessages() {
-    // TODO: Implement CW/Voice keyer message editor
-    qDebug() << "CW Messages (Alt+X) - Not yet implemented";
+// Edit menu placeholder implementations
+void MainWindow::onViewEditLog() {
+    qDebug() << "View/Edit Log (Ctrl+L) - Not yet implemented";
     QMessageBox::information(this, "Not Implemented",
-                           "CW Messages feature will be implemented in a future version.\n\n"
-                           "This will allow editing function key messages for CW/Voice keying.");
+                           "View/Edit Log will be implemented in a future version.\n\n"
+                           "This will show all logged QSOs in a table for viewing and editing.");
 }
 
-void MainWindow::onEditQSO() {
-    // TODO: Implement edit QSO dialog for modifying existing log entry
-    qDebug() << "Edit QSO (Ctrl+E) - Not yet implemented";
+void MainWindow::onClearDupes() {
+    qDebug() << "Clear Dupes (Ctrl+K) - Not yet implemented";
     QMessageBox::information(this, "Not Implemented",
-                           "Edit QSO feature will be implemented in a future version.\n\n"
-                           "This will allow editing of logged QSO details.");
+                           "Clear Dupes will be implemented in a future version.\n\n"
+                           "This will remove duplicate QSOs from the log.");
 }
 
-void MainWindow::onDeleteQSO() {
-    // TODO: Implement delete QSO with confirmation
-    qDebug() << "Delete QSO (Ctrl+K) - Not yet implemented";
+void MainWindow::onNote() {
+    qDebug() << "Note (Ctrl+N) - Not yet implemented";
     QMessageBox::information(this, "Not Implemented",
-                           "Delete QSO feature will be implemented in a future version.\n\n"
-                           "This will allow removal of QSOs from the log.");
+                           "Note feature will be implemented in a future version.\n\n"
+                           "This will allow adding notes to the log.");
+}
+
+void MainWindow::onRecallLast() {
+    qDebug() << "Recall Last Entry (Ctrl+R) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Recall Last Entry will be implemented in a future version.\n\n"
+                           "This will recall the last deleted log entry.");
+}
+
+// Tools menu placeholder implementations
+void MainWindow::onWKMode() {
+    qDebug() << "WK Mode (Alt+A) - Re-initialize WinKeyer - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "WinKeyer re-initialization will be implemented in a future version.\n\n"
+                           "This will re-initialize the WinKeyer for CW keying.");
+}
+
+void MainWindow::onBackupLog() {
+    qDebug() << "Backup Log (Alt+F) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Backup Log will be implemented in a future version.\n\n"
+                           "This will create a backup copy of the current contest log.");
+}
+
+void MainWindow::onDownloadCTY() {
+    qDebug() << "Download CTY.dat (Alt+O) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Download CTY.dat will be implemented in a future version.\n\n"
+                           "This will download the latest country file from the internet.");
+}
+
+void MainWindow::onSetDateTime() {
+    qDebug() << "Set System Date/Time (Alt+T) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Set System Date/Time will be implemented in a future version.\n\n"
+                           "This will allow setting the system date and time.");
+}
+
+void MainWindow::onInitialize() {
+    qDebug() << "Initialize (Alt+W) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Initialize will be implemented in a future version.\n\n"
+                           "This will initialize/reset contest parameters.");
+}
+
+// Operating menu placeholder implementations
+void MainWindow::onAutoCQ() {
+    qDebug() << "Auto CQ (Alt+Q) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Auto CQ will be implemented in a future version.\n\n"
+                           "This will enable automatic CQ sending.");
+}
+
+void MainWindow::onAutoCQResume() {
+    qDebug() << "Auto CQ Resume (Alt+C) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Auto CQ Resume will be implemented in a future version.\n\n"
+                           "This will resume automatic CQ after an interruption.");
+}
+
+void MainWindow::onKillCW() {
+    qDebug() << "Kill CW (Alt+K) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Kill CW will be implemented in a future version.\n\n"
+                           "This will immediately stop CW transmission.");
 }
 
 void MainWindow::onDupeCheck() {
-    // TODO: Implement dupe check that highlights/searches for callsign in log
-    qDebug() << "Dupe Check (Ctrl+D) - Not yet implemented";
+    qDebug() << "Dupe Check (Alt+D) - Not yet implemented";
     QMessageBox::information(this, "Not Implemented",
-                           "Dupe Check feature will be implemented in a future version.\n\n"
-                           "This will check if the current callsign is a duplicate.");
+                           "Dupe Check will be implemented in a future version.\n\n"
+                           "This will check if the entered callsign is a duplicate.");
 }
 
-void MainWindow::onGrabSpot() {
-    // TODO: Implement grab spot from DX Cluster to populate entry fields
-    qDebug() << "Grab Spot (Ctrl+G) - Not yet implemented";
+void MainWindow::onSearchLog() {
+    qDebug() << "Search Log (Alt+L) - Not yet implemented";
     QMessageBox::information(this, "Not Implemented",
-                           "Grab Spot feature will be implemented in a future version.\n\n"
-                           "This will populate callsign from the nearest DX Cluster spot.");
+                           "Search Log will be implemented in a future version.\n\n"
+                           "This will search the log for a specific callsign.");
+}
+
+void MainWindow::onDeleteLastQSO() {
+    qDebug() << "Delete Last QSO (Alt+Y) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Delete Last QSO will be implemented in a future version.\n\n"
+                           "This will delete the most recent QSO from the log.");
+}
+
+void MainWindow::onIncNumber() {
+    qDebug() << "Inc Number (Alt+I) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Inc Number will be implemented in a future version.\n\n"
+                           "This will increment the serial number.");
+}
+
+void MainWindow::onInitialExchange() {
+    qDebug() << "Initial Exchange (Alt+Z) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Initial Exchange will be implemented in a future version.\n\n"
+                           "This will set/reset the initial exchange information.");
+}
+
+void MainWindow::onCWSpeed() {
+    qDebug() << "CW Speed (Alt+S) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "CW Speed will be implemented in a future version.\n\n"
+                           "This will adjust the CW sending speed.");
+}
+
+void MainWindow::onToggleSidetone() {
+    qDebug() << "Toggle Sidetone (Alt+=) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Toggle Sidetone will be implemented in a future version.\n\n"
+                           "This will turn CW sidetone on/off.");
+}
+
+void MainWindow::onToggleAutosend() {
+    qDebug() << "Toggle Autosend (Alt+-) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Toggle Autosend will be implemented in a future version.\n\n"
+                           "This will enable/disable automatic sending.");
+}
+
+// Band menu placeholder implementations
+void MainWindow::onToggleRigs() {
+    qDebug() << "Toggle Rigs (Alt+R) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Toggle Rigs will be implemented in a future version.\n\n"
+                           "This will switch between radios in SO2R mode.");
+}
+
+void MainWindow::onEditSO2R() {
+    qDebug() << "Edit SO2R (Alt+E) - Not yet implemented";
+    QMessageBox::information(this, "Not Implemented",
+                           "Edit SO2R will be implemented in a future version.\n\n"
+                           "This will configure SO2R (two-radio) settings.");
 }
 
 void MainWindow::onDXSpotReceived(const QString& callsign,

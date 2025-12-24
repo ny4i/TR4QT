@@ -64,15 +64,39 @@ private slots:
     void onShowBandMap();
     void onShowRadioControl();
     void onShowMultipliers();
-    void onShowLogWindow();         // TODO: Implement log window display
-    void onShowStatistics();        // TODO: Implement statistics window
-    void onShowCWMessages();        // TODO: Implement CW messages window
+    void onSwapMultView();          // TODO: Implement swap multiplier view
+    void onMissingMultsReport();    // TODO: Implement missing mults report
 
-    // Edit menu actions
-    void onEditQSO();               // TODO: Implement edit QSO dialog
-    void onDeleteQSO();             // TODO: Implement delete QSO confirmation
-    void onDupeCheck();             // TODO: Implement dupe check highlighting
-    void onGrabSpot();              // TODO: Implement grab spot from cluster
+    // Edit menu actions (CTRL- shortcuts from TR4W)
+    void onViewEditLog();           // TODO: Implement view/edit log window
+    void onClearDupes();            // TODO: Implement clear dupes
+    void onNote();                  // TODO: Implement add note to log
+    void onRecallLast();            // TODO: Implement recall last entry
+
+    // Tools menu actions (ALT- shortcuts from TR4W)
+    void onWKMode();                // TODO: Implement WinKeyer re-initialization
+    void onBackupLog();             // TODO: Implement backup log
+    void onDownloadCTY();           // TODO: Implement download CTY.dat
+    void onSetDateTime();           // TODO: Implement set system date/time
+    void onInitialize();            // TODO: Implement initialize
+
+    // Operating menu actions (ALT- shortcuts from TR4W)
+    void onAutoCQ();                // TODO: Implement auto CQ
+    void onAutoCQResume();          // TODO: Implement auto CQ resume
+    void onKillCW();                // TODO: Implement kill CW
+    void onDupeCheck();             // TODO: Implement dupe check
+    void onSearchLog();             // TODO: Implement search log
+    void onDeleteLastQSO();         // TODO: Implement delete last QSO
+    void onIncNumber();             // TODO: Implement increment number
+    void onInitialExchange();       // TODO: Implement initial exchange
+    void onCWSpeed();               // TODO: Implement CW speed
+    void onToggleSidetone();        // TODO: Implement toggle sidetone
+    void onToggleAutosend();        // TODO: Implement toggle autosend
+
+    // Band menu actions (ALT- shortcuts from TR4W)
+    // onBandUp() and onBandDown() already exist
+    void onToggleRigs();            // TODO: Implement toggle rigs (SO2R)
+    void onEditSO2R();              // TODO: Implement edit SO2R
 
     // DX Cluster integration
     void onDXSpotReceived(const QString& callsign,
