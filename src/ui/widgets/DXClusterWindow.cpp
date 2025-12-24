@@ -1,5 +1,6 @@
 #include "DXClusterWindow.h"
 #include "../../core/Constants.h"
+#include "../../logging/LogMacros.h"
 #include "../../utils/AppSettings.h"
 #include "../../utils/ThemeManager.h"
 #include <QVBoxLayout>
@@ -61,7 +62,7 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
     if (AppSettings::instance().getDXClusterAutoConnect()) {
         QString server = AppSettings::instance().getDXClusterServer();
         if (!server.isEmpty()) {
-            qDebug() << "DXClusterWindow: Auto-connect enabled, connecting to:" << server;
+            LOG_DEBUG("DXClusterWindow", QString("Auto-connect enabled, connecting to: %1").arg(server));
             // Use QTimer to delay connection slightly to ensure UI is fully initialized
             QTimer::singleShot(500, this, [this, server]() {
                 m_serverCombo->setCurrentText(server);
@@ -472,7 +473,7 @@ void DXClusterWindow::onTextDisplayClicked() {
                 frequency *= 1000;  // Convert kHz to Hz
             }
 
-            qDebug() << "DXClusterWindow: Click-to-QSY:" << frequency << "Hz from line:" << line;
+            LOG_DEBUG("DXClusterWindow", QString("Click-to-QSY: %1 Hz from line: %2").arg(frequency).arg(line));
             emit qsyRequested(frequency);
         }
     }

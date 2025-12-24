@@ -1,5 +1,5 @@
 #include "RadioController.h"
-#include <QDebug>
+#include "../logging/LogMacros.h"
 #include <QMutexLocker>
 
 namespace TR4QT {
@@ -19,7 +19,7 @@ RadioController::RadioController(QObject* parent)
     // Qt automatically uses QueuedConnection for cross-thread signals
     connect(m_radio, &RadioInterface::connectionStatusChanged,
             this, [this](bool connected) {
-                qDebug() << "RadioController: Received connectionStatusChanged:" << connected;
+                LOG_DEBUG("RadioController", QString("Received connectionStatusChanged: %1").arg(connected ? "true" : "false"));
 
                 QMutexLocker locker(&m_stateMutex);
                 m_connected = connected;
@@ -75,7 +75,7 @@ RadioController::~RadioController() {
     m_workerThread.wait(3000);  // Wait up to 3 seconds
 
     if (m_workerThread.isRunning()) {
-        qWarning() << "Worker thread did not stop gracefully, terminating";
+        LOG_WARN("RadioController", "Worker thread did not stop gracefully, terminating");
         m_workerThread.terminate();
         m_workerThread.wait();
     }
@@ -97,20 +97,20 @@ QString RadioController::getRadioModel() const {
 }
 
 void RadioController::connectToRadio(const RadioConfig& config) {
-    qDebug() << "RadioController::connectToRadio called with model" << config.hamlibModelId << "port" << config.port;
+    LOG_DEBUG("RadioController", QString("connectToRadio called with model %1 port %2").arg(config.hamlibModelId).arg(config.port));
 
     // Invoke connect method in worker thread using lambda
     bool queued = QMetaObject::invokeMethod(m_radio, [this, config]() {
-        qDebug() << "RadioController: Lambda executing in worker thread";
+        LOG_DEBUG("RadioController", "Lambda executing in worker thread");
         // Call the RadioInterface::connect method (not QObject::connect)
         bool success = static_cast<RadioInterface*>(m_radio)->connect(config);
-        qDebug() << "RadioController: connect() returned" << success;
+        LOG_DEBUG("RadioController", QString("connect() returned %1").arg(success ? "true" : "false"));
         if (!success) {
-            qWarning() << "HamlibRadio::connect returned false";
+            LOG_WARN("RadioController", "HamlibRadio::connect returned false");
         }
     }, Qt::QueuedConnection);
 
-    qDebug() << "RadioController::connectToRadio: invokeMethod returned" << queued;
+    LOG_DEBUG("RadioController", QString("connectToRadio: invokeMethod returned %1").arg(queued ? "true" : "false"));
 }
 
 void RadioController::disconnectFromRadio() {

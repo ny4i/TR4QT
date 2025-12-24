@@ -1,6 +1,6 @@
 #include "HamlibRadio.h"
 #include "../core/Constants.h"
-#include <QDebug>
+#include "../logging/LogMacros.h"
 
 namespace TR4QT {
 
@@ -66,23 +66,23 @@ bool HamlibRadio::connect(const RadioConfig& config) {
 
     // Get radio model (mutex already locked, access directly)
     QString model = m_rig->caps->model_name;
-    qDebug() << "HamlibRadio::connect: SUCCESS - Connected to radio:" << model;
+    LOG_DEBUG("HamlibRadio", QString("HamlibRadio::connect: SUCCESS - Connected to radio: %1").arg(model));
 
     // Start polling timer
-    qDebug() << "HamlibRadio::connect: Checking poll interval:" << config.pollInterval;
+    LOG_DEBUG("HamlibRadio", QString("HamlibRadio::connect: Checking poll interval: %1").arg(config.pollInterval));
     if (config.pollInterval > 0) {
-        qDebug() << "HamlibRadio::connect: About to start poll timer";
+        LOG_DEBUG("HamlibRadio", "HamlibRadio::connect: About to start poll timer");
         m_pollTimer->start(config.pollInterval);
-        qDebug() << "HamlibRadio::connect: Poll timer started with interval" << config.pollInterval << "ms";
+        LOG_DEBUG("HamlibRadio", QString("HamlibRadio::connect: Poll timer started with interval %1 ms").arg(config.pollInterval));
     } else {
-        qDebug() << "HamlibRadio::connect: Poll interval is 0, not starting timer";
+        LOG_DEBUG("HamlibRadio", "HamlibRadio::connect: Poll interval is 0, not starting timer");
     }
 
-    qDebug() << "HamlibRadio::connect: About to emit connectionStatusChanged(true)";
+    LOG_DEBUG("HamlibRadio", "HamlibRadio::connect: About to emit connectionStatusChanged(true)");
     emit connectionStatusChanged(true);
-    qDebug() << "HamlibRadio::connect: Signal emitted";
+    LOG_DEBUG("HamlibRadio", "HamlibRadio::connect: Signal emitted");
 
-    qDebug() << "HamlibRadio::connect: Returning true (initial state will come from poll timer)";
+    LOG_DEBUG("HamlibRadio", "HamlibRadio::connect: Returning true (initial state will come from poll timer)");
     // NOTE: Do NOT call updateState() here - mutex is already locked!
     // The poll timer will provide the first state update shortly.
     return true;
@@ -624,14 +624,14 @@ void HamlibRadio::logHamlibError(const QString& operation, int retcode) const {
     QString errorMsg = QString("%1 failed: %2")
                            .arg(operation)
                            .arg(rigerror(retcode));
-    qWarning() << errorMsg;
+    LOG_WARN("HamlibRadio", errorMsg);
     const_cast<HamlibRadio*>(this)->errorOccurred(errorMsg);
 }
 
 bool HamlibRadio::checkRigPointer(const QString& operation) const {
     if (!m_rig) {
         QString errorMsg = operation + ": Radio not connected";
-        qWarning() << errorMsg;
+        LOG_WARN("HamlibRadio", errorMsg);
         const_cast<HamlibRadio*>(this)->errorOccurred(errorMsg);
         return false;
     }

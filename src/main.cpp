@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
     // Set hamlib debug level (default: none, unless --hamlib-debug specified)
     if (parser.isSet(hamlibDebugOption)) {
         rig_set_debug(RIG_DEBUG_VERBOSE);
-        qDebug() << "Hamlib debug output enabled";
+        LOG_DEBUG("Main", "Hamlib debug output enabled");
     } else {
         rig_set_debug(RIG_DEBUG_NONE);
     }
@@ -73,12 +73,12 @@ int main(int argc, char *argv[]) {
     QString ctyPath = TR4QT::AppSettings::instance().getCountryFilePath();
 
     if (QFile::exists(ctyPath)) {
-        qDebug() << "Loading cty.dat from" << ctyPath;
+        LOG_DEBUG("Main", QString("Loading cty.dat from %1").arg(ctyPath));
         if (countryFile.loadFromFile(ctyPath)) {
-            qDebug() << "Loaded" << countryFile.getAllCountries().size() << "countries";
+            LOG_DEBUG("Main", QString("Loaded %1 countries").arg(countryFile.getAllCountries().size()));
         }
     } else {
-        qDebug() << "No cty.dat found. Use Tools → Download Country File when implemented.";
+        LOG_DEBUG("Main", "No cty.dat found. Use Tools → Download Country File when implemented.");
     }
 
     // Create and show main window

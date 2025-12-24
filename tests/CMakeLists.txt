@@ -72,6 +72,10 @@ add_tr4qt_test(test_countryfile
     test_countryfile.cpp
     ../src/utils/CountryFile.cpp
     ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
 )
 
 add_tr4qt_test(test_cqww
@@ -79,6 +83,10 @@ add_tr4qt_test(test_cqww
     ../src/contests/CQWWContest.cpp
     ../src/contests/ContestRegistry.cpp
     ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
 )
 
 add_tr4qt_test(test_cqwpx
@@ -86,6 +94,10 @@ add_tr4qt_test(test_cqwpx
     ../src/contests/CQWPXContest.cpp
     ../src/contests/ContestRegistry.cpp
     ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
 )
 
 # Phase 3 tests - infrastructure

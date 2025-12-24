@@ -1,12 +1,12 @@
 #include "CountryFileDownloader.h"
 #include "../core/Constants.h"
+#include "../logging/LogMacros.h"
 #include <QFile>
 #include <QDir>
 #include <QRegularExpression>
 #include <QXmlStreamReader>
 #include <QProcess>
 #include <QTemporaryDir>
-#include <QDebug>
 
 namespace TR4QT {
 
@@ -47,11 +47,11 @@ void CountryFileDownloader::checkLatestVersion() {
     // Set User-Agent header (some servers reject requests without it)
     request.setRawHeader("User-Agent", "TR4QT/2.33 (Amateur Radio Contest Logger)");
 
-    qDebug() << "=== HTTP REQUEST ===";
-    qDebug() << "URL:" << rssUrl.toString();
-    qDebug() << "Request headers:";
+    LOG_DEBUG("CountryFileDownloader", "=== HTTP REQUEST ===");
+    LOG_DEBUG("CountryFileDownloader", QString("URL: %1").arg(rssUrl.toString()));
+    LOG_DEBUG("CountryFileDownloader", "Request headers:");
     for (const QByteArray& header : request.rawHeaderList()) {
-        qDebug() << "  " << header << ":" << request.rawHeader(header);
+        LOG_DEBUG("CountryFileDownloader", QString("  %1: %2").arg(QString::fromUtf8(header)).arg(QString::fromUtf8(request.rawHeader(header))));
     }
 
     m_currentReply = m_networkManager->get(request);
@@ -64,20 +64,20 @@ void CountryFileDownloader::onVersionCheckFinished() {
     if (!m_currentReply) return;
 
     // Log HTTP response details
-    qDebug() << "=== HTTP RESPONSE ===";
-    qDebug() << "HTTP Status:" << m_currentReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    qDebug() << "HTTP Reason:" << m_currentReply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toString();
-    qDebug() << "Response headers:";
+    LOG_DEBUG("CountryFileDownloader", "=== HTTP RESPONSE ===");
+    LOG_DEBUG("CountryFileDownloader", QString("HTTP Status: %1").arg(m_currentReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()));
+    LOG_DEBUG("CountryFileDownloader", QString("HTTP Reason: %1").arg(m_currentReply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toString()));
+    LOG_DEBUG("CountryFileDownloader", "Response headers:");
     for (const QNetworkReply::RawHeaderPair& header : m_currentReply->rawHeaderPairs()) {
-        qDebug() << "  " << header.first << ":" << header.second;
+        LOG_DEBUG("CountryFileDownloader", QString("  %1: %2").arg(QString::fromUtf8(header.first)).arg(QString::fromUtf8(header.second)));
     }
-    qDebug() << "Error code:" << m_currentReply->error();
-    qDebug() << "Error string:" << m_currentReply->errorString();
+    LOG_DEBUG("CountryFileDownloader", QString("Error code: %1").arg(m_currentReply->error()));
+    LOG_DEBUG("CountryFileDownloader", QString("Error string: %1").arg(m_currentReply->errorString()));
 
     if (m_currentReply->error() != QNetworkReply::NoError) {
         // Log first 500 bytes of response body (might contain error details)
         QByteArray responseData = m_currentReply->readAll();
-        qDebug() << "Response body (first 500 bytes):" << responseData.left(500);
+        LOG_DEBUG("CountryFileDownloader", QString("Response body (first 500 bytes): %1").arg(QString::fromUtf8(responseData.left(500))));
 
         emit errorOccurred("Failed to check version: " + m_currentReply->errorString());
         m_currentReply->deleteLater();
@@ -86,7 +86,7 @@ void CountryFileDownloader::onVersionCheckFinished() {
     }
 
     QString rssXml = QString::fromUtf8(m_currentReply->readAll());
-    qDebug() << "Response body size:" << rssXml.size() << "bytes";
+    LOG_DEBUG("CountryFileDownloader", QString("Response body size: %1 bytes").arg(rssXml.size()));
     m_currentReply->deleteLater();
     m_currentReply = nullptr;
 
@@ -109,8 +109,8 @@ void CountryFileDownloader::onVersionCheckFinished() {
         QString downloadUrl = QString("https://www.country-files.com/cty/download/%1/cty-%1.zip")
                                       .arg(numericalVersion);
 
-        qDebug() << "Latest CTY version from RSS feed:" << m_latestVersion;
-        qDebug() << "Downloading ZIP file:" << downloadUrl;
+        LOG_DEBUG("CountryFileDownloader", QString("Latest CTY version from RSS feed: %1").arg(m_latestVersion));
+        LOG_DEBUG("CountryFileDownloader", QString("Downloading ZIP file: %1").arg(downloadUrl));
 
         QNetworkRequest request{QUrl(downloadUrl)};
         request.setRawHeader("User-Agent", "TR4QT/2.33 (Amateur Radio Contest Logger)");
@@ -119,11 +119,11 @@ void CountryFileDownloader::onVersionCheckFinished() {
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                             QNetworkRequest::NoLessSafeRedirectPolicy);
 
-        qDebug() << "=== FILE DOWNLOAD REQUEST ===";
-        qDebug() << "URL:" << downloadUrl;
-        qDebug() << "Request headers:";
+        LOG_DEBUG("CountryFileDownloader", "=== FILE DOWNLOAD REQUEST ===");
+        LOG_DEBUG("CountryFileDownloader", QString("URL: %1").arg(downloadUrl));
+        LOG_DEBUG("CountryFileDownloader", "Request headers:");
         for (const QByteArray& header : request.rawHeaderList()) {
-            qDebug() << "  " << header << ":" << request.rawHeader(header);
+            LOG_DEBUG("CountryFileDownloader", QString("  %1: %2").arg(QString::fromUtf8(header)).arg(QString::fromUtf8(request.rawHeader(header))));
         }
 
         m_currentReply = m_networkManager->get(request);
@@ -141,21 +141,21 @@ void CountryFileDownloader::onDownloadFinished() {
     if (!m_currentReply) return;
 
     // Log HTTP response details
-    qDebug() << "=== FILE DOWNLOAD RESPONSE ===";
-    qDebug() << "Final URL:" << m_currentReply->url().toString();
-    qDebug() << "HTTP Status:" << m_currentReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    qDebug() << "HTTP Reason:" << m_currentReply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toString();
-    qDebug() << "Response headers:";
+    LOG_DEBUG("CountryFileDownloader", "=== FILE DOWNLOAD RESPONSE ===");
+    LOG_DEBUG("CountryFileDownloader", QString("Final URL: %1").arg(m_currentReply->url().toString()));
+    LOG_DEBUG("CountryFileDownloader", QString("HTTP Status: %1").arg(m_currentReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()));
+    LOG_DEBUG("CountryFileDownloader", QString("HTTP Reason: %1").arg(m_currentReply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toString()));
+    LOG_DEBUG("CountryFileDownloader", "Response headers:");
     for (const QNetworkReply::RawHeaderPair& header : m_currentReply->rawHeaderPairs()) {
-        qDebug() << "  " << header.first << ":" << header.second;
+        LOG_DEBUG("CountryFileDownloader", QString("  %1: %2").arg(QString::fromUtf8(header.first)).arg(QString::fromUtf8(header.second)));
     }
-    qDebug() << "Error code:" << m_currentReply->error();
-    qDebug() << "Error string:" << m_currentReply->errorString();
+    LOG_DEBUG("CountryFileDownloader", QString("Error code: %1").arg(m_currentReply->error()));
+    LOG_DEBUG("CountryFileDownloader", QString("Error string: %1").arg(m_currentReply->errorString()));
 
     // Check if there were any redirects
     QVariant redirectTarget = m_currentReply->attribute(QNetworkRequest::RedirectionTargetAttribute);
     if (!redirectTarget.isNull()) {
-        qDebug() << "Redirect target:" << redirectTarget.toUrl().toString();
+        LOG_DEBUG("CountryFileDownloader", QString("Redirect target: %1").arg(redirectTarget.toUrl().toString()));
     }
 
     bool success = false;
@@ -163,7 +163,7 @@ void CountryFileDownloader::onDownloadFinished() {
 
     if (m_currentReply->error() == QNetworkReply::NoError) {
         QByteArray zipData = m_currentReply->readAll();
-        qDebug() << "Downloaded" << zipData.size() << "bytes (ZIP file)";
+        LOG_DEBUG("CountryFileDownloader", QString("Downloaded %1 bytes (ZIP file)").arg(zipData.size()));
 
         // Create temporary directory for extraction
         QTemporaryDir tempDir;
@@ -187,7 +187,7 @@ void CountryFileDownloader::onDownloadFinished() {
         }
         zipFile.write(zipData);
         zipFile.close();
-        qDebug() << "Saved ZIP to" << zipPath;
+        LOG_DEBUG("CountryFileDownloader", QString("Saved ZIP to %1").arg(zipPath));
 
         // Extract ZIP file using system unzip command
         QProcess unzip;
@@ -204,7 +204,7 @@ void CountryFileDownloader::onDownloadFinished() {
 
         if (unzip.exitCode() != 0) {
             QString error = QString("Unzip failed: %1").arg(QString::fromUtf8(unzip.readAllStandardError()));
-            qDebug() << error;
+            LOG_DEBUG("CountryFileDownloader", error);
             emit errorOccurred(error);
             m_currentReply->deleteLater();
             m_currentReply = nullptr;
@@ -212,7 +212,7 @@ void CountryFileDownloader::onDownloadFinished() {
             return;
         }
 
-        qDebug() << "Unzip output:" << QString::fromUtf8(unzip.readAllStandardOutput());
+        LOG_DEBUG("CountryFileDownloader", QString("Unzip output: %1").arg(QString::fromUtf8(unzip.readAllStandardOutput())));
 
         // Find cty.dat in extracted files
         QDir extractedDir(tempDir.path());
@@ -227,7 +227,7 @@ void CountryFileDownloader::onDownloadFinished() {
         }
 
         QString extractedFile = files.first().absoluteFilePath();
-        qDebug() << "Found extracted file:" << extractedFile;
+        LOG_DEBUG("CountryFileDownloader", QString("Found extracted file: %1").arg(extractedFile));
 
         // Move extracted cty.dat to final location
         filePath = m_saveDir + "/" + COUNTRY_FILE_NAME;
@@ -239,14 +239,14 @@ void CountryFileDownloader::onDownloadFinished() {
 
         if (QFile::copy(extractedFile, filePath)) {
             success = true;
-            qDebug() << "Downloaded and extracted country file to" << filePath;
+            LOG_DEBUG("CountryFileDownloader", QString("Downloaded and extracted country file to %1").arg(filePath));
         } else {
             emit errorOccurred("Failed to copy extracted file to: " + filePath);
         }
     } else {
         // Log first 500 bytes of error response
         QByteArray responseData = m_currentReply->readAll();
-        qDebug() << "Error response body (first 500 bytes):" << responseData.left(500);
+        LOG_DEBUG("CountryFileDownloader", QString("Error response body (first 500 bytes): %1").arg(QString::fromUtf8(responseData.left(500))));
         emit errorOccurred("Download failed: " + m_currentReply->errorString());
     }
 
@@ -283,7 +283,7 @@ QString CountryFileDownloader::parseVersionFromRss(const QString& rssXml) {
 
                 if (xml.isStartElement() && xml.name() == QStringLiteral("description")) {
                     QString description = xml.readElementText();
-                    qDebug() << "RSS feed first item description:" << description;
+                    LOG_DEBUG("CountryFileDownloader", QString("RSS feed first item description: %1").arg(description));
 
                     // Extract version string from description like "VER20251218, Version entity is Libya, 5A Download: [ CTY-3540"
                     static QRegularExpression re(R"(VER\d{8})");
@@ -291,7 +291,7 @@ QString CountryFileDownloader::parseVersionFromRss(const QString& rssXml) {
 
                     if (match.hasMatch()) {
                         QString version = match.captured(0);
-                        qDebug() << "Parsed version from RSS description:" << version;
+                        LOG_DEBUG("CountryFileDownloader", QString("Parsed version from RSS description: %1").arg(version));
                         return version;
                     }
                 }
@@ -307,11 +307,11 @@ QString CountryFileDownloader::parseVersionFromRss(const QString& rssXml) {
     }
 
     if (xml.hasError()) {
-        qWarning() << "XML parsing error:" << xml.errorString();
+        LOG_WARN("CountryFileDownloader", QString("XML parsing error: %1").arg(xml.errorString()));
     }
 
     // Fallback: return empty string if parsing fails
-    qDebug() << "Failed to parse version from RSS description";
+    LOG_DEBUG("CountryFileDownloader", "Failed to parse version from RSS description");
     return QString();
 }
 

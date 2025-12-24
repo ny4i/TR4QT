@@ -8,6 +8,7 @@
 #include "widgets/MultiplierWidget.h"
 #include "../network/UdpBroadcastManager.h"
 #include "../core/Constants.h"
+#include "../logging/LogMacros.h"
 #include "../utils/ThemeManager.h"
 #include "../utils/ADIFExporter.h"
 #include "../utils/CabrilloExporter.h"
@@ -56,7 +57,7 @@ MainWindow::MainWindow(QWidget* parent)
     QString countryFilePath = AppSettings::instance().getCountryFilePath();
     if (QFile::exists(countryFilePath)) {
         if (!m_countryFile.loadFromFile(countryFilePath)) {
-            qWarning() << "Failed to load country file:" << countryFilePath;
+            LOG_WARN("MainWindow", QString("Failed to load country file: %1").arg(countryFilePath));
         }
     }
 
@@ -153,11 +154,10 @@ void MainWindow::createMenuBar() {
     preferencesAction->setShortcut(QKeySequence::Preferences);
     preferencesAction->setMenuRole(QAction::PreferencesRole);  // Explicitly set macOS menu role
     connect(preferencesAction, &QAction::triggered, this, [this]() {
-        qDebug() << "*** Preferences action triggered ***";
+        LOG_DEBUG("MainWindow", "*** Preferences action triggered ***");
         onPreferences();
     });
-    qDebug() << "*** Preferences menu created with shortcut:" << preferencesAction->shortcut().toString()
-             << "menuRole:" << preferencesAction->menuRole();
+    LOG_DEBUG("MainWindow", QString("*** Preferences menu created with shortcut: %1 menuRole: %2").arg(preferencesAction->shortcut().toString()).arg(preferencesAction->menuRole()));
 
     fileMenu->addSeparator();
 
@@ -170,10 +170,10 @@ void MainWindow::createMenuBar() {
     QAction* configAction = radioMenu->addAction("&Configure...");
     configAction->setMenuRole(QAction::NoRole);  // Prevent macOS from moving this to app menu
     connect(configAction, &QAction::triggered, this, [this]() {
-        qDebug() << "*** Radio Configure action triggered ***";
+        LOG_DEBUG("MainWindow", "*** Radio Configure action triggered ***");
         onRadioConfigure();
     });
-    qDebug() << "*** Radio Configure menu created with menuRole:" << configAction->menuRole();
+    LOG_DEBUG("MainWindow", QString("*** Radio Configure menu created with menuRole: %1").arg(configAction->menuRole()));
 
     radioMenu->addSeparator();
 
@@ -600,9 +600,9 @@ void MainWindow::loadSettings() {
     applyTheme();
 
     // Restore child windows if they were visible
-    qDebug() << "DX Cluster was visible:" << settings.getDXClusterVisible();
+    LOG_DEBUG("MainWindow", QString("DX Cluster was visible: %1").arg(settings.getDXClusterVisible() ? "true" : "false"));
     if (settings.getDXClusterVisible()) {
-        qDebug() << "Restoring DX Cluster window";
+        LOG_DEBUG("MainWindow", "Restoring DX Cluster window");
         onShowDXCluster();
         QByteArray dxGeometry = settings.loadDXClusterGeometry();
         if (!dxGeometry.isEmpty()) {
@@ -610,9 +610,9 @@ void MainWindow::loadSettings() {
         }
     }
 
-    qDebug() << "Band Map was visible:" << settings.getBandMapVisible();
+    LOG_DEBUG("MainWindow", QString("Band Map was visible: %1").arg(settings.getBandMapVisible() ? "true" : "false"));
     if (settings.getBandMapVisible()) {
-        qDebug() << "Restoring Band Map window";
+        LOG_DEBUG("MainWindow", "Restoring Band Map window");
         onShowBandMap();
         QByteArray bmGeometry = settings.loadBandMapGeometry();
         if (!bmGeometry.isEmpty()) {
@@ -620,9 +620,9 @@ void MainWindow::loadSettings() {
         }
     }
 
-    qDebug() << "Radio Control was visible:" << settings.getRadioControlVisible();
+    LOG_DEBUG("MainWindow", QString("Radio Control was visible: %1").arg(settings.getRadioControlVisible() ? "true" : "false"));
     if (settings.getRadioControlVisible()) {
-        qDebug() << "Restoring Radio Control window";
+        LOG_DEBUG("MainWindow", "Restoring Radio Control window");
         onShowRadioControl();
         QByteArray rcGeometry = settings.loadRadioControlGeometry();
         if (!rcGeometry.isEmpty()) {
@@ -630,9 +630,9 @@ void MainWindow::loadSettings() {
         }
     }
 
-    qDebug() << "Multipliers was visible:" << settings.getMultipliersVisible();
+    LOG_DEBUG("MainWindow", QString("Multipliers was visible: %1").arg(settings.getMultipliersVisible() ? "true" : "false"));
     if (settings.getMultipliersVisible()) {
-        qDebug() << "Restoring Multipliers window";
+        LOG_DEBUG("MainWindow", "Restoring Multipliers window");
         onShowMultipliers();
         QByteArray multGeometry = settings.loadMultipliersGeometry();
         if (!multGeometry.isEmpty()) {
@@ -649,28 +649,28 @@ void MainWindow::saveSettings() {
     // Save child window geometry and visibility states
     if (m_dxClusterWindow) {
         bool visible = m_dxClusterWindow->isVisible();
-        qDebug() << "Saving DX Cluster window - visible:" << visible;
+        LOG_DEBUG("MainWindow", QString("Saving DX Cluster window - visible: %1").arg(visible ? "true" : "false"));
         settings.saveDXClusterGeometry(m_dxClusterWindow->saveGeometry());
         settings.setDXClusterVisible(visible);
     }
 
     if (m_bandMapWindow) {
         bool visible = m_bandMapWindow->isVisible();
-        qDebug() << "Saving Band Map window - visible:" << visible;
+        LOG_DEBUG("MainWindow", QString("Saving Band Map window - visible: %1").arg(visible ? "true" : "false"));
         settings.saveBandMapGeometry(m_bandMapWindow->saveGeometry());
         settings.setBandMapVisible(visible);
     }
 
     if (m_radioControlWindow) {
         bool visible = m_radioControlWindow->isVisible();
-        qDebug() << "Saving Radio Control window - visible:" << visible;
+        LOG_DEBUG("MainWindow", QString("Saving Radio Control window - visible: %1").arg(visible ? "true" : "false"));
         settings.saveRadioControlGeometry(m_radioControlWindow->saveGeometry());
         settings.setRadioControlVisible(visible);
     }
 
     if (m_multiplierWindow) {
         bool visible = m_multiplierWindow->isVisible();
-        qDebug() << "Saving Multipliers window - visible:" << visible;
+        LOG_DEBUG("MainWindow", QString("Saving Multipliers window - visible: %1").arg(visible ? "true" : "false"));
         settings.saveMultipliersGeometry(m_multiplierWindow->saveGeometry());
         settings.setMultipliersVisible(visible);
     }
@@ -717,7 +717,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 }
 
 void MainWindow::onRadioConfigure() {
-    qDebug() << "*** onRadioConfigure() called - opening RadioConfigDialog ***";
+    LOG_DEBUG("MainWindow", "*** onRadioConfigure() called - opening RadioConfigDialog ***");
     RadioConfigDialog dialog(this);
 
     // Load existing config if available
@@ -821,7 +821,7 @@ void MainWindow::onNewOpenContest() {
 }
 
 void MainWindow::onPreferences() {
-    qDebug() << "*** onPreferences() called - opening PreferencesDialog ***";
+    LOG_DEBUG("MainWindow", "*** onPreferences() called - opening PreferencesDialog ***");
     PreferencesDialog dialog(this);
 
     if (dialog.exec() == QDialog::Accepted) {
@@ -1006,7 +1006,7 @@ void MainWindow::onClearLog() {
 }
 
 void MainWindow::onRadioConnected(bool connected) {
-    qDebug() << "MainWindow::onRadioConnected called with connected =" << connected;
+    LOG_DEBUG("MainWindow", QString("MainWindow::onRadioConnected called with connected = %1").arg(connected ? "true" : "false"));
     m_radioConnected = connected;
     updateConnectionStatus(connected);
 
@@ -1040,7 +1040,7 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
     // Log radio model if it changed
     static QString lastModel;
     if (!state.radioModel.isEmpty() && state.radioModel != lastModel) {
-        qDebug() << "MainWindow: Radio model from state:" << state.radioModel;
+        LOG_DEBUG("MainWindow", QString("MainWindow: Radio model from state: %1").arg(state.radioModel));
         m_statusLabel->setText(QString("Radio: %1").arg(state.radioModel));
         lastModel = state.radioModel;
     }
@@ -1062,7 +1062,7 @@ void MainWindow::onRadioError(const QString& error) {
 }
 
 void MainWindow::onRadioModelChanged(const QString& model) {
-    qDebug() << "MainWindow::onRadioModelChanged:" << model;
+    LOG_DEBUG("MainWindow", QString("MainWindow::onRadioModelChanged: %1").arg(model));
     if (m_radioConnected) {
         m_radioStatusLabel->setText(QString("Radio: %1").arg(model));
     }
@@ -1137,11 +1137,11 @@ void MainWindow::onLogQSO() {
     if (m_hasActiveContest) {
         QSORepository repo;
         if (!repo.saveQSO(qso, m_currentContestDbId)) {
-            qWarning() << "Failed to save QSO to database:" << repo.lastError();
+            LOG_WARN("MainWindow", QString("Failed to save QSO to database: %1").arg(repo.lastError()));
             m_statusLabel->setText("Warning: QSO logged but not saved to database");
             // Continue anyway - QSO is in table model
         } else {
-            qDebug() << "QSO saved to database with ID:" << qso.id;
+            LOG_DEBUG("MainWindow", QString("QSO saved to database with ID: %1").arg(qso.id));
 
             // Auto-backup check (if enabled)
             int currentQSOCount = repo.getQSOCount(m_currentContestDbId);
@@ -1321,11 +1321,11 @@ void MainWindow::loadUdpBroadcastSettings() {
     QList<UdpDestination> destinations = settings.getUDPDestinations();
     m_udpBroadcastManager->setDestinations(destinations);
 
-    qDebug() << "UDP Broadcast settings loaded:"
-             << "Enabled=" << settings.getUDPBroadcastEnabled()
-             << "RadioInfo=" << settings.getUDPRadioInfoEnabled()
-             << "ContactInfo=" << settings.getUDPContactInfoEnabled()
-             << "Destinations=" << destinations.size();
+    LOG_DEBUG("MainWindow", QString("UDP Broadcast settings loaded: Enabled=%1 RadioInfo=%2 ContactInfo=%3 Destinations=%4")
+        .arg(settings.getUDPBroadcastEnabled() ? "true" : "false")
+        .arg(settings.getUDPRadioInfoEnabled() ? "true" : "false")
+        .arg(settings.getUDPContactInfoEnabled() ? "true" : "false")
+        .arg(destinations.size()));
 }
 
 void MainWindow::loadBackupSettings() {
@@ -1338,11 +1338,11 @@ void MainWindow::loadBackupSettings() {
     backup.setBackupDirectory(settings.getBackupDirectory());
     backup.setMaxBackups(settings.getMaxBackups());
 
-    qDebug() << "Backup settings loaded:"
-             << "Enabled=" << settings.getAutoBackupEnabled()
-             << "Interval=" << settings.getAutoBackupInterval()
-             << "Directory=" << settings.getBackupDirectory()
-             << "MaxBackups=" << settings.getMaxBackups();
+    LOG_DEBUG("MainWindow", QString("Backup settings loaded: Enabled=%1 Interval=%2 Directory=%3 MaxBackups=%4")
+        .arg(settings.getAutoBackupEnabled() ? "true" : "false")
+        .arg(settings.getAutoBackupInterval())
+        .arg(settings.getBackupDirectory())
+        .arg(settings.getMaxBackups()));
 }
 
 void MainWindow::activateContest(const ContestInfo& contestInfo) {
@@ -1360,7 +1360,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         return;
     }
 
-    qDebug() << "Database opened:" << contestInfo.databasePath;
+    LOG_DEBUG("MainWindow", QString("Database opened: %1").arg(contestInfo.databasePath));
 
     // Find or create contest record
     QSqlQuery query = db.execute(
@@ -1371,8 +1371,9 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         // Existing contest - load data
         m_currentContestDbId = query.value(0).toInt();
         m_nextSerialNumber = query.value(1).toInt();
-        qDebug() << "Resumed contest with DB ID:" << m_currentContestDbId
-                 << "next serial:" << m_nextSerialNumber;
+        LOG_DEBUG("MainWindow", QString("Resumed contest with DB ID: %1 next serial: %2")
+            .arg(m_currentContestDbId)
+            .arg(m_nextSerialNumber));
 
         // Load existing QSOs into table
         QSORepository repo;
@@ -1381,7 +1382,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         for (const QSO& qso : existingQSOs) {
             m_qsoTableModel->addQSO(qso);
         }
-        qDebug() << "Loaded" << existingQSOs.size() << "existing QSOs";
+        LOG_DEBUG("MainWindow", QString("Loaded %1 existing QSOs").arg(existingQSOs.size()));
 
     } else {
         // New contest - create record
@@ -1409,7 +1410,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         m_currentContestDbId = db.lastInsertId();
         m_nextSerialNumber = 1;
         m_qsoTableModel->clear();
-        qDebug() << "Created new contest with DB ID:" << m_currentContestDbId;
+        LOG_DEBUG("MainWindow", QString("Created new contest with DB ID: %1").arg(m_currentContestDbId));
     }
 
     // Create appropriate contest instance based on type
@@ -1424,7 +1425,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     } else if (contestInfo.contestType == "WFD") {
         m_activeContest = new WinterFieldDayContest();
     } else {
-        qWarning() << "Unknown contest type:" << contestInfo.contestType;
+        LOG_WARN("MainWindow", QString("Unknown contest type: %1").arg(contestInfo.contestType));
         return;
     }
 
@@ -1521,10 +1522,10 @@ void MainWindow::onShowDXCluster() {
         connect(m_dxClusterWindow, &DXClusterWindow::qsyRequested,
                 this, [this](double frequency) {
                     if (m_radioConnected) {
-                        qDebug() << "DX Cluster click-to-QSY:" << QString::number(frequency) << "Hz";
+                        LOG_DEBUG("MainWindow", QString("DX Cluster click-to-QSY: %1 Hz").arg(QString::number(frequency)));
                         m_radio->setFrequency(static_cast<freq_t>(frequency));
                     } else {
-                        qDebug() << "DX Cluster click-to-QSY: Radio not connected, cannot QSY to" << frequency;
+                        LOG_DEBUG("MainWindow", QString("DX Cluster click-to-QSY: Radio not connected, cannot QSY to %1").arg(frequency));
                     }
                 });
     }
@@ -1544,14 +1545,14 @@ void MainWindow::onShowBandMap() {
         connect(m_bandMapWindow, &BandMapWidget::qsyRequested,
                 this, [this](freq_t frequency) {
                     if (m_radioConnected) {
-                        qDebug() << "Band Map QSY to" << QString::number(frequency) << "Hz";
+                        LOG_DEBUG("MainWindow", QString("Band Map QSY to %1 Hz").arg(QString::number(frequency)));
                         m_radio->setFrequency(frequency);
                     }
                 });
 
         connect(m_bandMapWindow, &BandMapWidget::callsignSelected,
                 this, [this](const QString& callsign) {
-                    qDebug() << "Band Map selected callsign:" << callsign;
+                    LOG_DEBUG("MainWindow", QString("Band Map selected callsign: %1").arg(callsign));
                     m_callsignEntry->setText(callsign);
                     m_callsignEntry->setFocus();
                 });
@@ -1592,14 +1593,14 @@ void MainWindow::onShowMultipliers() {
 
 // Window menu placeholder implementations
 void MainWindow::onSwapMultView() {
-    qDebug() << "Swap Mult View (Alt+G) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Swap Mult View (Alt+G) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Swap Mult View feature will be implemented in a future version.\n\n"
                            "This will toggle between different multiplier display modes.");
 }
 
 void MainWindow::onMissingMultsReport() {
-    qDebug() << "Missing Mults Report (Ctrl+O) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Missing Mults Report (Ctrl+O) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Missing Mults Report will be implemented in a future version.\n\n"
                            "This will show a report of multipliers still needed.");
@@ -1607,28 +1608,28 @@ void MainWindow::onMissingMultsReport() {
 
 // Edit menu placeholder implementations
 void MainWindow::onViewEditLog() {
-    qDebug() << "View/Edit Log (Ctrl+L) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "View/Edit Log (Ctrl+L) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "View/Edit Log will be implemented in a future version.\n\n"
                            "This will show all logged QSOs in a table for viewing and editing.");
 }
 
 void MainWindow::onClearDupes() {
-    qDebug() << "Clear Dupes (Ctrl+K) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Clear Dupes (Ctrl+K) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Clear Dupes will be implemented in a future version.\n\n"
                            "This will remove duplicate QSOs from the log.");
 }
 
 void MainWindow::onNote() {
-    qDebug() << "Note (Ctrl+N) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Note (Ctrl+N) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Note feature will be implemented in a future version.\n\n"
                            "This will allow adding notes to the log.");
 }
 
 void MainWindow::onRecallLast() {
-    qDebug() << "Recall Last Entry (Ctrl+R) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Recall Last Entry (Ctrl+R) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Recall Last Entry will be implemented in a future version.\n\n"
                            "This will recall the last deleted log entry.");
@@ -1636,7 +1637,7 @@ void MainWindow::onRecallLast() {
 
 // Tools menu placeholder implementations
 void MainWindow::onWKMode() {
-    qDebug() << "WK Mode (Alt+A) - Re-initialize WinKeyer - Not yet implemented";
+    LOG_DEBUG("MainWindow", "WK Mode (Alt+A) - Re-initialize WinKeyer - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "WinKeyer re-initialization will be implemented in a future version.\n\n"
                            "This will re-initialize the WinKeyer for CW keying.");
@@ -1654,7 +1655,7 @@ void MainWindow::onBackupLog() {
 }
 
 void MainWindow::onDownloadCTY() {
-    qDebug() << "Download CTY.dat (Alt+O) - Starting download";
+    LOG_DEBUG("MainWindow", "Download CTY.dat (Alt+O) - Starting download");
 
     // Get the save directory (e.g., ~/.tr4qt)
     QString saveDir = QDir::homePath() + "/.tr4qt";
@@ -1688,7 +1689,7 @@ void MainWindow::onDownloadCTY() {
                 progressDialog->deleteLater();
 
                 if (success) {
-                    qDebug() << "Download successful:" << filePath << "Version:" << version;
+                    LOG_DEBUG("MainWindow", QString("Download successful: %1 Version: %2").arg(filePath).arg(version));
 
                     // Ask user if they want to reload the country file
                     QMessageBox::StandardButton reply = QMessageBox::question(
@@ -1704,8 +1705,8 @@ void MainWindow::onDownloadCTY() {
                         if (m_countryFile.loadFromFile(filePath)) {
                             // Set the version from the download
                             m_countryFile.setVersion(version);
-                            qDebug() << "Country file reloaded successfully. Version:"
-                                    << m_countryFile.getVersion();
+                            LOG_DEBUG("MainWindow", QString("Country file reloaded successfully. Version: %1")
+                                .arg(m_countryFile.getVersion()));
                             QMessageBox::information(this, "Success",
                                 QString("Country file reloaded successfully!\n\n"
                                        "Version: %1").arg(m_countryFile.getVersion()));
@@ -1727,7 +1728,7 @@ void MainWindow::onDownloadCTY() {
     // Connect error signal
     connect(downloader, &CountryFileDownloader::errorOccurred,
             this, [progressDialog](const QString& error) {
-                qDebug() << "Download error:" << error;
+                LOG_DEBUG("MainWindow", QString("Download error: %1").arg(error));
                 progressDialog->setLabelText("Error: " + error);
             });
 
@@ -1740,14 +1741,14 @@ void MainWindow::onDownloadCTY() {
 }
 
 void MainWindow::onSetDateTime() {
-    qDebug() << "Set System Date/Time (Alt+T) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Set System Date/Time (Alt+T) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Set System Date/Time will be implemented in a future version.\n\n"
                            "This will allow setting the system date and time.");
 }
 
 void MainWindow::onInitialize() {
-    qDebug() << "Initialize (Alt+W) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Initialize (Alt+W) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Initialize will be implemented in a future version.\n\n"
                            "This will initialize/reset contest parameters.");
@@ -1755,77 +1756,77 @@ void MainWindow::onInitialize() {
 
 // Operating menu placeholder implementations
 void MainWindow::onAutoCQ() {
-    qDebug() << "Auto CQ (Alt+Q) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Auto CQ (Alt+Q) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Auto CQ will be implemented in a future version.\n\n"
                            "This will enable automatic CQ sending.");
 }
 
 void MainWindow::onAutoCQResume() {
-    qDebug() << "Auto CQ Resume (Alt+C) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Auto CQ Resume (Alt+C) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Auto CQ Resume will be implemented in a future version.\n\n"
                            "This will resume automatic CQ after an interruption.");
 }
 
 void MainWindow::onKillCW() {
-    qDebug() << "Kill CW (Alt+K) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Kill CW (Alt+K) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Kill CW will be implemented in a future version.\n\n"
                            "This will immediately stop CW transmission.");
 }
 
 void MainWindow::onDupeCheck() {
-    qDebug() << "Dupe Check (Alt+D) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Dupe Check (Alt+D) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Dupe Check will be implemented in a future version.\n\n"
                            "This will check if the entered callsign is a duplicate.");
 }
 
 void MainWindow::onSearchLog() {
-    qDebug() << "Search Log (Alt+L) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Search Log (Alt+L) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Search Log will be implemented in a future version.\n\n"
                            "This will search the log for a specific callsign.");
 }
 
 void MainWindow::onDeleteLastQSO() {
-    qDebug() << "Delete Last QSO (Alt+Y) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Delete Last QSO (Alt+Y) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Delete Last QSO will be implemented in a future version.\n\n"
                            "This will delete the most recent QSO from the log.");
 }
 
 void MainWindow::onIncNumber() {
-    qDebug() << "Inc Number (Alt+I) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Inc Number (Alt+I) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Inc Number will be implemented in a future version.\n\n"
                            "This will increment the serial number.");
 }
 
 void MainWindow::onInitialExchange() {
-    qDebug() << "Initial Exchange (Alt+Z) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Initial Exchange (Alt+Z) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Initial Exchange will be implemented in a future version.\n\n"
                            "This will set/reset the initial exchange information.");
 }
 
 void MainWindow::onCWSpeed() {
-    qDebug() << "CW Speed (Alt+S) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "CW Speed (Alt+S) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "CW Speed will be implemented in a future version.\n\n"
                            "This will adjust the CW sending speed.");
 }
 
 void MainWindow::onToggleSidetone() {
-    qDebug() << "Toggle Sidetone (Alt+=) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Toggle Sidetone (Alt+=) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Toggle Sidetone will be implemented in a future version.\n\n"
                            "This will turn CW sidetone on/off.");
 }
 
 void MainWindow::onToggleAutosend() {
-    qDebug() << "Toggle Autosend (Alt+-) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Toggle Autosend (Alt+-) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Toggle Autosend will be implemented in a future version.\n\n"
                            "This will enable/disable automatic sending.");
@@ -1833,14 +1834,14 @@ void MainWindow::onToggleAutosend() {
 
 // Band menu placeholder implementations
 void MainWindow::onToggleRigs() {
-    qDebug() << "Toggle Rigs (Alt+R) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Toggle Rigs (Alt+R) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Toggle Rigs will be implemented in a future version.\n\n"
                            "This will switch between radios in SO2R mode.");
 }
 
 void MainWindow::onEditSO2R() {
-    qDebug() << "Edit SO2R (Alt+E) - Not yet implemented";
+    LOG_DEBUG("MainWindow", "Edit SO2R (Alt+E) - Not yet implemented");
     QMessageBox::information(this, "Not Implemented",
                            "Edit SO2R will be implemented in a future version.\n\n"
                            "This will configure SO2R (two-radio) settings.");
@@ -1850,7 +1851,7 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
                                    double frequency,
                                    const QString& spotter,
                                    const QString& comment) {
-    qDebug() << "DX Spot received:" << callsign << "at" << qint64(frequency) << "Hz from" << spotter;
+    LOG_DEBUG("MainWindow", QString("DX Spot received: %1 at %2 Hz from %3").arg(callsign).arg(QString::number(static_cast<qint64>(frequency))).arg(spotter));
 
     // If band map window exists, forward the spot to it
     if (m_bandMapWindow) {
@@ -1863,23 +1864,22 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
         spot.source = QString("DX Cluster (%1)").arg(spotter);
 
         m_bandMapWindow->addSpot(spot);
-        qDebug() << "Added spot to band map:" << callsign;
+        LOG_DEBUG("MainWindow", QString("Added spot to band map: %1").arg(callsign));
     } else {
-        qDebug() << "Band map window not open - spot not added";
+        LOG_DEBUG("MainWindow", "Band map window not open - spot not added");
     }
 }
 
 void MainWindow::onBandClicked(BandType band) {
     if (!m_radioConnected) {
-        qDebug() << "Cannot change band: radio not connected";
+        LOG_DEBUG("MainWindow", "Cannot change band: radio not connected");
         return;
     }
 
     // Get frequency for the clicked band based on current mode
     freq_t frequency = getFrequencyForBand(band, m_currentState.modeA);
 
-    qDebug() << "Band clicked:" << static_cast<int>(band)
-             << "Setting frequency to:" << QString::number(frequency) << "Hz";
+    LOG_DEBUG("MainWindow", QString("Band clicked: %1 Setting frequency to: %2 Hz").arg(QString::number(static_cast<int>(band))).arg(QString::number(frequency)));
 
     // Send frequency change to radio
     m_radio->setFrequency(frequency);
@@ -1887,12 +1887,12 @@ void MainWindow::onBandClicked(BandType band) {
 
 void MainWindow::onBandUp() {
     // TODO: Implement band up
-    qDebug() << "Band up";
+    LOG_DEBUG("MainWindow", "Band up");
 }
 
 void MainWindow::onBandDown() {
     // TODO: Implement band down
-    qDebug() << "Band down";
+    LOG_DEBUG("MainWindow", "Band down");
 }
 
 freq_t MainWindow::getFrequencyForBand(BandType band, ModeType mode) const {

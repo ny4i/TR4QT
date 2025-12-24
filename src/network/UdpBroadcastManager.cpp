@@ -2,7 +2,7 @@
 #include "RadioInfo.h"
 #include "ContactInfo.h"
 #include "../core/Types.h"
-#include <QDebug>
+#include "../logging/LogMacros.h"
 
 namespace TR4QT {
 
@@ -97,20 +97,20 @@ void UdpBroadcastManager::onRadioStateChanged(const RadioState& state,
 void UdpBroadcastManager::onQSOLogged(const QSO& qso, const QString& stationCall,
                                      const QString& contestName)
 {
-    qDebug() << "UdpBroadcastManager::onQSOLogged called:"
-             << "enabled=" << m_enabled
-             << "contactInfoEnabled=" << m_contactInfoEnabled
-             << "callsign=" << qso.callsign;
+    LOG_DEBUG("UdpBroadcastManager", QString("onQSOLogged called: enabled=%1 contactInfoEnabled=%2 callsign=%3")
+              .arg(m_enabled)
+              .arg(m_contactInfoEnabled)
+              .arg(qso.callsign));
 
     // Check if broadcasting is enabled
     if (!m_enabled || !m_contactInfoEnabled) {
-        qDebug() << "UDP broadcast skipped (disabled)";
+        LOG_DEBUG("UdpBroadcastManager", "UDP broadcast skipped (disabled)");
         return;
     }
 
     // Send immediately (no throttling for QSO logging)
     ContactInfo info = createContactInfo(qso, stationCall, contestName);
-    qDebug() << "Sending ContactInfo UDP broadcast for" << qso.callsign;
+    LOG_DEBUG("UdpBroadcastManager", QString("Sending ContactInfo UDP broadcast for %1").arg(qso.callsign));
     m_broadcaster->sendContactInfo(info);
 }
 
