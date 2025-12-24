@@ -162,15 +162,15 @@ void MainWindow::createCentralWidget() {
 
     // Fixed-width columns (small data)
     header->setSectionResizeMode(QSOTableModel::ColM, QHeaderView::Fixed);
-    header->setSectionResizeMode(QSOTableModel::ColZn, QHeaderView::Fixed);
+    header->setSectionResizeMode(QSOTableModel::ColExch2, QHeaderView::Fixed);
     header->setSectionResizeMode(QSOTableModel::ColPts, QHeaderView::Fixed);
-    header->setSectionResizeMode(QSOTableModel::ColDX, QHeaderView::Fixed);
+    header->setSectionResizeMode(QSOTableModel::ColExch1, QHeaderView::Fixed);
     header->setSectionResizeMode(QSOTableModel::ColMult, QHeaderView::Fixed);
 
     m_qsoTableView->setColumnWidth(QSOTableModel::ColM, 30);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColZn, 30);
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColExch2, 30);
     m_qsoTableView->setColumnWidth(QSOTableModel::ColPts, 40);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColDX, 40);
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColExch1, 40);
     m_qsoTableView->setColumnWidth(QSOTableModel::ColMult, 30);
 
     // Interactive columns (medium data, user can resize)
@@ -262,6 +262,8 @@ QWidget* MainWindow::createBottomPanel() {
     QHBoxLayout* timeRow = new QHBoxLayout();
     m_timeLabel = new QLabel("00:00:00", this);
     m_timeLabel->setFont(monoFont);
+    m_timeLabel->setMinimumWidth(70);  // Fixed width to prevent layout shifts
+    m_timeLabel->setAlignment(Qt::AlignLeft);
     m_thisHrLabel = new QLabel("This Hr = 0", this);
     m_thisHrLabel->setFont(monoFont);
     m_rateLabel = new QLabel("Rate = 0", this);
@@ -807,6 +809,9 @@ void MainWindow::updateExchangeFieldsForContest() {
 
     // Get exchange fields from contest
     QList<ExchangeField> receivedFields = m_activeContest->getReceivedExchangeFields();
+
+    // Update table model column headers
+    m_qsoTableModel->setContestExchangeFields(receivedFields);
 
     // Build hint text from non-auto fields
     QStringList hints;
