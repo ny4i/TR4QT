@@ -6,6 +6,7 @@ set(SOURCES
     utils/CountryFile.cpp
     utils/CountryFileDownloader.cpp
     utils/AppSettings.cpp
+    utils/RadioEnumerator.cpp
     radio/HamlibRadio.cpp
     radio/RadioController.cpp
     data/Database.cpp
@@ -27,6 +28,7 @@ set(HEADERS
     utils/CountryFile.h
     utils/CountryFileDownloader.h
     utils/AppSettings.h
+    utils/RadioEnumerator.h
     radio/RadioInterface.h
     radio/HamlibRadio.h
     radio/RadioController.h

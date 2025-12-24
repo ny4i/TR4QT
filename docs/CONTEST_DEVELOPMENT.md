@@ -236,14 +236,37 @@ set(HEADERS
 )
 ```
 
-### Step 6: Register in Contest Factory
+### Step 6: Register in MainWindow
 
-(To be implemented - will allow UI to discover available contests)
+Add your contest to the contest activation logic in `src/ui/MainWindow.cpp`:
 
 ```cpp
-// Future: ContestFactory will auto-register contests
-ContestFactory::registerContest("YOUR_CONTEST_ID",
-    []() { return new YourContest(); });
+void MainWindow::activateContest(const ContestInfo& contestInfo) {
+    // Clean up previous contest
+    if (m_activeContest) {
+        delete m_activeContest;
+        m_activeContest = nullptr;
+    }
+
+    // Create appropriate contest instance
+    if (contestInfo.contestType == "YOUR_CONTEST_ID") {
+        m_activeContest = new YourContest(ModeType::Mixed);
+    } else if (contestInfo.contestType == "CQWW_CW") {
+        m_activeContest = new CQWWContest(ModeType::CW);
+    }
+    // ... etc
+}
+```
+
+Add your contest to the Contest Chooser Dialog in `src/ui/dialogs/ContestChooserDialog.cpp`:
+
+```cpp
+void ContestChooserDialog::populateContestTypes() {
+    m_contestTypeCombo->addItem("CQ WW DX Contest (CW)", "CQWW_CW");
+    m_contestTypeCombo->addItem("CQ WW DX Contest (SSB)", "CQWW_SSB");
+    // ... existing contests ...
+    m_contestTypeCombo->addItem("Your Contest Name", "YOUR_CONTEST_ID");
+}
 ```
 
 ## QSO Data Structure
@@ -300,6 +323,8 @@ Each multiplier has a scope:
 
 ## Example Contests
 
+TR4QT currently includes three fully implemented contests that serve as excellent examples:
+
 ### CQ WW DX Contest
 
 - **File:** `src/contests/CQWWContest.h/cpp`
@@ -307,20 +332,72 @@ Each multiplier has a scope:
 - **Multipliers:** Countries (per-band), CQ Zones (per-band)
 - **Scoring:** 1-3 points based on continent, multiply by (countries + zones)
 - **Special rules:** W/VE working each other = 2 points
+- **Modes:** Separate CW and SSB contests
 
-### CQ WPX Contest (To be implemented)
+### CQ WPX Contest
 
+- **File:** `src/contests/CQWPXContest.h/cpp`
 - **Exchange:** RST + Serial Number
 - **Multipliers:** Callsign prefixes (all-band)
-- **Scoring:** Variable points, double on 160m/10m, multiply by prefixes
-- **Serial numbers:** Auto-increment
+- **Scoring:** Variable points based on continent/band, double on 160m/10m, multiply by prefixes
+- **Serial numbers:** Auto-increment (uses `m_nextSerialNumber` from MainWindow)
+- **Prefix extraction:** W1AW→W1, DL1ABC→DL1, JA1234XYZ→JA1
+- **Modes:** Separate CW and SSB contests
 
-### Winter Field Day (To be implemented)
+### Winter Field Day
 
-- **Exchange:** Class + Section
-- **Multipliers:** Sections (all-band)
-- **Scoring:** 2pts CW/Digital, 1pt Phone, no multiplier in formula
-- **Bonus points:** Checkbox UI on Cabrillo export
+- **File:** `src/contests/WinterFieldDayContest.h/cpp`
+- **Exchange:** Class + Section (e.g., "1O WMA")
+- **Multipliers:** ARRL/RAC Sections (all-band)
+- **Scoring:** 2pts CW/Digital, 1pt Phone (multipliers are tracked but not multiplied in score)
+- **Class validation:** 1O, 2O, 3O, 1I, 2I, 3I, Home, etc.
+- **Section validation:** Complete list of 80+ ARRL/RAC sections
+- **Modes:** All modes (Mixed)
+- **Bonus points:** To be added via Cabrillo export dialog
+
+## Contest-UI Integration
+
+TR4QT automatically configures the UI based on the selected contest. Here's how it works:
+
+### Contest Activation Flow
+
+1. **User selects contest** via File → New/Open Contest menu
+2. **ContestChooserDialog** shows available contests or allows creating new one
+3. **MainWindow::activateContest()** creates contest instance based on type
+4. **updateExchangeFieldsForContest()** queries contest for exchange fields
+5. **UI updates** exchange field placeholder text (e.g., "59 Zone" for CQ WW, "599 001" for CQ WPX)
+
+### Auto-Population
+
+When the user enters a callsign and tabs to the exchange field:
+
+1. **onCallsignChanged()** slot is triggered
+2. **autoPopulateExchange()** looks up callsign in cty.dat
+3. **Exchange field is populated** with zone if contest uses zones
+4. **User can override** the auto-populated value if needed
+
+Example:
+- **CQ WW Contest:** User types "JA1ABC" → exchange auto-fills with "25" (CQ Zone from cty.dat)
+- **CQ WPX Contest:** Serial number is NOT auto-populated (must be entered)
+- **Winter Field Day:** Class and Section are NOT auto-populated (must be entered)
+
+### Exchange Validation
+
+Before logging a QSO:
+
+1. **MainWindow::onLogQSO()** calls contest's `validateReceivedExchange()`
+2. **Contest validates** format and content
+3. **Error message shown** if validation fails
+4. **QSO logged** only if validation passes
+
+### Serial Number Handling
+
+For contests that use serial numbers (like CQ WPX):
+
+1. **MainWindow** maintains `m_nextSerialNumber` counter
+2. **formatSentExchange()** includes current serial number
+3. **Serial increments** after successful QSO log
+4. **Serial persisted** to database for contest resume
 
 ## Best Practices
 
@@ -362,13 +439,22 @@ mult = contest.getMultiplierValue(qso, MultiplierType::Country, worked);
 // Should return "" (already worked)
 ```
 
+## Implemented Features
+
+- ✅ **Contest Selector Dialog** - ContestChooserDialog for contest selection
+- ✅ **Contest-UI Integration** - Automatic exchange field configuration
+- ✅ **Auto-Population** - Zone auto-fill from cty.dat
+- ✅ **Exchange Validation** - Contest-specific validation before logging
+- ✅ **Serial Number Support** - Auto-increment for contests that use serials
+
 ## Future Enhancements
 
-- **Contest Factory** - Auto-registration and discovery
-- **Contest Selector Dialog** - UI to choose contest at startup
-- **Contest Validation** - Check against official contest rules
-- **Cabrillo Export** - Per-contest Cabrillo formatting
-- **Contest-specific UI** - Custom widgets for special contests (e.g., WFD bonus points)
+- **Contest Factory** - Auto-registration and discovery system
+- **Enhanced Validation** - Check against official contest rules (work hours, bands, etc.)
+- **Cabrillo Export** - Per-contest Cabrillo formatting with proper headers
+- **Contest-specific UI** - Custom widgets for special contests (e.g., WFD bonus points dialog)
+- **Dupe Checking** - Real-time duplicate detection per contest rules
+- **Multiplier Tracking** - Visual display of worked/needed multipliers
 
 ## Questions?
 

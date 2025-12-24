@@ -10,9 +10,14 @@
 #include <QDateTime>
 #include "../radio/RadioController.h"
 #include "../utils/AppSettings.h"
+#include "../utils/CountryFile.h"
 #include "models/QSOTableModel.h"
 #include "widgets/BandSummaryGrid.h"
 #include "dialogs/ContestChooserDialog.h"
+#include "../contests/ContestBase.h"
+#include "../contests/CQWWContest.h"
+#include "../contests/CQWPXContest.h"
+#include "../contests/WinterFieldDayContest.h"
 
 class QMenuBar;
 class QStatusBar;
@@ -72,6 +77,11 @@ private:
     void updateScoreDisplay();
     void updateRadioStatusGrid();
 
+    // Contest management
+    void activateContest(const ContestInfo& contestInfo);
+    void updateExchangeFieldsForContest();
+    void autoPopulateExchange(const QString& callsign);
+
     // UI Components
     QLabel* m_statusLabel;
     QLabel* m_radioStatusLabel;
@@ -116,6 +126,11 @@ private:
     // Contest information
     ContestInfo m_currentContest;
     bool m_hasActiveContest;
+    ContestBase* m_activeContest;
+    int m_nextSerialNumber;
+
+    // Country file for lookups
+    CountryFile m_countryFile;
 };
 
 } // namespace TR4QT
