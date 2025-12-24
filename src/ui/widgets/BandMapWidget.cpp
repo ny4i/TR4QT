@@ -20,7 +20,7 @@ BandMapWidget::BandMapWidget(QWidget* parent)
     , m_columnWidth(200)
 {
     setMinimumWidth(200);
-    setMinimumHeight(300);
+    setMinimumHeight(50);  // Allow very short windows (reduced from 300)
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 
     // White background with black text (system default style)
@@ -30,9 +30,9 @@ BandMapWidget::BandMapWidget(QWidget* parent)
     viewport()->setAutoFillBackground(true);
     viewport()->setPalette(pal);
 
-    // Enable vertical scrolling - always show to make it clear scrolling is available
-    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
-    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // Enable scrollbars as needed (both vertical and horizontal)
+    setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
     // Enable context menu
     setContextMenuPolicy(Qt::DefaultContextMenu);
@@ -91,19 +91,24 @@ void BandMapWidget::sortSpots() {
 }
 
 void BandMapWidget::calculateColumnLayout() {
-    // Calculate column count based on viewport width
+    // Column-first layout: Calculate columns needed based on available height
     // Each column needs minimum 150 pixels (for "14025.0 M W1ABC" format)
     const int MIN_COLUMN_WIDTH = 150;
-    int availableWidth = viewport()->width();
+    m_columnWidth = MIN_COLUMN_WIDTH;
 
-    if (availableWidth < MIN_COLUMN_WIDTH) {
-        m_columnCount = 1;
-        m_columnWidth = availableWidth;
-    } else {
-        m_columnCount = availableWidth / MIN_COLUMN_WIDTH;
-        if (m_columnCount < 1) m_columnCount = 1;
-        m_columnWidth = availableWidth / m_columnCount;
-    }
+    // Calculate how many rows fit in available height
+    QFontMetrics fm(QFont("Monospace", 9));
+    const int FOOTER_HEIGHT = fm.height() + 10;
+    int availableHeight = viewport()->height() - FOOTER_HEIGHT;
+    int lineHeight = rowHeight();
+    int maxRowsPerColumn = qMax(1, availableHeight / lineHeight);
+
+    // Calculate how many columns needed to show all spots
+    m_columnCount = (m_spots.size() + maxRowsPerColumn - 1) / maxRowsPerColumn;
+    if (m_columnCount < 1) m_columnCount = 1;
+
+    // Note: If total width (m_columnCount * m_columnWidth) exceeds viewport width,
+    // horizontal scrollbar will appear automatically
 }
 
 void BandMapWidget::paintEvent(QPaintEvent* event) {
@@ -119,24 +124,30 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
     QFontMetrics fm(font);
     int lineHeight = rowHeight();
     int scrollY = verticalScrollBar()->value();
+    int scrollX = horizontalScrollBar()->value();
     int viewportHeight = viewport()->height();
+    int viewportWidth = viewport()->width();
 
     // Reserve space at bottom for spot count
     const int FOOTER_HEIGHT = fm.height() + 10;
+    int availableHeight = viewportHeight - FOOTER_HEIGHT;
+    int rowsPerColumn = availableHeight / lineHeight;
+    if (rowsPerColumn < 1) rowsPerColumn = 1;
 
-    // Draw each spot in multi-column layout (row-first: left-to-right, then top-to-bottom)
+    // Draw each spot in column-first layout (top-to-bottom, then left-to-right)
     for (int i = 0; i < m_spots.size(); ++i) {
         const Spot& spot = m_spots[i];
 
-        // Row-first layout: spots flow left-to-right, then top-to-bottom
-        int globalRow = i / m_columnCount;  // Which row across all columns
-        int col = i % m_columnCount;        // Which column in that row
+        // Column-first layout: spots flow top-to-bottom within each column
+        int col = i / rowsPerColumn;  // Which column
+        int row = i % rowsPerColumn;  // Which row in that column
 
-        int x = col * m_columnWidth;
-        int y = globalRow * lineHeight - scrollY;
+        int x = col * m_columnWidth - scrollX;  // Account for horizontal scroll
+        int y = row * lineHeight - scrollY;     // Account for vertical scroll
 
-        // Skip if this spot would be off-screen vertically
-        if (y + lineHeight < 0 || y >= viewportHeight - FOOTER_HEIGHT) {
+        // Skip if this spot would be off-screen (horizontally or vertically)
+        if (x + m_columnWidth < 0 || x >= viewportWidth ||
+            y + lineHeight < 0 || y >= availableHeight) {
             continue;
         }
 
@@ -238,21 +249,27 @@ void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
 int BandMapWidget::findSpotAtPosition(const QPoint& pos) {
     int lineHeight = rowHeight();
     int scrollY = verticalScrollBar()->value();
+    int scrollX = horizontalScrollBar()->value();
 
-    // Determine which column was clicked
-    int col = pos.x() / m_columnWidth;
+    QFontMetrics fm(QFont("Monospace", 9));
+    const int FOOTER_HEIGHT = fm.height() + 10;
+    int availableHeight = viewport()->height() - FOOTER_HEIGHT;
+    int rowsPerColumn = qMax(1, availableHeight / lineHeight);
+
+    // Determine which column was clicked (accounting for horizontal scroll)
+    int col = (pos.x() + scrollX) / m_columnWidth;
     if (col < 0 || col >= m_columnCount) {
         return -1;
     }
 
-    // Determine which global row was clicked (accounting for scroll)
-    int globalRow = (pos.y() + scrollY) / lineHeight;
-    if (globalRow < 0) {
+    // Determine which row in that column was clicked (accounting for vertical scroll)
+    int row = (pos.y() + scrollY) / lineHeight;
+    if (row < 0 || row >= rowsPerColumn) {
         return -1;
     }
 
-    // Calculate spot index from row-first layout (left-to-right, then top-to-bottom)
-    int spotIndex = (globalRow * m_columnCount) + col;
+    // Calculate spot index from column-first layout (top-to-bottom, then left-to-right)
+    int spotIndex = (col * rowsPerColumn) + row;
 
     if (spotIndex >= 0 && spotIndex < m_spots.size()) {
         return spotIndex;
@@ -286,23 +303,30 @@ QString BandMapWidget::formatFrequency(freq_t freq) const {
 }
 
 void BandMapWidget::updateScrollBars() {
-    // Calculate content height based on row-first layout (left-to-right, then top-to-bottom)
+    // Column-first layout: Calculate scrollbar ranges for both directions
     int lineHeight = rowHeight();
 
     QFontMetrics fm(QFont("Monospace", 9));
     const int FOOTER_HEIGHT = fm.height() + 10;
     int availableHeight = viewport()->height() - FOOTER_HEIGHT;
+    int availableWidth = viewport()->width();
 
     // Safety check
     if (m_columnCount < 1) m_columnCount = 1;
 
-    // Calculate total rows needed (spots flow across columns, then down to next row)
-    int totalRows = (m_spots.size() + m_columnCount - 1) / m_columnCount;
-    int contentHeight = totalRows * lineHeight;
+    // Calculate rows per column based on available height
+    int rowsPerColumn = qMax(1, availableHeight / lineHeight);
 
-    // Set vertical scrollbar range
+    // Vertical scrollbar: Only needed if spots in a column exceed available height
+    // (This is rare with column-first layout, as columns are sized to fit height)
+    int contentHeight = rowsPerColumn * lineHeight;
     verticalScrollBar()->setPageStep(availableHeight);
     verticalScrollBar()->setRange(0, qMax(0, contentHeight - availableHeight));
+
+    // Horizontal scrollbar: Needed when columns extend beyond viewport width
+    int totalWidth = m_columnCount * m_columnWidth;
+    horizontalScrollBar()->setPageStep(availableWidth);
+    horizontalScrollBar()->setRange(0, qMax(0, totalWidth - availableWidth));
 }
 
 void BandMapWidget::scrollContentsBy(int dx, int dy) {
