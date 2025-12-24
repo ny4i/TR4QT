@@ -1542,12 +1542,12 @@ void MainWindow::onDownloadCTY() {
 
     // Connect finished signal
     connect(downloader, &CountryFileDownloader::downloadFinished,
-            this, [this, progressDialog, downloader](bool success, const QString& filePath) {
+            this, [this, progressDialog, downloader](bool success, const QString& filePath, const QString& version) {
                 progressDialog->close();
                 progressDialog->deleteLater();
 
                 if (success) {
-                    qDebug() << "Download successful:" << filePath;
+                    qDebug() << "Download successful:" << filePath << "Version:" << version;
 
                     // Ask user if they want to reload the country file
                     QMessageBox::StandardButton reply = QMessageBox::question(
@@ -1561,11 +1561,13 @@ void MainWindow::onDownloadCTY() {
                     if (reply == QMessageBox::Yes) {
                         // Reload the country file
                         if (m_countryFile.loadFromFile(filePath)) {
+                            // Set the version from the download
+                            m_countryFile.setVersion(version);
                             qDebug() << "Country file reloaded successfully. Version:"
                                     << m_countryFile.getVersion();
                             QMessageBox::information(this, "Success",
                                 QString("Country file reloaded successfully!\n\n"
-                                       "Version: CTY-%1").arg(m_countryFile.getVersion()));
+                                       "Version: %1").arg(m_countryFile.getVersion()));
                         } else {
                             QMessageBox::warning(this, "Reload Failed",
                                 "Failed to reload the country file.\n\n"

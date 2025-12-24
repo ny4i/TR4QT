@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QTemporaryFile>
 
 namespace TR4QT {
 
@@ -25,8 +26,8 @@ public:
 
 signals:
     void downloadProgress(qint64 bytesReceived, qint64 bytesTotal);
-    void downloadFinished(bool success, const QString& filePath);
-    void versionChecked(int latestVersion);
+    void downloadFinished(bool success, const QString& filePath, const QString& version);
+    void versionChecked(const QString& latestVersion);
     void errorOccurred(const QString& error);
 
 private slots:
@@ -38,9 +39,10 @@ private:
     QNetworkAccessManager* m_networkManager;
     QNetworkReply* m_currentReply{nullptr};
     QString m_saveDir;
+    QString m_latestVersion;  // Store latest version (e.g., "VER20251218")
 
-    // Parse version number from RSS feed (e.g., "CTY-3540" from title)
-    int parseVersionFromRss(const QString& rssXml);
+    // Parse version string from RSS feed (e.g., "VER20251218" from description)
+    QString parseVersionFromRss(const QString& rssXml);
 };
 
 } // namespace TR4QT
