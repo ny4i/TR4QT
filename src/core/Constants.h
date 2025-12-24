@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.24.1";  // Fix keyboard shortcuts to match TR4W uMenu.pas exactly
+constexpr const char* APP_VERSION = "2.25.0";  // Implement Download CTY.dat and fix BandMap colors/scrollbars
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

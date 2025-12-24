@@ -9,8 +9,10 @@
 #include "../core/Constants.h"
 #include "../utils/ADIFExporter.h"
 #include "../utils/CabrilloExporter.h"
+#include "../utils/CountryFileDownloader.h"
 #include <QFile>
 #include <QFileDialog>
+#include <QProgressDialog>
 #include <QMenuBar>
 #include <QStatusBar>
 #include <QToolBar>
@@ -1511,10 +1513,87 @@ void MainWindow::onBackupLog() {
 }
 
 void MainWindow::onDownloadCTY() {
-    qDebug() << "Download CTY.dat (Alt+O) - Not yet implemented";
-    QMessageBox::information(this, "Not Implemented",
-                           "Download CTY.dat will be implemented in a future version.\n\n"
-                           "This will download the latest country file from the internet.");
+    qDebug() << "Download CTY.dat (Alt+O) - Starting download";
+
+    // Get the save directory (e.g., ~/.tr4qt)
+    QString saveDir = QDir::homePath() + "/.tr4qt";
+
+    // Create progress dialog
+    QProgressDialog* progressDialog = new QProgressDialog("Downloading country file...", "Cancel", 0, 100, this);
+    progressDialog->setWindowTitle("Download CTY.dat");
+    progressDialog->setWindowModality(Qt::WindowModal);
+    progressDialog->setMinimumDuration(0);
+    progressDialog->setValue(0);
+
+    // Create downloader
+    CountryFileDownloader* downloader = new CountryFileDownloader(this);
+
+    // Connect progress signal
+    connect(downloader, &CountryFileDownloader::downloadProgress,
+            this, [progressDialog](qint64 bytesReceived, qint64 bytesTotal) {
+                if (bytesTotal > 0) {
+                    int percentage = (bytesReceived * 100) / bytesTotal;
+                    progressDialog->setValue(percentage);
+                    progressDialog->setLabelText(QString("Downloading country file... %1 KB / %2 KB")
+                                                .arg(bytesReceived / 1024)
+                                                .arg(bytesTotal / 1024));
+                }
+            });
+
+    // Connect finished signal
+    connect(downloader, &CountryFileDownloader::downloadFinished,
+            this, [this, progressDialog, downloader](bool success, const QString& filePath) {
+                progressDialog->close();
+                progressDialog->deleteLater();
+
+                if (success) {
+                    qDebug() << "Download successful:" << filePath;
+
+                    // Ask user if they want to reload the country file
+                    QMessageBox::StandardButton reply = QMessageBox::question(
+                        this,
+                        "Download Complete",
+                        "Country file downloaded successfully!\n\n"
+                        "Do you want to reload it now?",
+                        QMessageBox::Yes | QMessageBox::No
+                    );
+
+                    if (reply == QMessageBox::Yes) {
+                        // Reload the country file
+                        if (m_countryFile.loadFromFile(filePath)) {
+                            qDebug() << "Country file reloaded successfully. Version:"
+                                    << m_countryFile.getVersion();
+                            QMessageBox::information(this, "Success",
+                                QString("Country file reloaded successfully!\n\n"
+                                       "Version: CTY-%1").arg(m_countryFile.getVersion()));
+                        } else {
+                            QMessageBox::warning(this, "Reload Failed",
+                                "Failed to reload the country file.\n\n"
+                                "Please restart the application.");
+                        }
+                    }
+                } else {
+                    QMessageBox::critical(this, "Download Failed",
+                        "Failed to download country file.\n\n"
+                        "Please check your internet connection and try again.");
+                }
+
+                downloader->deleteLater();
+            });
+
+    // Connect error signal
+    connect(downloader, &CountryFileDownloader::errorOccurred,
+            this, [progressDialog](const QString& error) {
+                qDebug() << "Download error:" << error;
+                progressDialog->setLabelText("Error: " + error);
+            });
+
+    // Connect cancel button
+    connect(progressDialog, &QProgressDialog::canceled,
+            downloader, &CountryFileDownloader::cancel);
+
+    // Start download
+    downloader->downloadLatest(saveDir);
 }
 
 void MainWindow::onSetDateTime() {
