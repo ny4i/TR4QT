@@ -24,6 +24,7 @@ set(SOURCES
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
     ui/widgets/RadioControlWidget.cpp
+    ui/widgets/MultiplierWidget.cpp
 )
 
 set(HEADERS
@@ -54,6 +55,7 @@ set(HEADERS
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
     ui/widgets/RadioControlWidget.h
+    ui/widgets/MultiplierWidget.h
 )
 
 # Create executable
