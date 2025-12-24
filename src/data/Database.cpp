@@ -62,6 +62,20 @@ bool Database::open(const QString& dbPath) {
             close();
             return false;
         }
+    } else {
+        // Check if existing database has schema (graceful error handling)
+        query.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='contests'");
+        if (!query.next()) {
+            m_lastError = "Database file exists but schema is missing or incompatible.\n"
+                         "This database was likely created with an older version of TR4QT.\n"
+                         "Please create a new contest or delete the old database file.";
+            qWarning() << m_lastError;
+            qWarning() << "Database path:" << dbPath;
+            // TODO: Offer to migrate/upgrade database schema in a future version
+            //       Show dialog: "Upgrade database schema?" [Yes] [No] [Delete and recreate]
+            close();
+            return false;
+        }
     }
 
     return true;
