@@ -6,6 +6,7 @@ set(SOURCES
     utils/CountryFile.cpp
     utils/CountryFileDownloader.cpp
     utils/AppSettings.cpp
+    utils/ThemeManager.cpp
     utils/RadioEnumerator.cpp
     utils/ADIFExporter.cpp
     utils/CabrilloExporter.cpp
@@ -44,6 +45,7 @@ set(HEADERS
     utils/CountryFile.h
     utils/CountryFileDownloader.h
     utils/AppSettings.h
+    utils/ThemeManager.h
     utils/RadioEnumerator.h
     utils/ADIFExporter.h
     utils/CabrilloExporter.h

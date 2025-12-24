@@ -87,3 +87,9 @@ add_tr4qt_test(test_cqwpx
     ../src/contests/ContestRegistry.cpp
     ../src/core/Types.cpp
 )
+
+# Phase 3 tests - infrastructure
+add_tr4qt_test(test_thememanager
+    test_thememanager.cpp
+    ../src/utils/ThemeManager.cpp
+)

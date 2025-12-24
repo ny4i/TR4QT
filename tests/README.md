@@ -6,12 +6,13 @@ Comprehensive unit test suite for TR4QT using Qt Test framework.
 
 TR4QT uses the Qt Test framework for unit testing. Tests cover business logic, data validation, formatting, and type conversions. The test infrastructure is integrated with CMake's CTest for easy execution.
 
-**Current Status: Phase 2 Complete**
-- 6 test suites implemented
-- 152 total test cases (all passing)
+**Current Status: Phase 3 Infrastructure Tests Started**
+- 7 test suites implemented
+- 174 total test cases (all passing)
 - Phase 1 (44 tests): LogFormatter, Types, QSO
 - Phase 2 (108 tests): CountryFile, CQ WW, CQ WPX
-- Estimated 35-40% code coverage
+- Phase 3 Infrastructure (22 tests): ThemeManager
+- Estimated 40-45% code coverage
 
 ## Test Files
 
@@ -160,6 +161,32 @@ void TestCQWPX::testCalculatePoints_CW_160m_Double() {
 }
 ```
 
+### test_thememanager.cpp (22 tests - Phase 3)
+Tests ThemeManager singleton for color customization system.
+
+**Coverage:**
+- `instance()`: Singleton pattern verification
+- `setTheme()`: Theme switching (TR4W Default, Dark Mode, High Contrast, Custom)
+- `color()`: Color retrieval for all 17 ColorRoles across all themes
+- `setCustomColor()`: Custom color setting and auto-switch to Custom theme
+- `customColor()`: Custom color retrieval
+- `hasCustomColor()`: Custom color detection
+- `clearCustomColors()`: Bulk removal of custom colors
+- `saveToSettings()`: Persistence to QSettings
+- `loadFromSettings()`: Loading from QSettings with invalid data handling
+- `themeChanged()` signal emission
+
+**Example:**
+```cpp
+void TestThemeManager::testColor_TR4WDefault_VfoBackground() {
+    ThemeManager& theme = ThemeManager::instance();
+    theme.setTheme(ThemeType::TR4WDefault);
+
+    QColor vfoColor = theme.color(ColorRole::VfoBackground);
+    QCOMPARE(vfoColor, QColor("#00FFFF"));  // Cyan
+}
+```
+
 ## Running Tests
 
 ### Run All Tests
@@ -176,14 +203,22 @@ ctest
 ```
 Test project /Users/toms/projects/TR4QT/build
     Start 1: test_logformatter
-1/3 Test #1: test_logformatter ................   Passed    0.10 sec
+1/7 Test #1: test_logformatter ................   Passed    0.10 sec
     Start 2: test_types
-2/3 Test #2: test_types .......................   Passed    0.10 sec
+2/7 Test #2: test_types .......................   Passed    0.10 sec
     Start 3: test_qso
-3/3 Test #3: test_qso .........................   Passed    0.10 sec
+3/7 Test #3: test_qso .........................   Passed    0.10 sec
+    Start 4: test_countryfile
+4/7 Test #4: test_countryfile .................   Passed    0.12 sec
+    Start 5: test_cqww
+5/7 Test #5: test_cqww ........................   Passed    0.11 sec
+    Start 6: test_cqwpx
+6/7 Test #6: test_cqwpx .......................   Passed    0.12 sec
+    Start 7: test_thememanager
+7/7 Test #7: test_thememanager ................   Passed    0.12 sec
 
-100% tests passed, 0 tests failed out of 3
-Total Test time (real) =   0.30 sec
+100% tests passed, 0 tests failed out of 7
+Total Test time (real) =   1.40 sec
 ```
 
 ### Run Tests with Verbose Output
@@ -196,9 +231,13 @@ ctest --output-on-failure   # Show output only on failures
 ### Run Specific Test Suite
 
 ```bash
-ctest -R test_logformatter  # Run only LogFormatter tests
-ctest -R test_types         # Run only Types tests
-ctest -R test_qso           # Run only QSO tests
+ctest -R test_logformatter    # Run only LogFormatter tests
+ctest -R test_types           # Run only Types tests
+ctest -R test_qso             # Run only QSO tests
+ctest -R test_countryfile     # Run only CountryFile tests
+ctest -R test_cqww            # Run only CQ WW tests
+ctest -R test_cqwpx           # Run only CQ WPX tests
+ctest -R test_thememanager    # Run only ThemeManager tests
 ```
 
 ### Run Individual Test Executable
@@ -494,6 +533,6 @@ When adding new features to TR4QT:
 ---
 
 **Last Updated**: 2025-12-24
-**Phase**: 2 (Business Logic Complete)
-**Status**: All tests passing (152/152)
-**Test Suites**: 6 (LogFormatter, Types, QSO, CountryFile, CQ WW, CQ WPX)
+**Phase**: 3 (Infrastructure Tests Started)
+**Status**: All tests passing (174/174)
+**Test Suites**: 7 (LogFormatter, Types, QSO, CountryFile, CQ WW, CQ WPX, ThemeManager)
