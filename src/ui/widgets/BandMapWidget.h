@@ -10,6 +10,14 @@
 namespace TR4QT {
 
 /**
+ * Sort modes for band map
+ */
+enum class BandMapSortMode {
+    Frequency,   // Sort by frequency (ascending)
+    Callsign     // Sort alphabetically by callsign
+};
+
+/**
  * Frequency spot entry for band map
  */
 struct Spot {
@@ -92,9 +100,10 @@ private:
     int m_selectedIndex;
     int m_columnCount;       // Number of columns to display
     int m_columnWidth;       // Width of each column in pixels
+    BandMapSortMode m_sortMode;  // Current sort mode
 
     /**
-     * Sort spots by frequency (ascending)
+     * Sort spots according to current sort mode
      */
     void sortSpots();
 

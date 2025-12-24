@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.27.0";  // BandMap: column-first layout with horizontal scrolling
+constexpr const char* APP_VERSION = "2.28.0";  // Add BandMap sort options (frequency/callsign)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
