@@ -60,6 +60,8 @@ void PreferencesDialog::setupUI() {
     m_tabWidget->addTab(createAppearanceTab(), "Appearance");
     qDebug() << "*** setupUI: Creating Logging tab ***";
     m_tabWidget->addTab(createLoggingTab(), "Logging");
+    qDebug() << "*** setupUI: Creating Backup tab ***";
+    m_tabWidget->addTab(createBackupTab(), "Backup");
     qDebug() << "*** setupUI: Creating Contest tab ***";
     m_tabWidget->addTab(createContestTab(), "Contest");
     qDebug() << "*** setupUI: Creating Advanced tab ***";
@@ -589,6 +591,67 @@ QWidget* PreferencesDialog::createLoggingTab() {
     return loggingTab;
 }
 
+QWidget* PreferencesDialog::createBackupTab() {
+    QWidget* backupTab = new QWidget(this);
+    QVBoxLayout* mainLayout = new QVBoxLayout(backupTab);
+
+    // Auto-backup Settings Group
+    QGroupBox* autoBackupGroup = new QGroupBox("Auto-Backup Settings", this);
+    QFormLayout* autoBackupLayout = new QFormLayout(autoBackupGroup);
+
+    // Enable auto-backup
+    m_autoBackupEnabledCheck = new QCheckBox("Enable automatic backups", this);
+    autoBackupLayout->addRow("", m_autoBackupEnabledCheck);
+
+    // Backup interval
+    m_autoBackupIntervalSpin = new QSpinBox(this);
+    m_autoBackupIntervalSpin->setRange(1, 1000);
+    m_autoBackupIntervalSpin->setValue(50);
+    m_autoBackupIntervalSpin->setSuffix(" QSOs");
+    autoBackupLayout->addRow("Backup every:", m_autoBackupIntervalSpin);
+
+    // Max backups to keep
+    m_maxBackupsSpin = new QSpinBox(this);
+    m_maxBackupsSpin->setRange(1, 100);
+    m_maxBackupsSpin->setValue(10);
+    m_maxBackupsSpin->setSuffix(" backups");
+    autoBackupLayout->addRow("Keep most recent:", m_maxBackupsSpin);
+
+    mainLayout->addWidget(autoBackupGroup);
+
+    // Backup Location Group
+    QGroupBox* locationGroup = new QGroupBox("Backup Location", this);
+    QFormLayout* locationLayout = new QFormLayout(locationGroup);
+
+    // Backup directory
+    QHBoxLayout* dirLayout = new QHBoxLayout();
+    m_backupDirectoryEdit = new QLineEdit(this);
+    m_backupDirectoryEdit->setPlaceholderText("~/.tr4qt/backups");
+    m_browseBackupDirButton = new QPushButton("Browse...", this);
+    connect(m_browseBackupDirButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onBrowseBackupDirectory);
+    dirLayout->addWidget(m_backupDirectoryEdit, 1);
+    dirLayout->addWidget(m_browseBackupDirButton);
+    locationLayout->addRow("Backup directory:", dirLayout);
+
+    mainLayout->addWidget(locationGroup);
+
+    // Info Section
+    m_backupInfoLabel = new QLabel(this);
+    m_backupInfoLabel->setWordWrap(true);
+    m_backupInfoLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; padding: 10px; }");
+    m_backupInfoLabel->setText(
+        "Automatic backups create a snapshot of your contest database every N QSOs.\n"
+        "Backups are rotated automatically (oldest are deleted when limit is reached).\n\n"
+        "You can manually backup or restore via Tools → Backup/Restore."
+    );
+    mainLayout->addWidget(m_backupInfoLabel);
+
+    mainLayout->addStretch();
+
+    return backupTab;
+}
+
 QWidget* PreferencesDialog::createContestTab() {
     QWidget* contestTab = new QWidget(this);
     QVBoxLayout* layout = new QVBoxLayout(contestTab);
@@ -752,6 +815,12 @@ void PreferencesDialog::loadSettings() {
     m_logMaxFileSizeSpin->setValue(settings.getLogMaxFileSize() / (1024 * 1024));  // Convert bytes to MB
     m_logMaxBackupFilesSpin->setValue(settings.getLogMaxBackupFiles());
 
+    // Backup tab
+    m_autoBackupEnabledCheck->setChecked(settings.getAutoBackupEnabled());
+    m_autoBackupIntervalSpin->setValue(settings.getAutoBackupInterval());
+    m_backupDirectoryEdit->setText(settings.getBackupDirectory());
+    m_maxBackupsSpin->setValue(settings.getMaxBackups());
+
     // Contest tab - will need to add getters to AppSettings
 
     // Advanced tab
@@ -852,6 +921,12 @@ void PreferencesDialog::saveSettings() {
     logger.setLogFilePath(m_logFilePathEdit->text());
     logger.setMaxFileSize(static_cast<qint64>(m_logMaxFileSizeSpin->value()) * 1024 * 1024);
     logger.setMaxBackupFiles(m_logMaxBackupFilesSpin->value());
+
+    // Backup tab
+    settings.setAutoBackupEnabled(m_autoBackupEnabledCheck->isChecked());
+    settings.setAutoBackupInterval(m_autoBackupIntervalSpin->value());
+    settings.setBackupDirectory(m_backupDirectoryEdit->text());
+    settings.setMaxBackups(m_maxBackupsSpin->value());
 
     // Contest tab - will add setters to AppSettings
 
@@ -1078,6 +1153,34 @@ void PreferencesDialog::onBrowseLogFile() {
             fileName = "~" + fileName.mid(homePath.length());
         }
         m_logFilePathEdit->setText(fileName);
+    }
+}
+
+void PreferencesDialog::onBrowseBackupDirectory() {
+    QString currentPath = m_backupDirectoryEdit->text();
+    if (currentPath.isEmpty()) {
+        currentPath = AppSettings::instance().getBackupDirectory();
+    }
+
+    // Expand home directory if present
+    if (currentPath.startsWith("~/")) {
+        currentPath = QDir::homePath() + currentPath.mid(1);
+    }
+
+    QString dirName = QFileDialog::getExistingDirectory(
+        this,
+        "Select Backup Directory",
+        currentPath,
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
+    );
+
+    if (!dirName.isEmpty()) {
+        // Convert back to ~/ notation if within home directory
+        QString homePath = QDir::homePath();
+        if (dirName.startsWith(homePath)) {
+            dirName = "~" + dirName.mid(homePath.length());
+        }
+        m_backupDirectoryEdit->setText(dirName);
     }
 }
 

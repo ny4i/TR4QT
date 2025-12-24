@@ -135,6 +135,7 @@ private:
     void applyFontSettings();
     void applyTheme();
     void loadUdpBroadcastSettings();
+    void loadBackupSettings();
     void updateConnectionStatus(bool connected);
     void updateScoreDisplay();
     void updateRadioStatusGrid();
