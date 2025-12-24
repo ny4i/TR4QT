@@ -59,6 +59,7 @@ private slots:
     // DX Cluster list slots
     void onDownloadClusterList();
     void onClusterListDownloadFinished(bool success, const QList<DXClusterServer>& servers);
+    void onDXClusterServerChanged(const QString& text);
 
     // Backup slots
     void onBrowseBackupDirectory();
@@ -104,7 +105,7 @@ private:
 
     // DX Cluster tab widgets
     QLineEdit* m_dxClusterCallsignEdit;
-    QLineEdit* m_dxClusterServerEdit;
+    QComboBox* m_dxClusterServerCombo;
     QCheckBox* m_dxClusterAutoConnectCheck;
     QPushButton* m_downloadClusterListButton;
 
