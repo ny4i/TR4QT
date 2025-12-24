@@ -5,6 +5,8 @@
 
 namespace TR4QT {
 
+struct ContestMetadata;
+
 /**
  * CQ WPX Contest (Worked All Prefixes)
  *
@@ -40,6 +42,10 @@ public:
     // ADIF Contest-ID values
     static inline const QString ADIF_CONTEST_ID_CW = "CQ-WPX-CW";
     static inline const QString ADIF_CONTEST_ID_SSB = "CQ-WPX-SSB";
+
+    // ===== Factory Methods =====
+    static ContestMetadata getMetadata();
+    static ContestBase* create(ModeType mode);
 
     // ===== Contest Identity =====
     QString getContestId() const override;

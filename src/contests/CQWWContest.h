@@ -5,6 +5,8 @@
 
 namespace TR4QT {
 
+struct ContestMetadata;
+
 /**
  * CQ World Wide DX Contest
  *
@@ -38,6 +40,10 @@ public:
     // ADIF Contest-ID values
     static inline const QString ADIF_CONTEST_ID_CW = "CQ-WW-CW";
     static inline const QString ADIF_CONTEST_ID_SSB = "CQ-WW-SSB";
+
+    // ===== Factory Methods =====
+    static ContestMetadata getMetadata();
+    static ContestBase* create(ModeType mode);
 
     // ===== Contest Identity =====
     QString getContestId() const override;

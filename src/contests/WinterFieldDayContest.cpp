@@ -1,8 +1,42 @@
 #include "WinterFieldDayContest.h"
+#include "ContestRegistry.h"
+#include "ContestMetadata.h"
 #include "../models/QSO.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
+
+ContestMetadata WinterFieldDayContest::getMetadata() {
+    ContestMetadata meta;
+    meta.id = "WFD";
+    meta.displayName = "Winter Field Day";
+    meta.shortName = "WFD";
+    meta.supportedModes = {ModeType::CW, ModeType::USB, ModeType::RTTY, ModeType::PSK, ModeType::None};
+    meta.hasSeparateContests = false;
+
+    meta.wa7bnmIdCW = 0;
+    meta.wa7bnmIdSSB = 0;
+    meta.wa7bnmIdMixed = WA7BNM_ID;
+
+    meta.cabrilloNameCW = "";
+    meta.cabrilloNameSSB = "";
+    meta.cabrilloNameMixed = CABRILLO_NAME;
+
+    meta.adifContestIdCW = "";
+    meta.adifContestIdSSB = "";
+    meta.adifContestIdMixed = ADIF_CONTEST_ID;
+
+    meta.schedule = "Last full weekend of January";
+    meta.website = "https://www.winterfieldday.com/";
+    meta.description = "Portable operations in winter conditions. Exchange: Class + ARRL/RAC Section.";
+
+    return meta;
+}
+
+ContestBase* WinterFieldDayContest::create(ModeType mode) {
+    Q_UNUSED(mode);  // Winter Field Day is mixed mode
+    return new WinterFieldDayContest();
+}
 
 WinterFieldDayContest::WinterFieldDayContest()
 {
@@ -217,3 +251,6 @@ QStringList WinterFieldDayContest::getValidSections() {
 }
 
 } // namespace TR4QT
+
+// Auto-register with factory
+REGISTER_CONTEST(TR4QT::WinterFieldDayContest, "WFD");
