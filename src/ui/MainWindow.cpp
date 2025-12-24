@@ -2,7 +2,10 @@
 #include "dialogs/RadioConfigDialog.h"
 #include "dialogs/PreferencesDialog.h"
 #include "../core/Constants.h"
+#include "../utils/ADIFExporter.h"
+#include "../utils/CabrilloExporter.h"
 #include <QFile>
+#include <QFileDialog>
 #include <QMenuBar>
 #include <QStatusBar>
 #include <QToolBar>
@@ -103,6 +106,22 @@ void MainWindow::createMenuBar() {
     QAction* newContestAction = fileMenu->addAction("&New/Open Contest...");
     newContestAction->setShortcut(QKeySequence("Ctrl+N"));
     connect(newContestAction, &QAction::triggered, this, &MainWindow::onNewOpenContest);
+
+    fileMenu->addSeparator();
+
+    QAction* clearLogAction = fileMenu->addAction("&Clear Log...");
+    connect(clearLogAction, &QAction::triggered, this, &MainWindow::onClearLog);
+
+    fileMenu->addSeparator();
+
+    // Export submenu
+    QMenu* exportMenu = fileMenu->addMenu("&Export");
+    QAction* exportADIFAction = exportMenu->addAction("Export &ADIF...");
+    connect(exportADIFAction, &QAction::triggered, this, &MainWindow::onExportADIF);
+
+    QAction* exportCabrilloAction = exportMenu->addAction("Export &Cabrillo...");
+    exportCabrilloAction->setShortcut(QKeySequence("Ctrl+Alt+B"));
+    connect(exportCabrilloAction, &QAction::triggered, this, &MainWindow::onExportCabrillo);
 
     fileMenu->addSeparator();
 
@@ -534,6 +553,144 @@ void MainWindow::onPreferences() {
         }
 
         // TODO: Reload contest settings if changed
+    }
+}
+
+void MainWindow::onExportADIF() {
+    // Get all QSOs from the table model
+    QList<QSO> qsos;
+    for (int i = 0; i < m_qsoTableModel->count(); ++i) {
+        qsos.append(m_qsoTableModel->getQSO(i));
+    }
+
+    if (qsos.isEmpty()) {
+        QMessageBox::information(this, "Export ADIF", "No QSOs to export.");
+        return;
+    }
+
+    // Get file name from user
+    QString fileName = QFileDialog::getSaveFileName(
+        this,
+        "Export ADIF File",
+        QDir::homePath() + "/log.adi",
+        "ADIF Files (*.adi *.adif);;All Files (*)");
+
+    if (fileName.isEmpty()) {
+        return;  // User cancelled
+    }
+
+    // Export to file
+    ADIFExporter exporter;
+    QString contestName = m_hasActiveContest ? m_currentContest.contestName : QString();
+    QString operatorCall = AppSettings::instance().getMyCallsign();
+
+    if (exporter.exportToFile(qsos, fileName, contestName, operatorCall)) {
+        m_statusLabel->setText(QString("Exported %1 QSOs to %2")
+                                  .arg(qsos.size())
+                                  .arg(QFileInfo(fileName).fileName()));
+    } else {
+        QMessageBox::critical(this, "Export Error",
+                            QString("Failed to export ADIF: %1")
+                                .arg(exporter.lastError()));
+    }
+}
+
+void MainWindow::onExportCabrillo() {
+    if (!m_hasActiveContest || !m_activeContest) {
+        QMessageBox::information(this, "Export Cabrillo",
+                               "No active contest. Please select a contest first.");
+        return;
+    }
+
+    // Get all QSOs from the table model
+    QList<QSO> qsos;
+    for (int i = 0; i < m_qsoTableModel->count(); ++i) {
+        qsos.append(m_qsoTableModel->getQSO(i));
+    }
+
+    if (qsos.isEmpty()) {
+        QMessageBox::information(this, "Export Cabrillo", "No QSOs to export.");
+        return;
+    }
+
+    // Get file name from user
+    QString defaultFileName = QString("%1.cbr")
+                                 .arg(m_currentContest.contestName.replace(' ', '_'));
+    QString fileName = QFileDialog::getSaveFileName(
+        this,
+        "Export Cabrillo File",
+        QDir::homePath() + "/" + defaultFileName,
+        "Cabrillo Files (*.cbr *.log);;All Files (*)");
+
+    if (fileName.isEmpty()) {
+        return;  // User cancelled
+    }
+
+    // Set up exporter with station information
+    CabrilloExporter exporter;
+    exporter.setStationInfo(
+        AppSettings::instance().getMyCallsign(),
+        AppSettings::instance().getMyGridSquare(),
+        AppSettings::instance().getMyCallsign(),  // Name
+        "",  // Address
+        "",  // City
+        "",  // State/Province
+        "",  // Postal Code
+        "",  // Country
+        ""   // Email
+    );
+
+    // TODO: Get category information from contest dialog
+    exporter.setCategory(
+        "NON-ASSISTED",  // Assisted
+        "ALL",           // Band
+        "MIXED",         // Mode
+        "SINGLE-OP",     // Operator
+        "LOW",           // Power
+        "FIXED",         // Station
+        "",              // Time
+        "ONE",           // Transmitter
+        ""               // Overlay
+    );
+
+    // Calculate claimed score
+    // TODO: Get actual score from scoring engine
+    int claimedScore = 0;
+    exporter.setClaimedScore(claimedScore);
+    exporter.setOperators(AppSettings::instance().getMyCallsign());
+
+    // Export to file
+    if (exporter.exportToFile(qsos, m_activeContest, fileName)) {
+        m_statusLabel->setText(QString("Exported %1 QSOs to %2")
+                                  .arg(qsos.size())
+                                  .arg(QFileInfo(fileName).fileName()));
+    } else {
+        QMessageBox::critical(this, "Export Error",
+                            QString("Failed to export Cabrillo: %1")
+                                .arg(exporter.lastError()));
+    }
+}
+
+void MainWindow::onClearLog() {
+    if (m_qsoTableModel->count() == 0) {
+        QMessageBox::information(this, "Clear Log", "Log is already empty.");
+        return;
+    }
+
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this, "Clear Log",
+        QString("Are you sure you want to clear all %1 QSOs from the log?\n\nThis action cannot be undone.")
+            .arg(m_qsoTableModel->count()),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No);
+
+    if (reply == QMessageBox::Yes) {
+        m_qsoTableModel->clear();
+        m_lastQSOTime = QDateTime();  // Reset time tracking
+        m_qsosThisHour = 0;
+        updateScoreDisplay();
+        updateTimeDisplay();
+        m_statusLabel->setText("Log cleared");
     }
 }
 

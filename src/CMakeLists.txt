@@ -7,6 +7,8 @@ set(SOURCES
     utils/CountryFileDownloader.cpp
     utils/AppSettings.cpp
     utils/RadioEnumerator.cpp
+    utils/ADIFExporter.cpp
+    utils/CabrilloExporter.cpp
     radio/HamlibRadio.cpp
     radio/RadioController.cpp
     data/Database.cpp
@@ -29,6 +31,8 @@ set(HEADERS
     utils/CountryFileDownloader.h
     utils/AppSettings.h
     utils/RadioEnumerator.h
+    utils/ADIFExporter.h
+    utils/CabrilloExporter.h
     radio/RadioInterface.h
     radio/HamlibRadio.h
     radio/RadioController.h
