@@ -1,8 +1,41 @@
 #include "CQWWContest.h"
+#include "ContestRegistry.h"
+#include "ContestMetadata.h"
 #include "../models/QSO.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
+
+ContestMetadata CQWWContest::getMetadata() {
+    ContestMetadata meta;
+    meta.id = "CQWW";
+    meta.displayName = "CQ World Wide DX Contest";
+    meta.shortName = "CQ WW";
+    meta.supportedModes = {ModeType::CW, ModeType::USB};
+    meta.hasSeparateContests = true;
+
+    meta.wa7bnmIdCW = WA7BNM_ID_CW;
+    meta.wa7bnmIdSSB = WA7BNM_ID_SSB;
+    meta.wa7bnmIdMixed = 0;
+
+    meta.cabrilloNameCW = CABRILLO_NAME_CW;
+    meta.cabrilloNameSSB = CABRILLO_NAME_SSB;
+    meta.cabrilloNameMixed = "";
+
+    meta.adifContestIdCW = ADIF_CONTEST_ID_CW;
+    meta.adifContestIdSSB = ADIF_CONTEST_ID_SSB;
+    meta.adifContestIdMixed = "";
+
+    meta.schedule = "Last full weekend of November";
+    meta.website = "https://www.cqww.com/";
+    meta.description = "Work as many countries and CQ zones as possible. Exchange: RST + CQ Zone.";
+
+    return meta;
+}
+
+ContestBase* CQWWContest::create(ModeType mode) {
+    return new CQWWContest(mode);
+}
 
 CQWWContest::CQWWContest(ModeType mode)
     : m_mode(mode)
@@ -207,3 +240,6 @@ QMap<QString, QString> CQWWContest::getCabrilloHeaders() const {
 }
 
 } // namespace TR4QT
+
+// Auto-register with factory
+REGISTER_CONTEST(TR4QT::CQWWContest, "CQWW");

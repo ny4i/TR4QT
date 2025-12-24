@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.17.0";  // Add: Contest identifiers (WA7BNM ID, Cabrillo, ADIF)
+constexpr const char* APP_VERSION = "2.18.0";  // Add: Contest Factory pattern with auto-registration
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

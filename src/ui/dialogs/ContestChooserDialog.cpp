@@ -1,5 +1,7 @@
 #include "ContestChooserDialog.h"
 #include "../../core/Constants.h"
+#include "../../contests/ContestRegistry.h"
+#include "../../contests/ContestMetadata.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -103,11 +105,27 @@ void ContestChooserDialog::setupUI() {
 }
 
 void ContestChooserDialog::populateContestTypes() {
-    m_contestTypeCombo->addItem("CQ WW DX Contest (CW)", "CQWW_CW");
-    m_contestTypeCombo->addItem("CQ WW DX Contest (SSB)", "CQWW_SSB");
-    m_contestTypeCombo->addItem("CQ WPX Contest (CW)", "CQWPX_CW");
-    m_contestTypeCombo->addItem("CQ WPX Contest (SSB)", "CQWPX_SSB");
-    m_contestTypeCombo->addItem("Winter Field Day", "WFD");
+    // Get all registered contests from the factory
+    QList<ContestMetadata> contests = ContestRegistry::instance().availableContests();
+
+    for (const ContestMetadata& meta : contests) {
+        if (meta.hasSeparateContests) {
+            // Add separate entries for CW and SSB/Phone
+            for (ModeType mode : meta.supportedModes) {
+                if (mode == ModeType::None) continue;  // Skip "Mixed" mode indicator
+
+                QString displayName = meta.getDisplayName(mode);
+                QString dataValue = QString("%1_%2")
+                    .arg(meta.id)
+                    .arg((mode == ModeType::CW) ? "CW" : "SSB");
+
+                m_contestTypeCombo->addItem(displayName, dataValue);
+            }
+        } else {
+            // Single entry for mixed-mode contests
+            m_contestTypeCombo->addItem(meta.displayName, meta.id);
+        }
+    }
 }
 
 void ContestChooserDialog::loadExistingContests() {
@@ -140,29 +158,36 @@ void ContestChooserDialog::loadExistingContests() {
 }
 
 void ContestChooserDialog::onContestTypeChanged(int index) {
+    Q_UNUSED(index);
+
     QString contestType = m_contestTypeCombo->currentData().toString();
     QDateTime now = QDateTime::currentDateTime();
 
-    // Auto-generate contest name based on type and current date
-    QString name;
-    if (contestType == "CQWW_CW") {
-        name = QString("CQ WW DX CW %1").arg(now.date().year());
-        m_modeCombo->setCurrentText("CW");
-    } else if (contestType == "CQWW_SSB") {
-        name = QString("CQ WW DX SSB %1").arg(now.date().year());
-        m_modeCombo->setCurrentText("SSB");
-    } else if (contestType == "CQWPX_CW") {
-        name = QString("CQ WPX CW %1").arg(now.date().year());
-        m_modeCombo->setCurrentText("CW");
-    } else if (contestType == "CQWPX_SSB") {
-        name = QString("CQ WPX SSB %1").arg(now.date().year());
-        m_modeCombo->setCurrentText("SSB");
-    } else if (contestType == "WFD") {
-        name = QString("Winter Field Day %1").arg(now.date().year());
-        m_modeCombo->setCurrentText("Mixed");
-    }
+    // Parse contest ID and mode from contestType (e.g., "CQWW_CW" or "WFD")
+    QStringList parts = contestType.split('_');
+    QString contestId = parts[0];
+    QString modeStr = parts.size() > 1 ? parts[1] : "Mixed";
 
-    m_contestNameEdit->setText(name);
+    // Get contest metadata from registry
+    if (ContestRegistry::instance().hasContest(contestId)) {
+        ContestMetadata meta = ContestRegistry::instance().getMetadata(contestId);
+
+        // Auto-generate contest name: "Contest Name MODE YEAR"
+        QString name;
+        if (meta.hasSeparateContests) {
+            name = QString("%1 %2 %3")
+                .arg(meta.displayName)
+                .arg(modeStr)
+                .arg(now.date().year());
+        } else {
+            name = QString("%1 %2")
+                .arg(meta.displayName)
+                .arg(now.date().year());
+        }
+
+        m_contestNameEdit->setText(name);
+        m_modeCombo->setCurrentText(modeStr);
+    }
 }
 
 void ContestChooserDialog::onExistingContestSelected() {

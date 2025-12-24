@@ -1,8 +1,41 @@
 #include "CQWPXContest.h"
+#include "ContestRegistry.h"
+#include "ContestMetadata.h"
 #include "../models/QSO.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
+
+ContestMetadata CQWPXContest::getMetadata() {
+    ContestMetadata meta;
+    meta.id = "CQWPX";
+    meta.displayName = "CQ WPX Contest";
+    meta.shortName = "CQ WPX";
+    meta.supportedModes = {ModeType::CW, ModeType::USB};
+    meta.hasSeparateContests = true;
+
+    meta.wa7bnmIdCW = WA7BNM_ID_CW;
+    meta.wa7bnmIdSSB = WA7BNM_ID_SSB;
+    meta.wa7bnmIdMixed = 0;
+
+    meta.cabrilloNameCW = CABRILLO_NAME_CW;
+    meta.cabrilloNameSSB = CABRILLO_NAME_SSB;
+    meta.cabrilloNameMixed = "";
+
+    meta.adifContestIdCW = ADIF_CONTEST_ID_CW;
+    meta.adifContestIdSSB = ADIF_CONTEST_ID_SSB;
+    meta.adifContestIdMixed = "";
+
+    meta.schedule = "Last full weekend of March (SSB) and May (CW)";
+    meta.website = "https://www.cqwpx.com/";
+    meta.description = "Work as many callsign prefixes as possible. Exchange: RST + Serial Number.";
+
+    return meta;
+}
+
+ContestBase* CQWPXContest::create(ModeType mode) {
+    return new CQWPXContest(mode);
+}
 
 CQWPXContest::CQWPXContest(ModeType mode)
     : m_mode(mode)
@@ -212,3 +245,6 @@ QString CQWPXContest::extractPrefix(const QString& callsign) {
 }
 
 } // namespace TR4QT
+
+// Auto-register with factory
+REGISTER_CONTEST(TR4QT::CQWPXContest, "CQWPX");

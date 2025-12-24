@@ -5,6 +5,8 @@
 
 namespace TR4QT {
 
+struct ContestMetadata;
+
 /**
  * Winter Field Day Contest
  *
@@ -42,6 +44,10 @@ public:
 
     // ADIF Contest-ID value
     static inline const QString ADIF_CONTEST_ID = "WINTER-FIELD-DAY";
+
+    // ===== Factory Methods =====
+    static ContestMetadata getMetadata();
+    static ContestBase* create(ModeType mode);
 
     // ===== Contest Identity =====
     QString getContestId() const override;

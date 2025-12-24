@@ -18,6 +18,7 @@ set(SOURCES
     network/UdpBroadcastManager.cpp
     data/Database.cpp
     data/QSORepository.cpp
+    contests/ContestRegistry.cpp
     contests/CQWWContest.cpp
     contests/CQWPXContest.cpp
     contests/WinterFieldDayContest.cpp
@@ -53,6 +54,8 @@ set(HEADERS
     data/Database.h
     data/QSORepository.h
     contests/ContestBase.h
+    contests/ContestMetadata.h
+    contests/ContestRegistry.h
     contests/CQWWContest.h
     contests/CQWPXContest.h
     contests/WinterFieldDayContest.h
