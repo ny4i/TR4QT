@@ -52,11 +52,7 @@ bool CabrilloExporter::exportToFile(const QList<QSO>& qsos,
                                     const QString& filePath) {
     m_lastError.clear();
 
-    if (!contest) {
-        m_lastError = "No contest specified";
-        return false;
-    }
-
+    // Allow export without contest (will use generic formatting)
     // Generate Cabrillo text
     QString cabrilloText = generateCabrillo(qsos, contest);
 
