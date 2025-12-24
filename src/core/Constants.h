@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.6.0";  // BandMap widget with frequency spots display
+constexpr const char* APP_VERSION = "2.7.0";  // Radio Control widget with VFO A/B, mode, RIT/XIT/SPLIT
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
