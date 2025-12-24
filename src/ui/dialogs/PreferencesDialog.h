@@ -9,6 +9,8 @@
 #include <QCheckBox>
 #include <QRadioButton>
 #include <QGroupBox>
+#include <QListWidget>
+#include <QPushButton>
 #include "../../radio/RadioInterface.h"
 
 namespace TR4QT {
@@ -38,6 +40,11 @@ private slots:
     void onConnectionTypeChanged();
     void onRadioModelChanged(int index);
 
+    // UDP Broadcast slots
+    void onUdpAddDestination();
+    void onUdpRemoveDestination();
+    void onUdpTestDestination();
+
 private:
     void setupUI();
     void loadSettings();
@@ -47,6 +54,7 @@ private:
     QWidget* createStationTab();
     QWidget* createRadioTab();
     QWidget* createDXClusterTab();
+    QWidget* createUDPBroadcastTab();
     QWidget* createAppearanceTab();
     QWidget* createContestTab();
     QWidget* createAdvancedTab();
@@ -78,6 +86,18 @@ private:
     QLineEdit* m_dxClusterCallsignEdit;
     QLineEdit* m_dxClusterServerEdit;
     QCheckBox* m_dxClusterAutoConnectCheck;
+
+    // UDP Broadcast tab widgets
+    QCheckBox* m_udpBroadcastEnabledCheck;
+    QCheckBox* m_udpRadioInfoEnabledCheck;
+    QCheckBox* m_udpContactInfoEnabledCheck;
+    QSpinBox* m_udpThrottleIntervalSpin;
+    QListWidget* m_udpDestinationsList;
+    QLineEdit* m_udpHostEdit;
+    QSpinBox* m_udpPortSpin;
+    QPushButton* m_udpAddButton;
+    QPushButton* m_udpRemoveButton;
+    QPushButton* m_udpTestButton;
 
     // Appearance tab widgets
     QSpinBox* m_entryFontSizeSpin;

@@ -10,6 +10,7 @@ TelnetClient::TelnetClient(QObject* parent)
     , m_socket(new QTcpSocket(this))
     , m_port(0)
     , m_isConnected(false)
+    , m_loginSent(false)
 {
     connect(m_socket, &QTcpSocket::connected,
             this, &TelnetClient::onConnected);
@@ -35,6 +36,7 @@ void TelnetClient::connectToServer(const QString& server, int port) {
     m_server = server;
     m_port = port;
     m_dataBuffer.clear();
+    m_loginSent = false;  // Reset login flag for new connection
 
     m_socket->connectToHost(server, port);
 }
@@ -54,6 +56,11 @@ void TelnetClient::sendCommand(const QString& command) {
     QString cmd = command.trimmed() + "\r\n";
     m_socket->write(cmd.toUtf8());
     m_socket->flush();
+}
+
+void TelnetClient::setAutoLoginCallsign(const QString& callsign) {
+    m_autoLoginCallsign = callsign.trimmed().toUpper();
+    qDebug() << "TelnetClient: Auto-login callsign set to:" << m_autoLoginCallsign;
 }
 
 void TelnetClient::onConnected() {
@@ -86,6 +93,24 @@ void TelnetClient::onReadyRead() {
         if (!cleanLine.isEmpty()) {
             // Emit raw data for display
             emit dataReceived(cleanLine);
+
+            // Check for login prompt and auto-login if configured
+            if (!m_loginSent && !m_autoLoginCallsign.isEmpty()) {
+                // Common login prompts from various DX Cluster software versions
+                // AR-Cluster v6: "Enter your callsign"
+                // CC-Cluster: "Please enter your call"
+                // DXSpider: "login:"
+                // TODO: Add support for other cluster server types (v5, v4, etc.)
+                //       and their specific login prompts/sequences
+                if (cleanLine.contains("Enter your callsign", Qt::CaseInsensitive) ||
+                    cleanLine.contains("Please enter your call", Qt::CaseInsensitive) ||
+                    cleanLine.contains("login:", Qt::CaseInsensitive)) {
+
+                    qDebug() << "TelnetClient: Login prompt detected, sending callsign:" << m_autoLoginCallsign;
+                    sendCommand(m_autoLoginCallsign);
+                    m_loginSent = true;
+                }
+            }
 
             // Try to parse as DX spot
             parseSpotLine(cleanLine);
@@ -144,7 +169,8 @@ bool TelnetClient::parseSpotLine(const QString& line) {
         // Convert frequency to Hz (input is in kHz)
         freq_t freqHz = static_cast<freq_t>(frequency * 1000);
 
-        emit spotReceived(callsign, frequency, spotter, comment, time);
+        // Emit frequency in Hz (cast to double for signal compatibility)
+        emit spotReceived(callsign, static_cast<double>(freqHz), spotter, comment, time);
         return true;
     }
 

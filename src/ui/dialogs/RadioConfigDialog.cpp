@@ -14,9 +14,11 @@ namespace TR4QT {
 RadioConfigDialog::RadioConfigDialog(QWidget* parent)
     : QDialog(parent)
 {
+    qDebug() << "*** RadioConfigDialog constructor called ***";
     setWindowTitle("Radio Configuration");
     setupUI();
     populateRadioModels();
+    qDebug() << "*** RadioConfigDialog fully initialized with window title:" << windowTitle();
 }
 
 void RadioConfigDialog::setupUI() {
