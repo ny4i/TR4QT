@@ -54,6 +54,10 @@ int main(int argc, char *argv[]) {
         rig_set_debug(RIG_DEBUG_NONE);
     }
 
+    // Load all hamlib backends (required for radio enumeration)
+    rig_load_all_backends();
+    LOG_INFO("TR4QTMain", "Hamlib backends loaded for radio enumeration");
+
     // Register custom types for Qt meta-object system (required for queued connections)
     qRegisterMetaType<TR4QT::RadioConfig>("RadioConfig");
     qRegisterMetaType<TR4QT::RadioState>("RadioState");
