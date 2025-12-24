@@ -13,7 +13,7 @@
 namespace TR4QT {
 
 BandMapWidget::BandMapWidget(QWidget* parent)
-    : QWidget(parent)
+    : QAbstractScrollArea(parent)
     , m_currentFrequency(0)
     , m_selectedIndex(-1)
     , m_columnCount(1)
@@ -24,11 +24,15 @@ BandMapWidget::BandMapWidget(QWidget* parent)
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 
     // Dark background like TR4W
-    QPalette pal = palette();
-    pal.setColor(QPalette::Window, QColor(0, 0, 0));
-    pal.setColor(QPalette::WindowText, QColor(255, 255, 255));
-    setAutoFillBackground(true);
-    setPalette(pal);
+    QPalette pal = viewport()->palette();
+    pal.setColor(QPalette::Base, QColor(0, 0, 0));
+    pal.setColor(QPalette::Text, QColor(255, 255, 255));
+    viewport()->setAutoFillBackground(true);
+    viewport()->setPalette(pal);
+
+    // Enable vertical scrolling
+    setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     // Enable context menu
     setContextMenuPolicy(Qt::DefaultContextMenu);
@@ -40,7 +44,8 @@ void BandMapWidget::addSpot(const Spot& spot) {
         if (m_spots[i].callsign == spot.callsign) {
             m_spots[i] = spot;
             sortSpots();
-            QWidget::update();
+            updateScrollBars();
+            viewport()->update();
             return;
         }
     }
@@ -48,14 +53,16 @@ void BandMapWidget::addSpot(const Spot& spot) {
     // Add new spot
     m_spots.append(spot);
     sortSpots();
-    QWidget::update();
+    updateScrollBars();
+    viewport()->update();
 }
 
 void BandMapWidget::removeSpot(const QString& callsign) {
     for (int i = 0; i < m_spots.size(); ++i) {
         if (m_spots[i].callsign == callsign) {
             m_spots.removeAt(i);
-            QWidget::update();
+            updateScrollBars();
+            viewport()->update();
             return;
         }
     }
@@ -64,12 +71,13 @@ void BandMapWidget::removeSpot(const QString& callsign) {
 void BandMapWidget::clearSpots() {
     m_spots.clear();
     m_selectedIndex = -1;
-    QWidget::update();
+    updateScrollBars();
+    viewport()->update();
 }
 
 void BandMapWidget::setCurrentFrequency(freq_t freq) {
     m_currentFrequency = freq;
-    QWidget::update();
+    viewport()->update();
 }
 
 void BandMapWidget::sortSpots() {
@@ -80,10 +88,10 @@ void BandMapWidget::sortSpots() {
 }
 
 void BandMapWidget::calculateColumnLayout() {
-    // Calculate column count based on widget width
+    // Calculate column count based on viewport width
     // Each column needs minimum 150 pixels (for "14025.0 M W1ABC" format)
     const int MIN_COLUMN_WIDTH = 150;
-    int availableWidth = width();
+    int availableWidth = viewport()->width();
 
     if (availableWidth < MIN_COLUMN_WIDTH) {
         m_columnCount = 1;
@@ -98,8 +106,8 @@ void BandMapWidget::calculateColumnLayout() {
 void BandMapWidget::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
 
-    QPainter painter(this);
-    painter.fillRect(QWidget::rect(), Qt::black);
+    QPainter painter(viewport());
+    painter.fillRect(viewport()->rect(), Qt::black);
 
     QFont font("Monospace", 9);
     font.setBold(true);
@@ -107,22 +115,30 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
 
     QFontMetrics fm(font);
     int lineHeight = rowHeight();
+    int scrollY = verticalScrollBar()->value();
+    int viewportHeight = viewport()->height();
+
+    // Reserve space at bottom for spot count
+    const int FOOTER_HEIGHT = fm.height() + 10;
+    int availableHeight = viewportHeight - FOOTER_HEIGHT;
+    int rowsPerColumn = availableHeight / lineHeight;
+    if (rowsPerColumn < 1) rowsPerColumn = 1;
 
     // Draw each spot in multi-column layout
     for (int i = 0; i < m_spots.size(); ++i) {
         const Spot& spot = m_spots[i];
 
         // Calculate row and column for this spot
-        int col = i / ((height() - 50) / lineHeight);  // Which column
-        int row = i % ((height() - 50) / lineHeight);  // Which row in that column
+        int col = i / rowsPerColumn;  // Which column
+        int row = i % rowsPerColumn;  // Which row in that column
 
-        // Skip if this spot would be off-screen
+        // Skip if this spot would be off-screen horizontally
         if (col >= m_columnCount) {
             continue;
         }
 
         int x = col * m_columnWidth;
-        int y = row * lineHeight;
+        int y = row * lineHeight - scrollY;
 
         // Determine text color
         QColor textColor;
@@ -157,11 +173,11 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
         }
     }
 
-    // Draw spot count at bottom
+    // Draw spot count at bottom (always visible, not scrolled)
     painter.setPen(Qt::cyan);
     QString countStr = QString("%1 spots").arg(m_spots.size());
-    int countY = height() - fm.height() - 5;
-    painter.drawText(width() / 2 - fm.horizontalAdvance(countStr) / 2,
+    int countY = viewportHeight - fm.height() - 5;
+    painter.drawText(viewport()->width() / 2 - fm.horizontalAdvance(countStr) / 2,
                     countY + fm.ascent(), countStr);
 }
 
@@ -173,7 +189,7 @@ void BandMapWidget::mousePressEvent(QMouseEvent* event) {
             // Single click: QSY to frequency AND populate callsign
             emit qsyRequested(m_spots[spotIndex].frequency);
             emit callsignSelected(m_spots[spotIndex].callsign);
-            QWidget::update();
+            viewport()->update();
         }
     }
 }
@@ -188,9 +204,10 @@ void BandMapWidget::mouseDoubleClickEvent(QMouseEvent* event) {
 }
 
 void BandMapWidget::resizeEvent(QResizeEvent* event) {
-    Q_UNUSED(event);
+    QAbstractScrollArea::resizeEvent(event);
     calculateColumnLayout();
-    QWidget::update();
+    updateScrollBars();
+    viewport()->update();
 }
 
 void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
@@ -220,7 +237,13 @@ void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
 
 int BandMapWidget::findSpotAtPosition(const QPoint& pos) {
     int lineHeight = rowHeight();
-    int rowsPerColumn = (height() - 50) / lineHeight;
+    int scrollY = verticalScrollBar()->value();
+
+    QFontMetrics fm(QFont("Monospace", 9));
+    const int FOOTER_HEIGHT = fm.height() + 10;
+    int availableHeight = viewport()->height() - FOOTER_HEIGHT;
+    int rowsPerColumn = availableHeight / lineHeight;
+    if (rowsPerColumn < 1) rowsPerColumn = 1;
 
     // Determine which column was clicked
     int col = pos.x() / m_columnWidth;
@@ -228,8 +251,8 @@ int BandMapWidget::findSpotAtPosition(const QPoint& pos) {
         return -1;
     }
 
-    // Determine which row in that column was clicked
-    int row = pos.y() / lineHeight;
+    // Determine which row in that column was clicked (accounting for scroll)
+    int row = (pos.y() + scrollY) / lineHeight;
     if (row < 0 || row >= rowsPerColumn) {
         return -1;
     }
@@ -265,6 +288,45 @@ QString BandMapWidget::formatFrequency(freq_t freq) const {
     }
 
     return result;
+}
+
+void BandMapWidget::updateScrollBars() {
+    // Calculate content height based on number of spots and column layout
+    int lineHeight = rowHeight();
+
+    QFontMetrics fm(QFont("Monospace", 9));
+    const int FOOTER_HEIGHT = fm.height() + 10;
+    int availableHeight = viewport()->height() - FOOTER_HEIGHT;
+    int rowsPerColumn = availableHeight / lineHeight;
+    if (rowsPerColumn < 1) rowsPerColumn = 1;
+
+    // Calculate total number of columns needed for all spots
+    int totalColumns = (m_spots.size() + rowsPerColumn - 1) / rowsPerColumn;
+
+    // Content height is the height needed for one full column of spots
+    int contentHeight = rowsPerColumn * lineHeight;
+
+    // Only show scrollbar if we have more columns than can fit
+    if (totalColumns > m_columnCount) {
+        // Calculate overflow: extra rows that don't fit in visible columns
+        int visibleSpots = m_columnCount * rowsPerColumn;
+        int hiddenSpots = m_spots.size() - visibleSpots;
+        if (hiddenSpots > 0) {
+            // Add extra height for the overflow
+            int extraRows = (hiddenSpots + m_columnCount - 1) / m_columnCount;
+            contentHeight += extraRows * lineHeight;
+        }
+    }
+
+    // Set vertical scrollbar range
+    verticalScrollBar()->setPageStep(availableHeight);
+    verticalScrollBar()->setRange(0, qMax(0, contentHeight - availableHeight));
+}
+
+void BandMapWidget::scrollContentsBy(int dx, int dy) {
+    Q_UNUSED(dx);
+    Q_UNUSED(dy);
+    viewport()->update();
 }
 
 } // namespace TR4QT
