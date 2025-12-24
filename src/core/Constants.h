@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.20.0";  // Add: BandMap dynamic multi-column layout
+constexpr const char* APP_VERSION = "2.20.1";  // Fix: Clear radio display when disconnected
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

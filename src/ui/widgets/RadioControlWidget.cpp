@@ -12,6 +12,7 @@ RadioControlWidget::RadioControlWidget(QWidget* parent)
     , m_radioNumber(1)
 {
     setupUI();
+    clearDisplay();  // Start with cleared display (radio not connected)
 }
 
 void RadioControlWidget::setupUI() {
@@ -169,8 +170,33 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
     }
     m_modeLabel->setText(modeStr);
 
+    // Enable buttons when radio is connected
+    m_ritButton->setEnabled(true);
+    m_xitButton->setEnabled(true);
+    m_splitButton->setEnabled(true);
+
     // Update button states
     // TODO: Get actual RIT/XIT/SPLIT status from radio if supported
+}
+
+void RadioControlWidget::clearDisplay() {
+    // Clear all frequency and mode displays when radio disconnects
+    m_vfoAFreqLabel->setText("----.-----");
+    m_vfoBFreqLabel->setText("----.-----");
+    m_modeLabel->setText("---");
+
+    // Uncheck all control buttons
+    m_ritButton->setChecked(false);
+    m_xitButton->setChecked(false);
+    m_splitButton->setChecked(false);
+
+    // Disable buttons when radio not connected
+    m_ritButton->setEnabled(false);
+    m_xitButton->setEnabled(false);
+    m_splitButton->setEnabled(false);
+
+    // Clear current state
+    m_currentState = RadioState();
 }
 
 void RadioControlWidget::setRadioNumber(int number) {
