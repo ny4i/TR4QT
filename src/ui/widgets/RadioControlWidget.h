@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QPushButton>
+#include <QFrame>
 #include "../../radio/RadioInterface.h"
 
 namespace TR4QT {
@@ -62,9 +63,14 @@ private slots:
     void onXitClicked();
     void onSplitClicked();
 
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override;
+
 private:
     void setupUI();
     void applyTheme();
+    void updateRitWidgetStyle();
+    void updateXitWidgetStyle();
 
     // VFO widgets (for theme updates)
     QWidget* m_vfoAWidget;
@@ -78,14 +84,16 @@ private:
     QLabel* m_vfoBFreqLabel;
     QLabel* m_modeLabel;
 
-    // Control buttons
-    QPushButton* m_ritButton;
-    QPushButton* m_xitButton;
-    QPushButton* m_splitButton;
+    // Control widgets
+    QFrame* m_ritWidget;        // Clickable frame with RIT label + offset
+    QLabel* m_ritTitleLabel;    // "RIT" text
+    QLabel* m_ritOffsetLabel;   // Offset value
 
-    // Offset display labels
-    QLabel* m_ritOffsetLabel;
-    QLabel* m_xitOffsetLabel;
+    QFrame* m_xitWidget;        // Clickable frame with XIT label + offset
+    QLabel* m_xitTitleLabel;    // "XIT" text
+    QLabel* m_xitOffsetLabel;   // Offset value
+
+    QPushButton* m_splitButton; // SPLIT remains a button
 
     int m_radioNumber;
     RadioState m_currentState;

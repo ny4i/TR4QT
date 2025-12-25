@@ -6,6 +6,7 @@
 #include <QGridLayout>
 #include <QFont>
 #include <QFrame>
+#include <QEvent>
 
 namespace TR4QT {
 
@@ -123,39 +124,56 @@ void RadioControlWidget::setupUI() {
         "  background-color: #45A049;"
         "}";
 
-    // RIT button with offset display
-    QVBoxLayout* ritLayout = new QVBoxLayout();
-    ritLayout->setSpacing(2);
-    m_ritButton = new QPushButton("RIT", this);
-    m_ritButton->setCheckable(true);
-    m_ritButton->setMaximumWidth(70);
-    m_ritButton->setStyleSheet(buttonStyle);
-    connect(m_ritButton, &QPushButton::clicked, this, &RadioControlWidget::onRitClicked);
+    // RIT widget - clickable frame with two rows (label + offset)
+    m_ritWidget = new QFrame(this);
+    m_ritWidget->setFrameShape(QFrame::StyledPanel);
+    m_ritWidget->setFrameShadow(QFrame::Raised);
+    m_ritWidget->setMaximumWidth(70);
+    m_ritWidget->setMinimumHeight(50);
+    m_ritWidget->setCursor(Qt::PointingHandCursor);
+    m_ritWidget->installEventFilter(this);
 
-    m_ritOffsetLabel = new QLabel("0 Hz", this);
-    m_ritOffsetLabel->setAlignment(Qt::AlignCenter);
+    QVBoxLayout* ritLayout = new QVBoxLayout(m_ritWidget);
+    ritLayout->setSpacing(2);
+    ritLayout->setContentsMargins(5, 5, 5, 5);
+
+    m_ritTitleLabel = new QLabel("RIT", m_ritWidget);
+    QFont ritFont;
+    ritFont.setPointSize(9);
+    ritFont.setBold(true);
+    m_ritTitleLabel->setFont(ritFont);
+    m_ritTitleLabel->setAlignment(Qt::AlignCenter);
+
+    m_ritOffsetLabel = new QLabel("0 Hz", m_ritWidget);
     QFont offsetFont("Monospace", 8);
     m_ritOffsetLabel->setFont(offsetFont);
-    m_ritOffsetLabel->setMaximumWidth(70);
+    m_ritOffsetLabel->setAlignment(Qt::AlignCenter);
 
-    ritLayout->addWidget(m_ritButton);
+    ritLayout->addWidget(m_ritTitleLabel);
     ritLayout->addWidget(m_ritOffsetLabel);
 
-    // XIT button with offset display
-    QVBoxLayout* xitLayout = new QVBoxLayout();
+    // XIT widget - clickable frame with two rows (label + offset)
+    m_xitWidget = new QFrame(this);
+    m_xitWidget->setFrameShape(QFrame::StyledPanel);
+    m_xitWidget->setFrameShadow(QFrame::Raised);
+    m_xitWidget->setMaximumWidth(70);
+    m_xitWidget->setMinimumHeight(50);
+    m_xitWidget->setCursor(Qt::PointingHandCursor);
+    m_xitWidget->installEventFilter(this);
+
+    QVBoxLayout* xitLayout = new QVBoxLayout(m_xitWidget);
     xitLayout->setSpacing(2);
-    m_xitButton = new QPushButton("XIT", this);
-    m_xitButton->setCheckable(true);
-    m_xitButton->setMaximumWidth(70);
-    m_xitButton->setStyleSheet(buttonStyle);
-    connect(m_xitButton, &QPushButton::clicked, this, &RadioControlWidget::onXitClicked);
+    xitLayout->setContentsMargins(5, 5, 5, 5);
 
-    m_xitOffsetLabel = new QLabel("0 Hz", this);
-    m_xitOffsetLabel->setAlignment(Qt::AlignCenter);
+    m_xitTitleLabel = new QLabel("XIT", m_xitWidget);
+    m_xitTitleLabel->setFont(ritFont);
+    m_xitTitleLabel->setAlignment(Qt::AlignCenter);
+
+    m_xitOffsetLabel = new QLabel("0 Hz", m_xitWidget);
     m_xitOffsetLabel->setFont(offsetFont);
-    m_xitOffsetLabel->setMaximumWidth(70);
+    m_xitOffsetLabel->setAlignment(Qt::AlignCenter);
 
-    xitLayout->addWidget(m_xitButton);
+    xitLayout->addWidget(m_xitTitleLabel);
     xitLayout->addWidget(m_xitOffsetLabel);
 
     // SPLIT button (no offset display needed)
@@ -165,8 +183,8 @@ void RadioControlWidget::setupUI() {
     m_splitButton->setStyleSheet(buttonStyle);
     connect(m_splitButton, &QPushButton::clicked, this, &RadioControlWidget::onSplitClicked);
 
-    buttonLayout->addLayout(ritLayout);
-    buttonLayout->addLayout(xitLayout);
+    buttonLayout->addWidget(m_ritWidget);
+    buttonLayout->addWidget(m_xitWidget);
     buttonLayout->addWidget(m_splitButton);
 
     mainLayout->addWidget(buttonWidget);
@@ -180,8 +198,10 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
     m_currentState = state;
 
     // Debug logging for RIT/XIT values
-    LOG_DEBUG("RadioControlWidget", QString("Radio state update - RIT: %1 Hz, XIT: %2 Hz, SPLIT: %3")
-        .arg(state.ritOffsetA).arg(state.xitOffsetA).arg(state.isSplitEnabled ? "ON" : "OFF"));
+    LOG_DEBUG("RadioControlWidget", QString("Radio state update - RIT: %1 (offset: %2 Hz), XIT: %3 (offset: %4 Hz), SPLIT: %5")
+        .arg(state.isRitEnabled ? "ON" : "OFF").arg(state.ritOffsetA)
+        .arg(state.isXitEnabled ? "ON" : "OFF").arg(state.xitOffsetA)
+        .arg(state.isSplitEnabled ? "ON" : "OFF"));
 
     // Update VFO A frequency (show full precision from hamlib - typically 1 Hz or 10 Hz)
     double freqMhz = state.frequencyA / 1000000.0;
@@ -222,14 +242,13 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
     }
     m_modeLabel->setText(modeStr);
 
-    // Enable buttons when radio is connected
-    m_ritButton->setEnabled(true);
-    m_xitButton->setEnabled(true);
+    // Enable widgets when radio is connected
+    m_ritWidget->setEnabled(true);
+    m_xitWidget->setEnabled(true);
     m_splitButton->setEnabled(true);
 
-    // Update button states from actual radio status
-    // RIT is active when there's a non-zero offset
-    m_ritButton->setChecked(state.ritOffsetA != 0);
+    // Update RIT widget style based on enable status
+    updateRitWidgetStyle();
 
     // Display RIT offset (convert Hz to more readable format)
     if (state.ritOffsetA == 0) {
@@ -243,8 +262,8 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
         m_ritOffsetLabel->setText(QString("%1 Hz").arg(state.ritOffsetA));
     }
 
-    // XIT is active when there's a non-zero offset
-    m_xitButton->setChecked(state.xitOffsetA != 0);
+    // Update XIT widget style based on enable status
+    updateXitWidgetStyle();
 
     // Display XIT offset
     if (state.xitOffsetA == 0) {
@@ -268,18 +287,18 @@ void RadioControlWidget::clearDisplay() {
     m_vfoBFreqLabel->setText("----.-----");
     m_modeLabel->setText("---");
 
-    // Uncheck all control buttons
-    m_ritButton->setChecked(false);
-    m_xitButton->setChecked(false);
+    // Clear current state first (so style updates use cleared state)
+    m_currentState = RadioState();
+
+    // Update widget styles to OFF state
+    updateRitWidgetStyle();
+    updateXitWidgetStyle();
     m_splitButton->setChecked(false);
 
-    // Disable buttons when radio not connected
-    m_ritButton->setEnabled(false);
-    m_xitButton->setEnabled(false);
+    // Disable widgets when radio not connected
+    m_ritWidget->setEnabled(false);
+    m_xitWidget->setEnabled(false);
     m_splitButton->setEnabled(false);
-
-    // Clear current state
-    m_currentState = RadioState();
 }
 
 void RadioControlWidget::setRadioNumber(int number) {
@@ -287,12 +306,27 @@ void RadioControlWidget::setRadioNumber(int number) {
     m_titleLabel->setText(QString("Radio %1").arg(number));
 }
 
+bool RadioControlWidget::eventFilter(QObject* obj, QEvent* event) {
+    if (event->type() == QEvent::MouseButtonPress) {
+        if (obj == m_ritWidget) {
+            onRitClicked();
+            return true;
+        } else if (obj == m_xitWidget) {
+            onXitClicked();
+            return true;
+        }
+    }
+    return QWidget::eventFilter(obj, event);
+}
+
 void RadioControlWidget::onRitClicked() {
-    emit ritToggled(m_ritButton->isChecked());
+    // Toggle RIT - emit the opposite of current state
+    emit ritToggled(!m_currentState.isRitEnabled);
 }
 
 void RadioControlWidget::onXitClicked() {
-    emit xitToggled(m_xitButton->isChecked());
+    // Toggle XIT - emit the opposite of current state
+    emit xitToggled(!m_currentState.isXitEnabled);
 }
 
 void RadioControlWidget::onSplitClicked() {
@@ -309,6 +343,58 @@ void RadioControlWidget::applyTheme() {
 
     m_vfoAWidget->setPalette(vfoPalette);
     m_vfoBWidget->setPalette(vfoPalette);
+}
+
+void RadioControlWidget::updateRitWidgetStyle() {
+    if (m_currentState.isRitEnabled) {
+        // RIT is ON - green background, white text
+        m_ritWidget->setStyleSheet(
+            "QFrame {"
+            "  background-color: #4CAF50;"  // Green
+            "  border: 2px solid #2E7D32;"
+            "  border-radius: 3px;"
+            "}"
+        );
+        m_ritTitleLabel->setStyleSheet("QLabel { color: white; font-weight: bold; }");
+        m_ritOffsetLabel->setStyleSheet("QLabel { color: white; font-weight: bold; }");
+    } else {
+        // RIT is OFF - gray background, dark text
+        m_ritWidget->setStyleSheet(
+            "QFrame {"
+            "  background-color: #E0E0E0;"
+            "  border: 1px solid #808080;"
+            "  border-radius: 3px;"
+            "}"
+        );
+        m_ritTitleLabel->setStyleSheet("QLabel { color: black; }");
+        m_ritOffsetLabel->setStyleSheet("QLabel { color: black; }");
+    }
+}
+
+void RadioControlWidget::updateXitWidgetStyle() {
+    if (m_currentState.isXitEnabled) {
+        // XIT is ON - green background, white text
+        m_xitWidget->setStyleSheet(
+            "QFrame {"
+            "  background-color: #4CAF50;"  // Green
+            "  border: 2px solid #2E7D32;"
+            "  border-radius: 3px;"
+            "}"
+        );
+        m_xitTitleLabel->setStyleSheet("QLabel { color: white; font-weight: bold; }");
+        m_xitOffsetLabel->setStyleSheet("QLabel { color: white; font-weight: bold; }");
+    } else {
+        // XIT is OFF - gray background, dark text
+        m_xitWidget->setStyleSheet(
+            "QFrame {"
+            "  background-color: #E0E0E0;"
+            "  border: 1px solid #808080;"
+            "  border-radius: 3px;"
+            "}"
+        );
+        m_xitTitleLabel->setStyleSheet("QLabel { color: black; }");
+        m_xitOffsetLabel->setStyleSheet("QLabel { color: black; }");
+    }
 }
 
 } // namespace TR4QT
