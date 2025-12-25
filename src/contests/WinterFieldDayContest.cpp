@@ -138,7 +138,7 @@ bool WinterFieldDayContest::validateReceivedExchange(const QString& exchange, QS
     // Validate class
     QString classStr = parsed["Class"];
     if (!isValidClass(classStr)) {
-        errorMsg = QString("Invalid class '%1'. Must be [1-20][I/O/H/M]. Examples: 1O, 2I, 3H, 20M").arg(classStr);
+        errorMsg = QString("Invalid class '%1'. Must be [1-99][I/O/H/M]. Examples: 1O, 2I, 3H, 22M").arg(classStr);
         return false;
     }
 
@@ -284,10 +284,11 @@ QMap<QString, QString> WinterFieldDayContest::getCabrilloHeaders() const {
 bool WinterFieldDayContest::isValidClass(const QString& classStr) {
     // Valid classes: 1O, 2O, ..., 1I, 2I, ..., 1H, 2H, ..., 1M, 2M, ...
     // WFD categories: I (Indoor), O (Outdoor), H (Home), M (Mobile)
+    // Per 2025 WFD rules: No limit on transmitter count (using 1-99 for validation)
     QString upper = classStr.toUpper();
 
-    // Pattern: digit(s) + letter (1-20 transmitters, I/O/H/M category)
-    QRegularExpression re("^([1-9]|1[0-9]|20)[IOHM]$");
+    // Pattern: digit(s) + letter (1-99 transmitters, I/O/H/M category)
+    QRegularExpression re("^([1-9]|[1-9][0-9])[IOHM]$");
     return re.match(upper).hasMatch();
 }
 
