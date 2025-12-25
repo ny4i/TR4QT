@@ -219,7 +219,9 @@ void MainWindow::createMenuBar() {
 
     radioMenu->addSeparator();
 
-    m_connectAction = radioMenu->addAction("C&onnect");
+    m_connectAction = radioMenu->addAction("C&onnect/Reconnect");
+    m_connectAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
+    m_connectAction->setStatusTip("Connect or reconnect to radio");
     connect(m_connectAction, &QAction::triggered, this, &MainWindow::onRadioConnect);
 
     m_disconnectAction = radioMenu->addAction("&Disconnect");
