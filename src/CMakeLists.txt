@@ -26,6 +26,8 @@ set(SOURCES
     data/LOTWUserRepository.cpp
     data/SpotRepository.cpp
     data/BackupManager.cpp
+    data/ExchangeMemoryRepository.cpp
+    exchanges/InitialExchangeManager.cpp
     contests/ContestRegistry.cpp
     contests/CQWWContest.cpp
     contests/CQWPXContest.cpp
@@ -79,6 +81,8 @@ set(HEADERS
     data/LOTWUserRepository.h
     data/SpotRepository.h
     data/BackupManager.h
+    data/ExchangeMemoryRepository.h
+    exchanges/InitialExchangeManager.h
     contests/ContestBase.h
     contests/ContestMetadata.h
     contests/ContestRegistry.h
