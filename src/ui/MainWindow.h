@@ -18,6 +18,7 @@
 #include "../contests/CQWWContest.h"
 #include "../contests/CQWPXContest.h"
 #include "../contests/WinterFieldDayContest.h"
+#include "../exchanges/InitialExchangeManager.h"
 
 class QMenuBar;
 class QStatusBar;
@@ -221,6 +222,9 @@ private:
 
     // Guard flag to prevent infinite recursion in raiseAllWindows
     bool m_inRaiseAllWindows;
+
+    // Exchange auto-population tracking
+    bool m_initialExchangePopulated;
 };
 
 } // namespace TR4QT

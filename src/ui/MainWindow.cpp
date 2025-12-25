@@ -21,6 +21,7 @@
 #include "../data/QSORepository.h"
 #include "../data/LOTWUserRepository.h"
 #include "../data/BackupManager.h"
+#include "../data/ExchangeMemoryRepository.h"
 #include <QFile>
 #include <QFileDialog>
 #include <QProgressDialog>
@@ -60,6 +61,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_nextSerialNumber(1)
     , m_udpBroadcastManager(new UdpBroadcastManager(this))
     , m_inRaiseAllWindows(false)
+    , m_initialExchangePopulated(false)
 {
     setWindowTitle(QString("%1 v%2").arg(APP_NAME).arg(APP_VERSION));
     setWindowIcon(QIcon(":/icons/tr4qt.png"));
@@ -1369,6 +1371,24 @@ void MainWindow::onLogQSO() {
         } else {
             LOG_DEBUG("MainWindow", QString("QSO saved to database with ID: %1").arg(qso.id));
 
+            // Save exchange to memory for future auto-population
+            if (m_activeContest && !qso.exchangeReceived.isEmpty()) {
+                ExchangeMemoryEntry memEntry;
+                memEntry.callsign = qso.callsign;
+                memEntry.exchange = qso.exchangeReceived;
+                memEntry.contestType = m_activeContest->getContestId();
+                memEntry.mode = qso.mode;
+                memEntry.timestamp = QDateTime::currentDateTime();
+                memEntry.source = m_initialExchangePopulated ? "auto" : "manual";
+                memEntry.hitCount = 0;
+
+                ExchangeMemoryRepository memRepo;
+                if (!memRepo.save(memEntry)) {
+                    LOG_WARN("MainWindow", QString("Failed to save exchange memory: %1")
+                             .arg(memRepo.lastError()));
+                }
+            }
+
             // Auto-backup check (if enabled)
             int currentQSOCount = repo.getQSOCount(m_currentContestDbId);
             BackupManager::instance().autoBackupIfNeeded(
@@ -1410,6 +1430,7 @@ void MainWindow::onClearEntry() {
     m_callsignEntry->clear();
     m_exchangeEntry->clear();
     m_callsignEntry->setFocus();
+    m_initialExchangePopulated = false;
 }
 
 void MainWindow::onEditQSO(const QModelIndex& index) {
@@ -1765,34 +1786,23 @@ void MainWindow::updateExchangeFieldsForContest() {
 }
 
 void MainWindow::autoPopulateExchange(const QString& callsign) {
-    if (!m_activeContest || callsign.isEmpty()) {
+    if (callsign.length() < 2 || !m_activeContest) {
         return;
     }
 
-    // Look up callsign in country file
-    CountryData countryData = m_countryFile.lookup(callsign);
+    // Use InitialExchangeManager for sophisticated exchange prediction
+    QString prediction = InitialExchangeManager::instance().predictExchange(
+        callsign,
+        m_activeContest,
+        m_currentState.modeA
+    );
 
-    // Get exchange fields from contest
-    QList<ExchangeField> receivedFields = m_activeContest->getReceivedExchangeFields();
-
-    // Check what fields the contest uses and auto-populate if applicable
-    QStringList exchangeParts;
-
-    for (const ExchangeField& field : receivedFields) {
-        if (field.name == "Zone" && !field.autoFill) {
-            // CQ WW uses CQ Zone - populate from country file
-            exchangeParts.append(QString::number(countryData.cqZone));
-        } else if (field.name == "ITU Zone" && !field.autoFill) {
-            // Some contests might use ITU zone
-            exchangeParts.append(QString::number(countryData.ituZone));
-        }
-        // Note: Other fields like Serial Number, Class, Section cannot be auto-populated
-        // from country file - they must be entered by the operator
-    }
-
-    // If we have auto-populated data, set it in the exchange field
-    if (!exchangeParts.isEmpty()) {
-        m_exchangeEntry->setText(exchangeParts.join(" "));
+    if (!prediction.isEmpty()) {
+        m_exchangeEntry->setText(prediction);
+        m_exchangeEntry->selectAll();  // Overwrite mode: first key replaces
+        m_initialExchangePopulated = true;
+    } else {
+        m_initialExchangePopulated = false;
     }
 }
 

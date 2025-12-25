@@ -101,3 +101,27 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- Exchange memory for auto-population
+-- Stores exchanges from successful QSOs for future prediction
+CREATE TABLE IF NOT EXISTS exchange_memory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    callsign TEXT NOT NULL,              -- Full callsign (e.g., "W1AW")
+    callsign_prefix TEXT NOT NULL,       -- Prefix for partial matching (e.g., "W1")
+    exchange TEXT NOT NULL,              -- Full exchange string (e.g., "1O MA")
+    rst TEXT,                            -- Extracted RST (optional)
+    contest_type TEXT,                   -- Contest ID (NULL = any contest)
+    mode TEXT,                           -- Operating mode (CW, SSB, etc.)
+    timestamp INTEGER NOT NULL,          -- Unix timestamp of last update
+    source TEXT DEFAULT 'manual',        -- How obtained: 'manual', 'auto', 'imported'
+    hit_count INTEGER DEFAULT 0,         -- How many times used for prediction
+
+    UNIQUE(callsign, contest_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exchange_memory_callsign
+    ON exchange_memory(callsign);
+CREATE INDEX IF NOT EXISTS idx_exchange_memory_prefix
+    ON exchange_memory(callsign_prefix);
+CREATE INDEX IF NOT EXISTS idx_exchange_memory_contest
+    ON exchange_memory(contest_type);
