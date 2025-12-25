@@ -8,7 +8,9 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QTextEdit>
+#include <QMessageBox>
 #include "../../models/QSO.h"
+#include "../../contests/ContestBase.h"
 
 namespace TR4QT {
 
@@ -25,7 +27,7 @@ class EditQSODialog : public QDialog {
     Q_OBJECT
 
 public:
-    explicit EditQSODialog(const QSO& qso, QWidget* parent = nullptr);
+    explicit EditQSODialog(const QSO& qso, ContestBase* contest = nullptr, QWidget* parent = nullptr);
     ~EditQSODialog() override = default;
 
     /**
@@ -44,6 +46,9 @@ private:
 
     // Original QSO being edited
     QSO m_qso;
+
+    // Contest for validation (optional)
+    ContestBase* m_contest;
 
     // Basic fields
     QDateTimeEdit* m_timestampEdit;

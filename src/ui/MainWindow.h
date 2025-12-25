@@ -124,6 +124,7 @@ private slots:
     void onLogQSO();
     void onCallsignChanged(const QString& callsign);
     void onCallsignEnterPressed();  // Handle Enter key in callsign field
+    void onExchangeTextChanged(const QString& text);  // Real-time validation
     void onClearEntry();
     void onEditQSO(const QModelIndex& index);
     void onQSOTableContextMenu(const QPoint& pos);
