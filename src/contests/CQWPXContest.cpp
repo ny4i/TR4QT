@@ -102,20 +102,26 @@ QString CQWPXContest::formatSentExchange(int serialNumber, const QString& rst) c
 bool CQWPXContest::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
-    if (parts.size() != 2) {
-        errorMsg = "Exchange must be: RST + Serial Number (e.g., '599 001')";
+    if (parts.isEmpty()) {
+        errorMsg = "Exchange required (Serial or RST + Serial, e.g., '001' or '599 001')";
         return false;
     }
 
-    // Validate RST
-    QString rst = parts[0];
-    if (rst.length() < 2 || rst.length() > 3) {
-        errorMsg = "Invalid RST format";
-        return false;
+    QString serial;
+    if (parts.size() == 1) {
+        // Only serial provided - RST will be auto-filled
+        serial = parts[0];
+    } else if (parts.size() >= 2) {
+        // RST + Serial provided - validate RST
+        QString rst = parts[0];
+        if (rst.length() < 2 || rst.length() > 3) {
+            errorMsg = "Invalid RST format";
+            return false;
+        }
+        serial = parts[1];
     }
 
     // Validate serial number (1-9999)
-    QString serial = parts[1];
     bool ok;
     int serialNum = serial.toInt(&ok);
     if (!ok || serialNum < 1 || serialNum > 9999) {
@@ -130,7 +136,12 @@ QMap<QString, QString> CQWPXContest::parseReceivedExchange(const QString& exchan
     QMap<QString, QString> result;
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
-    if (parts.size() == 2) {
+    if (parts.size() == 1) {
+        // Only serial provided - auto-fill RST based on mode
+        result["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
+        result["Serial"] = parts[0];
+    } else if (parts.size() >= 2) {
+        // Full exchange: RST + Serial
         result["RST"] = parts[0];
         result["Serial"] = parts[1];
     }
