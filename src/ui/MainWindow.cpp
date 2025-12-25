@@ -1586,8 +1586,9 @@ void MainWindow::updateTimeDisplay() {
 }
 
 void MainWindow::updateRadioStatusGrid() {
-    // Update band/mode (e.g., "15SSB")
-    if (m_radioConnected && m_currentState.frequencyA > 0) {
+    // Update band/mode (e.g., "15SSB") and frequency
+    // Display even when radio not connected if we have valid band/mode/frequency from manual selection
+    if (m_currentState.frequencyA > 0 && m_currentState.bandA != BandType::None) {
         QString bandStr = bandToString(m_currentState.bandA).remove('M');  // Remove 'M' from "15M" -> "15"
         QString modeStr = modeToString(m_currentState.modeA);
         m_radioFreqBandLabel->setText(QString("%1%2").arg(bandStr).arg(modeStr));
