@@ -160,6 +160,9 @@ private:
     BandType getPreviousBand(BandType currentBand) const;
     BandType getBandFromFrequency(freq_t frequency) const;
 
+    // Duplicate checking
+    bool checkForDuplicate(const QString& callsign, BandType band, ModeType mode, QString& dupeInfo) const;
+
     // UI Components
     QLabel* m_statusLabel;
     QLabel* m_radioStatusLabel;
@@ -173,6 +176,7 @@ private:
     QPushButton* m_logButton;
     QTableView* m_qsoTableView;
     QSOTableModel* m_qsoTableModel;
+    QLabel* m_dupeWarningLabel;  // Warning label for duplicate QSOs
 
     // Stats panel (bottom right)
     QLabel* m_rateLabel;

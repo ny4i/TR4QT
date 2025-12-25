@@ -190,6 +190,14 @@ public:
     virtual bool usesSerialNumbers() const = 0;
 
     /**
+     * Get duplicate checking rule for this contest
+     * Determines when a QSO is considered a duplicate
+     *
+     * @return DuplicateCheckingRule for this contest
+     */
+    virtual DuplicateCheckingRule getDuplicateCheckingRule() const = 0;
+
+    /**
      * Generate Cabrillo header fields specific to this contest
      * Base implementation provides common fields
      */
