@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.66.5";  // Fix WFD class validation to accept all 4 categories I/O/H/M
+constexpr const char* APP_VERSION = "2.66.6";  // Improve WFD class error message to show 1-20 transmitter limit
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
