@@ -951,6 +951,9 @@ void MainWindow::onNewOpenContest() {
             m_statusLabel->setText(QString("Created new contest: %1").arg(contestInfo.contestName));
         }
 
+        // Set focus to callsign entry for immediate logging
+        m_callsignEntry->setFocus();
+
         // TODO: Initialize database for new contest
         // TODO: Load QSOs from database if resuming existing contest
     }
@@ -1767,6 +1770,9 @@ void MainWindow::reopenLastContest() {
 
     LOG_DEBUG("MainWindow", QString("Reopened last contest: %1").arg(contestInfo.contestName));
     m_statusLabel->setText(QString("Reopened: %1").arg(contestInfo.contestName));
+
+    // Set focus to callsign entry for immediate logging
+    m_callsignEntry->setFocus();
 }
 
 void MainWindow::activateContest(const ContestInfo& contestInfo) {
