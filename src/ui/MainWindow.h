@@ -123,6 +123,7 @@ private slots:
     // Logging actions
     void onLogQSO();
     void onCallsignChanged(const QString& callsign);
+    void onCallsignEnterPressed();  // Handle Enter key in callsign field
     void onClearEntry();
     void onEditQSO(const QModelIndex& index);
     void onQSOTableContextMenu(const QPoint& pos);

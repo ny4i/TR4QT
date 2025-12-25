@@ -610,7 +610,7 @@ QWidget* MainWindow::createBottomPanel() {
     connect(m_callsignEntry, &QLineEdit::textChanged,
             this, &MainWindow::onCallsignChanged);
     connect(m_callsignEntry, &QLineEdit::returnPressed,
-            this, &MainWindow::onLogQSO);
+            this, &MainWindow::onCallsignEnterPressed);
     connect(m_exchangeEntry, &QLineEdit::returnPressed,
             this, &MainWindow::onLogQSO);
     connect(m_logButton, &QPushButton::clicked,
@@ -1422,11 +1422,24 @@ void MainWindow::onLogQSO() {
 }
 
 void MainWindow::onCallsignChanged(const QString& callsign) {
-    // Auto-populate exchange based on callsign lookup (e.g., zone from cty.dat)
+    Q_UNUSED(callsign);
+    // Exchange auto-population now happens on Enter key press, not while typing
+    // TODO: Real-time dupe checking could happen here (visual indicator)
+}
+
+void MainWindow::onCallsignEnterPressed() {
+    QString callsign = m_callsignEntry->text().trimmed().toUpper();
+
+    if (callsign.isEmpty()) {
+        return;
+    }
+
+    // Auto-populate exchange based on callsign
     autoPopulateExchange(callsign);
 
-    // TODO: Real-time dupe checking
-    // TODO: Callsign lookup/prediction from previous QSOs
+    // Move focus to exchange field
+    m_exchangeEntry->setFocus();
+    m_exchangeEntry->selectAll();  // Select all for easy overwrite
 }
 
 void MainWindow::onClearEntry() {
