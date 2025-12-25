@@ -2,6 +2,7 @@
 #include "ContestRegistry.h"
 #include "ContestMetadata.h"
 #include "../models/QSO.h"
+#include "../exchanges/SmartExchangeParser.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
@@ -138,13 +139,19 @@ bool WinterFieldDayContest::validateReceivedExchange(const QString& exchange, QS
 }
 
 QMap<QString, QString> WinterFieldDayContest::parseReceivedExchange(const QString& exchange) const {
-    QMap<QString, QString> result;
-    QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
+    // Use smart parser to allow fields in any order
+    // Examples that now work:
+    // - "1O WMA" (traditional: class first, section second)
+    // - "WMA 1O" (reversed: section first, class second)
+    // - "3H CT" or "CT 3H" (both work)
+    // - "HOME WCF" or "WCF HOME" (both work)
 
-    if (parts.size() == 2) {
-        result["Class"] = parts[0].toUpper();
-        result["Section"] = parts[1].toUpper();
-    }
+    QList<ExchangeField> expectedFields = getReceivedExchangeFields();
+    QMap<QString, QString> result = SmartExchangeParser::parse(
+        exchange,
+        expectedFields,
+        const_cast<WinterFieldDayContest*>(this)  // For section validation
+    );
 
     return result;
 }
