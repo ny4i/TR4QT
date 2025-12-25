@@ -1925,6 +1925,10 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         m_activeContest = new CQWPXContest(ModeType::USB);
     } else if (contestInfo.contestType == "WFD") {
         m_activeContest = new WinterFieldDayContest();
+    } else if (contestInfo.contestType == "ARRL_SS_CW") {
+        m_activeContest = new ARRLSweepstakesContest(ModeType::CW);
+    } else if (contestInfo.contestType == "ARRL_SS_SSB") {
+        m_activeContest = new ARRLSweepstakesContest(ModeType::USB);
     } else {
         LOG_WARN("MainWindow", QString("Unknown contest type: %1").arg(contestInfo.contestType));
         return;
