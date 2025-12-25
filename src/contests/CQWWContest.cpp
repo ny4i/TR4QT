@@ -159,30 +159,32 @@ int CQWWContest::calculateQSOPoints(
     const QSO& qso,
     const StationInfo& myStation) const
 {
+    // CQWW Scoring rules (from cqww.com official rules):
+    // - Different continents: 3 points
+    // - Same continent, different countries: 1 point
+    // - Same continent, different countries (North America): 2 points
+    // - Same country: 0 points (but counts for zone/country multiplier)
+
     const QString& theirCountry = qso.dxccEntity;
     const QString& theirContinent = qso.continent;
 
-    // Check for special W/VE rule
-    bool imWVE = (myStation.country == "United States" || myStation.country == "Canada");
-    bool theyWVE = (theirCountry == "United States" || theirCountry == "Canada");
+    // Same country: 0 points (but counts as multiplier)
+    if (myStation.country == theirCountry) {
+        return 0;
+    }
 
-    if (imWVE && theyWVE) {
-        // W/VE working each other: 2 points
-        return 2;
+    // Different continent: 3 points (both CW and SSB)
+    if (myStation.continent != theirContinent) {
+        return 3;
     }
 
     // Same continent, different country
-    if (myStation.continent == theirContinent && myStation.country != theirCountry) {
-        return 1;  // 1 point for both CW and SSB
+    // North America gets 2 points, others get 1 point
+    if (myStation.continent == "NA") {
+        return 2;
+    } else {
+        return 1;
     }
-
-    // Different continent (DX)
-    if (myStation.continent != theirContinent) {
-        return (m_mode == ModeType::CW) ? 3 : 2;
-    }
-
-    // Same country (shouldn't happen in contest, but just in case)
-    return 0;
 }
 
 int CQWWContest::calculateTotalScore(

@@ -150,24 +150,48 @@ QMap<QString, QString> CQWPXContest::parseReceivedExchange(const QString& exchan
 }
 
 int CQWPXContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) const {
-    // QSO should already have continent information populated
-    // by the logging system via CountryFile lookup
+    // CQWPX Scoring rules (from cqwpx.com official rules):
+    //
+    // Different Continents:
+    //   - 28/21/14 MHz (10m/15m/20m): 3 points
+    //   - 7/3.5/1.8 MHz (40m/80m/160m): 6 points
+    //
+    // Same Continent, Different Countries:
+    //   - 28/21/14 MHz: 1 point
+    //   - 7/3.5/1.8 MHz: 2 points
+    //   - North America exception: doubled (2 and 4 points)
+    //
+    // Same Country: 1 point (all bands)
 
-    int basePoints = 0;
+    const QString& theirCountry = qso.dxccEntity;
+    const QString& theirContinent = qso.continent;
 
-    // Same continent = 1 point, Different continent = 3 points (CW) or 2 points (SSB)
-    if (myStation.continent == qso.continent) {
-        basePoints = 1;
-    } else {
-        basePoints = (m_mode == ModeType::CW) ? 3 : 2;
+    // Determine if we're on low bands (160m, 80m, 40m) or high bands (20m, 15m, 10m)
+    bool isLowBand = (qso.band == BandType::Band160M ||
+                      qso.band == BandType::Band80M ||
+                      qso.band == BandType::Band40M);
+
+    int points = 0;
+
+    // Same country: 1 point (all bands)
+    if (myStation.country == theirCountry) {
+        points = 1;
+    }
+    // Different continent
+    else if (myStation.continent != theirContinent) {
+        points = isLowBand ? 6 : 3;
+    }
+    // Same continent, different country
+    else {
+        points = isLowBand ? 2 : 1;
+
+        // North America exception: double points
+        if (myStation.continent == "NA") {
+            points *= 2;  // 4 points (low bands) or 2 points (high bands)
+        }
     }
 
-    // Double points on 160m and 10m
-    if (qso.band == BandType::Band160M || qso.band == BandType::Band10M) {
-        basePoints *= 2;
-    }
-
-    return basePoints;
+    return points;
 }
 
 int CQWPXContest::calculateTotalScore(
