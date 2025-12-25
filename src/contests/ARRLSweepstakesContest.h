@@ -67,6 +67,7 @@ public:
     // ===== Exchange Configuration =====
     QList<ExchangeField> getReceivedExchangeFields() const override;
     QList<ExchangeField> getSentExchangeFields() const override;
+    QList<TableColumn> getTableColumns() const override;  // 4 columns for SS exchange
     QString formatSentExchange(int serialNumber, const QString& rst = "599") const override;
     bool validateReceivedExchange(const QString& exchange, QString& errorMsg) const override;
     QMap<QString, QString> parseReceivedExchange(const QString& exchange) const override;

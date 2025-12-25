@@ -73,6 +73,15 @@ QList<ExchangeField> ARRLSweepstakesContest::getSentExchangeFields() const {
     };
 }
 
+QList<TableColumn> ARRLSweepstakesContest::getTableColumns() const {
+    return {
+        TableColumn("Serial", "#", 50, TableColumn::Alignment::Right),
+        TableColumn("Precedence", "Prec", 50, TableColumn::Alignment::Center),
+        TableColumn("Check", "Chk", 50, TableColumn::Alignment::Center),
+        TableColumn("Section", "QTH", 60, TableColumn::Alignment::Left)
+    };
+}
+
 QString ARRLSweepstakesContest::formatSentExchange(int serialNumber, const QString& rst) const {
     Q_UNUSED(rst);  // SS doesn't use RST in exchange
     // Example: "123 A 95 WMA"

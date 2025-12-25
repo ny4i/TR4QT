@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.63.0";  // Implement ARRL Sweepstakes Contest + Phase 2 exchange memory
+constexpr const char* APP_VERSION = "2.64.0";  // Add dynamic QSO table columns for contests with many exchange fields
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

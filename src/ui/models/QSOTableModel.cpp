@@ -27,7 +27,11 @@ int QSOTableModel::columnCount(const QModelIndex& parent) const {
     if (parent.isValid()) {
         return 0;
     }
-    return ColCount;
+    // Return actual visible column count based on contest's exchange fields
+    // Fixed columns: Band, Date, UTC, NR, Callsign (5 before exchange)
+    // Exchange columns: variable (1-5)
+    // Fixed columns: Pts, M, Mult, Freq, Op (5 after exchange)
+    return 5 + m_visibleExchangeColumns + 5;
 }
 
 QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
@@ -36,10 +40,24 @@ QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
     }
 
     const QSO& qso = m_qsos.at(index.row());
+    int col = index.column();
 
     // Display role - show data
     if (role == Qt::DisplayRole) {
-        switch (index.column()) {
+        // Map physical column to logical column (handle variable exchange columns)
+        int logicalCol = col;
+        if (col >= ColExch1) {
+            // After exchange start, adjust for hidden exchange columns
+            if (col < ColExch1 + m_visibleExchangeColumns) {
+                // This is an exchange column, use as-is
+                logicalCol = col;
+            } else {
+                // This is a fixed column after exchange, adjust for hidden columns
+                logicalCol = col + (MAX_EXCHANGE_COLUMNS - m_visibleExchangeColumns);
+            }
+        }
+
+        switch (logicalCol) {
         case ColBand:
             // Format: "20CW", "15LSB" (remove M from band, e.g., "15M" -> "15")
             return QString("%1%2")
@@ -57,11 +75,12 @@ QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
         case ColCallsign:
             return qso.callsign;
         case ColExch1:
-            // Contest-dependent exchange field 1
-            return getExchangeFieldValue(qso, 0);
         case ColExch2:
-            // Contest-dependent exchange field 2
-            return getExchangeFieldValue(qso, 1);
+        case ColExch3:
+        case ColExch4:
+        case ColExch5:
+            // Contest-dependent exchange fields
+            return getExchangeFieldValue(qso, logicalCol - ColExch1);
         case ColPts:
             // QSO points
             return qso.qsoPoints > 0 ? QString::number(qso.qsoPoints) : QString();
@@ -120,14 +139,28 @@ QVariant QSOTableModel::headerData(int section, Qt::Orientation orientation, int
     }
 
     if (orientation == Qt::Horizontal) {
-        switch (section) {
+        // Map physical column to logical column (handle variable exchange columns)
+        int logicalCol = section;
+        if (section >= ColExch1) {
+            if (section < ColExch1 + m_visibleExchangeColumns) {
+                logicalCol = section;
+            } else {
+                logicalCol = section + (MAX_EXCHANGE_COLUMNS - m_visibleExchangeColumns);
+            }
+        }
+
+        switch (logicalCol) {
         case ColBand:       return "Band";
         case ColDate:       return "Date";
         case ColUTC:        return "UTC";
         case ColQSOs:       return "NR";
         case ColCallsign:   return "Callsign";
-        case ColExch1:      return getExchangeFieldHeader(0);
-        case ColExch2:      return getExchangeFieldHeader(1);
+        case ColExch1:
+        case ColExch2:
+        case ColExch3:
+        case ColExch4:
+        case ColExch5:
+            return getExchangeFieldHeader(logicalCol - ColExch1);
         case ColPts:        return "Pts";
         case ColM:          return "M";
         case ColMult:       return "$";
@@ -193,50 +226,65 @@ QString QSOTableModel::formatFrequency(freq_t freq) const {
     return QString::number(freqKhz, 'f', 1);
 }
 
-void QSOTableModel::setContestExchangeFields(const QList<ExchangeField>& fields) {
-    m_exchangeFields = fields;
+void QSOTableModel::setTableColumns(const QList<TableColumn>& columns) {
+    // Set the table column definitions from the contest
+    m_tableColumns = columns;
+    m_visibleExchangeColumns = qMin(columns.size(), MAX_EXCHANGE_COLUMNS);
 
-    // Notify views that headers have changed
-    emit headerDataChanged(Qt::Horizontal, ColExch1, ColExch2);
+    // Notify views that the column structure has changed
+    beginResetModel();
+    endResetModel();
+}
+
+void QSOTableModel::setContestExchangeFields(const QList<ExchangeField>& fields) {
+    // Legacy compatibility - convert ExchangeField to TableColumn
+    QList<TableColumn> columns;
+    for (const ExchangeField& field : fields) {
+        // Create default table column from exchange field
+        QString header = field.name;
+        if (header == "Zone") header = "Zn";
+        else if (header == "ITU Zone") header = "ITU";
+        else if (header == "Class") header = "CL";
+        else if (header == "Section") header = "QTH";
+        else if (header == "Serial") header = "#";
+        else header = header.left(3).toUpper();
+
+        columns.append(TableColumn(field.name, header, 0, TableColumn::Alignment::Left));
+    }
+
+    setTableColumns(columns);
 }
 
 QString QSOTableModel::getExchangeFieldHeader(int fieldIndex) const {
-    if (fieldIndex >= 0 && fieldIndex < m_exchangeFields.size()) {
-        // Use field name for header (e.g., "Zone", "Class", "Section")
-        // Abbreviate for TR4W-style compactness
-        QString name = m_exchangeFields[fieldIndex].name;
-        if (name == "Zone") return "Zn";
-        if (name == "ITU Zone") return "ITU";
-        if (name == "Class") return "CL";
-        if (name == "Section") return "QTH";
-        if (name == "Serial") return "#";
-        // Default: return first 3 chars uppercase
-        return name.left(3).toUpper();
+    if (fieldIndex >= 0 && fieldIndex < m_tableColumns.size()) {
+        // Use header text from TableColumn definition
+        return m_tableColumns[fieldIndex].headerText;
     }
     // Default headers if no contest set
     return fieldIndex == 0 ? "DX" : "Zn";
 }
 
 QString QSOTableModel::getExchangeFieldValue(const QSO& qso, int fieldIndex) const {
-    if (fieldIndex >= 0 && fieldIndex < m_exchangeFields.size()) {
-        QString fieldName = m_exchangeFields[fieldIndex].name;
+    if (fieldIndex >= 0 && fieldIndex < m_tableColumns.size()) {
+        QString fieldName = m_tableColumns[fieldIndex].fieldName;
 
         // Map field name to QSO data
+        // First check well-known fields that have dedicated QSO members
         if (fieldName == "Zone") {
             return qso.cqZone > 0 ? QString::number(qso.cqZone) : QString();
         } else if (fieldName == "ITU Zone") {
             return qso.ituZone > 0 ? QString::number(qso.ituZone) : QString();
-        } else if (fieldName == "Class") {
-            // Class is stored in parsed exchange
-            return qso.parsedExchange.value("Class", QString());
         } else if (fieldName == "Section") {
-            // Section is stored in state field for WFD
-            return qso.state;
-        } else if (fieldName == "Serial") {
-            // Serial number from parsed exchange
-            return qso.parsedExchange.value("Serial", QString());
+            // Try ARRL section field first, then state, then parsed exchange
+            if (!qso.arrlSection.isEmpty()) {
+                return qso.arrlSection;
+            } else if (!qso.state.isEmpty()) {
+                return qso.state;
+            } else {
+                return qso.parsedExchange.value("Section", QString());
+            }
         } else {
-            // Try to find in parsed exchange
+            // Default: look up in parsed exchange map
             return qso.parsedExchange.value(fieldName, QString());
         }
     }

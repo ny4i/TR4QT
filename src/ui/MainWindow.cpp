@@ -1983,7 +1983,15 @@ void MainWindow::updateExchangeFieldsForContest() {
     QList<ExchangeField> receivedFields = m_activeContest->getReceivedExchangeFields();
 
     // Update table model column headers
-    m_qsoTableModel->setContestExchangeFields(receivedFields);
+    // Try to get table column definitions first (for contests with custom display)
+    QList<TableColumn> tableColumns = m_activeContest->getTableColumns();
+    if (!tableColumns.isEmpty()) {
+        // Contest provides custom column definitions
+        m_qsoTableModel->setTableColumns(tableColumns);
+    } else {
+        // Use legacy method (auto-converts to TableColumn)
+        m_qsoTableModel->setContestExchangeFields(receivedFields);
+    }
 
     // Build hint text from non-auto fields
     QStringList hints;
