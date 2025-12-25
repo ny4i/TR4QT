@@ -697,6 +697,11 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     // Save settings BEFORE closing windows (so visibility state is correct)
     saveSettings();
 
+    // Save band map spots to database before closing
+    if (m_bandMapWindow) {
+        m_bandMapWindow->saveSpotsToDatabase();
+    }
+
     // Close all child windows
     if (m_dxClusterWindow) {
         m_dxClusterWindow->close();
@@ -1069,6 +1074,11 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
     // Update radio control window if it's open
     if (m_radioControlWindow && m_radioControlWindow->isVisible()) {
         m_radioControlWindow->updateRadioState(state);
+    }
+
+    // Update Band Map with current frequency for band filtering
+    if (m_bandMapWindow) {
+        m_bandMapWindow->setCurrentFrequency(state.frequencyA);
     }
 }
 

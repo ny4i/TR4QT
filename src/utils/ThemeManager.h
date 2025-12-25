@@ -33,6 +33,12 @@ enum class ColorRole {
     NeededMultiplierBackground, // Needed multiplier (default: light yellow #FFFFC8)
     ConfirmedMultiplierBackground, // Confirmed multiplier (default: light green #90EE90)
 
+    // Spot Aging Colors
+    NewSpotText,                // New spot text <60s (default: dark green #006400)
+    NewSpotBackground,          // New spot background (default: light cyan #E0FFFF)
+    AgingSpotText,              // Aging spot text last 2 min (default: dark orange #FF8C00)
+    AgingSpotBackground,        // Aging spot background (default: light yellow #FFFACD)
+
     // UI Colors
     PrimaryText,                // Main text color (default: black)
     SecondaryText,              // Secondary/disabled text (default: dark gray)

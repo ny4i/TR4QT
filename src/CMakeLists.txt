@@ -23,6 +23,7 @@ set(SOURCES
     data/GlobalDatabase.cpp
     data/QSORepository.cpp
     data/LOTWUserRepository.cpp
+    data/SpotRepository.cpp
     data/BackupManager.cpp
     contests/ContestRegistry.cpp
     contests/CQWWContest.cpp
@@ -69,6 +70,7 @@ set(HEADERS
     data/GlobalDatabase.h
     data/QSORepository.h
     data/LOTWUserRepository.h
+    data/SpotRepository.h
     data/BackupManager.h
     contests/ContestBase.h
     contests/ContestMetadata.h

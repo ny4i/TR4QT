@@ -118,10 +118,26 @@ public:
     void setCountryFilePath(const QString& path);
     QString getCountryFilePath() const;
 
-    // LOTW settings
+    // Band Map filter settings
     void setShowOnlyLotwUsers(bool show);
     bool getShowOnlyLotwUsers() const;
 
+    void setShowAllBands(bool show);
+    bool getShowAllBands() const;
+
+    // Band Map spot aging settings
+    void setSpotExpirySeconds(int seconds);
+    int getSpotExpirySeconds() const;  // Default: 600 (10 minutes)
+
+    void setNewSpotThresholdSeconds(int seconds);
+    int getNewSpotThresholdSeconds() const;  // Default: 60 (1 minute)
+
+    void setAgingSpotThresholdSeconds(int seconds);
+    int getAgingSpotThresholdSeconds() const;  // Default: 120 (2 minutes before expiry)
+
+    int getSpotRefreshIntervalMs() const;  // Default: 5000 (5 seconds)
+
+    // LOTW settings
     void setLotwLastUpdateTime(const QDateTime& timestamp);
     QDateTime getLotwLastUpdateTime() const;
 

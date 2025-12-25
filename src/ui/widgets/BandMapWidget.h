@@ -74,15 +74,30 @@ public:
     void setCurrentFrequency(freq_t freq);
 
     /**
-     * Get spot count
+     * Get spot count (all spots, not just displayed)
      */
-    int spotCount() const { return m_spots.size(); }
+    int spotCount() const { return m_allSpots.size(); }
 
     /**
      * Refresh LOTW status for all spots
      * Called when LOTW settings change (e.g., min upload months)
      */
     void refreshLotwStatus();
+
+    /**
+     * Load spots from database on startup
+     */
+    void loadSpotsFromDatabase();
+
+    /**
+     * Save spots to database on shutdown
+     */
+    void saveSpotsToDatabase();
+
+    /**
+     * Update spot status after QSO logging
+     */
+    void updateSpotStatus(const QString& callsign, bool isWorked, bool isMultiplier);
 
 signals:
     /**
@@ -104,14 +119,25 @@ protected:
     void contextMenuEvent(QContextMenuEvent* event) override;
     void scrollContentsBy(int dx, int dy) override;
 
+private slots:
+    /**
+     * Periodic refresh timer - cleanup expired spots and update aging colors
+     */
+    void onRefreshTimer();
+
 private:
-    QList<Spot> m_spots;
+    // Storage - master list and filtered display list
+    QList<Spot> m_allSpots;      // All spots in memory (master list)
+    QList<Spot> m_displaySpots;  // Filtered spots for display (cache)
     freq_t m_currentFrequency;
     int m_selectedIndex;
     int m_columnCount;       // Number of columns to display
     int m_columnWidth;       // Width of each column in pixels
     BandMapSortMode m_sortMode;  // Current sort mode
     bool m_showOnlyLotwUsers;    // Filter to show only LOTW users
+    bool m_showAllBands;         // Show all bands or only current band
+
+    QTimer* m_refreshTimer;      // Periodic refresh for aging and cleanup
 
     /**
      * Apply current theme colors
@@ -147,6 +173,49 @@ private:
      * Update scrollbar ranges based on content size
      */
     void updateScrollBars();
+
+    /**
+     * Get band name from frequency (e.g., "160m", "80m", "40m")
+     * Returns empty string if not a ham band
+     */
+    QString getBandFromFrequency(freq_t freq) const;
+
+    /**
+     * Rebuild m_displaySpots from m_allSpots with current filters
+     * Applies band filter, LOTW filter, and expiry filter
+     */
+    void rebuildDisplayList();
+
+    /**
+     * Remove expired spots from m_allSpots
+     * Called periodically by refresh timer
+     */
+    void removeExpiredSpots();
+
+    /**
+     * Spot age category for color coding
+     */
+    enum class SpotAge {
+        New,      // < 60 seconds
+        Normal,   // 60s - 8 minutes
+        Aging,    // Last 2 minutes before expiry
+        Expired   // > expiry time
+    };
+
+    /**
+     * Get spot age category based on timestamp
+     */
+    SpotAge getSpotAge(const Spot& spot) const;
+
+    /**
+     * Get text color based on spot properties and age
+     */
+    QColor getSpotTextColor(const Spot& spot) const;
+
+    /**
+     * Get background color based on spot age
+     */
+    QColor getSpotBackgroundColor(const Spot& spot) const;
 };
 
 } // namespace TR4QT

@@ -409,27 +409,6 @@ void DXClusterWindow::onTelnetSpotReceived(const QString& callsign,
                                           const QString& spotter,
                                           const QString& comment,
                                           const QString& timestamp) {
-    // Check LOTW status
-    LOTWUserRepository lotwRepo;
-    bool isLotwUser = lotwRepo.isLotwUser(callsign);
-
-    // Update status label with spot details
-    QString statusText = QString("%1 @ %.1f kHz").arg(callsign).arg(frequency / 1000.0);
-
-    if (!comment.trimmed().isEmpty()) {
-        statusText += QString(" | %1").arg(comment.trimmed());
-    }
-
-    if (isLotwUser) {
-        statusText += " | LOTW";
-    }
-
-    // TODO: Add multiplier status check
-    // statusText += " | MULT" if isMultiplier
-
-    m_statusLabel->setText(statusText);
-    m_statusLabel->setStyleSheet("QLabel { color: blue; }");
-
     // Forward spot to band map (signal will be connected by MainWindow)
     emit spotReceived(callsign, frequency, spotter, comment);
 }
