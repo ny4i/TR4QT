@@ -97,40 +97,9 @@ void RadioControlWidget::setupUI() {
     m_modeLabel->setStyleSheet("QLabel { background-color: lightgray; padding: 5px; }");
     mainLayout->addWidget(m_modeLabel);
 
-    // S-Meter display
-    QWidget* sMeterWidget = new QWidget(this);
-    QVBoxLayout* sMeterLayout = new QVBoxLayout(sMeterWidget);
-    sMeterLayout->setSpacing(2);
-    sMeterLayout->setContentsMargins(5, 5, 5, 5);
-
-    m_sMeterBar = new QProgressBar(this);
-    m_sMeterBar->setMinimum(0);
-    m_sMeterBar->setMaximum(100);  // 0-54 for S0-S9, 55-100 for S9+
-    m_sMeterBar->setValue(50);     // Default to S9
-    m_sMeterBar->setTextVisible(false);
-    m_sMeterBar->setMaximumHeight(15);
-    m_sMeterBar->setStyleSheet(
-        "QProgressBar {"
-        "  border: 1px solid gray;"
-        "  border-radius: 2px;"
-        "  background-color: #E0E0E0;"
-        "}"
-        "QProgressBar::chunk {"
-        "  background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
-        "    stop:0 #00C000, stop:0.6 #00C000, stop:0.61 #FFFF00, stop:0.8 #FFFF00, stop:0.81 #FF0000);"
-        "}"
-    );
-
-    m_sMeterLabel = new QLabel("S9", this);
-    QFont sMeterFont;
-    sMeterFont.setPointSize(10);
-    sMeterFont.setBold(true);
-    m_sMeterLabel->setFont(sMeterFont);
-    m_sMeterLabel->setAlignment(Qt::AlignCenter);
-
-    sMeterLayout->addWidget(m_sMeterBar);
-    sMeterLayout->addWidget(m_sMeterLabel);
-    mainLayout->addWidget(sMeterWidget);
+    // S-Meter display - custom widget with traditional radio meter styling
+    m_sMeter = new SMeterWidget(this);
+    mainLayout->addWidget(m_sMeter);
 
     // Control buttons
     QWidget* buttonWidget = new QWidget(this);
@@ -324,9 +293,8 @@ void RadioControlWidget::clearDisplay() {
     m_vfoBFreqLabel->setText("----.-----");
     m_modeLabel->setText("---");
 
-    // Clear S-meter
-    m_sMeterBar->setValue(0);
-    m_sMeterLabel->setText("---");
+    // Clear S-meter (set to minimum value)
+    m_sMeter->setValue(-127);
 
     // Clear current state first (so style updates use cleared state)
     m_currentState = RadioState();
@@ -439,52 +407,11 @@ void RadioControlWidget::updateXitWidgetStyle() {
 }
 
 void RadioControlWidget::updateSMeter(int signalStrength) {
-    // Convert dBm to S-meter value and percentage for progress bar
-    QString sMeterText = dbmToSMeter(signalStrength);
-    m_sMeterLabel->setText(sMeterText);
+    // Update custom S-meter widget with signal strength in dBm
+    m_sMeter->setValue(signalStrength);
 
-    LOG_DEBUG("RadioControlWidget", QString("S-meter update: raw=%1, display=%2")
-        .arg(signalStrength).arg(sMeterText));
-
-    // Convert dBm to progress bar percentage
-    // S0 = -127 dBm, S9 = -73 dBm (6 dB per S-unit)
-    // Above S9: +10dB = -63dBm, +20dB = -53dBm, etc.
-    int percentage;
-    if (signalStrength <= -127) {
-        percentage = 0;  // S0 or below
-    } else if (signalStrength >= -73) {
-        // S9 or above - map -73 to -33 dBm as 54-100%
-        percentage = 54 + ((signalStrength + 73) * 46 / 40);
-        percentage = qMin(100, percentage);
-    } else {
-        // S0 to S9 - map -127 to -73 dBm as 0-54%
-        percentage = ((signalStrength + 127) * 54 / 54);
-    }
-
-    m_sMeterBar->setValue(percentage);
-}
-
-QString RadioControlWidget::dbmToSMeter(int dbm) const {
-    // S0 = -127 dBm, each S-unit = 6 dB
-    // S9 = -73 dBm
-    // Above S9: +10dB, +20dB, etc.
-
-    if (dbm <= -127) {
-        return "S0";
-    } else if (dbm >= -73) {
-        // Above S9
-        int over = dbm + 73;
-        if (over == 0) {
-            return "S9";
-        } else {
-            return QString("S9+%1").arg(over);
-        }
-    } else {
-        // S1 to S8
-        int sValue = ((dbm + 127) / 6) + 1;
-        sValue = qBound(1, sValue, 9);
-        return QString("S%1").arg(sValue);
-    }
+    LOG_DEBUG("RadioControlWidget", QString("S-meter update: %1 dBm = %2")
+        .arg(signalStrength).arg(SMeterWidget::dbmToSMeter(signalStrength)));
 }
 
 } // namespace TR4QT

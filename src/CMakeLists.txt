@@ -44,6 +44,7 @@ set(SOURCES
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
     ui/widgets/RadioControlWidget.cpp
+    ui/widgets/SMeterWidget.cpp
     ui/widgets/MultiplierWidget.cpp
     ui/widgets/DXClusterWindow.cpp
 )
@@ -98,6 +99,7 @@ set(HEADERS
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
     ui/widgets/RadioControlWidget.h
+    ui/widgets/SMeterWidget.h
     ui/widgets/MultiplierWidget.h
     ui/widgets/DXClusterWindow.h
 )
