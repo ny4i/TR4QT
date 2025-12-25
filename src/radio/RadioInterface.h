@@ -31,6 +31,8 @@ struct RadioState {
     int ritOffsetB{0};          // Hz
     int xitOffsetA{0};          // Hz
     int xitOffsetB{0};          // Hz
+    bool isRitEnabled{false};   // RIT on/off (independent of offset value)
+    bool isXitEnabled{false};   // XIT on/off (independent of offset value)
     bool isSplitEnabled{false};
     int cwSpeed{30};            // WPM
     int filterWidth{0};         // Hz

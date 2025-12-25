@@ -518,7 +518,7 @@ RadioState HamlibRadio::pollCurrentState() {
         state.isTransmitting = (ptt == RIG_PTT_ON);
     }
 
-    // Poll RIT/XIT
+    // Poll RIT/XIT offsets
     shortfreq_t rit = 0;
     if (rig_get_rit(m_rig, RIG_VFO_A, &rit) == RIG_OK) {
         state.ritOffsetA = rit;
@@ -527,6 +527,17 @@ RadioState HamlibRadio::pollCurrentState() {
     shortfreq_t xit = 0;
     if (rig_get_xit(m_rig, RIG_VFO_A, &xit) == RIG_OK) {
         state.xitOffsetA = xit;
+    }
+
+    // Poll RIT/XIT enable status (independent of offset value)
+    int ritEnabled = 0;
+    if (rig_get_func(m_rig, RIG_VFO_A, RIG_FUNC_RIT, &ritEnabled) == RIG_OK) {
+        state.isRitEnabled = (ritEnabled != 0);
+    }
+
+    int xitEnabled = 0;
+    if (rig_get_func(m_rig, RIG_VFO_A, RIG_FUNC_XIT, &xitEnabled) == RIG_OK) {
+        state.isXitEnabled = (xitEnabled != 0);
     }
 
     // Poll split status
