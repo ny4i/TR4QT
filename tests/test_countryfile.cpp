@@ -65,6 +65,9 @@ private slots:
     // lookup() tests - case insensitivity
     void testLookup_CaseInsensitive();
 
+    // lookup() tests - US call area zones
+    void testLookup_USCallAreaZones();
+
     // CountryData validation
     void testCountryData_IsValid_Valid();
     void testCountryData_IsValid_Empty();
@@ -344,6 +347,83 @@ void TestCountryFile::testLookup_CaseInsensitive() {
     CountryData mixed = m_countryFile.lookup("W1Aw");
     QVERIFY(mixed.isValid());
     QCOMPARE(mixed.name, QString("United States"));
+}
+
+// lookup() tests - US call area zones
+
+void TestCountryFile::testLookup_USCallAreaZones() {
+    // Test all US call areas (0-9) with K, W, and N prefixes
+    // Based on CQ WW zone definitions:
+    // Zone 3: K6, K7 (Pacific)
+    // Zone 4: K0, K5, K8, K9 (Central/Midwest)
+    // Zone 5: K1, K2, K3, K4 (Eastern)
+    // Note: Hawaii and Alaska are separate DXCC entities
+
+    struct TestCase {
+        QString callsign;
+        int expectedZone;
+        QString expectedCountry;  // Hawaii and Alaska are separate DXCC entities
+    };
+
+    QVector<TestCase> testCases = {
+        // Zone 3 - Pacific
+        {"N6AA", 3, "United States"},  // California
+        {"K6TA", 3, "United States"},  // California
+        {"W6XYZ", 3, "United States"}, // California
+        {"N7AA", 3, "United States"},  // West Coast (WA, OR, etc.)
+        {"K7LR", 3, "United States"},  // West Coast
+        {"W7XYZ", 3, "United States"}, // West Coast
+
+        // Zone 4 - Central/Midwest
+        {"N0AA", 4, "United States"},  // Central North (CO, IA, KS, MN, MO, ND, NE, SD)
+        {"K0RF", 4, "United States"},  // Central North
+        {"W0XYZ", 4, "United States"}, // Central North
+        {"N5AA", 4, "United States"},  // Central South (AR, LA, MS, NM, OK, TX)
+        {"K5ZD", 4, "United States"},  // Central South
+        {"W5XYZ", 4, "United States"}, // Central South
+        {"N8AA", 4, "United States"},  // Midwest (MI, OH, WV)
+        {"K8IA", 4, "United States"},  // Midwest
+        {"W8XYZ", 4, "United States"}, // Midwest
+        {"N9AA", 4, "United States"},  // Midwest (IL, IN, WI)
+        {"K9YC", 4, "United States"},  // Midwest
+        {"W9UY", 4, "United States"},  // Midwest
+
+        // Zone 5 - Eastern
+        {"N1AA", 5, "United States"},  // New England
+        {"K1AR", 5, "United States"},  // New England
+        {"W1AW", 5, "United States"},  // New England
+        {"N2AA", 5, "United States"},  // Mid-Atlantic (NJ, NY)
+        {"K2MK", 5, "United States"},  // Mid-Atlantic
+        {"W2XYZ", 5, "United States"}, // Mid-Atlantic
+        {"N3AA", 5, "United States"},  // Mid-Atlantic (DE, MD, PA, DC)
+        {"K3LR", 5, "United States"},  // Mid-Atlantic
+        {"W3XYZ", 5, "United States"}, // Mid-Atlantic
+        {"N4AA", 5, "United States"},  // Southeast (AL, FL, GA, KY, NC, SC, TN, VA)
+        {"K4BAI", 5, "United States"}, // Southeast
+        {"W4XYZ", 5, "United States"}, // Southeast
+
+        // Special cases - Separate DXCC entities
+        {"KH6XX", 31, "Hawaii"},   // Hawaii (separate DXCC entity)
+        {"AH6ABC", 31, "Hawaii"},  // Hawaii (separate DXCC entity)
+        {"KL7AA", 1, "Alaska"},    // Alaska (separate DXCC entity)
+        {"AL7XYZ", 1, "Alaska"}    // Alaska (separate DXCC entity)
+    };
+
+    for (const auto& test : testCases) {
+        CountryData result = m_countryFile.lookup(test.callsign);
+        QVERIFY2(result.isValid(),
+                 QString("Failed to lookup %1").arg(test.callsign).toLatin1());
+        QVERIFY2(result.name == test.expectedCountry,
+                 QString("%1: Expected country '%2', got '%3'")
+                 .arg(test.callsign)
+                 .arg(test.expectedCountry)
+                 .arg(result.name).toLatin1());
+        QVERIFY2(result.cqZone == test.expectedZone,
+                 QString("%1: Expected zone %2, got zone %3")
+                 .arg(test.callsign)
+                 .arg(test.expectedZone)
+                 .arg(result.cqZone).toLatin1());
+    }
 }
 
 // CountryData validation

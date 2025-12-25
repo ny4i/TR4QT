@@ -41,8 +41,12 @@ rm -rf build && cmake -B build && cmake --build build
 
 Run after build:
 ```bash
+# IMPORTANT: Always kill any running instances before starting a new one
+pkill -9 tr4qt
 ./build/src/tr4qt.app/Contents/MacOS/tr4qt
 ```
+
+**CRITICAL**: Always `pkill -9 tr4qt` before running the application to avoid multiple instances running simultaneously.
 
 ## Testing
 

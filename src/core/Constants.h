@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.59.0";  // US call area zone logic (K6→3, K5→4, K1→5, etc.)
+constexpr const char* APP_VERSION = "2.59.1";  // Add comprehensive US zone tests, fix Hawaii/Alaska DXCC handling
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
