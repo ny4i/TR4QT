@@ -1,6 +1,8 @@
 #include "BandMapWidget.h"
 #include "../../utils/ThemeManager.h"
+#include "../../utils/AppSettings.h"
 #include "../../logging/LogMacros.h"
+#include "../../data/LOTWUserRepository.h"
 #include <QPainter>
 #include <QMouseEvent>
 #include <QContextMenuEvent>
@@ -10,6 +12,8 @@
 #include <QLabel>
 #include <QMenu>
 #include <QAction>
+#include <QToolTip>
+#include <QHelpEvent>
 #include <algorithm>
 
 namespace TR4QT {
@@ -21,7 +25,11 @@ BandMapWidget::BandMapWidget(QWidget* parent)
     , m_columnCount(1)
     , m_columnWidth(200)
     , m_sortMode(BandMapSortMode::Frequency)  // Default: sort by frequency
+    , m_showOnlyLotwUsers(false)
 {
+    // Load settings
+    AppSettings& settings = AppSettings::instance();
+    m_showOnlyLotwUsers = settings.getShowOnlyLotwUsers();
     setMinimumWidth(200);
     setMinimumHeight(50);  // Allow very short windows (reduced from 300)
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
@@ -40,6 +48,10 @@ BandMapWidget::BandMapWidget(QWidget* parent)
     // Enable context menu
     setContextMenuPolicy(Qt::DefaultContextMenu);
 
+    // Enable mouse tracking for tooltips
+    setMouseTracking(true);
+    viewport()->setMouseTracking(true);
+
     // Initialize scrollbar ranges
     updateScrollBars();
 
@@ -50,6 +62,13 @@ BandMapWidget::BandMapWidget(QWidget* parent)
 }
 
 void BandMapWidget::addSpot(const Spot& spot) {
+    // Apply LOTW filter if enabled
+    if (m_showOnlyLotwUsers && !spot.isLotwUser) {
+        // Remove spot if it exists but is not LOTW user when filter is active
+        removeSpot(spot.callsign);
+        return;
+    }
+
     // Check if spot already exists (update it)
     for (int i = 0; i < m_spots.size(); ++i) {
         if (m_spots[i].callsign == spot.callsign) {
@@ -92,6 +111,43 @@ void BandMapWidget::clearSpots() {
 
 void BandMapWidget::setCurrentFrequency(freq_t freq) {
     m_currentFrequency = freq;
+    viewport()->update();
+}
+
+void BandMapWidget::refreshLotwStatus() {
+    // Re-check LOTW status for all spots using current settings
+    AppSettings& settings = AppSettings::instance();
+    if (!settings.getEnableLotwLookup()) {
+        // LOTW lookup disabled - mark all as not LOTW
+        for (Spot& spot : m_spots) {
+            spot.isLotwUser = false;
+        }
+        LOG_DEBUG("BandMapWidget", "Refreshed LOTW status: lookup disabled, cleared all LOTW flags");
+    } else {
+        // Re-check each spot
+        LOTWUserRepository lotwRepo;
+        int lotwCount = 0;
+        for (Spot& spot : m_spots) {
+            spot.isLotwUser = lotwRepo.isLotwUser(spot.callsign);
+            if (spot.isLotwUser) {
+                lotwCount++;
+            }
+        }
+        LOG_DEBUG("BandMapWidget", QString("Refreshed LOTW status: %1 out of %2 spots are LOTW users")
+            .arg(lotwCount).arg(m_spots.size()));
+    }
+
+    // Re-apply filter if "show only LOTW users" is enabled
+    if (m_showOnlyLotwUsers) {
+        for (int i = m_spots.size() - 1; i >= 0; --i) {
+            if (!m_spots[i].isLotwUser) {
+                m_spots.removeAt(i);
+            }
+        }
+        calculateColumnLayout();
+        updateScrollBars();
+    }
+
     viewport()->update();
 }
 
@@ -196,8 +252,15 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
             painter.setPen(textColor);
         }
 
+        // Draw "L" marker for LOTW users
+        if (spot.isLotwUser) {
+            painter.setPen(theme.color(ColorRole::LotwUserText));
+            painter.drawText(x + 60, y + fm.ascent() + 2, "L");
+            painter.setPen(textColor);
+        }
+
         // Draw callsign (right side of column entry)
-        painter.drawText(x + 70, y + fm.ascent() + 2, spot.callsign);
+        painter.drawText(x + 80, y + fm.ascent() + 2, spot.callsign);
 
         // Highlight selected spot with blue rectangle
         if (i == m_selectedIndex) {
@@ -234,6 +297,41 @@ void BandMapWidget::mouseDoubleClickEvent(QMouseEvent* event) {
             emit callsignSelected(m_spots[spotIndex].callsign);
         }
     }
+}
+
+bool BandMapWidget::event(QEvent* event) {
+    if (event->type() == QEvent::ToolTip) {
+        QHelpEvent* helpEvent = static_cast<QHelpEvent*>(event);
+        int spotIndex = findSpotAtPosition(viewport()->mapFromGlobal(helpEvent->globalPos()));
+
+        if (spotIndex >= 0 && spotIndex < m_spots.size()) {
+            const Spot& spot = m_spots[spotIndex];
+
+            // Show tooltip only for LOTW users
+            if (spot.isLotwUser) {
+                LOTWUserRepository lotwRepo;
+                LOTWUser lotwUser = lotwRepo.findByCallsign(spot.callsign);
+
+                if (!lotwUser.callsign.isEmpty()) {
+                    QString tooltipText = QString("LOTW: Last upload %1 %2")
+                        .arg(lotwUser.lastUploadDate)
+                        .arg(lotwUser.lastUploadTime);
+                    QToolTip::showText(helpEvent->globalPos(), tooltipText);
+                } else {
+                    QToolTip::hideText();
+                    event->ignore();
+                }
+
+                return true;
+            }
+        }
+
+        QToolTip::hideText();
+        event->ignore();
+        return true;
+    }
+
+    return QAbstractScrollArea::event(event);
 }
 
 void BandMapWidget::resizeEvent(QResizeEvent* event) {
@@ -279,6 +377,34 @@ void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
         m_sortMode = BandMapSortMode::Callsign;
         sortSpots();
         viewport()->update();
+    });
+
+    menu.addSeparator();
+
+    // LOTW filter
+    QAction* lotwFilterAction = menu.addAction("Show only LOTW users");
+    lotwFilterAction->setCheckable(true);
+    lotwFilterAction->setChecked(m_showOnlyLotwUsers);
+    connect(lotwFilterAction, &QAction::triggered, this, [this](bool checked) {
+        m_showOnlyLotwUsers = checked;
+
+        // Save setting
+        AppSettings& settings = AppSettings::instance();
+        settings.setShowOnlyLotwUsers(checked);
+
+        // Reapply filter: remove non-LOTW spots if filter is enabled
+        if (m_showOnlyLotwUsers) {
+            for (int i = m_spots.size() - 1; i >= 0; --i) {
+                if (!m_spots[i].isLotwUser) {
+                    m_spots.removeAt(i);
+                }
+            }
+            calculateColumnLayout();
+            updateScrollBars();
+            viewport()->update();
+        }
+        // Note: When filter is disabled, spots will reappear as they are re-added
+        // from the DX cluster feed
     });
 
     menu.addSeparator();

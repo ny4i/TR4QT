@@ -13,8 +13,10 @@
 #include "../utils/ADIFExporter.h"
 #include "../utils/CabrilloExporter.h"
 #include "../utils/CountryFileDownloader.h"
+#include "../utils/LOTWUserDownloader.h"
 #include "../data/Database.h"
 #include "../data/QSORepository.h"
+#include "../data/LOTWUserRepository.h"
 #include "../data/BackupManager.h"
 #include <QFile>
 #include <QFileDialog>
@@ -217,6 +219,10 @@ void MainWindow::createMenuBar() {
     QAction* downloadCTYAction = toolsMenu->addAction("Download CTY.dat");
     downloadCTYAction->setShortcut(QKeySequence("Alt+O"));
     connect(downloadCTYAction, &QAction::triggered, this, &MainWindow::onDownloadCTY);
+
+    QAction* downloadLOTWAction = toolsMenu->addAction("Download LOTW Users");
+    downloadLOTWAction->setShortcut(QKeySequence("Alt+L"));
+    connect(downloadLOTWAction, &QAction::triggered, this, &MainWindow::onDownloadLOTW);
 
     QAction* setDateTimeAction = toolsMenu->addAction("Set System Date/Time");
     setDateTimeAction->setShortcut(QKeySequence("Alt+T"));
@@ -823,6 +829,15 @@ void MainWindow::onNewOpenContest() {
 void MainWindow::onPreferences() {
     LOG_DEBUG("MainWindow", "*** onPreferences() called - opening PreferencesDialog ***");
     PreferencesDialog dialog(this);
+
+    // Connect LOTW settings change to refresh Band Map in real-time
+    connect(&dialog, &PreferencesDialog::lotwSettingsChanged,
+            this, [this]() {
+                if (m_bandMapWindow) {
+                    LOG_DEBUG("MainWindow", "LOTW settings changed - refreshing Band Map");
+                    m_bandMapWindow->refreshLotwStatus();
+                }
+            });
 
     if (dialog.exec() == QDialog::Accepted) {
         m_statusLabel->setText("Preferences saved");
@@ -1654,90 +1669,198 @@ void MainWindow::onBackupLog() {
     dialog.exec();
 }
 
-void MainWindow::onDownloadCTY() {
-    LOG_DEBUG("MainWindow", "Download CTY.dat (Alt+O) - Starting download");
+void MainWindow::onDownloadCTY(bool headless) {
+    LOG_DEBUG("MainWindow", QString("Download CTY.dat (Alt+O) - Starting download (headless=%1)").arg(headless));
 
     // Get the save directory (e.g., ~/.tr4qt)
     QString saveDir = QDir::homePath() + "/.tr4qt";
 
-    // Create progress dialog
-    QProgressDialog* progressDialog = new QProgressDialog("Downloading country file...", "Cancel", 0, 100, this);
-    progressDialog->setWindowTitle("Download CTY.dat");
-    progressDialog->setWindowModality(Qt::WindowModal);
-    progressDialog->setMinimumDuration(0);
-    progressDialog->setValue(0);
+    // Create progress dialog (only if not headless)
+    QProgressDialog* progressDialog = nullptr;
+    if (!headless) {
+        progressDialog = new QProgressDialog("Downloading country file...", "Cancel", 0, 100, this);
+        progressDialog->setWindowTitle("Download CTY.dat");
+        progressDialog->setWindowModality(Qt::WindowModal);
+        progressDialog->setMinimumDuration(0);
+        progressDialog->setValue(0);
+    }
 
     // Create downloader
     CountryFileDownloader* downloader = new CountryFileDownloader(this);
 
-    // Connect progress signal
-    connect(downloader, &CountryFileDownloader::downloadProgress,
-            this, [progressDialog](qint64 bytesReceived, qint64 bytesTotal) {
-                if (bytesTotal > 0) {
-                    int percentage = (bytesReceived * 100) / bytesTotal;
-                    progressDialog->setValue(percentage);
-                    progressDialog->setLabelText(QString("Downloading country file... %1 KB / %2 KB")
-                                                .arg(bytesReceived / 1024)
-                                                .arg(bytesTotal / 1024));
-                }
-            });
+    // Connect progress signal (only if not headless)
+    if (!headless) {
+        connect(downloader, &CountryFileDownloader::downloadProgress,
+                this, [progressDialog](qint64 bytesReceived, qint64 bytesTotal) {
+                    if (progressDialog && bytesTotal > 0) {
+                        int percentage = (bytesReceived * 100) / bytesTotal;
+                        progressDialog->setValue(percentage);
+                        progressDialog->setLabelText(QString("Downloading country file... %1 KB / %2 KB")
+                                                    .arg(bytesReceived / 1024)
+                                                    .arg(bytesTotal / 1024));
+                    }
+                });
+    }
 
     // Connect finished signal
     connect(downloader, &CountryFileDownloader::downloadFinished,
-            this, [this, progressDialog, downloader](bool success, const QString& filePath, const QString& version) {
-                progressDialog->close();
-                progressDialog->deleteLater();
+            this, [this, progressDialog, downloader, headless](bool success, const QString& filePath, const QString& version) {
+                if (progressDialog) {
+                    progressDialog->close();
+                    progressDialog->deleteLater();
+                }
 
                 if (success) {
                     LOG_DEBUG("MainWindow", QString("Download successful: %1 Version: %2").arg(filePath).arg(version));
 
-                    // Ask user if they want to reload the country file
-                    QMessageBox::StandardButton reply = QMessageBox::question(
-                        this,
-                        "Download Complete",
-                        "Country file downloaded successfully!\n\n"
-                        "Do you want to reload it now?",
-                        QMessageBox::Yes | QMessageBox::No
-                    );
+                    if (!headless) {
+                        // Ask user if they want to reload the country file
+                        QMessageBox::StandardButton reply = QMessageBox::question(
+                            this,
+                            "Download Complete",
+                            "Country file downloaded successfully!\n\n"
+                            "Do you want to reload it now?",
+                            QMessageBox::Yes | QMessageBox::No
+                        );
 
-                    if (reply == QMessageBox::Yes) {
-                        // Reload the country file
+                        if (reply == QMessageBox::Yes) {
+                            // Reload the country file
+                            if (m_countryFile.loadFromFile(filePath)) {
+                                // Set the version from the download
+                                m_countryFile.setVersion(version);
+                                LOG_DEBUG("MainWindow", QString("Country file reloaded successfully. Version: %1")
+                                    .arg(m_countryFile.getVersion()));
+                                QMessageBox::information(this, "Success",
+                                    QString("Country file reloaded successfully!\n\n"
+                                           "Version: %1").arg(m_countryFile.getVersion()));
+                            } else {
+                                QMessageBox::warning(this, "Reload Failed",
+                                    "Failed to reload the country file.\n\n"
+                                    "Please restart the application.");
+                            }
+                        }
+                    } else {
+                        // Headless mode: auto-reload without prompts
                         if (m_countryFile.loadFromFile(filePath)) {
-                            // Set the version from the download
                             m_countryFile.setVersion(version);
-                            LOG_DEBUG("MainWindow", QString("Country file reloaded successfully. Version: %1")
+                            LOG_DEBUG("MainWindow", QString("Country file reloaded successfully (headless). Version: %1")
                                 .arg(m_countryFile.getVersion()));
-                            QMessageBox::information(this, "Success",
-                                QString("Country file reloaded successfully!\n\n"
-                                       "Version: %1").arg(m_countryFile.getVersion()));
                         } else {
-                            QMessageBox::warning(this, "Reload Failed",
-                                "Failed to reload the country file.\n\n"
-                                "Please restart the application.");
+                            LOG_WARN("MainWindow", "Failed to reload country file (headless)");
                         }
                     }
                 } else {
-                    QMessageBox::critical(this, "Download Failed",
-                        "Failed to download country file.\n\n"
-                        "Please check your internet connection and try again.");
+                    if (!headless) {
+                        QMessageBox::critical(this, "Download Failed",
+                            "Failed to download country file.\n\n"
+                            "Please check your internet connection and try again.");
+                    } else {
+                        LOG_WARN("MainWindow", "Failed to download country file (headless)");
+                    }
                 }
 
                 downloader->deleteLater();
             });
 
-    // Connect error signal
-    connect(downloader, &CountryFileDownloader::errorOccurred,
-            this, [progressDialog](const QString& error) {
-                LOG_DEBUG("MainWindow", QString("Download error: %1").arg(error));
-                progressDialog->setLabelText("Error: " + error);
-            });
+    // Connect error signal (only if not headless)
+    if (!headless) {
+        connect(downloader, &CountryFileDownloader::errorOccurred,
+                this, [progressDialog](const QString& error) {
+                    LOG_DEBUG("MainWindow", QString("Download error: %1").arg(error));
+                    if (progressDialog) {
+                        progressDialog->setLabelText("Error: " + error);
+                    }
+                });
 
-    // Connect cancel button
-    connect(progressDialog, &QProgressDialog::canceled,
-            downloader, &CountryFileDownloader::cancel);
+        // Connect cancel button
+        connect(progressDialog, &QProgressDialog::canceled,
+                downloader, &CountryFileDownloader::cancel);
+    }
 
     // Start download
     downloader->downloadLatest(saveDir);
+}
+
+void MainWindow::onDownloadLOTW(bool headless) {
+    LOG_DEBUG("MainWindow", QString("Download LOTW Users (Alt+L) - Starting download (headless=%1)").arg(headless));
+
+    // Create progress dialog (only if not headless)
+    QProgressDialog* progressDialog = nullptr;
+    if (!headless) {
+        progressDialog = new QProgressDialog("Downloading LOTW user list...", "Cancel", 0, 100, this);
+        progressDialog->setWindowTitle("Download LOTW Users");
+        progressDialog->setWindowModality(Qt::WindowModal);
+        progressDialog->setMinimumDuration(0);
+        progressDialog->setValue(0);
+    }
+
+    // Create downloader
+    LOTWUserDownloader* downloader = new LOTWUserDownloader(this);
+
+    // Connect progress signal (only if not headless)
+    if (!headless) {
+        connect(downloader, &LOTWUserDownloader::downloadProgress,
+                this, [progressDialog](qint64 bytesReceived, qint64 bytesTotal) {
+                    if (progressDialog && bytesTotal > 0) {
+                        int percentage = (bytesReceived * 100) / bytesTotal;
+                        progressDialog->setValue(percentage);
+                        progressDialog->setLabelText(QString("Downloading LOTW user list... %1 KB / %2 KB")
+                                                    .arg(bytesReceived / 1024)
+                                                    .arg(bytesTotal / 1024));
+                    }
+                });
+    }
+
+    // Connect finished signal
+    connect(downloader, &LOTWUserDownloader::downloadFinished,
+            this, [this, progressDialog, downloader, headless](bool success, int userCount, const QString& error) {
+                if (progressDialog) {
+                    progressDialog->close();
+                    progressDialog->deleteLater();
+                }
+
+                if (success) {
+                    LOG_DEBUG("MainWindow", QString("LOTW download successful: %1 users imported").arg(userCount));
+
+                    // Update last update timestamp
+                    AppSettings& settings = AppSettings::instance();
+                    settings.setLotwLastUpdateTime(QDateTime::currentDateTime());
+
+                    if (!headless) {
+                        QMessageBox::information(this, "Download Complete",
+                            QString("LOTW user list downloaded successfully!\n\n"
+                                   "%1 users imported.").arg(userCount));
+                    }
+                } else {
+                    if (!headless) {
+                        QMessageBox::critical(this, "Download Failed",
+                            QString("Failed to download LOTW user list.\n\n%1\n\n"
+                                   "Please check your internet connection and try again.").arg(error));
+                    } else {
+                        LOG_WARN("MainWindow", QString("Failed to download LOTW user list (headless): %1").arg(error));
+                    }
+                }
+
+                downloader->deleteLater();
+            });
+
+    // Connect error signal (only if not headless)
+    if (!headless) {
+        connect(downloader, &LOTWUserDownloader::errorOccurred,
+                this, [progressDialog](const QString& error) {
+                    LOG_DEBUG("MainWindow", QString("LOTW download error: %1").arg(error));
+                    if (progressDialog) {
+                        progressDialog->setLabelText("Error: " + error);
+                    }
+                });
+
+        // Connect cancel button
+        connect(progressDialog, &QProgressDialog::canceled,
+                downloader, &LOTWUserDownloader::cancel);
+    }
+
+    // Start download
+    downloader->downloadLatest();
 }
 
 void MainWindow::onSetDateTime() {
@@ -1851,7 +1974,11 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
                                    double frequency,
                                    const QString& spotter,
                                    const QString& comment) {
-    LOG_DEBUG("MainWindow", QString("DX Spot received: %1 at %2 Hz from %3").arg(callsign).arg(QString::number(static_cast<qint64>(frequency))).arg(spotter));
+    LOG_DEBUG("MainWindow", QString("DX Spot received: %1 at %2 Hz from %3, comment: \"%4\"")
+        .arg(callsign)
+        .arg(QString::number(static_cast<qint64>(frequency)))
+        .arg(spotter)
+        .arg(comment));
 
     // If band map window exists, forward the spot to it
     if (m_bandMapWindow) {
@@ -1861,10 +1988,84 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
         spot.timestamp = QDateTime::currentDateTime();
         spot.isMultiplier = false;  // TODO: Check if this is a needed multiplier
         spot.isWorked = false;       // TODO: Check if we've worked this station
+        spot.comment = comment;      // DX cluster comment
+
+        // Parse split frequency from comment
+        // Supports: "UP 5" (offset in kHz) or "QSX 210" (fragment or full frequency)
+        // UP: offset from spot frequency (e.g., "UP 5" = spot + 5 kHz)
+        // QSX: frequency fragment (e.g., "QSX 210" with spot 14.200 = 14.210 MHz)
+
+        // Try QSX pattern first (e.g., "QSX 210" or "QSX 14.210")
+        static QRegularExpression qsxFragmentRegex(R"(\bQSX\s+(\d+(?:\.\d+)?)\b)", QRegularExpression::CaseInsensitiveOption);
+        QRegularExpressionMatch qsxMatch = qsxFragmentRegex.match(comment);
+
+        if (qsxMatch.hasMatch()) {
+            double qsxValue = qsxMatch.captured(1).toDouble();
+
+            // If value < 1000, treat as kHz fragment (e.g., 210 = 14.210 MHz on 20m)
+            if (qsxValue < 1000) {
+                // Get MHz part of spot frequency (e.g., 14200000 Hz -> 14 MHz)
+                freq_t spotMHz = (spot.frequency / 1000000) * 1000000;
+                // Add kHz fragment (e.g., 210 kHz = 210000 Hz)
+                spot.qsx = spotMHz + static_cast<freq_t>(qsxValue * 1000);
+                LOG_DEBUG("MainWindow", QString("Parsed QSX fragment: %1 kHz on %2 MHz band = %3 Hz")
+                    .arg(qsxValue).arg(spotMHz / 1000000).arg(spot.qsx));
+            } else {
+                // Full frequency in MHz (e.g., 14.210)
+                spot.qsx = static_cast<freq_t>(qsxValue * 1000000);
+                LOG_DEBUG("MainWindow", QString("Parsed QSX full frequency: %1 MHz = %2 Hz")
+                    .arg(qsxValue).arg(spot.qsx));
+            }
+        } else {
+            // Try UP pattern (offset in kHz)
+            static QRegularExpression upRegex(R"(\bUP\s+(\d+(?:\.\d+)?)\b)", QRegularExpression::CaseInsensitiveOption);
+            QRegularExpressionMatch upMatch = upRegex.match(comment);
+
+            if (upMatch.hasMatch()) {
+                double offsetKHz = upMatch.captured(1).toDouble();
+                // spot.frequency is in Hz, offset is in kHz
+                // QSX = transmit frequency + offset (for VFO B)
+                spot.qsx = spot.frequency + static_cast<freq_t>(offsetKHz * 1000);
+                LOG_DEBUG("MainWindow", QString("Parsed UP offset: TX=%1 Hz + %2 kHz = RX=%3 Hz")
+                    .arg(spot.frequency).arg(offsetKHz).arg(spot.qsx));
+            }
+        }
+
+        // Check if LOTW user (only if enabled in settings)
+        AppSettings& settings = AppSettings::instance();
+        if (settings.getEnableLotwLookup()) {
+            LOTWUserRepository lotwRepo;
+            spot.isLotwUser = lotwRepo.isLotwUser(callsign);
+
+            if (spot.isLotwUser) {
+                LOTWUser lotwUser = lotwRepo.findByCallsign(callsign);
+                LOG_DEBUG("MainWindow", QString("DX Spot: %1 is an LOTW user (last upload: %2 %3)")
+                    .arg(callsign)
+                    .arg(lotwUser.lastUploadDate)
+                    .arg(lotwUser.lastUploadTime));
+            } else {
+                LOG_DEBUG("MainWindow", QString("DX Spot: %1 is NOT an LOTW user").arg(callsign));
+            }
+        } else {
+            spot.isLotwUser = false;  // LOTW lookup disabled
+            LOG_DEBUG("MainWindow", QString("DX Spot: %1 - LOTW lookup disabled").arg(callsign));
+        }
+
         spot.source = QString("DX Cluster (%1)").arg(spotter);
 
         m_bandMapWindow->addSpot(spot);
-        LOG_DEBUG("MainWindow", QString("Added spot to band map: %1").arg(callsign));
+
+        // Comprehensive logging of spot details
+        QString logMsg = QString("Added spot to band map: %1").arg(callsign);
+        logMsg += QString(" | TX: %1 Hz (%.3f MHz)").arg(spot.frequency).arg(spot.frequency / 1000000.0);
+        if (spot.qsx > 0) {
+            logMsg += QString(" | RX (QSX): %1 Hz (%.3f MHz)").arg(spot.qsx).arg(spot.qsx / 1000000.0);
+        }
+        logMsg += QString(" | LOTW: %1").arg(spot.isLotwUser ? "YES" : "NO");
+        if (!spot.comment.isEmpty()) {
+            logMsg += QString(" | Comment: \"%1\"").arg(spot.comment);
+        }
+        LOG_DEBUG("MainWindow", logMsg);
     } else {
         LOG_DEBUG("MainWindow", "Band map window not open - spot not added");
     }

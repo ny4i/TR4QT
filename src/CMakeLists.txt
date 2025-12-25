@@ -6,6 +6,7 @@ set(SOURCES
     utils/CountryFile.cpp
     utils/CountryFileDownloader.cpp
     utils/DXClusterListDownloader.cpp
+    utils/LOTWUserDownloader.cpp
     utils/AppSettings.cpp
     utils/ThemeManager.cpp
     utils/RadioEnumerator.cpp
@@ -19,7 +20,9 @@ set(SOURCES
     network/UdpBroadcaster.cpp
     network/UdpBroadcastManager.cpp
     data/Database.cpp
+    data/GlobalDatabase.cpp
     data/QSORepository.cpp
+    data/LOTWUserRepository.cpp
     data/BackupManager.cpp
     contests/ContestRegistry.cpp
     contests/CQWWContest.cpp
@@ -48,6 +51,7 @@ set(HEADERS
     utils/CountryFile.h
     utils/CountryFileDownloader.h
     utils/DXClusterListDownloader.h
+    utils/LOTWUserDownloader.h
     utils/AppSettings.h
     utils/ThemeManager.h
     utils/RadioEnumerator.h
@@ -62,7 +66,9 @@ set(HEADERS
     network/UdpBroadcaster.h
     network/UdpBroadcastManager.h
     data/Database.h
+    data/GlobalDatabase.h
     data/QSORepository.h
+    data/LOTWUserRepository.h
     data/BackupManager.h
     contests/ContestBase.h
     contests/ContestMetadata.h

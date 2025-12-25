@@ -4,6 +4,7 @@
 #include <QSettings>
 #include <QString>
 #include <QList>
+#include <QDateTime>
 #include "../radio/RadioInterface.h"
 #include "../logging/LogLevel.h"
 
@@ -116,6 +117,19 @@ public:
 
     void setCountryFilePath(const QString& path);
     QString getCountryFilePath() const;
+
+    // LOTW settings
+    void setShowOnlyLotwUsers(bool show);
+    bool getShowOnlyLotwUsers() const;
+
+    void setLotwLastUpdateTime(const QDateTime& timestamp);
+    QDateTime getLotwLastUpdateTime() const;
+
+    void setEnableLotwLookup(bool enable);
+    bool getEnableLotwLookup() const;
+
+    void setLotwMinUploadMonths(int months);
+    int getLotwMinUploadMonths() const;
 
     // Appearance settings
     void setEntryFontSize(int size);

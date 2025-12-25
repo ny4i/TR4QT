@@ -77,6 +77,7 @@ QString ThemeManager::colorRoleName(ColorRole role) {
         case ColorRole::NewMultiplierBackground: return "New Multiplier Background";
         case ColorRole::WorkedStationText: return "Worked Station Text";
         case ColorRole::MultiplierText: return "Multiplier Text";
+        case ColorRole::LotwUserText: return "LOTW User Text";
         case ColorRole::NeededMultiplierBackground: return "Needed Multiplier Background";
         case ColorRole::ConfirmedMultiplierBackground: return "Confirmed Multiplier Background";
 
@@ -174,6 +175,7 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::NewMultiplierBackground] = QColor("#90EE90");  // Light green
             colors[ColorRole::WorkedStationText] = QColor("#A0A0A0");  // Gray
             colors[ColorRole::MultiplierText] = QColor(Qt::blue);
+            colors[ColorRole::LotwUserText] = QColor("#006400");  // Dark green
             colors[ColorRole::NeededMultiplierBackground] = QColor("#FFFFC8");  // Light yellow
             colors[ColorRole::ConfirmedMultiplierBackground] = QColor("#90EE90");  // Light green
 
@@ -202,6 +204,7 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::NewMultiplierBackground] = QColor("#006400");  // Dark green
             colors[ColorRole::WorkedStationText] = QColor("#808080");  // Gray
             colors[ColorRole::MultiplierText] = QColor("#6495ED");  // Cornflower blue
+            colors[ColorRole::LotwUserText] = QColor("#00FF00");  // Bright green
             colors[ColorRole::NeededMultiplierBackground] = QColor("#8B8B00");  // Dark yellow
             colors[ColorRole::ConfirmedMultiplierBackground] = QColor("#006400");  // Dark green
 
@@ -230,6 +233,7 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::NewMultiplierBackground] = QColor("#00FF00");  // Bright green
             colors[ColorRole::WorkedStationText] = QColor("#808080");  // Gray
             colors[ColorRole::MultiplierText] = QColor("#0000FF");  // Bright blue
+            colors[ColorRole::LotwUserText] = QColor("#00AA00");  // Medium green
             colors[ColorRole::NeededMultiplierBackground] = QColor("#FFFF00");  // Bright yellow
             colors[ColorRole::ConfirmedMultiplierBackground] = QColor("#00FF00");  // Bright green
 
@@ -271,6 +275,7 @@ QString ThemeManager::colorRoleToString(ColorRole role) {
         case ColorRole::NewMultiplierBackground: return "NewMultiplierBackground";
         case ColorRole::WorkedStationText: return "WorkedStationText";
         case ColorRole::MultiplierText: return "MultiplierText";
+        case ColorRole::LotwUserText: return "LotwUserText";
         case ColorRole::NeededMultiplierBackground: return "NeededMultiplierBackground";
         case ColorRole::ConfirmedMultiplierBackground: return "ConfirmedMultiplierBackground";
         case ColorRole::PrimaryText: return "PrimaryText";
@@ -295,6 +300,7 @@ ColorRole ThemeManager::stringToColorRole(const QString& str, bool* ok) {
     if (str == "NewMultiplierBackground") return ColorRole::NewMultiplierBackground;
     if (str == "WorkedStationText") return ColorRole::WorkedStationText;
     if (str == "MultiplierText") return ColorRole::MultiplierText;
+    if (str == "LotwUserText") return ColorRole::LotwUserText;
     if (str == "NeededMultiplierBackground") return ColorRole::NeededMultiplierBackground;
     if (str == "ConfirmedMultiplierBackground") return ColorRole::ConfirmedMultiplierBackground;
     if (str == "PrimaryText") return ColorRole::PrimaryText;

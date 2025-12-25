@@ -36,6 +36,12 @@ public:
     // Accept/Apply settings
     void accept() override;
 
+signals:
+    /**
+     * Emitted when LOTW settings change and Band Map needs refresh
+     */
+    void lotwSettingsChanged();
+
 private slots:
     void onApply();
     void onTestRadioConnection();
@@ -115,6 +121,8 @@ private:
     QLineEdit* m_dxClusterCallsignEdit;
     QComboBox* m_dxClusterServerCombo;
     QCheckBox* m_dxClusterAutoConnectCheck;
+    QCheckBox* m_enableLotwLookupCheck;
+    QSpinBox* m_lotwMinUploadMonthsSpin;
     QPushButton* m_downloadClusterListButton;
 
     // UDP Broadcast tab widgets

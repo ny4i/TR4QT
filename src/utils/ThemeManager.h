@@ -29,6 +29,7 @@ enum class ColorRole {
     NewMultiplierBackground,    // New multiplier highlight (default: light green #90EE90)
     WorkedStationText,          // Already worked stations (default: gray #A0A0A0)
     MultiplierText,             // Multiplier spots (default: blue)
+    LotwUserText,               // LOTW user indicator (default: dark green #006400)
     NeededMultiplierBackground, // Needed multiplier (default: light yellow #FFFFC8)
     ConfirmedMultiplierBackground, // Confirmed multiplier (default: light green #90EE90)
 

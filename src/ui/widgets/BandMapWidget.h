@@ -21,14 +21,17 @@ enum class BandMapSortMode {
  * Frequency spot entry for band map
  */
 struct Spot {
-    freq_t frequency;       // Frequency in Hz
+    freq_t frequency;       // Frequency in Hz (transmit frequency)
     QString callsign;       // Callsign spotted
     QDateTime timestamp;    // When spotted
     bool isMultiplier;      // Is this a needed multiplier?
     bool isWorked;          // Already worked this station?
+    bool isLotwUser;        // Is this a LOTW user?
+    QString comment;        // Comment from DX cluster spot
+    freq_t qsx;             // Split receive frequency in Hz (0 if not split, for VFO B)
     QString source;         // Source of spot (DX Cluster, manual, etc.)
 
-    Spot() : frequency(0), isMultiplier(false), isWorked(false) {}
+    Spot() : frequency(0), isMultiplier(false), isWorked(false), isLotwUser(false), qsx(0) {}
 };
 
 /**
@@ -75,6 +78,12 @@ public:
      */
     int spotCount() const { return m_spots.size(); }
 
+    /**
+     * Refresh LOTW status for all spots
+     * Called when LOTW settings change (e.g., min upload months)
+     */
+    void refreshLotwStatus();
+
 signals:
     /**
      * User clicked on a spot - request QSY to this frequency
@@ -90,6 +99,7 @@ protected:
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
+    bool event(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void contextMenuEvent(QContextMenuEvent* event) override;
     void scrollContentsBy(int dx, int dy) override;
@@ -101,6 +111,7 @@ private:
     int m_columnCount;       // Number of columns to display
     int m_columnWidth;       // Width of each column in pixels
     BandMapSortMode m_sortMode;  // Current sort mode
+    bool m_showOnlyLotwUsers;    // Filter to show only LOTW users
 
     /**
      * Apply current theme colors

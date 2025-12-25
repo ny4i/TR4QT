@@ -8,6 +8,7 @@
 #include "utils/CountryFile.h"
 #include "utils/CountryFileDownloader.h"
 #include "utils/AppSettings.h"
+#include "data/GlobalDatabase.h"
 #include "radio/RadioInterface.h"
 #include "logging/Logger.h"
 #include "logging/LogMacros.h"
@@ -67,6 +68,15 @@ int main(int argc, char *argv[]) {
     app.setOrganizationName(TR4QT::APP_ORG);
     app.setApplicationName(TR4QT::APP_NAME);
     app.setApplicationVersion(TR4QT::APP_VERSION);
+
+    // Initialize global database (for LOTW users and app-wide data)
+    TR4QT::GlobalDatabase& globalDb = TR4QT::GlobalDatabase::instance();
+    if (!globalDb.open()) {
+        LOG_WARN("Main", QString("Failed to open global database: %1").arg(globalDb.lastError()));
+        LOG_WARN("Main", "LOTW user tracking will not be available");
+    } else {
+        LOG_INFO("Main", QString("Global database opened: %1").arg(TR4QT::GlobalDatabase::defaultDatabasePath()));
+    }
 
     // Initialize country file on first run
     TR4QT::CountryFile countryFile;

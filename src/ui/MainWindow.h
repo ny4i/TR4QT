@@ -76,7 +76,8 @@ private slots:
     // Tools menu actions (ALT- shortcuts from TR4W)
     void onWKMode();                // TODO: Implement WinKeyer re-initialization
     void onBackupLog();             // TODO: Implement backup log
-    void onDownloadCTY();           // TODO: Implement download CTY.dat
+    void onDownloadCTY(bool headless = false);   // Download CTY.dat (headless=true for testing)
+    void onDownloadLOTW(bool headless = false);  // Download LOTW user list (headless=true for testing)
     void onSetDateTime();           // TODO: Implement set system date/time
     void onInitialize();            // TODO: Implement initialize
 
