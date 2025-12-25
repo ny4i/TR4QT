@@ -3,6 +3,7 @@
 #include "ContestMetadata.h"
 #include "../models/QSO.h"
 #include "../exchanges/SmartExchangeParser.h"
+#include "../utils/ArrlSectionHelper.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
@@ -281,30 +282,11 @@ bool WinterFieldDayContest::isValidClass(const QString& classStr) {
 }
 
 bool WinterFieldDayContest::isValidSection(const QString& section) {
-    return getValidSections().contains(section.toUpper());
+    return Arrl::isValidSection(section);
 }
 
 QStringList WinterFieldDayContest::getValidSections() {
-    // ARRL Sections
-    static QStringList sections = {
-        // US Sections
-        "CT", "EMA", "ME", "NH", "RI", "VT", "WMA",  // New England
-        "ENY", "NLI", "NNJ", "NNY", "SNJ", "WNY",    // Atlantic
-        "DE", "EPA", "MDC", "WPA",                    // Roanoke
-        "AL", "GA", "KY", "NC", "NFL", "SC", "SFL", "WCF", "TN", "VA", "PR", "VI",  // Delta
-        "AR", "LA", "MS", "NM", "NTX", "OK", "STX", "WTX",  // Delta
-        "EB", "LAX", "ORG", "SB", "SCV", "SDG", "SF", "SJV", "SV", "PAC",  // Pacific
-        "AK", "EWA", "ID", "MT", "NV", "OR", "UT", "WWA", "WY",  // Pacific Northwestern
-        "MI", "OH", "WV",                             // Great Lakes
-        "IL", "IN", "WI",                             // Central
-        "CO", "IA", "KS", "MN", "MO", "ND", "NE", "SD",  // Midwest
-        // Canadian Sections (RAC)
-        "AB", "BC", "MB", "NB", "NL", "NS", "NT", "ON", "PE", "QC", "SK", "YT",
-        // Other
-        "DX"  // Outside US/Canada
-    };
-
-    return sections;
+    return Arrl::getAllSections();
 }
 
 } // namespace TR4QT

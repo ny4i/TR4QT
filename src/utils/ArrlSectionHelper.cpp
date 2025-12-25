@@ -841,5 +841,47 @@ QString sectionForState(const QString& stateAbbrev)
     return simpleStateSections.value(state, QString());
 }
 
+QStringList getAllSections()
+{
+    // Complete list of ARRL (US) and RAC (Canadian) sections
+    static QStringList sections = {
+        // US ARRL Sections
+        // New England Division
+        "CT", "EMA", "ME", "NH", "RI", "VT", "WMA",
+        // Atlantic Division
+        "ENY", "NLI", "NNJ", "NNY", "SNJ", "WNY",
+        // Roanoke Division
+        "DE", "EPA", "MDC", "WPA",
+        // Delta Division
+        "AL", "GA", "KY", "NC", "NFL", "SC", "SFL", "WCF", "TN", "VA", "PR", "VI",
+        // West Gulf Division
+        "AR", "LA", "MS", "NM", "NTX", "OK", "STX", "WTX",
+        // Pacific Division
+        "EB", "LAX", "ORG", "SB", "SCV", "SDG", "SF", "SJV", "SV", "PAC",
+        // Northwestern Division
+        "AK", "EWA", "ID", "MT", "NV", "OR", "UT", "WWA", "WY",
+        // Great Lakes Division
+        "MI", "OH", "WV",
+        // Central Division
+        "IL", "IN", "WI",
+        // Midwest Division
+        "CO", "IA", "KS", "MN", "MO", "ND", "NE", "SD",
+        // Other
+        "AZ", "HI",
+        // Canadian RAC Sections
+        "AB", "BC", "MB", "NB", "NL", "NS", "NT", "ON", "PE", "QC", "SK", "YT",
+        // DX
+        "DX"
+    };
+
+    return sections;
+}
+
+bool isValidSection(const QString& section)
+{
+    static QStringList validSections = getAllSections();
+    return validSections.contains(section.toUpper());
+}
+
 } // namespace Arrl
 } // namespace TR4QT
