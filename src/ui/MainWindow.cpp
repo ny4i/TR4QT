@@ -1886,12 +1886,16 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         // Set default band (20M is a good starting point)
         m_currentState.bandA = BandType::Band20M;
 
+        // Set frequency for the default band/mode
+        m_currentState.frequencyA = getFrequencyForBand(m_currentState.bandA, m_currentState.modeA);
+
         // Update display
         updateRadioStatusGrid();
 
-        LOG_DEBUG("MainWindow", QString("Set default band/mode: %1 %2 (radio not connected)")
+        LOG_DEBUG("MainWindow", QString("Set default band/mode/freq: %1 %2 %3 Hz (radio not connected)")
             .arg(bandToString(m_currentState.bandA))
-            .arg(modeToString(m_currentState.modeA)));
+            .arg(modeToString(m_currentState.modeA))
+            .arg(m_currentState.frequencyA));
     }
 
     // Update exchange fields for this contest
