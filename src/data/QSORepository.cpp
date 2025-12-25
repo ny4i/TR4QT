@@ -38,13 +38,13 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         INSERT INTO qsos (
             contest_id, timestamp, callsign, frequency, mode, band,
             rst_sent, rst_received, exchange_sent, exchange_received,
-            dxcc_entity, dxcc_prefix, cq_zone, itu_zone, continent, state, county,
+            dxcc_entity, dxcc_prefix, cq_zone, itu_zone, continent, state, county, arrl_section,
             qso_points, is_dupe, is_multiplier, multipliers,
             serial_number, operator_call, notes
         ) VALUES (
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?
         )
@@ -68,6 +68,7 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         qso.continent,
         qso.state,
         qso.county,
+        qso.arrlSection,
         qso.qsoPoints,
         qso.isDupe,
         qso.isMultiplier,
@@ -111,7 +112,7 @@ bool QSORepository::updateQSO(const QSO& qso) {
         UPDATE qsos SET
             timestamp = ?, callsign = ?, frequency = ?, mode = ?, band = ?,
             rst_sent = ?, rst_received = ?, exchange_sent = ?, exchange_received = ?,
-            dxcc_entity = ?, dxcc_prefix = ?, cq_zone = ?, itu_zone = ?, continent = ?, state = ?, county = ?,
+            dxcc_entity = ?, dxcc_prefix = ?, cq_zone = ?, itu_zone = ?, continent = ?, state = ?, county = ?, arrl_section = ?,
             qso_points = ?, is_dupe = ?, is_multiplier = ?, multipliers = ?,
             serial_number = ?, operator_call = ?, notes = ?
         WHERE id = ?
@@ -134,6 +135,7 @@ bool QSORepository::updateQSO(const QSO& qso) {
         qso.continent,
         qso.state,
         qso.county,
+        qso.arrlSection,
         qso.qsoPoints,
         qso.isDupe,
         qso.isMultiplier,
@@ -463,6 +465,7 @@ QSO QSORepository::qsoFromQuery(const QSqlQuery& query) const {
     qso.continent = query.value("continent").toString();
     qso.state = query.value("state").toString();
     qso.county = query.value("county").toString();
+    qso.arrlSection = query.value("arrl_section").toString();
 
     qso.qsoPoints = query.value("qso_points").toInt();
     qso.isDupe = query.value("is_dupe").toBool();

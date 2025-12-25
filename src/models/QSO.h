@@ -44,6 +44,7 @@ struct QSO {
     QString continent;          // Continent code (NA, SA, EU, AF, AS, OC)
     QString state;              // US state or Canadian province (if applicable)
     QString county;             // US county (for ARRL section mapping)
+    QString arrlSection;        // ARRL/RAC section (WMA, NFL, SCV, AB, etc.)
 
     // Contest-specific parsed fields (from exchangeReceived)
     // Populated by contest's parseReceivedExchange() method
