@@ -97,13 +97,14 @@ public:
         return DuplicateCheckingRule::PerBandMode;
     }
 
-private:
-    ModeType m_mode;  // CW or SSB
-
-    // Exchange field validation helpers
+    // ===== Exchange Field Validation Helpers =====
+    // Made public for use by SmartExchangeParser
     bool isValidPrecedence(const QString& precedence) const;
     bool isValidCheck(const QString& check) const;
     bool isValidSection(const QString& section) const;
+
+private:
+    ModeType m_mode;  // CW or SSB
 };
 
 } // namespace TR4QT

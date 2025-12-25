@@ -271,14 +271,15 @@ bool SmartExchangeParser::looksLikeSection(const QString& token, ContestBase* co
         const ARRLSweepstakesContest* ssContest =
             dynamic_cast<const ARRLSweepstakesContest*>(contest);
         if (ssContest) {
-            // We can't call private methods, so we'll use a heuristic
-            // instead - check if it matches common section patterns
+            // Use the contest's section validation (public method)
+            return ssContest->isValidSection(token);
         }
 
         const WinterFieldDayContest* wfdContest =
             dynamic_cast<const WinterFieldDayContest*>(contest);
         if (wfdContest) {
-            // Same approach - heuristic matching
+            // Use the contest's section validation (public static method)
+            return WinterFieldDayContest::isValidSection(token);
         }
     }
 
