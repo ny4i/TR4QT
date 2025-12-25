@@ -9,6 +9,7 @@ set(SOURCES
     utils/LOTWUserDownloader.cpp
     utils/AppSettings.cpp
     utils/ThemeManager.cpp
+    utils/GeographicUtils.cpp
     utils/RadioEnumerator.cpp
     utils/ADIFExporter.cpp
     utils/CabrilloExporter.cpp
@@ -37,6 +38,7 @@ set(SOURCES
     ui/models/QSOTableModel.cpp
     ui/dialogs/RadioConfigDialog.cpp
     ui/dialogs/PreferencesDialog.cpp
+    ui/dialogs/OperatorDialog.cpp
     ui/dialogs/ContestChooserDialog.cpp
     ui/dialogs/BackupRestoreDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
@@ -55,6 +57,7 @@ set(HEADERS
     utils/LOTWUserDownloader.h
     utils/AppSettings.h
     utils/ThemeManager.h
+    utils/GeographicUtils.h
     utils/RadioEnumerator.h
     utils/ADIFExporter.h
     utils/CabrilloExporter.h
@@ -89,6 +92,7 @@ set(HEADERS
     ui/models/QSOTableModel.h
     ui/dialogs/RadioConfigDialog.h
     ui/dialogs/PreferencesDialog.h
+    ui/dialogs/OperatorDialog.h
     ui/dialogs/ContestChooserDialog.h
     ui/dialogs/BackupRestoreDialog.h
     ui/widgets/BandSummaryGrid.h

@@ -95,6 +95,8 @@ private:
     QLineEdit* m_gridSquareEdit;
     QSpinBox* m_cqZoneSpin;
     QSpinBox* m_ituZoneSpin;
+    QLineEdit* m_stateEdit;
+    QLineEdit* m_arrlSectionEdit;
     QComboBox* m_continentCombo;
     QLineEdit* m_operatorEdit;
 
@@ -141,8 +143,10 @@ private:
     QSpinBox* m_entryFontSizeSpin;
     QSpinBox* m_tableFontSizeSpin;
     QSpinBox* m_gridFontSizeSpin;
+    QSpinBox* m_miscDisplayFontSizeSpin;
     QComboBox* m_themeCombo;
     QPushButton* m_customizeColorsButton;
+    QCheckBox* m_useMetricDistanceCheck;
 
     // Logging tab widgets
     QComboBox* m_logLevelCombo;

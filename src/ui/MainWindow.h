@@ -45,6 +45,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
+    bool eventFilter(QObject* obj, QEvent* event) override;
 
 private slots:
     // Menu actions
@@ -130,7 +131,6 @@ private:
     void createStatusBar();
     void createCentralWidget();
     QWidget* createBottomPanel();
-    QWidget* createRadioStatusGrid();
     void loadSettings();
     void saveSettings();
     void applyFontSettings();
@@ -140,6 +140,7 @@ private:
     void updateConnectionStatus(bool connected);
     void updateScoreDisplay();
     void updateRadioStatusGrid();
+    void raiseAllWindows();
 
     // Contest management
     void activateContest(const ContestInfo& contestInfo);
@@ -172,6 +173,7 @@ private:
     QLabel* m_thisHrLabel;
     QLabel* m_cqCountLabel;
     QLabel* m_spCountLabel;
+    QLabel* m_operatorLabelStatic;  // "Op:" label
     QLabel* m_operatorLabel;
 
     // Radio status grid (bottom)
@@ -211,6 +213,9 @@ private:
 
     // UDP Broadcast manager
     UdpBroadcastManager* m_udpBroadcastManager;
+
+    // Guard flag to prevent infinite recursion in raiseAllWindows
+    bool m_inRaiseAllWindows;
 };
 
 } // namespace TR4QT

@@ -40,7 +40,9 @@ CREATE TABLE IF NOT EXISTS dx_spots (
     source TEXT,                           -- Source (e.g., "DX Cluster (W1ABC)")
     is_multiplier BOOLEAN DEFAULT 0,       -- Is this a needed multiplier?
     is_worked BOOLEAN DEFAULT 0,           -- Already worked this station?
-    is_lotw_user BOOLEAN DEFAULT 0         -- Is this a LOTW user?
+    is_lotw_user BOOLEAN DEFAULT 0,        -- Is this a LOTW user?
+    azimuth REAL DEFAULT -1.0,             -- Bearing from user's location (degrees, 0-360, -1 if unknown)
+    distance REAL DEFAULT -1.0             -- Distance from user's location (km, -1 if unknown)
 );
 
 -- Index for fast callsign lookup (duplicate checking)
