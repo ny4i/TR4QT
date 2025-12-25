@@ -29,6 +29,7 @@ set(SOURCES
     data/BackupManager.cpp
     data/ExchangeMemoryRepository.cpp
     exchanges/InitialExchangeManager.cpp
+    contests/ARRLSweepstakesContest.cpp
     contests/ContestRegistry.cpp
     contests/CQWWContest.cpp
     contests/CQWPXContest.cpp
@@ -85,6 +86,7 @@ set(HEADERS
     data/BackupManager.h
     data/ExchangeMemoryRepository.h
     exchanges/InitialExchangeManager.h
+    contests/ARRLSweepstakesContest.h
     contests/ContestBase.h
     contests/ContestMetadata.h
     contests/ContestRegistry.h
