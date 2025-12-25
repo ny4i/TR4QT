@@ -759,22 +759,12 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
         // Check if the activated window belongs to our application
         QWidget* widget = qobject_cast<QWidget*>(obj);
         if (widget && widget->isWindow()) {
-            // Check if it's one of our windows
-            if (widget == this ||
-                widget == m_dxClusterWindow ||
+            // Only raise windows when one of the CHILD windows is activated
+            // Don't do it when MainWindow itself is activated (to avoid stealing focus)
+            if (widget == m_dxClusterWindow ||
                 widget == m_bandMapWindow ||
                 widget == m_radioControlWindow ||
                 widget == m_multiplierWindow) {
-
-                // Don't raise windows if an input field is about to receive focus
-                // This prevents stealing focus from QLineEdit widgets like the call entry
-                QWidget* focusWidget = QApplication::focusWidget();
-                if (focusWidget && (qobject_cast<QLineEdit*>(focusWidget) ||
-                                    qobject_cast<QTextEdit*>(focusWidget))) {
-                    // Input widget has focus, don't interfere
-                    return QMainWindow::eventFilter(obj, event);
-                }
-
                 // Raise all windows to bring them all to front
                 raiseAllWindows();
             }
