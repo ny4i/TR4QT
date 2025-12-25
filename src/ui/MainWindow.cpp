@@ -1832,6 +1832,14 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         }
         LOG_DEBUG("MainWindow", QString("Loaded %1 existing QSOs").arg(existingQSOs.size()));
 
+        // Scroll to bottom to show latest QSO and ensure scroll bars are visible
+        if (!existingQSOs.isEmpty()) {
+            m_qsoTableView->scrollToBottom();
+            // Select the last row (most recent QSO)
+            int lastRow = m_qsoTableModel->rowCount() - 1;
+            m_qsoTableView->selectRow(lastRow);
+        }
+
     } else {
         // New contest - create record
         AppSettings& settings = AppSettings::instance();
