@@ -1,10 +1,21 @@
 # Building TR4QT
 
-This guide covers building TR4QT on Windows and Linux platforms (including Ubuntu, Debian, and Raspberry Pi).
+This guide covers building TR4QT on Linux, macOS, and Windows platforms.
+
+## Quick Start
+
+**Clone the repository:**
+```bash
+git clone https://github.com/ny4i/TR4QT.git
+cd TR4QT
+```
+
+Then follow platform-specific instructions below.
 
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
+- [Building on macOS](#building-on-macos)
 - [Building on Linux](#building-on-linux)
   - [Ubuntu/Debian](#ubuntudebian)
   - [Raspberry Pi](#raspberry-pi)
@@ -21,7 +32,123 @@ All platforms require:
 - **C++ Compiler** with C++17 support (GCC 7+, Clang 5+, MSVC 2017+)
 - **CMake** 3.16 or later
 - **Qt 6.2** or later (Qt 6.5+ recommended)
+  - Qt6Core, Qt6Gui, Qt6Widgets, Qt6Network, Qt6Sql, Qt6SerialPort
+  - Qt6Charts (for statistics plotting)
 - **Hamlib** 4.0 or later
+- **Git** (to clone the repository)
+
+**Bundled Dependencies** (no installation required):
+- **QCustomPlot** 2.1.1 - Included in source tree for plotting statistics
+
+## Building on macOS
+
+### Install Dependencies
+
+#### Using Homebrew (Recommended)
+
+[Homebrew](https://brew.brew.sh) is the easiest way to install dependencies on macOS.
+
+```bash
+# Install Homebrew if not already installed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install build tools
+brew install cmake git
+
+# Install Qt 6
+brew install qt@6
+
+# Install Hamlib
+brew install hamlib
+
+# Add Qt to PATH (add to ~/.zshrc or ~/.bash_profile for persistence)
+export PATH="/opt/homebrew/opt/qt@6/bin:$PATH"
+export CMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@6:$CMAKE_PREFIX_PATH"
+```
+
+**Note for Intel Macs:** Qt and Hamlib will be in `/usr/local` instead of `/opt/homebrew`.
+
+#### Using Qt Online Installer
+
+Alternatively, install Qt from the official installer:
+
+1. Download from https://www.qt.io/download-qt-installer
+2. Install Qt 6.5+ with macOS component
+3. Install Hamlib via Homebrew: `brew install hamlib`
+4. Set CMAKE_PREFIX_PATH when building (see below)
+
+### Build TR4QT
+
+```bash
+# Clone the repository
+git clone https://github.com/ny4i/TR4QT.git
+cd TR4QT
+
+# Create build directory
+mkdir build
+cd build
+
+# Configure with CMake
+# If Qt installed via Homebrew:
+cmake ..
+
+# If Qt installed via Qt Online Installer:
+# cmake -DCMAKE_PREFIX_PATH=~/Qt/6.5.3/macos ..
+
+# Build (use -j for parallel compilation)
+make -j$(sysctl -n hw.ncpu)
+
+# Optional: Run tests
+ctest --output-on-failure
+
+# The executable will be in:
+# build/src/tr4qt.app/Contents/MacOS/tr4qt
+```
+
+### Running TR4QT
+
+```bash
+# From build directory
+./src/tr4qt.app/Contents/MacOS/tr4qt
+
+# Or double-click tr4qt.app in Finder (in build/src/)
+
+# IMPORTANT: Kill any running instances first
+pkill -9 tr4qt
+./src/tr4qt.app/Contents/MacOS/tr4qt
+```
+
+### macOS-Specific Notes
+
+**Keyboard Shortcuts:**
+- Qt automatically maps shortcuts to macOS conventions:
+  - `Qt::ALT` → Option (⌥)
+  - `Qt::CTRL` → Command (⌘)
+
+**Permissions:**
+- **Serial Port Access:** Grant Terminal/IDE permission to access USB devices in System Preferences → Security & Privacy → Privacy → Files and Folders
+- **Microphone Access:** May be needed for audio features (future)
+
+**Code Signing:**
+For distribution, you'll need to sign the app:
+```bash
+codesign --force --deep --sign - build/src/tr4qt.app
+```
+
+**Creating .dmg Installer:**
+```bash
+# Install create-dmg
+brew install create-dmg
+
+# Create installer
+create-dmg \
+  --volname "TR4QT Installer" \
+  --window-size 600 400 \
+  --icon-size 100 \
+  --app-drop-link 450 150 \
+  TR4QT-2.59.1.dmg \
+  build/src/tr4qt.app
+```
 
 ## Building on Linux
 
@@ -39,7 +166,8 @@ sudo apt install -y build-essential cmake git
 # Install Qt 6 development packages
 sudo apt install -y qt6-base-dev qt6-base-dev-tools \
                      libqt6core6 libqt6gui6 libqt6widgets6 \
-                     libqt6network6 libqt6sql6 libqt6serialport6
+                     libqt6network6 libqt6sql6 libqt6serialport6 \
+                     qt6-charts-dev libqt6charts6
 
 # Install Hamlib
 sudo apt install -y libhamlib-dev libhamlib-utils
@@ -137,16 +265,23 @@ make
 For other Linux distributions:
 
 1. **Install Qt 6**:
-   - Fedora: `sudo dnf install qt6-qtbase-devel`
-   - Arch: `sudo pacman -S qt6-base`
-   - OpenSUSE: `sudo zypper install qt6-base-devel`
+   - Fedora: `sudo dnf install qt6-qtbase-devel qt6-qtcharts-devel`
+   - Arch: `sudo pacman -S qt6-base qt6-charts`
+   - OpenSUSE: `sudo zypper install qt6-base-devel qt6-charts-devel`
 
 2. **Install Hamlib**:
    - Fedora: `sudo dnf install hamlib-devel`
    - Arch: `sudo pacman -S hamlib`
    - OpenSUSE: `sudo zypper install hamlib-devel`
 
-3. **Build** as shown above
+3. **Clone and Build**:
+   ```bash
+   git clone https://github.com/ny4i/TR4QT.git
+   cd TR4QT
+   mkdir build && cd build
+   cmake ..
+   make -j$(nproc)
+   ```
 
 ## Building on Windows
 
@@ -172,7 +307,8 @@ pacman -S --needed base-devel mingw-w64-x86_64-toolchain \
 
 # Install Qt 6
 pacman -S mingw-w64-x86_64-qt6-base \
-          mingw-w64-x86_64-qt6-serialport
+          mingw-w64-x86_64-qt6-serialport \
+          mingw-w64-x86_64-qt6-charts
 
 # Install Hamlib
 pacman -S mingw-w64-x86_64-hamlib
@@ -578,22 +714,27 @@ Use **Inno Setup** or **WiX Toolset** to create an installer:
 
 ### One-Line Builds
 
+**macOS (Homebrew):**
+```bash
+brew install cmake qt@6 hamlib && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && export CMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@6:$CMAKE_PREFIX_PATH" && mkdir build && cd build && cmake .. && make -j$(sysctl -n hw.ncpu)
+```
+
 **Ubuntu/Debian:**
 ```bash
-sudo apt update && sudo apt install -y build-essential cmake qt6-base-dev libhamlib-dev && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && mkdir build && cd build && cmake .. && make -j$(nproc)
+sudo apt update && sudo apt install -y build-essential cmake git qt6-base-dev qt6-charts-dev libhamlib-dev && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && mkdir build && cd build && cmake .. && make -j$(nproc)
 ```
 
 **Fedora:**
 ```bash
-sudo dnf install -y cmake qt6-qtbase-devel hamlib-devel && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && mkdir build && cd build && cmake .. && make -j$(nproc)
+sudo dnf install -y cmake git qt6-qtbase-devel qt6-qtcharts-devel hamlib-devel && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && mkdir build && cd build && cmake .. && make -j$(nproc)
 ```
 
 **Arch Linux:**
 ```bash
-sudo pacman -S --needed base-devel cmake qt6-base hamlib && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && mkdir build && cd build && cmake .. && make -j$(nproc)
+sudo pacman -S --needed base-devel cmake git qt6-base qt6-charts hamlib && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && mkdir build && cd build && cmake .. && make -j$(nproc)
 ```
 
 **Windows (MSYS2):**
 ```bash
-pacman -S --needed base-devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-qt6-base mingw-w64-x86_64-hamlib && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && mkdir build && cd build && cmake -G "MinGW Makefiles" .. && mingw32-make -j$(nproc)
+pacman -S --needed base-devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake git mingw-w64-x86_64-qt6-base mingw-w64-x86_64-qt6-charts mingw-w64-x86_64-hamlib && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && mkdir build && cd build && cmake -G "MinGW Makefiles" .. && mingw32-make -j$(nproc)
 ```
