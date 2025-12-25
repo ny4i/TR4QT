@@ -40,13 +40,13 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
             rst_sent, rst_received, exchange_sent, exchange_received,
             dxcc_entity, dxcc_prefix, cq_zone, itu_zone, continent, state,
             qso_points, is_dupe, is_multiplier, multipliers,
-            serial_number, notes
+            serial_number, operator_call, notes
         ) VALUES (
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
-            ?, ?
+            ?, ?, ?
         )
     )";
 
@@ -72,6 +72,7 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         qso.isMultiplier,
         multipliersStr,
         qso.serialNumber > 0 ? qso.serialNumber : QVariant(),
+        qso.operatorCall,
         qso.notes
     };
 
@@ -111,7 +112,7 @@ bool QSORepository::updateQSO(const QSO& qso) {
             rst_sent = ?, rst_received = ?, exchange_sent = ?, exchange_received = ?,
             dxcc_entity = ?, dxcc_prefix = ?, cq_zone = ?, itu_zone = ?, continent = ?, state = ?,
             qso_points = ?, is_dupe = ?, is_multiplier = ?, multipliers = ?,
-            serial_number = ?, notes = ?
+            serial_number = ?, operator_call = ?, notes = ?
         WHERE id = ?
     )";
 
@@ -136,6 +137,7 @@ bool QSORepository::updateQSO(const QSO& qso) {
         qso.isMultiplier,
         multipliersStr,
         qso.serialNumber > 0 ? qso.serialNumber : QVariant(),
+        qso.operatorCall,
         qso.notes,
         qso.id
     };
