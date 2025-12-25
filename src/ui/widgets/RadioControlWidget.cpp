@@ -224,9 +224,8 @@ void RadioControlWidget::setupUI() {
 
     mainLayout->addWidget(buttonWidget);
 
-    // Set minimum size
+    // Set minimum size (no maximum to allow user resizing)
     setMinimumSize(250, 200);
-    setMaximumSize(400, 250);
 }
 
 void RadioControlWidget::updateRadioState(const RadioState& state) {
@@ -443,6 +442,9 @@ void RadioControlWidget::updateSMeter(int signalStrength) {
     // Convert dBm to S-meter value and percentage for progress bar
     QString sMeterText = dbmToSMeter(signalStrength);
     m_sMeterLabel->setText(sMeterText);
+
+    LOG_DEBUG("RadioControlWidget", QString("S-meter update: raw=%1, display=%2")
+        .arg(signalStrength).arg(sMeterText));
 
     // Convert dBm to progress bar percentage
     // S0 = -127 dBm, S9 = -73 dBm (6 dB per S-unit)
