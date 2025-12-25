@@ -1434,9 +1434,7 @@ void MainWindow::onLogQSO() {
 void MainWindow::onCallsignChanged(const QString& callsign) {
     Q_UNUSED(callsign);
     // Exchange auto-population now happens on Enter key press, not while typing
-
-    // Hide duplicate warning when user starts typing again
-    m_dupeWarningLabel->hide();
+    // Duplicate checking happens on Enter key press
 }
 
 void MainWindow::onCallsignEnterPressed() {
@@ -1451,12 +1449,13 @@ void MainWindow::onCallsignEnterPressed() {
     bool isDupe = checkForDuplicate(callsign, m_currentState.bandA, m_currentState.modeA, dupeInfo);
 
     if (isDupe) {
-        // Show warning but allow logging to proceed
-        m_dupeWarningLabel->setText("⚠ " + dupeInfo);
-        m_dupeWarningLabel->show();
+        // Show warning in status bar (allows logging to proceed)
+        m_statusLabel->setText("⚠ " + dupeInfo);
+        m_statusLabel->setStyleSheet("QLabel { color: #ff6600; font-weight: bold; }");
     } else {
-        // Hide warning for non-duplicates
-        m_dupeWarningLabel->hide();
+        // Clear warning for non-duplicates
+        m_statusLabel->setText("Ready");
+        m_statusLabel->setStyleSheet("");  // Reset style
     }
 
     // Auto-populate exchange based on callsign
@@ -1473,8 +1472,9 @@ void MainWindow::onClearEntry() {
     m_callsignEntry->setFocus();
     m_initialExchangePopulated = false;
 
-    // Hide duplicate warning
-    m_dupeWarningLabel->hide();
+    // Reset status
+    m_statusLabel->setText("Ready");
+    m_statusLabel->setStyleSheet("");
 }
 
 void MainWindow::onEditQSO(const QModelIndex& index) {
@@ -2600,8 +2600,11 @@ void MainWindow::onBandClicked(BandType band) {
         // Radio not connected: Manual band selection for logging
         LOG_DEBUG("MainWindow", QString("Manual band selection: %1").arg(bandToString(band)));
 
-        // Update current state with manually selected band
+        // Update current state with manually selected band and frequency
         m_currentState.bandA = band;
+
+        // Set frequency to low end of band for logging purposes
+        m_currentState.frequencyA = getFrequencyForBand(band, m_currentState.modeA);
 
         // Update radio status display
         updateRadioStatusGrid();
@@ -2612,13 +2615,35 @@ void MainWindow::onBandClicked(BandType band) {
 }
 
 void MainWindow::onBandUp() {
-    // TODO: Implement band up
-    LOG_DEBUG("MainWindow", "Band up");
+    BandType currentBand = m_currentState.bandA;
+    BandType nextBand = getNextBand(currentBand);
+
+    if (nextBand != currentBand) {
+        LOG_DEBUG("MainWindow", QString("Band up: %1 -> %2")
+            .arg(bandToString(currentBand))
+            .arg(bandToString(nextBand)));
+
+        // Use band click handler (works for both connected and disconnected radio)
+        onBandClicked(nextBand);
+    } else {
+        LOG_DEBUG("MainWindow", "Already at highest band");
+    }
 }
 
 void MainWindow::onBandDown() {
-    // TODO: Implement band down
-    LOG_DEBUG("MainWindow", "Band down");
+    BandType currentBand = m_currentState.bandA;
+    BandType prevBand = getPreviousBand(currentBand);
+
+    if (prevBand != currentBand) {
+        LOG_DEBUG("MainWindow", QString("Band down: %1 -> %2")
+            .arg(bandToString(currentBand))
+            .arg(bandToString(prevBand)));
+
+        // Use band click handler (works for both connected and disconnected radio)
+        onBandClicked(prevBand);
+    } else {
+        LOG_DEBUG("MainWindow", "Already at lowest band");
+    }
 }
 
 freq_t MainWindow::getFrequencyForBand(BandType band, ModeType mode) const {
@@ -2643,6 +2668,44 @@ freq_t MainWindow::getFrequencyForBand(BandType band, ModeType mode) const {
     default:
         return 14030000;  // Default to 20m CW
     }
+}
+
+BandType MainWindow::getNextBand(BandType currentBand) const {
+    // Contest bands in order from low to high frequency
+    static const QList<BandType> contestBands = {
+        BandType::Band160M,
+        BandType::Band80M,
+        BandType::Band40M,
+        BandType::Band20M,
+        BandType::Band15M,
+        BandType::Band10M
+    };
+
+    int currentIndex = contestBands.indexOf(currentBand);
+    if (currentIndex == -1 || currentIndex >= contestBands.size() - 1) {
+        return currentBand;  // Already at highest or invalid band
+    }
+
+    return contestBands[currentIndex + 1];
+}
+
+BandType MainWindow::getPreviousBand(BandType currentBand) const {
+    // Contest bands in order from low to high frequency
+    static const QList<BandType> contestBands = {
+        BandType::Band160M,
+        BandType::Band80M,
+        BandType::Band40M,
+        BandType::Band20M,
+        BandType::Band15M,
+        BandType::Band10M
+    };
+
+    int currentIndex = contestBands.indexOf(currentBand);
+    if (currentIndex <= 0) {
+        return currentBand;  // Already at lowest or invalid band
+    }
+
+    return contestBands[currentIndex - 1];
 }
 
 } // namespace TR4QT
