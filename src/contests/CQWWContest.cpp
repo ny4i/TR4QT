@@ -99,27 +99,34 @@ QString CQWWContest::formatSentExchange(int serialNumber, const QString& rst) co
 bool CQWWContest::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
-    if (parts.size() < 2) {
-        errorMsg = "Exchange must be RST + Zone (e.g., '599 14')";
+    if (parts.isEmpty()) {
+        errorMsg = "Exchange required (Zone or RST + Zone, e.g., '14' or '599 14')";
         return false;
     }
 
-    // Validate RST
-    QString rst = parts[0];
-    if (m_mode == ModeType::CW) {
-        if (rst.length() != 3) {
-            errorMsg = "CW RST must be 3 digits (e.g., 599)";
-            return false;
+    // Determine if RST was provided
+    QString zoneStr;
+    if (parts.size() == 1) {
+        // Only zone provided - RST will be auto-filled
+        zoneStr = parts[0];
+    } else if (parts.size() >= 2) {
+        // RST + Zone provided - validate RST
+        QString rst = parts[0];
+        if (m_mode == ModeType::CW) {
+            if (rst.length() != 3) {
+                errorMsg = "CW RST must be 3 digits (e.g., 599)";
+                return false;
+            }
+        } else {
+            if (rst.length() != 2 && rst.length() != 3) {
+                errorMsg = "SSB RST must be 2-3 digits (e.g., 59)";
+                return false;
+            }
         }
-    } else {
-        if (rst.length() != 2 && rst.length() != 3) {
-            errorMsg = "SSB RST must be 2-3 digits (e.g., 59)";
-            return false;
-        }
+        zoneStr = parts[1];
     }
 
     // Validate Zone (1-40)
-    QString zoneStr = parts[1];
     bool ok;
     int zone = zoneStr.toInt(&ok);
     if (!ok || zone < 1 || zone > 40) {
@@ -135,7 +142,12 @@ QMap<QString, QString> CQWWContest::parseReceivedExchange(const QString& exchang
 
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
-    if (parts.size() >= 2) {
+    if (parts.size() == 1) {
+        // Only zone provided - auto-fill RST based on mode
+        parsed["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
+        parsed["Zone"] = parts[0];
+    } else if (parts.size() >= 2) {
+        // Full exchange: RST + Zone
         parsed["RST"] = parts[0];
         parsed["Zone"] = parts[1];
     }
