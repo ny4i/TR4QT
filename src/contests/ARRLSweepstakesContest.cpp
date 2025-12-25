@@ -1,6 +1,7 @@
 #include "ARRLSweepstakesContest.h"
 #include "ContestRegistry.h"
 #include "../models/QSO.h"
+#include "../exchanges/SmartExchangeParser.h"
 #include <QRegularExpression>
 #include <QStringList>
 
@@ -127,17 +128,19 @@ bool ARRLSweepstakesContest::validateReceivedExchange(const QString& exchange, Q
 }
 
 QMap<QString, QString> ARRLSweepstakesContest::parseReceivedExchange(const QString& exchange) const {
-    QMap<QString, QString> result;
+    // Use smart parser to allow fields in any order
+    // Examples that now work:
+    // - "123 A 95 WMA" (traditional order)
+    // - "A 95 WMA 123" (precedence first)
+    // - "WMA 123 A 95" (section first)
+    // - "1 M" (partial - just serial and precedence)
 
-    QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
-    if (parts.size() != 4) {
-        return result;  // Invalid format
-    }
-
-    result["Serial"] = parts[0];
-    result["Precedence"] = parts[1].toUpper();
-    result["Check"] = parts[2];
-    result["Section"] = parts[3].toUpper();
+    QList<ExchangeField> expectedFields = getReceivedExchangeFields();
+    QMap<QString, QString> result = SmartExchangeParser::parse(
+        exchange,
+        expectedFields,
+        const_cast<ARRLSweepstakesContest*>(this)  // For section validation
+    );
 
     return result;
 }
