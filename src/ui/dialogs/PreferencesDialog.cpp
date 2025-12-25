@@ -1374,7 +1374,7 @@ void PreferencesDialog::onCustomizeColors() {
         QColor currentColor = theme.color(role);
 
         colorButton->setFixedSize(100, 30);
-        colorButton->setStyleSheet(QString("background-color: %1; border: 1px solid #888;").arg(currentColor.name()));
+        colorButton->setStyleSheet(QString("background-color: %1; border: 1px solid #888; border-radius: 3px;").arg(currentColor.name()));
         colorButton->setToolTip("Click to change color");
 
         // Store button data for later
@@ -1386,7 +1386,7 @@ void PreferencesDialog::onCustomizeColors() {
             QColor newColor = QColorDialog::getColor(btnData->currentColor, colorDialog, "Select Color");
             if (newColor.isValid()) {
                 btnData->currentColor = newColor;
-                btnData->button->setStyleSheet(QString("background-color: %1; border: 1px solid #888;").arg(newColor.name()));
+                btnData->button->setStyleSheet(QString("background-color: %1; border: 1px solid #888; border-radius: 3px;").arg(newColor.name()));
             }
         });
 
@@ -1403,7 +1403,7 @@ void PreferencesDialog::onCustomizeColors() {
             theme.setTheme(originalTheme);
 
             btnData->currentColor = defaultColor;
-            btnData->button->setStyleSheet(QString("background-color: %1; border: 1px solid #888;").arg(defaultColor.name()));
+            btnData->button->setStyleSheet(QString("background-color: %1; border: 1px solid #888; border-radius: 3px;").arg(defaultColor.name()));
         });
 
         gridLayout->addWidget(resetButton, row, col * 3 + 2);

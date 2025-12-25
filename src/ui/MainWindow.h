@@ -30,6 +30,7 @@ class DXClusterWindow;
 class BandMapWidget;
 class RadioControlWidget;
 class MultiplierWidget;
+class StatisticsWindow;
 class UdpBroadcastManager;
 
 /**
@@ -65,6 +66,7 @@ private slots:
     void onShowBandMap();
     void onShowRadioControl();
     void onShowMultipliers();
+    void onShowStatistics();
     void onSwapMultView();          // TODO: Implement swap multiplier view
     void onMissingMultsReport();    // TODO: Implement missing mults report
 
@@ -121,6 +123,8 @@ private slots:
     void onLogQSO();
     void onCallsignChanged(const QString& callsign);
     void onClearEntry();
+    void onEditQSO(const QModelIndex& index);
+    void onQSOTableContextMenu(const QPoint& pos);
 
     // Timer update
     void updateTimeDisplay();
@@ -195,6 +199,7 @@ private:
     BandMapWidget* m_bandMapWindow;
     RadioControlWidget* m_radioControlWindow;
     MultiplierWidget* m_multiplierWindow;
+    StatisticsWindow* m_statisticsWindow;
 
     // Time tracking
     QTimer* m_updateTimer;
