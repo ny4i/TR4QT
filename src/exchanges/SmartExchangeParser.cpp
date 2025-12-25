@@ -316,16 +316,12 @@ bool SmartExchangeParser::looksLikeSection(const QString& token, ContestBase* co
 bool SmartExchangeParser::looksLikeClass(const QString& token) {
     QString upper = token.toUpper();
 
-    // Special case: HOME (WFD)
-    if (upper == "HOME") {
-        return true;
-    }
-
     // Class format: [1-20] + [Category Letter]
     // Winter Field Day categories: I (indoor), O (outdoor), H (home), M (mobile)
     // ARRL Field Day categories: A, B, C, D, E, F
     //
     // Valid examples: 1O, 2I, 10H, 15M, 1A, 2B, 20F
+    // Note: "HOME" is NOT valid - must be number + letter
 
     // Must be 2-3 characters (digit(s) + letter)
     if (token.length() < 2 || token.length() > 3) {

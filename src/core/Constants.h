@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.66.0";  // Smart exchange parser with automatic field reordering
+constexpr const char* APP_VERSION = "2.66.1";  // Fix HOME class validation in WFD parser
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
