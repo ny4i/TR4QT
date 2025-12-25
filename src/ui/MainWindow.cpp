@@ -618,6 +618,8 @@ QWidget* MainWindow::createBottomPanel() {
             this, &MainWindow::onCallsignChanged);
     connect(m_callsignEntry, &QLineEdit::returnPressed,
             this, &MainWindow::onCallsignEnterPressed);
+    connect(m_exchangeEntry, &QLineEdit::textChanged,
+            this, &MainWindow::onExchangeTextChanged);
     connect(m_exchangeEntry, &QLineEdit::returnPressed,
             this, &MainWindow::onLogQSO);
     connect(m_logButton, &QPushButton::clicked,
@@ -1454,6 +1456,49 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
     // Duplicate checking happens on Enter key press
 }
 
+void MainWindow::onExchangeTextChanged(const QString& text) {
+    // Clear styling if empty or no active contest
+    if (text.isEmpty() || !m_activeContest) {
+        m_exchangeEntry->setStyleSheet("");
+        m_exchangeEntry->setToolTip("");
+        return;
+    }
+
+    // Validate exchange against contest rules
+    QString errorMsg;
+    bool isValid = m_activeContest->validateReceivedExchange(text, errorMsg);
+
+    QString styleSheet;
+    QString tooltip;
+
+    if (isValid) {
+        // Green border for valid exchange
+        styleSheet = "QLineEdit { border: 2px solid #00aa00; background-color: #f0fff0; }";
+        tooltip = "✓ Valid exchange";
+    } else {
+        // Check if this could become valid with more input (partial/incomplete)
+        QString trimmed = text.trimmed();
+        QList<ExchangeField> fields = m_activeContest->getReceivedExchangeFields();
+
+        // Count fields entered vs expected
+        QStringList parts = trimmed.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        bool couldBePartial = (parts.size() < fields.size()) && !trimmed.isEmpty();
+
+        if (couldBePartial) {
+            // Yellow border for incomplete exchange
+            styleSheet = "QLineEdit { border: 2px solid #ffaa00; background-color: #fffef0; }";
+            tooltip = "⚠ Incomplete - " + errorMsg;
+        } else {
+            // Red border for invalid exchange
+            styleSheet = "QLineEdit { border: 2px solid #ff0000; background-color: #fff0f0; }";
+            tooltip = "✗ " + errorMsg;
+        }
+    }
+
+    m_exchangeEntry->setStyleSheet(styleSheet);
+    m_exchangeEntry->setToolTip(tooltip);
+}
+
 void MainWindow::onCallsignEnterPressed() {
     QString callsign = m_callsignEntry->text().trimmed().toUpper();
 
@@ -1508,8 +1553,8 @@ void MainWindow::onEditQSO(const QModelIndex& index) {
         return;
     }
 
-    // Open edit dialog
-    EditQSODialog dialog(qso, this);
+    // Open edit dialog with contest for validation
+    EditQSODialog dialog(qso, m_activeContest, this);
     if (dialog.exec() == QDialog::Accepted) {
         QSO editedQSO = dialog.getEditedQSO();
 

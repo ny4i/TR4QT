@@ -10,9 +10,10 @@
 
 namespace TR4QT {
 
-EditQSODialog::EditQSODialog(const QSO& qso, QWidget* parent)
+EditQSODialog::EditQSODialog(const QSO& qso, ContestBase* contest, QWidget* parent)
     : QDialog(parent)
     , m_qso(qso)
+    , m_contest(contest)
 {
     setupUI();
     loadQSOData();
@@ -267,7 +268,24 @@ QSO EditQSODialog::getEditedQSO() const {
 }
 
 void EditQSODialog::onAccept() {
-    // Could add validation here
+    // Validate exchange if we have a contest
+    if (m_contest) {
+        QString exchange = m_exchangeReceivedEdit->text().trimmed();
+
+        if (!exchange.isEmpty()) {
+            QString errorMsg;
+            if (!m_contest->validateReceivedExchange(exchange, errorMsg)) {
+                QMessageBox::warning(this, "Invalid Exchange",
+                    QString("The exchange is not valid for this contest:\n\n%1\n\n"
+                            "Please correct the exchange before saving.")
+                        .arg(errorMsg));
+                m_exchangeReceivedEdit->setFocus();
+                m_exchangeReceivedEdit->selectAll();
+                return;  // Don't accept the dialog
+            }
+        }
+    }
+
     accept();
 }
 
