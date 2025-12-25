@@ -179,6 +179,10 @@ void RadioControlWidget::setupUI() {
 void RadioControlWidget::updateRadioState(const RadioState& state) {
     m_currentState = state;
 
+    // Debug logging for RIT/XIT values
+    LOG_DEBUG("RadioControlWidget", QString("Radio state update - RIT: %1 Hz, XIT: %2 Hz, SPLIT: %3")
+        .arg(state.ritOffsetA).arg(state.xitOffsetA).arg(state.isSplitEnabled ? "ON" : "OFF"));
+
     // Update VFO A frequency (show full precision from hamlib - typically 1 Hz or 10 Hz)
     double freqMhz = state.frequencyA / 1000000.0;
     m_vfoAFreqLabel->setText(QString::number(freqMhz, 'f', 5));

@@ -167,11 +167,14 @@ void BandMapWidget::clearSpots() {
 }
 
 void BandMapWidget::setCurrentFrequency(freq_t freq) {
-    QString band = getBandFromFrequency(freq);
-    LOG_DEBUG("BandMapWidget", QString("Current frequency changed: %1 Hz (%2 MHz) - Band: %3")
-        .arg(freq).arg(freq / 1000000.0, 0, 'f', 3).arg(band.isEmpty() ? "unknown" : band));
-    m_currentFrequency = freq;
-    viewport()->update();
+    // Only log and update if frequency actually changed
+    if (m_currentFrequency != freq) {
+        QString band = getBandFromFrequency(freq);
+        LOG_DEBUG("BandMapWidget", QString("Current frequency changed: %1 Hz (%2 MHz) - Band: %3")
+            .arg(freq).arg(freq / 1000000.0, 0, 'f', 3).arg(band.isEmpty() ? "unknown" : band));
+        m_currentFrequency = freq;
+        viewport()->update();
+    }
 }
 
 void BandMapWidget::refreshLotwStatus() {
@@ -733,7 +736,7 @@ void BandMapWidget::updateScrollBars() {
     int hScrollRange = qMax(0, totalWidth - availableWidth);
     horizontalScrollBar()->setRange(0, hScrollRange);
 
-    LOG_DEBUG("BandMapWidget", QString("Scrollbar update: spots=%1, columns=%2, rowsPerCol=%3, spotInTallest=%4, tallestHeight=%5, availHeight=%6, vRange=%7, totalWidth=%8, availWidth=%9, hRange=%10")
+    LOG_TRACE("BandMapWidget", QString("Scrollbar update: spots=%1, columns=%2, rowsPerCol=%3, spotInTallest=%4, tallestHeight=%5, availHeight=%6, vRange=%7, totalWidth=%8, availWidth=%9, hRange=%10")
         .arg(m_displaySpots.size()).arg(m_columnCount).arg(rowsPerColumn).arg(spotsInTallestColumn)
         .arg(tallestColumnHeight).arg(availableHeight).arg(vScrollRange)
         .arg(totalWidth).arg(availableWidth).arg(hScrollRange));
