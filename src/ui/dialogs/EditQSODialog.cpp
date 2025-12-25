@@ -111,6 +111,10 @@ void EditQSODialog::setupUI() {
     m_stateEdit = new QLineEdit(this);
     geoLayout->addWidget(m_stateEdit, 2, 3);
 
+    geoLayout->addWidget(new QLabel("County:"), 3, 0);
+    m_countyEdit = new QLineEdit(this);
+    geoLayout->addWidget(m_countyEdit, 3, 1);
+
     mainLayout->addWidget(geoGroup);
 
     // Scoring and Metadata Group
@@ -224,6 +228,7 @@ void EditQSODialog::loadQSOData() {
     m_ituZoneSpinBox->setValue(m_qso.ituZone);
     m_continentEdit->setText(m_qso.continent);
     m_stateEdit->setText(m_qso.state);
+    m_countyEdit->setText(m_qso.county);
 
     // Scoring fields (read-only)
     m_qsoPointsSpinBox->setValue(m_qso.qsoPoints);
@@ -256,6 +261,7 @@ QSO EditQSODialog::getEditedQSO() const {
     editedQSO.ituZone = m_ituZoneSpinBox->value();
     editedQSO.continent = m_continentEdit->text();
     editedQSO.state = m_stateEdit->text();
+    editedQSO.county = m_countyEdit->text();
 
     // Scoring fields are read-only, don't update
 

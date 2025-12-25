@@ -70,6 +70,7 @@ private:
     QSpinBox* m_ituZoneSpinBox;
     QLineEdit* m_continentEdit;
     QLineEdit* m_stateEdit;
+    QLineEdit* m_countyEdit;
 
     // Scoring fields (read-only)
     QSpinBox* m_qsoPointsSpinBox;

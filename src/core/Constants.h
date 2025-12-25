@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.61.0";  // Phase 1: Exchange validation with real-time visual feedback
+constexpr const char* APP_VERSION = "2.62.0";  // Add county field for ARRL section mapping
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
