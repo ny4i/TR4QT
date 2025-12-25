@@ -6,5 +6,6 @@
     </qresource>
     <qresource prefix="/data">
         <file alias="schema.sql">../src/data/schema.sql</file>
+        <file alias="global_schema.sql">../src/data/global_schema.sql</file>
     </qresource>
 </RCC>

@@ -328,6 +328,47 @@ QString AppSettings::getCountryFilePath() const {
     return m_settings.value("CountryFile/path", defaultPath).toString();
 }
 
+// LOTW settings
+void AppSettings::setShowOnlyLotwUsers(bool show) {
+    m_settings.setValue("BandMap/ShowOnlyLotwUsers", show);
+    m_settings.sync();
+}
+
+bool AppSettings::getShowOnlyLotwUsers() const {
+    return m_settings.value("BandMap/ShowOnlyLotwUsers", false).toBool();
+}
+
+void AppSettings::setLotwLastUpdateTime(const QDateTime& timestamp) {
+    m_settings.setValue("LOTW/LastUpdateTime", timestamp.toSecsSinceEpoch());
+    m_settings.sync();
+}
+
+QDateTime AppSettings::getLotwLastUpdateTime() const {
+    qint64 secs = m_settings.value("LOTW/LastUpdateTime", 0).toLongLong();
+    if (secs > 0) {
+        return QDateTime::fromSecsSinceEpoch(secs);
+    }
+    return QDateTime();
+}
+
+void AppSettings::setEnableLotwLookup(bool enable) {
+    m_settings.setValue("LOTW/EnableLookup", enable);
+    m_settings.sync();
+}
+
+bool AppSettings::getEnableLotwLookup() const {
+    return m_settings.value("LOTW/EnableLookup", true).toBool();  // Default: enabled
+}
+
+void AppSettings::setLotwMinUploadMonths(int months) {
+    m_settings.setValue("LOTW/MinUploadMonths", months);
+    m_settings.sync();
+}
+
+int AppSettings::getLotwMinUploadMonths() const {
+    return m_settings.value("LOTW/MinUploadMonths", 24).toInt();  // Default: 24 months (2 years)
+}
+
 // Appearance settings
 void AppSettings::setEntryFontSize(int size) {
     m_settings.setValue("Appearance/entryFontSize", size);

@@ -323,6 +323,42 @@ QWidget* PreferencesDialog::createDXClusterTab() {
     m_dxClusterAutoConnectCheck = new QCheckBox("Auto-connect to DX Cluster on startup", this);
     formLayout->addRow("", m_dxClusterAutoConnectCheck);
 
+    // Enable LOTW lookup
+    m_enableLotwLookupCheck = new QCheckBox("Enable LOTW user lookup for DX spots", this);
+    m_enableLotwLookupCheck->setToolTip("Perform database lookup to identify LOTW users for each DX spot.\n"
+                                        "Disable this if spots are arriving very quickly to improve performance.");
+
+    // Connect checkbox change to immediately update settings and refresh band map
+    connect(m_enableLotwLookupCheck, &QCheckBox::toggled,
+            this, [this](bool checked) {
+                AppSettings& settings = AppSettings::instance();
+                settings.setEnableLotwLookup(checked);
+                LOG_DEBUG("PreferencesDialog", QString("LOTW lookup %1").arg(checked ? "enabled" : "disabled"));
+                emit lotwSettingsChanged();
+            });
+
+    formLayout->addRow("", m_enableLotwLookupCheck);
+
+    // LOTW minimum upload months
+    m_lotwMinUploadMonthsSpin = new QSpinBox(this);
+    m_lotwMinUploadMonthsSpin->setRange(1, 120);  // 1 month to 10 years
+    m_lotwMinUploadMonthsSpin->setValue(24);      // Default: 24 months
+    m_lotwMinUploadMonthsSpin->setSuffix(" months");
+    m_lotwMinUploadMonthsSpin->setToolTip("Only consider users active if they uploaded to LOTW within this timeframe.\n"
+                                          "Users who haven't uploaded recently won't be marked as LOTW users.\n"
+                                          "Default: 24 months (2 years)");
+
+    // Connect value change to immediately update settings and refresh band map
+    connect(m_lotwMinUploadMonthsSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this](int value) {
+                AppSettings& settings = AppSettings::instance();
+                settings.setLotwMinUploadMonths(value);
+                LOG_DEBUG("PreferencesDialog", QString("LOTW minimum upload months changed to %1").arg(value));
+                emit lotwSettingsChanged();
+            });
+
+    formLayout->addRow("LOTW Recent Activity:", m_lotwMinUploadMonthsSpin);
+
     // Download cluster list button
     m_downloadClusterListButton = new QPushButton("Download Server List", this);
     connect(m_downloadClusterListButton, &QPushButton::clicked,
@@ -806,6 +842,8 @@ void PreferencesDialog::loadSettings() {
     m_dxClusterCallsignEdit->setText(settings.getDXClusterCallsign());
     m_dxClusterServerCombo->setCurrentText(settings.getDXClusterServer());
     m_dxClusterAutoConnectCheck->setChecked(settings.getDXClusterAutoConnect());
+    m_enableLotwLookupCheck->setChecked(settings.getEnableLotwLookup());
+    m_lotwMinUploadMonthsSpin->setValue(settings.getLotwMinUploadMonths());
 
     // UDP Broadcast tab
     m_udpBroadcastEnabledCheck->setChecked(settings.getUDPBroadcastEnabled());
@@ -908,6 +946,8 @@ void PreferencesDialog::saveSettings() {
     settings.setDXClusterCallsign(m_dxClusterCallsignEdit->text());
     settings.setDXClusterServer(m_dxClusterServerCombo->currentText());
     settings.setDXClusterAutoConnect(m_dxClusterAutoConnectCheck->isChecked());
+    settings.setEnableLotwLookup(m_enableLotwLookupCheck->isChecked());
+    settings.setLotwMinUploadMonths(m_lotwMinUploadMonthsSpin->value());
 
     // UDP Broadcast tab
     settings.setUDPBroadcastEnabled(m_udpBroadcastEnabledCheck->isChecked());
