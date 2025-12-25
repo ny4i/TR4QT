@@ -282,15 +282,12 @@ QMap<QString, QString> WinterFieldDayContest::getCabrilloHeaders() const {
 }
 
 bool WinterFieldDayContest::isValidClass(const QString& classStr) {
-    // Valid classes: 1O, 2O, 3O, 4O, 5O, 1I, 2I, 3I, 4I, 5I, Home
+    // Valid classes: 1O, 2O, ..., 1I, 2I, ..., 1H, 2H, ..., 1M, 2M, ...
+    // WFD categories: I (Indoor), O (Outdoor), H (Home), M (Mobile)
     QString upper = classStr.toUpper();
 
-    if (upper == "HOME") {
-        return true;
-    }
-
-    // Pattern: digit + letter (O for Outdoor, I for Indoor)
-    QRegularExpression re("^[1-9][OI]$");
+    // Pattern: digit(s) + letter (1-20 transmitters, I/O/H/M category)
+    QRegularExpression re("^([1-9]|1[0-9]|20)[IOHM]$");
     return re.match(upper).hasMatch();
 }
 
