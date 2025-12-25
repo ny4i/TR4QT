@@ -83,6 +83,10 @@ private:
     QPushButton* m_xitButton;
     QPushButton* m_splitButton;
 
+    // Offset display labels
+    QLabel* m_ritOffsetLabel;
+    QLabel* m_xitOffsetLabel;
+
     int m_radioNumber;
     RadioState m_currentState;
 };
