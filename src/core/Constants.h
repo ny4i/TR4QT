@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.66.3";  // Centralize section validation in ArrlSectionHelper
+constexpr const char* APP_VERSION = "2.66.4";  // Fix WFD validator order-agnostic + log all status messages
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

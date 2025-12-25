@@ -856,6 +856,12 @@ void MainWindow::raiseAllWindows() {
     m_inRaiseAllWindows = false;
 }
 
+void MainWindow::setStatusMessage(const QString& message) {
+    // Log all status messages for debugging
+    LOG_WARN("MainWindow", QString("Status: %1").arg(message));
+    m_statusLabel->setText(message);
+}
+
 void MainWindow::onRadioConfigure() {
     LOG_DEBUG("MainWindow", "*** onRadioConfigure() called - opening RadioConfigDialog ***");
     RadioConfigDialog dialog(this);
@@ -1321,7 +1327,7 @@ void MainWindow::onLogQSO() {
     if (m_activeContest) {
         QString errorMsg;
         if (!m_activeContest->validateReceivedExchange(exchange, errorMsg)) {
-            m_statusLabel->setText(QString("Invalid exchange: %1").arg(errorMsg));
+            setStatusMessage(QString("Invalid exchange: %1").arg(errorMsg));
             m_exchangeEntry->setFocus();
             m_exchangeEntry->selectAll();
             return;
