@@ -125,6 +125,18 @@ QWidget* PreferencesDialog::createStationTab() {
     m_ituZoneSpin->setToolTip("Your ITU Zone (1-90)");
     formLayout->addRow("ITU Zone:", m_ituZoneSpin);
 
+    // State/Province
+    m_stateEdit = new QLineEdit(this);
+    m_stateEdit->setPlaceholderText("CT");
+    m_stateEdit->setToolTip("Your state/province (used for some contests like Sweepstakes)");
+    formLayout->addRow("State/Province:", m_stateEdit);
+
+    // ARRL Section
+    m_arrlSectionEdit = new QLineEdit(this);
+    m_arrlSectionEdit->setPlaceholderText("CT");
+    m_arrlSectionEdit->setToolTip("Your ARRL section (used for contests like Sweepstakes)");
+    formLayout->addRow("ARRL Section:", m_arrlSectionEdit);
+
     // Default operator
     m_operatorEdit = new QLineEdit(this);
     m_operatorEdit->setPlaceholderText("Same as station callsign");
@@ -514,6 +526,14 @@ QWidget* PreferencesDialog::createAppearanceTab() {
     m_gridFontSizeSpin->setToolTip("Font size for band summary grid");
     formLayout->addRow("Band Summary:", m_gridFontSizeSpin);
 
+    // Misc display font size (This Hr, Rate, Op, CQ/SP counts, etc.)
+    m_miscDisplayFontSizeSpin = new QSpinBox(this);
+    m_miscDisplayFontSizeSpin->setRange(6, 18);
+    m_miscDisplayFontSizeSpin->setValue(9);
+    m_miscDisplayFontSizeSpin->setSuffix(" pt");
+    m_miscDisplayFontSizeSpin->setToolTip("Font size for miscellaneous display items (This Hr, Rate, Op, etc.)");
+    formLayout->addRow("Misc Display:", m_miscDisplayFontSizeSpin);
+
     layout->addWidget(fontGroup);
 
     // Color Theme group
@@ -551,6 +571,16 @@ QWidget* PreferencesDialog::createAppearanceTab() {
     themeLayout->addLayout(buttonLayout);
 
     layout->addWidget(themeGroup);
+
+    // Band Map Display group
+    QGroupBox* bandMapGroup = new QGroupBox("Band Map Display", this);
+    QVBoxLayout* bandMapLayout = new QVBoxLayout(bandMapGroup);
+
+    m_useMetricDistanceCheck = new QCheckBox("Use kilometers (uncheck for miles)", this);
+    m_useMetricDistanceCheck->setToolTip("Display distances in kilometers or miles");
+    bandMapLayout->addWidget(m_useMetricDistanceCheck);
+
+    layout->addWidget(bandMapGroup);
     layout->addStretch();
 
     return appearanceTab;
@@ -793,6 +823,8 @@ void PreferencesDialog::loadSettings() {
     m_continentCombo->setCurrentText(settings.getMyContinent());
     m_cqZoneSpin->setValue(settings.getMyCQZone());
     m_ituZoneSpin->setValue(settings.getMyITUZone());
+    m_stateEdit->setText(settings.getMyState());
+    m_arrlSectionEdit->setText(settings.getMyARRLSection());
     // Operator will be added to AppSettings
 
     // Radio tab
@@ -866,6 +898,8 @@ void PreferencesDialog::loadSettings() {
     m_entryFontSizeSpin->setValue(settings.getEntryFontSize());
     m_tableFontSizeSpin->setValue(settings.getTableFontSize());
     m_gridFontSizeSpin->setValue(settings.getGridFontSize());
+    m_miscDisplayFontSizeSpin->setValue(settings.getMiscDisplayFontSize());
+    m_useMetricDistanceCheck->setChecked(settings.getUseMetricDistance());
 
     // Load current theme
     ThemeManager& theme = ThemeManager::instance();
@@ -909,6 +943,8 @@ void PreferencesDialog::saveSettings() {
     settings.setMyContinent(m_continentCombo->currentText());
     settings.setMyCQZone(m_cqZoneSpin->value());
     settings.setMyITUZone(m_ituZoneSpin->value());
+    settings.setMyState(m_stateEdit->text());
+    settings.setMyARRLSection(m_arrlSectionEdit->text());
 
     // Radio tab
     RadioConfig config;
@@ -977,6 +1013,8 @@ void PreferencesDialog::saveSettings() {
     settings.setEntryFontSize(m_entryFontSizeSpin->value());
     settings.setTableFontSize(m_tableFontSizeSpin->value());
     settings.setGridFontSize(m_gridFontSizeSpin->value());
+    settings.setMiscDisplayFontSize(m_miscDisplayFontSizeSpin->value());
+    settings.setUseMetricDistance(m_useMetricDistanceCheck->isChecked());
 
     // Save theme
     ThemeManager& theme = ThemeManager::instance();

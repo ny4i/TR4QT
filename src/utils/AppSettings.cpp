@@ -135,6 +135,38 @@ int AppSettings::getMyITUZone() const {
     return m_settings.value("Station/ituZone", 8).toInt();
 }
 
+void AppSettings::setMyState(const QString& state) {
+    m_settings.setValue("Station/state", state.toUpper());
+    m_settings.sync();
+}
+
+QString AppSettings::getMyState() const {
+    return m_settings.value("Station/state", "").toString();
+}
+
+void AppSettings::setMyARRLSection(const QString& section) {
+    m_settings.setValue("Station/arrlSection", section.toUpper());
+    m_settings.sync();
+}
+
+QString AppSettings::getMyARRLSection() const {
+    return m_settings.value("Station/arrlSection", "").toString();
+}
+
+void AppSettings::setCurrentOperator(const QString& callsign) {
+    m_settings.setValue("Station/currentOperator", callsign.toUpper());
+    m_settings.sync();
+}
+
+QString AppSettings::getCurrentOperator() const {
+    // Default to station callsign if not set
+    QString operator_ = m_settings.value("Station/currentOperator", "").toString();
+    if (operator_.isEmpty()) {
+        operator_ = getMyCallsign();
+    }
+    return operator_;
+}
+
 void AppSettings::saveWindowGeometry(const QByteArray& geometry) {
     m_settings.setValue("MainWindow/geometry", geometry);
     m_settings.sync();
@@ -347,6 +379,15 @@ bool AppSettings::getShowAllBands() const {
     return m_settings.value("BandMap/ShowAllBands", false).toBool();  // Default: false (show current band only)
 }
 
+void AppSettings::setUseMetricDistance(bool useMetric) {
+    m_settings.setValue("BandMap/UseMetricDistance", useMetric);
+    m_settings.sync();
+}
+
+bool AppSettings::getUseMetricDistance() const {
+    return m_settings.value("BandMap/UseMetricDistance", true).toBool();  // Default: true (kilometers)
+}
+
 void AppSettings::setSpotExpirySeconds(int seconds) {
     m_settings.setValue("BandMap/SpotExpirySeconds", seconds);
     m_settings.sync();
@@ -435,6 +476,15 @@ void AppSettings::setGridFontSize(int size) {
 
 int AppSettings::getGridFontSize() const {
     return m_settings.value("Appearance/gridFontSize", 11).toInt();
+}
+
+void AppSettings::setMiscDisplayFontSize(int size) {
+    m_settings.setValue("Appearance/miscDisplayFontSize", size);
+    m_settings.sync();
+}
+
+int AppSettings::getMiscDisplayFontSize() const {
+    return m_settings.value("Appearance/miscDisplayFontSize", 9).toInt();
 }
 
 // UDP Broadcast settings

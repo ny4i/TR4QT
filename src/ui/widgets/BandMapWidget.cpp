@@ -1,6 +1,8 @@
 #include "BandMapWidget.h"
 #include "../../utils/ThemeManager.h"
 #include "../../utils/AppSettings.h"
+#include "../../utils/GeographicUtils.h"
+#include "../../utils/CountryFile.h"
 #include "../../logging/LogMacros.h"
 #include "../../data/LOTWUserRepository.h"
 #include "../../data/SpotRepository.h"
@@ -8,6 +10,7 @@
 #include <QMouseEvent>
 #include <QContextMenuEvent>
 #include <QFontMetrics>
+#include <QFile>
 #include <QScrollBar>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -16,6 +19,8 @@
 #include <QToolTip>
 #include <QHelpEvent>
 #include <QTimer>
+#include <QApplication>
+#include <QClipboard>
 #include <algorithm>
 
 namespace TR4QT {
@@ -24,12 +29,15 @@ BandMapWidget::BandMapWidget(QWidget* parent)
     : QAbstractScrollArea(parent)
     , m_currentFrequency(0)
     , m_selectedIndex(-1)
+    , m_selectedCallsign("")
     , m_columnCount(1)
     , m_columnWidth(200)
     , m_sortMode(BandMapSortMode::Frequency)  // Default: sort by frequency
     , m_showOnlyLotwUsers(false)
     , m_showAllBands(false)  // Default: show current band only
     , m_refreshTimer(new QTimer(this))
+    , m_mouseActivityTimer(new QTimer(this))
+    , m_mouseActive(false)
 {
     // Load settings
     AppSettings& settings = AppSettings::instance();
@@ -63,6 +71,11 @@ BandMapWidget::BandMapWidget(QWidget* parent)
     m_refreshTimer->start();
     LOG_DEBUG("BandMapWidget", QString("Refresh timer started with %1ms interval").arg(refreshInterval));
 
+    // Setup mouse activity timer to pause refreshes during mouse movement
+    m_mouseActivityTimer->setSingleShot(true);
+    m_mouseActivityTimer->setInterval(500);  // Resume refreshes 500ms after last mouse move
+    connect(m_mouseActivityTimer, &QTimer::timeout, this, &BandMapWidget::onMouseActivityTimeout);
+
     // Enable mouse tracking for tooltips
     setMouseTracking(true);
     viewport()->setMouseTracking(true);
@@ -74,29 +87,47 @@ BandMapWidget::BandMapWidget(QWidget* parent)
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
             this, &BandMapWidget::applyTheme);
     applyTheme();
+
+    // Load country file for azimuth/distance calculations
+    QString countryFilePath = settings.getCountryFilePath();
+    if (QFile::exists(countryFilePath)) {
+        if (!m_countryFile.loadFromFile(countryFilePath)) {
+            LOG_WARN("BandMapWidget", QString("Failed to load country file: %1").arg(countryFilePath));
+        } else {
+            LOG_DEBUG("BandMapWidget", QString("Loaded country file: %1").arg(countryFilePath));
+        }
+    } else {
+        LOG_WARN("BandMapWidget", QString("Country file not found: %1").arg(countryFilePath));
+    }
 }
 
 void BandMapWidget::addSpot(const Spot& spot) {
+    // Make a copy to calculate geography
+    Spot updatedSpot = spot;
+
+    // Calculate azimuth and distance for this spot
+    calculateSpotGeography(updatedSpot);
+
     // Apply LOTW filter if enabled
-    if (m_showOnlyLotwUsers && !spot.isLotwUser) {
+    if (m_showOnlyLotwUsers && !updatedSpot.isLotwUser) {
         // Remove spot if it exists but is not LOTW user when filter is active
-        LOG_DEBUG("BandMapWidget", QString("Filtering out non-LOTW spot: %1").arg(spot.callsign));
-        removeSpot(spot.callsign);
+        LOG_DEBUG("BandMapWidget", QString("Filtering out non-LOTW spot: %1").arg(updatedSpot.callsign));
+        removeSpot(updatedSpot.callsign);
         return;
     }
 
     // Apply band filter if enabled (show current band only)
     if (!m_showAllBands && m_currentFrequency > 0) {
         QString currentBand = getBandFromFrequency(m_currentFrequency);
-        QString spotBand = getBandFromFrequency(spot.frequency);
+        QString spotBand = getBandFromFrequency(updatedSpot.frequency);
         LOG_DEBUG("BandMapWidget", QString("Band filter check: m_showAllBands=%1, current freq=%2 Hz (%3), spot %4 freq=%5 Hz (%6)")
             .arg(m_showAllBands).arg(m_currentFrequency).arg(currentBand)
-            .arg(spot.callsign).arg(spot.frequency).arg(spotBand));
+            .arg(updatedSpot.callsign).arg(updatedSpot.frequency).arg(spotBand));
         if (!currentBand.isEmpty() && !spotBand.isEmpty() && currentBand != spotBand) {
             // Remove spot if it exists but is on different band when filter is active
             LOG_DEBUG("BandMapWidget", QString("Filtering out spot on different band: %1 on %2 (current band: %3)")
-                .arg(spot.callsign).arg(spotBand).arg(currentBand));
-            removeSpot(spot.callsign);
+                .arg(updatedSpot.callsign).arg(spotBand).arg(currentBand));
+            removeSpot(updatedSpot.callsign);
             return;
         }
     } else {
@@ -106,15 +137,15 @@ void BandMapWidget::addSpot(const Spot& spot) {
 
     // Check if spot already exists (update it)
     for (int i = 0; i < m_allSpots.size(); ++i) {
-        if (m_allSpots[i].callsign == spot.callsign) {
-            m_allSpots[i] = spot;
+        if (m_allSpots[i].callsign == updatedSpot.callsign) {
+            m_allSpots[i] = updatedSpot;
             rebuildDisplayList();
             return;
         }
     }
 
     // Add new spot
-    m_allSpots.append(spot);
+    m_allSpots.append(updatedSpot);
     rebuildDisplayList();
 }
 
@@ -131,6 +162,7 @@ void BandMapWidget::removeSpot(const QString& callsign) {
 void BandMapWidget::clearSpots() {
     m_allSpots.clear();
     m_selectedIndex = -1;
+    m_selectedCallsign.clear();
     rebuildDisplayList();
 }
 
@@ -176,11 +208,24 @@ void BandMapWidget::sortSpots() {
                  [](const Spot& a, const Spot& b) {
                      return a.frequency < b.frequency;
                  });
-    } else {
+    } else if (m_sortMode == BandMapSortMode::Callsign) {
         // Sort alphabetically by callsign
         std::sort(m_displaySpots.begin(), m_displaySpots.end(),
                  [](const Spot& a, const Spot& b) {
                      return a.callsign < b.callsign;
+                 });
+    } else if (m_sortMode == BandMapSortMode::Azimuth) {
+        // Sort by azimuth (ascending 0-360°)
+        // Spots with unknown azimuth (-1.0) go to the end
+        std::sort(m_displaySpots.begin(), m_displaySpots.end(),
+                 [](const Spot& a, const Spot& b) {
+                     // Unknown azimuths go to the end
+                     if (a.azimuth < 0.0 && b.azimuth >= 0.0) return false;
+                     if (a.azimuth >= 0.0 && b.azimuth < 0.0) return true;
+                     if (a.azimuth < 0.0 && b.azimuth < 0.0) return false;
+
+                     // Both have valid azimuths - sort ascending
+                     return a.azimuth < b.azimuth;
                  });
     }
 }
@@ -195,6 +240,12 @@ void BandMapWidget::calculateColumnLayout() {
     QFontMetrics fm(QFont("Monospace", 9));
     const int FOOTER_HEIGHT = fm.height() + 10;
     int availableHeight = viewport()->height() - FOOTER_HEIGHT;
+
+    // Account for horizontal scrollbar if visible
+    if (horizontalScrollBar()->isVisible()) {
+        availableHeight -= horizontalScrollBar()->height();
+    }
+
     int lineHeight = rowHeight();
     int maxRowsPerColumn = qMax(1, availableHeight / lineHeight);
 
@@ -223,9 +274,14 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
     int viewportHeight = viewport()->height();
     int viewportWidth = viewport()->width();
 
-    // Reserve space at bottom for spot count
+    // Reserve space at bottom for status line
     const int FOOTER_HEIGHT = fm.height() + 10;
     int availableHeight = viewportHeight - FOOTER_HEIGHT;
+
+    // Account for horizontal scrollbar if visible
+    if (horizontalScrollBar()->isVisible()) {
+        availableHeight -= horizontalScrollBar()->height();
+    }
     int rowsPerColumn = availableHeight / lineHeight;
     if (rowsPerColumn < 1) rowsPerColumn = 1;
 
@@ -293,10 +349,22 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
     if (m_selectedIndex >= 0 && m_selectedIndex < m_displaySpots.size()) {
         const Spot& spot = m_displaySpots[m_selectedIndex];
 
-        // Format: "W1ABC @ 14.200 MHz | comment text | LOTW | MULT"
+        // Format: "W1ABC @ 14.200 MHz | distance km | azimuth° | comment text | LOTW | MULT"
         statusStr = QString("%1 @ %2 MHz")
             .arg(spot.callsign)
             .arg(spot.frequency / 1000000.0, 0, 'f', 3);
+
+        // Add distance if available
+        if (spot.distance >= 0.0) {
+            AppSettings& settings = AppSettings::instance();
+            QString distanceUnit = settings.getUseMetricDistance() ? "km" : "mi";
+            statusStr += QString(" | %1 %2").arg(spot.distance, 0, 'f', 0).arg(distanceUnit);
+        }
+
+        // Add azimuth if available
+        if (spot.azimuth >= 0.0) {
+            statusStr += QString(" | %1°").arg(spot.azimuth, 0, 'f', 0);
+        }
 
         if (!spot.comment.trimmed().isEmpty()) {
             statusStr += QString(" | %1").arg(spot.comment.trimmed());
@@ -314,7 +382,11 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
         statusStr = QString("%1 spots").arg(m_displaySpots.size());
     }
 
+    // Calculate status line Y position, accounting for horizontal scrollbar
     int statusY = viewportHeight - fm.height() - 5;
+    if (horizontalScrollBar()->isVisible()) {
+        statusY -= horizontalScrollBar()->height();
+    }
 
     // Draw status text (left-aligned to show full information)
     painter.drawText(10, statusY + fm.ascent(), statusStr);
@@ -325,6 +397,7 @@ void BandMapWidget::mousePressEvent(QMouseEvent* event) {
         int spotIndex = findSpotAtPosition(event->pos());
         if (spotIndex >= 0 && spotIndex < m_displaySpots.size()) {
             m_selectedIndex = spotIndex;
+            m_selectedCallsign = m_displaySpots[spotIndex].callsign;  // Track by callsign
             // Single click: QSY to frequency AND populate callsign
             emit qsyRequested(m_displaySpots[spotIndex].frequency);
             emit callsignSelected(m_displaySpots[spotIndex].callsign);
@@ -340,6 +413,44 @@ void BandMapWidget::mouseDoubleClickEvent(QMouseEvent* event) {
             emit callsignSelected(m_displaySpots[spotIndex].callsign);
         }
     }
+}
+
+void BandMapWidget::mouseMoveEvent(QMouseEvent* event) {
+    // Mark mouse as active - refresh timer will skip updates while this is true
+    m_mouseActive = true;
+
+    // Restart the mouse activity timer - will clear m_mouseActive after 500ms of no movement
+    m_mouseActivityTimer->start();
+
+    // Call base implementation for tooltip handling
+    QAbstractScrollArea::mouseMoveEvent(event);
+}
+
+void BandMapWidget::leaveEvent(QEvent* event) {
+    // Mouse left the widget - clear mouse active flag and stop activity timer
+    m_mouseActive = false;
+    m_mouseActivityTimer->stop();
+
+    QAbstractScrollArea::leaveEvent(event);
+}
+
+void BandMapWidget::focusOutEvent(QFocusEvent* event) {
+    // Widget lost focus - clear mouse active flag and stop activity timer
+    m_mouseActive = false;
+    m_mouseActivityTimer->stop();
+
+    QAbstractScrollArea::focusOutEvent(event);
+}
+
+void BandMapWidget::showEvent(QShowEvent* event) {
+    QAbstractScrollArea::showEvent(event);
+
+    // Recalculate layout and scrollbars when widget is shown
+    // This fixes the issue where scrollbars don't appear on startup
+    // when spots are loaded from database before widget is properly sized
+    calculateColumnLayout();
+    updateScrollBars();
+    viewport()->update();
 }
 
 bool BandMapWidget::event(QEvent* event) {
@@ -387,6 +498,57 @@ void BandMapWidget::resizeEvent(QResizeEvent* event) {
 void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
     QMenu menu(this);
 
+    // Check if user clicked in the status bar area (bottom of widget)
+    QFontMetrics fm(QFont("Monospace", 9));
+    const int FOOTER_HEIGHT = fm.height() + 10;
+    int statusBarY = viewport()->height() - FOOTER_HEIGHT;
+
+    // Account for horizontal scrollbar if visible
+    if (horizontalScrollBar()->isVisible()) {
+        statusBarY -= horizontalScrollBar()->height();
+    }
+
+    bool clickedInStatusBar = event->pos().y() >= statusBarY;
+
+    // If clicked in status bar and there's a selected spot, add copy option
+    if (clickedInStatusBar && m_selectedIndex >= 0 && m_selectedIndex < m_displaySpots.size()) {
+        const Spot& spot = m_displaySpots[m_selectedIndex];
+
+        // Build the same status string as shown in paintEvent
+        QString statusText = QString("%1 @ %2 MHz")
+            .arg(spot.callsign)
+            .arg(spot.frequency / 1000000.0, 0, 'f', 3);
+
+        if (spot.distance >= 0.0) {
+            AppSettings& settings = AppSettings::instance();
+            QString distanceUnit = settings.getUseMetricDistance() ? "km" : "mi";
+            statusText += QString(" | %1 %2").arg(spot.distance, 0, 'f', 0).arg(distanceUnit);
+        }
+
+        if (spot.azimuth >= 0.0) {
+            statusText += QString(" | %1°").arg(spot.azimuth, 0, 'f', 0);
+        }
+
+        if (!spot.comment.trimmed().isEmpty()) {
+            statusText += QString(" | %1").arg(spot.comment.trimmed());
+        }
+
+        if (spot.isLotwUser) {
+            statusText += " | LOTW";
+        }
+
+        if (spot.isMultiplier) {
+            statusText += " | MULT";
+        }
+
+        QAction* copyStatusAction = menu.addAction("Copy Status to Clipboard");
+        connect(copyStatusAction, &QAction::triggered, this, [statusText]() {
+            QApplication::clipboard()->setText(statusText);
+        });
+
+        menu.addSeparator();
+    }
+
     // Check if user right-clicked on a specific spot
     int spotIndex = findSpotAtPosition(event->pos());
     if (spotIndex >= 0 && spotIndex < m_displaySpots.size()) {
@@ -418,6 +580,15 @@ void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
     sortByCallAction->setChecked(m_sortMode == BandMapSortMode::Callsign);
     connect(sortByCallAction, &QAction::triggered, this, [this]() {
         m_sortMode = BandMapSortMode::Callsign;
+        sortSpots();
+        viewport()->update();
+    });
+
+    QAction* sortByAzimuthAction = menu.addAction("Sort by Azimuth");
+    sortByAzimuthAction->setCheckable(true);
+    sortByAzimuthAction->setChecked(m_sortMode == BandMapSortMode::Azimuth);
+    connect(sortByAzimuthAction, &QAction::triggered, this, [this]() {
+        m_sortMode = BandMapSortMode::Azimuth;
         sortSpots();
         viewport()->update();
     });
@@ -471,6 +642,12 @@ int BandMapWidget::findSpotAtPosition(const QPoint& pos) {
     QFontMetrics fm(QFont("Monospace", 9));
     const int FOOTER_HEIGHT = fm.height() + 10;
     int availableHeight = viewport()->height() - FOOTER_HEIGHT;
+
+    // Account for horizontal scrollbar if visible
+    if (horizontalScrollBar()->isVisible()) {
+        availableHeight -= horizontalScrollBar()->height();
+    }
+
     int rowsPerColumn = qMax(1, availableHeight / lineHeight);
 
     // Determine which column was clicked (accounting for horizontal scroll)
@@ -526,6 +703,12 @@ void BandMapWidget::updateScrollBars() {
     QFontMetrics fm(QFont("Monospace", 9));
     const int FOOTER_HEIGHT = fm.height() + 10;
     int availableHeight = viewport()->height() - FOOTER_HEIGHT;
+
+    // Account for horizontal scrollbar if visible
+    if (horizontalScrollBar()->isVisible()) {
+        availableHeight -= horizontalScrollBar()->height();
+    }
+
     int availableWidth = viewport()->width();
 
     // Safety check
@@ -624,11 +807,24 @@ void BandMapWidget::updateSpotStatus(const QString& callsign, bool isWorked, boo
 }
 
 void BandMapWidget::onRefreshTimer() {
+    // Skip refresh if mouse is currently active inside the widget
+    // This prevents the list from changing while user is trying to click
+    if (m_mouseActive) {
+        LOG_DEBUG("BandMapWidget", "Skipping refresh - mouse is active");
+        return;
+    }
+
     // Remove expired spots from master list
     removeExpiredSpots();
 
     // Rebuild display (updates aging colors and filters)
     rebuildDisplayList();
+}
+
+void BandMapWidget::onMouseActivityTimeout() {
+    // Mouse has stopped moving for 500ms - clear active flag to allow refreshes
+    m_mouseActive = false;
+    LOG_DEBUG("BandMapWidget", "Mouse activity stopped - refreshes will resume");
 }
 
 void BandMapWidget::removeExpiredSpots() {
@@ -683,6 +879,22 @@ void BandMapWidget::rebuildDisplayList() {
     }
 
     sortSpots();
+
+    // Restore selection by callsign (keeps same spot selected after sort/filter)
+    if (!m_selectedCallsign.isEmpty()) {
+        m_selectedIndex = -1;  // Clear index
+        for (int i = 0; i < m_displaySpots.size(); ++i) {
+            if (m_displaySpots[i].callsign == m_selectedCallsign) {
+                m_selectedIndex = i;
+                break;
+            }
+        }
+        // If selected callsign is no longer in display list, clear selection
+        if (m_selectedIndex == -1) {
+            m_selectedCallsign.clear();
+        }
+    }
+
     calculateColumnLayout();
     updateScrollBars();
     viewport()->update();
@@ -743,6 +955,55 @@ QColor BandMapWidget::getSpotBackgroundColor(const Spot& spot) const {
     }
 
     return Qt::white;  // Normal background
+}
+
+void BandMapWidget::calculateSpotGeography(Spot& spot) {
+    // Get user's grid square from settings
+    AppSettings& settings = AppSettings::instance();
+    QString userGrid = settings.getMyGridSquare();
+
+    // If no grid square configured, mark as unknown
+    if (userGrid.isEmpty()) {
+        spot.azimuth = -1.0;
+        spot.distance = -1.0;
+        return;
+    }
+
+    // Convert user's grid square to lat/lon
+    double userLat, userLon;
+    if (!GeographicUtils::gridToLatLon(userGrid, userLat, userLon)) {
+        LOG_WARN("BandMapWidget", QString("Invalid user grid square: %1").arg(userGrid));
+        spot.azimuth = -1.0;
+        spot.distance = -1.0;
+        return;
+    }
+
+    // Look up spotted callsign's country to get lat/lon
+    CountryData country = m_countryFile.lookup(spot.callsign);
+
+    if (!country.isValid()) {
+        LOG_DEBUG("BandMapWidget", QString("Could not find country for callsign: %1").arg(spot.callsign));
+        spot.azimuth = -1.0;
+        spot.distance = -1.0;
+        return;
+    }
+
+    // Calculate distance and bearing (always calculate in km, convert to miles if needed for display)
+    bool useMetric = settings.getUseMetricDistance();
+    spot.distance = GeographicUtils::haversineDistance(
+        userLat, userLon,
+        country.latitude, country.longitude,
+        useMetric
+    );
+
+    spot.azimuth = GeographicUtils::calculateBearing(
+        userLat, userLon,
+        country.latitude, country.longitude
+    );
+
+    QString distanceUnit = useMetric ? "km" : "mi";
+    LOG_DEBUG("BandMapWidget", QString("Calculated geography for %1: distance=%2 %3, azimuth=%4°")
+        .arg(spot.callsign).arg(spot.distance, 0, 'f', 1).arg(distanceUnit).arg(spot.azimuth, 0, 'f', 0));
 }
 
 } // namespace TR4QT

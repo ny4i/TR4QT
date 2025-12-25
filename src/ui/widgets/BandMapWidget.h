@@ -6,6 +6,7 @@
 #include <QDateTime>
 #include <hamlib/rig.h>
 #include "../../core/Types.h"
+#include "../../utils/CountryFile.h"
 
 namespace TR4QT {
 
@@ -14,7 +15,8 @@ namespace TR4QT {
  */
 enum class BandMapSortMode {
     Frequency,   // Sort by frequency (ascending)
-    Callsign     // Sort alphabetically by callsign
+    Callsign,    // Sort alphabetically by callsign
+    Azimuth      // Sort by azimuth/bearing (ascending 0-360°)
 };
 
 /**
@@ -30,8 +32,10 @@ struct Spot {
     QString comment;        // Comment from DX cluster spot
     freq_t qsx;             // Split receive frequency in Hz (0 if not split, for VFO B)
     QString source;         // Source of spot (DX Cluster, manual, etc.)
+    double azimuth;         // Bearing from user's location (degrees, 0-360, -1 if unknown)
+    double distance;        // Distance from user's location (km, -1 if unknown)
 
-    Spot() : frequency(0), isMultiplier(false), isWorked(false), isLotwUser(false), qsx(0) {}
+    Spot() : frequency(0), isMultiplier(false), isWorked(false), isLotwUser(false), qsx(0), azimuth(-1.0), distance(-1.0) {}
 };
 
 /**
@@ -114,6 +118,10 @@ protected:
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void leaveEvent(QEvent* event) override;
+    void focusOutEvent(QFocusEvent* event) override;
+    void showEvent(QShowEvent* event) override;
     bool event(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void contextMenuEvent(QContextMenuEvent* event) override;
@@ -125,19 +133,27 @@ private slots:
      */
     void onRefreshTimer();
 
+    /**
+     * Mouse activity timeout - resume refreshes after mouse stops moving
+     */
+    void onMouseActivityTimeout();
+
 private:
     // Storage - master list and filtered display list
     QList<Spot> m_allSpots;      // All spots in memory (master list)
     QList<Spot> m_displaySpots;  // Filtered spots for display (cache)
     freq_t m_currentFrequency;
     int m_selectedIndex;
+    QString m_selectedCallsign;  // Track selected spot by callsign (survives sort/filter)
     int m_columnCount;       // Number of columns to display
     int m_columnWidth;       // Width of each column in pixels
     BandMapSortMode m_sortMode;  // Current sort mode
     bool m_showOnlyLotwUsers;    // Filter to show only LOTW users
     bool m_showAllBands;         // Show all bands or only current band
 
-    QTimer* m_refreshTimer;      // Periodic refresh for aging and cleanup
+    QTimer* m_refreshTimer;         // Periodic refresh for aging and cleanup
+    QTimer* m_mouseActivityTimer;   // Tracks mouse movement to pause refreshes
+    bool m_mouseActive;             // True when mouse is moving inside widget
 
     /**
      * Apply current theme colors
@@ -216,6 +232,15 @@ private:
      * Get background color based on spot age
      */
     QColor getSpotBackgroundColor(const Spot& spot) const;
+
+    /**
+     * Calculate and update azimuth/distance for a spot
+     * Uses user's grid square from settings and callsign country lookup
+     */
+    void calculateSpotGeography(Spot& spot);
+
+    // Country file for callsign lookups
+    CountryFile m_countryFile;
 };
 
 } // namespace TR4QT

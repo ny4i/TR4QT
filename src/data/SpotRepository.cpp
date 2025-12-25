@@ -68,8 +68,8 @@ bool SpotRepository::saveAllSpots(const QList<Spot>& spots) {
     QString sql = R"(
         INSERT INTO dx_spots (
             callsign, frequency, qsx, timestamp, comment, source,
-            is_multiplier, is_worked, is_lotw_user
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            is_multiplier, is_worked, is_lotw_user, azimuth, distance
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     )";
 
     for (const Spot& spot : spots) {
@@ -82,7 +82,9 @@ bool SpotRepository::saveAllSpots(const QList<Spot>& spots) {
             spot.source,
             spot.isMultiplier,
             spot.isWorked,
-            spot.isLotwUser
+            spot.isLotwUser,
+            spot.azimuth,
+            spot.distance
         };
 
         QSqlQuery insertQuery = db.execute(sql, values);
@@ -162,6 +164,8 @@ Spot SpotRepository::spotFromQuery(const QSqlQuery& query) const {
     spot.isMultiplier = query.value("is_multiplier").toBool();
     spot.isWorked = query.value("is_worked").toBool();
     spot.isLotwUser = query.value("is_lotw_user").toBool();
+    spot.azimuth = query.value("azimuth").toDouble();
+    spot.distance = query.value("distance").toDouble();
 
     return spot;
 }

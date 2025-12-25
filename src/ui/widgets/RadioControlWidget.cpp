@@ -1,5 +1,6 @@
 #include "RadioControlWidget.h"
 #include "../../utils/ThemeManager.h"
+#include "../../logging/LogMacros.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -101,19 +102,43 @@ void RadioControlWidget::setupUI() {
     buttonLayout->setSpacing(5);
     buttonLayout->setContentsMargins(5, 5, 5, 5);
 
+    // Style for checkable buttons - make checked state very obvious
+    QString buttonStyle =
+        "QPushButton {"
+        "  background-color: #E0E0E0;"
+        "  border: 1px solid #808080;"
+        "  padding: 5px;"
+        "  border-radius: 3px;"
+        "}"
+        "QPushButton:checked {"
+        "  background-color: #4CAF50;"  // Green when checked/active
+        "  color: white;"
+        "  font-weight: bold;"
+        "  border: 2px solid #2E7D32;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #D0D0D0;"
+        "}"
+        "QPushButton:checked:hover {"
+        "  background-color: #45A049;"
+        "}";
+
     m_ritButton = new QPushButton("RIT", this);
     m_ritButton->setCheckable(true);
     m_ritButton->setMaximumWidth(60);
+    m_ritButton->setStyleSheet(buttonStyle);
     connect(m_ritButton, &QPushButton::clicked, this, &RadioControlWidget::onRitClicked);
 
     m_xitButton = new QPushButton("XIT", this);
     m_xitButton->setCheckable(true);
     m_xitButton->setMaximumWidth(60);
+    m_xitButton->setStyleSheet(buttonStyle);
     connect(m_xitButton, &QPushButton::clicked, this, &RadioControlWidget::onXitClicked);
 
     m_splitButton = new QPushButton("SPLIT", this);
     m_splitButton->setCheckable(true);
     m_splitButton->setMaximumWidth(60);
+    m_splitButton->setStyleSheet(buttonStyle);
     connect(m_splitButton, &QPushButton::clicked, this, &RadioControlWidget::onSplitClicked);
 
     buttonLayout->addWidget(m_ritButton);
@@ -174,8 +199,15 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
     m_xitButton->setEnabled(true);
     m_splitButton->setEnabled(true);
 
-    // Update button states
-    // TODO: Get actual RIT/XIT/SPLIT status from radio if supported
+    // Update button states from actual radio status
+    // RIT is active when there's a non-zero offset
+    m_ritButton->setChecked(state.ritOffsetA != 0);
+
+    // XIT is active when there's a non-zero offset
+    m_xitButton->setChecked(state.xitOffsetA != 0);
+
+    // SPLIT is active when split mode is enabled
+    m_splitButton->setChecked(state.isSplitEnabled);
 }
 
 void RadioControlWidget::clearDisplay() {

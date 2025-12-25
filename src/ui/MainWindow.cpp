@@ -2,6 +2,7 @@
 #include "dialogs/RadioConfigDialog.h"
 #include "dialogs/PreferencesDialog.h"
 #include "dialogs/BackupRestoreDialog.h"
+#include "dialogs/OperatorDialog.h"
 #include "widgets/DXClusterWindow.h"
 #include "widgets/BandMapWidget.h"
 #include "widgets/RadioControlWidget.h"
@@ -31,6 +32,7 @@
 #include <QMessageBox>
 #include <QCloseEvent>
 #include <QApplication>
+#include <QSettings>
 #include <QPushButton>
 #include <QFont>
 #include <QHeaderView>
@@ -51,6 +53,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_currentContestDbId(-1)
     , m_nextSerialNumber(1)
     , m_udpBroadcastManager(new UdpBroadcastManager(this))
+    , m_inRaiseAllWindows(false)
 {
     setWindowTitle(QString("%1 v%2").arg(APP_NAME).arg(APP_VERSION));
     setWindowIcon(QIcon(":/icons/tr4qt.png"));
@@ -69,6 +72,9 @@ MainWindow::MainWindow(QWidget* parent)
 
     // Initialize backup manager from settings
     loadBackupSettings();
+
+    // Install event filter to raise all windows when any window is activated
+    qApp->installEventFilter(this);
 
     // Setup update timer for time since last QSO and rate calculations
     m_updateTimer = new QTimer(this);
@@ -98,6 +104,29 @@ MainWindow::MainWindow(QWidget* parent)
     } else {
         m_statusLabel->setText("No radio configuration found. Use Radio → Configure.");
     }
+
+    // Check if grid square is configured (needed for azimuth/distance calculations)
+    // Delay check to let UI fully initialize
+    QTimer::singleShot(1000, this, [this]() {
+        AppSettings& settings = AppSettings::instance();
+        QString gridSquare = settings.getMyGridSquare();
+
+        if (gridSquare.isEmpty()) {
+            QMessageBox msgBox(this);
+            msgBox.setIcon(QMessageBox::Information);
+            msgBox.setWindowTitle("Grid Square Not Configured");
+            msgBox.setText("Your Maidenhead grid square is not configured.");
+            msgBox.setInformativeText("The grid square is needed to calculate distance and azimuth "
+                                     "to DX spots in the band map.\n\n"
+                                     "Would you like to configure it now in Preferences?");
+            msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+            msgBox.setDefaultButton(QMessageBox::Yes);
+
+            if (msgBox.exec() == QMessageBox::Yes) {
+                onPreferences();
+            }
+        }
+    });
 }
 
 MainWindow::~MainWindow() {
@@ -403,13 +432,9 @@ void MainWindow::createCentralWidget() {
 
     mainLayout->addWidget(m_qsoTableView, 1);  // Stretch factor 1 = takes remaining space
 
-    // Bottom: Entry and stats panel
+    // Bottom: Entry and stats panel (with radio status on left)
     QWidget* bottomPanel = createBottomPanel();
     mainLayout->addWidget(bottomPanel);
-
-    // Radio status grid (at very bottom)
-    QWidget* radioStatusGrid = createRadioStatusGrid();
-    mainLayout->addWidget(radioStatusGrid);
 
     setCentralWidget(central);
 }
@@ -417,10 +442,51 @@ void MainWindow::createCentralWidget() {
 QWidget* MainWindow::createBottomPanel() {
     QWidget* bottomPanel = new QWidget(this);
     QHBoxLayout* bottomLayout = new QHBoxLayout(bottomPanel);
-    bottomLayout->setSpacing(10);
-    bottomLayout->setContentsMargins(0, 4, 0, 0);
+    bottomLayout->setSpacing(15);
+    bottomLayout->setContentsMargins(10, 4, 10, 4);
 
-    // Left side: Entry fields (vertical layout)
+    // LEFT: Radio status (frequency, band/mode, time) in container widget
+    QWidget* radioStatusWidget = new QWidget(this);
+    QHBoxLayout* radioLayout = new QHBoxLayout(radioStatusWidget);
+    radioLayout->setSpacing(15);
+    radioLayout->setContentsMargins(10, 5, 10, 5);
+
+    QFont labelFont("Monospace", 11);
+    labelFont.setBold(true);
+
+    // Band/Mode label (e.g., "15SSB")
+    m_radioFreqBandLabel = new QLabel("--", radioStatusWidget);
+    m_radioFreqBandLabel->setFont(labelFont);
+    m_radioFreqBandLabel->setMinimumWidth(80);
+    m_radioFreqBandLabel->setAlignment(Qt::AlignCenter);
+
+    // Frequency label
+    QFont freqFont("Monospace", 10);
+    m_radioFreqLabel = new QLabel("0.000 MHz", radioStatusWidget);
+    m_radioFreqLabel->setFont(freqFont);
+    m_radioFreqLabel->setMinimumWidth(100);
+    m_radioFreqLabel->setAlignment(Qt::AlignCenter);
+
+    // Vertical layout for band/mode and frequency
+    QVBoxLayout* freqLayout = new QVBoxLayout();
+    freqLayout->setSpacing(2);
+    freqLayout->addWidget(m_radioFreqBandLabel);
+    freqLayout->addWidget(m_radioFreqLabel);
+
+    // Date/Time label
+    m_radioDateTimeLabel = new QLabel("", radioStatusWidget);
+    m_radioDateTimeLabel->setFont(labelFont);
+    m_radioDateTimeLabel->setAlignment(Qt::AlignCenter);
+
+    radioLayout->addLayout(freqLayout);
+    radioLayout->addWidget(m_radioDateTimeLabel);
+
+    bottomLayout->addWidget(radioStatusWidget);
+
+    // Stretch to push Call/Exch to center
+    bottomLayout->addStretch(1);
+
+    // CENTER: Entry fields (vertical layout)
     QWidget* entryWidget = new QWidget(this);
     QGridLayout* entryLayout = new QGridLayout(entryWidget);
     entryLayout->setSpacing(4);
@@ -456,9 +522,10 @@ QWidget* MainWindow::createBottomPanel() {
     // Log button spans both rows
     entryLayout->addWidget(m_logButton, 0, 2, 2, 1);
 
-    entryLayout->setColumnStretch(3, 1);  // Push to left
+    bottomLayout->addWidget(entryWidget);
 
-    bottomLayout->addWidget(entryWidget, 1);
+    // Stretch to push Stats to right
+    bottomLayout->addStretch(1);
 
     // Right side: Stats panel
     QWidget* statsWidget = new QWidget(this);
@@ -466,7 +533,9 @@ QWidget* MainWindow::createBottomPanel() {
     statsLayout->setSpacing(2);
     statsLayout->setContentsMargins(4, 4, 4, 4);
 
-    QFont monoFont("Monospace", 9);
+    AppSettings& settings = AppSettings::instance();
+    int miscFontSize = settings.getMiscDisplayFontSize();
+    QFont monoFont("Monospace", miscFontSize);
 
     // Time and rate
     QHBoxLayout* timeRow = new QHBoxLayout();
@@ -495,11 +564,11 @@ QWidget* MainWindow::createBottomPanel() {
 
     // Operator
     QHBoxLayout* opRow = new QHBoxLayout();
-    QLabel* opLabel = new QLabel("Op:", this);
-    opLabel->setFont(monoFont);
+    m_operatorLabelStatic = new QLabel("Op:", this);
+    m_operatorLabelStatic->setFont(monoFont);
     m_operatorLabel = new QLabel("", this);
     m_operatorLabel->setFont(monoFont);
-    opRow->addWidget(opLabel);
+    opRow->addWidget(m_operatorLabelStatic);
     opRow->addWidget(m_operatorLabel);
     opRow->addStretch();
 
@@ -525,51 +594,6 @@ QWidget* MainWindow::createBottomPanel() {
             this, &MainWindow::onLogQSO);
 
     return bottomPanel;
-}
-
-QWidget* MainWindow::createRadioStatusGrid() {
-    QWidget* radioStatusWidget = new QWidget(this);
-    QHBoxLayout* radioLayout = new QHBoxLayout(radioStatusWidget);
-    radioLayout->setSpacing(20);
-    radioLayout->setContentsMargins(10, 5, 10, 5);
-
-    // Background color will be set by applyTheme()
-
-    QFont labelFont("Monospace", 11);
-    labelFont.setBold(true);
-
-    // Band/Mode label (e.g., "15SSB")
-    m_radioFreqBandLabel = new QLabel("--", this);
-    m_radioFreqBandLabel->setFont(labelFont);
-    m_radioFreqBandLabel->setMinimumWidth(80);
-    m_radioFreqBandLabel->setAlignment(Qt::AlignCenter);
-    // Style will be set by applyTheme()
-
-    // Frequency label (below will be in vertical layout)
-    QFont freqFont("Monospace", 10);
-    m_radioFreqLabel = new QLabel("0.000 MHz", this);
-    m_radioFreqLabel->setFont(freqFont);
-    m_radioFreqLabel->setMinimumWidth(100);
-    m_radioFreqLabel->setAlignment(Qt::AlignCenter);
-    // Style will be set by applyTheme()
-
-    // Vertical layout for band/mode and frequency
-    QVBoxLayout* freqLayout = new QVBoxLayout();
-    freqLayout->setSpacing(2);
-    freqLayout->addWidget(m_radioFreqBandLabel);
-    freqLayout->addWidget(m_radioFreqLabel);
-
-    // Date/Time label
-    m_radioDateTimeLabel = new QLabel("", this);
-    m_radioDateTimeLabel->setFont(labelFont);
-    m_radioDateTimeLabel->setAlignment(Qt::AlignCenter);
-    // Style will be set by applyTheme()
-
-    radioLayout->addLayout(freqLayout);
-    radioLayout->addWidget(m_radioDateTimeLabel);
-    radioLayout->addStretch();
-
-    return radioStatusWidget;
 }
 
 void MainWindow::createStatusBar() {
@@ -727,6 +751,65 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     QApplication::quit();
 }
 
+bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
+    // Catch WindowActivate events on any of our windows
+    if (event->type() == QEvent::WindowActivate) {
+        // Check if the activated window belongs to our application
+        QWidget* widget = qobject_cast<QWidget*>(obj);
+        if (widget && widget->isWindow()) {
+            // Check if it's one of our windows
+            if (widget == this ||
+                widget == m_dxClusterWindow ||
+                widget == m_bandMapWindow ||
+                widget == m_radioControlWindow ||
+                widget == m_multiplierWindow) {
+                // Raise all windows to bring them all to front
+                raiseAllWindows();
+            }
+        }
+    }
+
+    // Pass event to base class
+    return QMainWindow::eventFilter(obj, event);
+}
+
+void MainWindow::raiseAllWindows() {
+    // Prevent infinite recursion - raising windows triggers WindowActivate events
+    // which would call this function again
+    if (m_inRaiseAllWindows) {
+        return;
+    }
+
+    m_inRaiseAllWindows = true;
+
+    // Raise main window
+    raise();
+    activateWindow();
+
+    // Raise all child windows that are visible
+    if (m_dxClusterWindow && m_dxClusterWindow->isVisible()) {
+        m_dxClusterWindow->raise();
+        m_dxClusterWindow->activateWindow();
+    }
+
+    if (m_bandMapWindow && m_bandMapWindow->isVisible()) {
+        m_bandMapWindow->raise();
+        m_bandMapWindow->activateWindow();
+    }
+
+    if (m_radioControlWindow && m_radioControlWindow->isVisible()) {
+        m_radioControlWindow->raise();
+        m_radioControlWindow->activateWindow();
+    }
+
+    if (m_multiplierWindow && m_multiplierWindow->isVisible()) {
+        m_multiplierWindow->raise();
+        m_multiplierWindow->activateWindow();
+    }
+
+    m_inRaiseAllWindows = false;
+}
+
 void MainWindow::onRadioConfigure() {
     LOG_DEBUG("MainWindow", "*** onRadioConfigure() called - opening RadioConfigDialog ***");
     RadioConfigDialog dialog(this);
@@ -833,6 +916,16 @@ void MainWindow::onNewOpenContest() {
 
 void MainWindow::onPreferences() {
     LOG_DEBUG("MainWindow", "*** onPreferences() called - opening PreferencesDialog ***");
+
+    // Save current radio config to detect changes
+    AppSettings& settings = AppSettings::instance();
+    RadioConfig oldConfig;
+    bool hadRadioConfig = settings.hasRadioConfig();
+    if (hadRadioConfig) {
+        oldConfig = settings.loadRadioConfig();
+    }
+    bool oldAutoConnect = settings.getRadioAutoConnect();
+
     PreferencesDialog dialog(this);
 
     // Connect LOTW settings change to refresh Band Map in real-time
@@ -853,11 +946,32 @@ void MainWindow::onPreferences() {
         // Reload UDP broadcast settings
         loadUdpBroadcastSettings();
 
-        // If radio settings changed and radio is connected, ask to reconnect
-        if (m_radioConnected) {
+        // Check if radio settings actually changed
+        bool radioSettingsChanged = false;
+        if (settings.hasRadioConfig()) {
+            RadioConfig newConfig = settings.loadRadioConfig();
+            bool autoConnectChanged = (oldAutoConnect != settings.getRadioAutoConnect());
+
+            // Compare configs
+            if (!hadRadioConfig) {
+                radioSettingsChanged = true;  // New config added
+            } else if (oldConfig.hamlibModelId != newConfig.hamlibModelId ||
+                       oldConfig.port != newConfig.port ||
+                       oldConfig.baudRate != newConfig.baudRate ||
+                       oldConfig.civAddress != newConfig.civAddress ||
+                       oldConfig.pollInterval != newConfig.pollInterval ||
+                       autoConnectChanged) {
+                radioSettingsChanged = true;
+            }
+        } else if (hadRadioConfig) {
+            radioSettingsChanged = true;  // Config was removed
+        }
+
+        // Only ask to reconnect if radio settings actually changed
+        if (radioSettingsChanged && m_radioConnected) {
             QMessageBox::StandardButton reply = QMessageBox::question(
                 this, "Reconnect Radio?",
-                "Radio settings may have changed. Reconnect to apply new settings?",
+                "Radio settings have changed. Reconnect to apply new settings?",
                 QMessageBox::Yes | QMessageBox::No);
 
             if (reply == QMessageBox::Yes) {
@@ -1115,6 +1229,33 @@ void MainWindow::onLogQSO() {
     QString callsign = m_callsignEntry->text().trimmed().toUpper();
     QString exchange = m_exchangeEntry->text().trimmed();
 
+    // Check for OPON command (change operator)
+    if (callsign == "OPON") {
+        OperatorDialog dialog(this);
+
+        // Pre-populate with current operator
+        AppSettings& settings = AppSettings::instance();
+        dialog.setOperatorCallsign(settings.getCurrentOperator());
+
+        if (dialog.exec() == QDialog::Accepted) {
+            QString newOperator = dialog.getOperatorCallsign();
+            if (!newOperator.isEmpty()) {
+                settings.setCurrentOperator(newOperator);
+                m_operatorLabel->setText(newOperator);  // Update operator display
+                m_statusLabel->setText(QString("Operator changed to: %1").arg(newOperator));
+                LOG_INFO("MainWindow", QString("Operator changed to: %1").arg(newOperator));
+            } else {
+                m_statusLabel->setText("Operator change cancelled (empty callsign)");
+            }
+        } else {
+            m_statusLabel->setText("Operator change cancelled");
+        }
+
+        // Clear entry fields and focus callsign
+        onClearEntry();
+        return;
+    }
+
     if (callsign.isEmpty()) {
         m_statusLabel->setText("Error: Callsign is required");
         m_callsignEntry->setFocus();
@@ -1131,6 +1272,7 @@ void MainWindow::onLogQSO() {
     QSO qso;
     qso.timestamp = QDateTime::currentDateTimeUtc();
     qso.callsign = callsign;
+    qso.operatorCall = AppSettings::instance().getCurrentOperator();
 
     // Snapshot radio state
     qso.frequency = m_currentState.frequencyA;
@@ -1306,6 +1448,17 @@ void MainWindow::applyFontSettings() {
     if (m_bandSummaryGrid) {
         m_bandSummaryGrid->setFontSize(gridFontSize);
     }
+
+    // Apply misc display font size (stats panel: This Hr, Rate, Op, etc.)
+    int miscFontSize = settings.getMiscDisplayFontSize();
+    QFont miscFont("Monospace", miscFontSize);
+    m_timeLabel->setFont(miscFont);
+    m_thisHrLabel->setFont(miscFont);
+    m_rateLabel->setFont(miscFont);
+    m_cqCountLabel->setFont(miscFont);
+    m_spCountLabel->setFont(miscFont);
+    m_operatorLabelStatic->setFont(miscFont);
+    m_operatorLabel->setFont(miscFont);
 }
 
 void MainWindow::applyTheme() {
@@ -2067,9 +2220,9 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
 
         // Comprehensive logging of spot details
         QString logMsg = QString("Added spot to band map: %1").arg(callsign);
-        logMsg += QString(" | TX: %1 Hz (%.3f MHz)").arg(spot.frequency).arg(spot.frequency / 1000000.0);
+        logMsg += QString(" | TX: %1 Hz (%2 MHz)").arg(spot.frequency).arg(spot.frequency / 1000000.0, 0, 'f', 3);
         if (spot.qsx > 0) {
-            logMsg += QString(" | RX (QSX): %1 Hz (%.3f MHz)").arg(spot.qsx).arg(spot.qsx / 1000000.0);
+            logMsg += QString(" | RX (QSX): %1 Hz (%2 MHz)").arg(spot.qsx).arg(spot.qsx / 1000000.0, 0, 'f', 3);
         }
         logMsg += QString(" | LOTW: %1").arg(spot.isLotwUser ? "YES" : "NO");
         if (!spot.comment.isEmpty()) {

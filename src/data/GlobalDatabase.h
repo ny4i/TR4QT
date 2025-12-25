@@ -123,6 +123,12 @@ private:
     bool initSchema();
 
     /**
+     * Migrate existing database schema
+     * Adds missing columns/tables for backwards compatibility
+     */
+    bool migrateSchema();
+
+    /**
      * Load schema SQL from embedded resource or file
      */
     QString loadSchemaSql();

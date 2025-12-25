@@ -93,6 +93,12 @@ bool GlobalDatabase::open(const QString& dbPath) {
                 return false;
             }
         }
+
+        // Migrate existing database schema if needed
+        if (!migrateSchema()) {
+            LOG_WARN("GlobalDatabase", "Failed to migrate database schema");
+            // Don't fail - continue with existing schema
+        }
     }
 
     return true;
@@ -215,6 +221,68 @@ bool GlobalDatabase::initSchema() {
     }
 
     LOG_DEBUG("GlobalDatabase", "Global database schema initialized successfully");
+    return true;
+}
+
+bool GlobalDatabase::migrateSchema() {
+    LOG_DEBUG("GlobalDatabase", "Checking for schema migrations...");
+
+    // Check if dx_spots table exists
+    QSqlQuery checkTable(m_db);
+    checkTable.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='dx_spots'");
+    if (!checkTable.next()) {
+        // Table doesn't exist yet - no migration needed
+        LOG_DEBUG("GlobalDatabase", "dx_spots table does not exist - no migration needed");
+        return true;
+    }
+
+    // Check if azimuth column exists
+    QSqlQuery checkColumn(m_db);
+    checkColumn.exec("PRAGMA table_info(dx_spots)");
+
+    bool hasAzimuth = false;
+    bool hasDistance = false;
+
+    while (checkColumn.next()) {
+        QString columnName = checkColumn.value("name").toString();
+        if (columnName == "azimuth") {
+            hasAzimuth = true;
+        }
+        if (columnName == "distance") {
+            hasDistance = true;
+        }
+    }
+
+    // Add azimuth column if missing
+    if (!hasAzimuth) {
+        LOG_DEBUG("GlobalDatabase", "Adding azimuth column to dx_spots table");
+        QSqlQuery addAzimuth(m_db);
+        if (!addAzimuth.exec("ALTER TABLE dx_spots ADD COLUMN azimuth REAL DEFAULT -1.0")) {
+            m_lastError = QString("Failed to add azimuth column: %1").arg(addAzimuth.lastError().text());
+            LOG_WARN("GlobalDatabase", m_lastError);
+            return false;
+        }
+        LOG_DEBUG("GlobalDatabase", "Added azimuth column successfully");
+    }
+
+    // Add distance column if missing
+    if (!hasDistance) {
+        LOG_DEBUG("GlobalDatabase", "Adding distance column to dx_spots table");
+        QSqlQuery addDistance(m_db);
+        if (!addDistance.exec("ALTER TABLE dx_spots ADD COLUMN distance REAL DEFAULT -1.0")) {
+            m_lastError = QString("Failed to add distance column: %1").arg(addDistance.lastError().text());
+            LOG_WARN("GlobalDatabase", m_lastError);
+            return false;
+        }
+        LOG_DEBUG("GlobalDatabase", "Added distance column successfully");
+    }
+
+    if (!hasAzimuth || !hasDistance) {
+        LOG_DEBUG("GlobalDatabase", "Schema migration completed successfully");
+    } else {
+        LOG_DEBUG("GlobalDatabase", "No schema migration needed - database is up to date");
+    }
+
     return true;
 }
 

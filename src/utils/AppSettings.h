@@ -57,6 +57,16 @@ public:
     void setMyITUZone(int zone);
     int getMyITUZone() const;
 
+    void setMyState(const QString& state);
+    QString getMyState() const;
+
+    void setMyARRLSection(const QString& section);
+    QString getMyARRLSection() const;
+
+    // Current operator (for multi-op contests)
+    void setCurrentOperator(const QString& callsign);
+    QString getCurrentOperator() const;
+
     // Main window geometry
     void saveWindowGeometry(const QByteArray& geometry);
     QByteArray loadWindowGeometry() const;
@@ -125,6 +135,10 @@ public:
     void setShowAllBands(bool show);
     bool getShowAllBands() const;
 
+    // Band Map distance units
+    void setUseMetricDistance(bool useMetric);
+    bool getUseMetricDistance() const;  // Default: true (kilometers)
+
     // Band Map spot aging settings
     void setSpotExpirySeconds(int seconds);
     int getSpotExpirySeconds() const;  // Default: 600 (10 minutes)
@@ -156,6 +170,9 @@ public:
 
     void setGridFontSize(int size);
     int getGridFontSize() const;
+
+    void setMiscDisplayFontSize(int size);
+    int getMiscDisplayFontSize() const;
 
     // UDP Broadcast settings
     void setUDPBroadcastEnabled(bool enabled);

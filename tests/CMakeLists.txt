@@ -105,3 +105,14 @@ add_tr4qt_test(test_thememanager
     test_thememanager.cpp
     ../src/utils/ThemeManager.cpp
 )
+
+add_tr4qt_test(test_geographicutils
+    test_geographicutils.cpp
+    ../src/utils/GeographicUtils.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
