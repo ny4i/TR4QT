@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.62.0";  // Add county field for ARRL section mapping
+constexpr const char* APP_VERSION = "2.62.1";  // Add ARRL section field to QSO records
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS qsos (
     continent TEXT,                     -- Continent code
     state TEXT,                         -- US/VE state/province
     county TEXT,                        -- US county (for ARRL section mapping)
+    arrl_section TEXT,                  -- ARRL/RAC section (WMA, NFL, SCV, AB, etc.)
 
     -- Scoring
     qso_points INTEGER DEFAULT 0,       -- Points for this QSO
