@@ -626,4 +626,13 @@ int AppSettings::getLogMaxBackupFiles() const {
     return m_settings.value("Logging/maxBackupFiles", 5).toInt();
 }
 
+void AppSettings::setLastContestPath(const QString& path) {
+    m_settings.setValue("Contest/lastContestPath", path);
+    m_settings.sync();
+}
+
+QString AppSettings::getLastContestPath() const {
+    return m_settings.value("Contest/lastContestPath", "").toString();
+}
+
 } // namespace TR4QT
