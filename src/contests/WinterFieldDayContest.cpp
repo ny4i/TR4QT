@@ -138,7 +138,7 @@ bool WinterFieldDayContest::validateReceivedExchange(const QString& exchange, QS
     // Validate class
     QString classStr = parsed["Class"];
     if (!isValidClass(classStr)) {
-        errorMsg = QString("Invalid class '%1'. Expected: 1O, 2O, 3O, 1I, 2I, 3I, etc.").arg(classStr);
+        errorMsg = QString("Invalid class '%1'. Must be [1-20][I/O/H/M]. Examples: 1O, 2I, 3H, 20M").arg(classStr);
         return false;
     }
 
