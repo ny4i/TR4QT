@@ -275,11 +275,11 @@ bool SmartExchangeParser::looksLikeSection(const QString& token, ContestBase* co
 bool SmartExchangeParser::looksLikeClass(const QString& token) {
     QString upper = token.toUpper();
 
-    // Class format: [1-20] + [Category Letter]
+    // Class format: [1-99] + [Category Letter]
     // Winter Field Day categories: I (indoor), O (outdoor), H (home), M (mobile)
     // ARRL Field Day categories: A, B, C, D, E, F
     //
-    // Valid examples: 1O, 2I, 10H, 15M, 1A, 2B, 20F
+    // Valid examples: 1O, 2I, 10H, 22M, 99I, 1A, 2B, 20F
     // Note: "HOME" is NOT valid - must be number + letter
 
     // Must be 2-3 characters (digit(s) + letter)
@@ -315,7 +315,9 @@ bool SmartExchangeParser::looksLikeClass(const QString& token) {
 
     bool ok;
     int transmitters = numberPart.toInt(&ok);
-    if (!ok || transmitters < 1 || transmitters > 20) {
+    // WFD allows unlimited transmitters (using 1-99 for validation)
+    // ARRL FD limits to 1-20 (enforced by contest-specific validator)
+    if (!ok || transmitters < 1 || transmitters > 99) {
         return false;
     }
 
