@@ -1363,7 +1363,24 @@ void MainWindow::onLogQSO() {
         qso.exchangeSent = "";  // Will be set by contest rules later
     }
 
-    // TODO: Lookup country/zone from cty.dat
+    // Lookup country/zone from cty.dat
+    CountryData countryData = m_countryFile.lookup(callsign);
+    if (countryData.isValid()) {
+        qso.cqZone = countryData.cqZone;
+        qso.ituZone = countryData.ituZone;
+        qso.dxccEntity = countryData.name;
+        qso.dxccPrefix = countryData.primaryPrefix;
+        qso.continent = continentToString(countryData.continent);
+
+        LOG_DEBUG("MainWindow", QString("Looked up %1: %2 (Zone %3, %4)")
+            .arg(callsign)
+            .arg(countryData.name)
+            .arg(countryData.cqZone)
+            .arg(continentToString(countryData.continent)));
+    } else {
+        LOG_WARN("MainWindow", QString("Country lookup failed for callsign: %1").arg(callsign));
+    }
+
     // TODO: Check for dupe
     // TODO: Calculate points via contest
     // TODO: Check for new multipliers
