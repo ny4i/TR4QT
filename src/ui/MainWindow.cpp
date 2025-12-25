@@ -1330,6 +1330,9 @@ void MainWindow::onLogQSO() {
     // Add to table model (UI)
     m_qsoTableModel->addQSO(qso);
 
+    // Scroll to show the newly logged QSO
+    m_qsoTableView->scrollToBottom();
+
     // Save to database if contest is active
     if (m_hasActiveContest) {
         QSORepository repo;
