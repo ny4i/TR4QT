@@ -36,6 +36,8 @@
 #include <QPushButton>
 #include <QFont>
 #include <QHeaderView>
+#include <QLineEdit>
+#include <QTextEdit>
 
 namespace TR4QT {
 
@@ -763,6 +765,16 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
                 widget == m_bandMapWindow ||
                 widget == m_radioControlWindow ||
                 widget == m_multiplierWindow) {
+
+                // Don't raise windows if an input field is about to receive focus
+                // This prevents stealing focus from QLineEdit widgets like the call entry
+                QWidget* focusWidget = QApplication::focusWidget();
+                if (focusWidget && (qobject_cast<QLineEdit*>(focusWidget) ||
+                                    qobject_cast<QTextEdit*>(focusWidget))) {
+                    // Input widget has focus, don't interfere
+                    return QMainWindow::eventFilter(obj, event);
+                }
+
                 // Raise all windows to bring them all to front
                 raiseAllWindows();
             }

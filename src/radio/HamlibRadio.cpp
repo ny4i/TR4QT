@@ -551,6 +551,7 @@ RadioState HamlibRadio::pollCurrentState() {
     int strength = -54;  // Default to S9 if unavailable
     if (rig_get_strength(m_rig, RIG_VFO_CURR, &strength) == RIG_OK) {
         state.signalStrength = strength;  // Value in dBm
+        LOG_DEBUG("HamlibRadio", QString("Signal strength from hamlib: %1").arg(strength));
     }
 
     state.isValid = true;
