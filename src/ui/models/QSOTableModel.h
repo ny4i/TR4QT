@@ -41,13 +41,18 @@ public:
         ColCallsign,      // "W1AW"
         ColExch1,         // Contest-dependent exchange field 1
         ColExch2,         // Contest-dependent exchange field 2
+        ColExch3,         // Contest-dependent exchange field 3
+        ColExch4,         // Contest-dependent exchange field 4
+        ColExch5,         // Contest-dependent exchange field 5
         ColPts,           // QSO Points
         ColM,             // Markers (x = new mult on this band, z = new mult all-time)
         ColMult,          // $ indicator for multiplier
         ColFreq,          // Frequency in kHz
         ColOp,            // Operator callsign
-        ColCount          // Number of columns
+        ColCount          // Total columns (with all 5 exchange fields visible)
     };
+
+    static constexpr int MAX_EXCHANGE_COLUMNS = 5;
 
     explicit QSOTableModel(QObject* parent = nullptr);
     ~QSOTableModel() override = default;
@@ -71,15 +76,17 @@ public:
     // Get total count
     int count() const { return m_qsos.size(); }
 
-    // Contest-dependent exchange fields
-    void setContestExchangeFields(const QList<ExchangeField>& fields);
+    // Contest-dependent exchange fields and display
+    void setTableColumns(const QList<TableColumn>& columns);
+    void setContestExchangeFields(const QList<ExchangeField>& fields);  // Legacy compatibility
 
 private slots:
     void onThemeChanged();
 
 private:
     QList<QSO> m_qsos;
-    QList<ExchangeField> m_exchangeFields;  // Contest exchange field definitions
+    QList<TableColumn> m_tableColumns;      // Contest table column definitions
+    int m_visibleExchangeColumns{2};        // Number of exchange columns to show (1-5)
 
     QString formatFrequency(freq_t freq) const;
     QString getExchangeFieldHeader(int fieldIndex) const;

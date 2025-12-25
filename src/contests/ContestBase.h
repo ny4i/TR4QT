@@ -24,6 +24,28 @@ struct ExchangeField {
 };
 
 /**
+ * Table column definition for QSO display
+ * Contests can optionally provide column metadata to control
+ * how exchange fields are displayed in the QSO table
+ */
+struct TableColumn {
+    QString fieldName;      // Field name from ExchangeField (e.g., "Serial", "Precedence")
+    QString headerText;     // Short column header (e.g., "#", "Prec", "Chk", "QTH")
+    int preferredWidth;     // Suggested column width in pixels (0 = auto)
+
+    enum class Alignment {
+        Left,
+        Center,
+        Right
+    };
+    Alignment alignment = Alignment::Left;
+
+    TableColumn() : preferredWidth(0), alignment(Alignment::Left) {}
+    TableColumn(const QString& field, const QString& header, int width = 0, Alignment align = Alignment::Left)
+        : fieldName(field), headerText(header), preferredWidth(width), alignment(align) {}
+};
+
+/**
  * Multiplier definition for a contest
  */
 struct MultiplierDefinition {
@@ -77,6 +99,17 @@ public:
      * Used to configure the "sent exchange" in settings
      */
     virtual QList<ExchangeField> getSentExchangeFields() const = 0;
+
+    /**
+     * Get table column definitions for displaying exchange fields
+     * Override this to provide custom column layout for contests with many fields
+     * Default implementation returns empty list (uses legacy 2-column display)
+     *
+     * @return List of table column definitions, or empty for default behavior
+     */
+    virtual QList<TableColumn> getTableColumns() const {
+        return QList<TableColumn>();  // Default: use legacy 2-column display
+    }
 
     /**
      * Format the exchange to send (may include auto-increment serial)
