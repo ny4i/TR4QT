@@ -82,6 +82,14 @@ enum class MultiplierScope {
     AllBands        // Multiplier counts once across all bands
 };
 
+// Duplicate checking rules
+enum class DuplicateCheckingRule {
+    PerBandMode,    // Same call on same band/mode is a dupe (allows same call on different bands)
+    AllBandMode,    // Same call on same mode is a dupe across all bands
+    PerBand,        // Same call on same band is a dupe (any mode)
+    AllBand         // Same call is a dupe across all bands/modes (once-per-contest)
+};
+
 // Contest types
 enum class ContestType {
     None,

@@ -77,6 +77,10 @@ public:
     // ===== Special Rules =====
     bool usesSerialNumbers() const override { return false; }
 
+    DuplicateCheckingRule getDuplicateCheckingRule() const override {
+        return DuplicateCheckingRule::PerBandMode;  // Can work same call on different bands
+    }
+
     QMap<QString, QString> getCabrilloHeaders() const override;
 
 private:

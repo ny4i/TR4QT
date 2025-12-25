@@ -545,6 +545,13 @@ QWidget* MainWindow::createBottomPanel() {
     // Log button spans both rows
     entryLayout->addWidget(m_logButton, 0, 2, 2, 1);
 
+    // Duplicate warning label (row 0, column 3 - to right of call entry)
+    m_dupeWarningLabel = new QLabel(this);
+    m_dupeWarningLabel->setStyleSheet("QLabel { color: #ff6600; font-weight: bold; font-size: 11pt; }");
+    m_dupeWarningLabel->setMinimumWidth(200);
+    m_dupeWarningLabel->hide();  // Initially hidden
+    entryLayout->addWidget(m_dupeWarningLabel, 0, 3);
+
     bottomLayout->addWidget(entryWidget);
 
     // Stretch to push Stats to right
@@ -1424,7 +1431,9 @@ void MainWindow::onLogQSO() {
 void MainWindow::onCallsignChanged(const QString& callsign) {
     Q_UNUSED(callsign);
     // Exchange auto-population now happens on Enter key press, not while typing
-    // TODO: Real-time dupe checking could happen here (visual indicator)
+
+    // Hide duplicate warning when user starts typing again
+    m_dupeWarningLabel->hide();
 }
 
 void MainWindow::onCallsignEnterPressed() {
@@ -1432,6 +1441,19 @@ void MainWindow::onCallsignEnterPressed() {
 
     if (callsign.isEmpty()) {
         return;
+    }
+
+    // Check for duplicate QSO
+    QString dupeInfo;
+    bool isDupe = checkForDuplicate(callsign, m_currentState.bandA, m_currentState.modeA, dupeInfo);
+
+    if (isDupe) {
+        // Show warning but allow logging to proceed
+        m_dupeWarningLabel->setText("⚠ " + dupeInfo);
+        m_dupeWarningLabel->show();
+    } else {
+        // Hide warning for non-duplicates
+        m_dupeWarningLabel->hide();
     }
 
     // Auto-populate exchange based on callsign
@@ -1447,6 +1469,9 @@ void MainWindow::onClearEntry() {
     m_exchangeEntry->clear();
     m_callsignEntry->setFocus();
     m_initialExchangePopulated = false;
+
+    // Hide duplicate warning
+    m_dupeWarningLabel->hide();
 }
 
 void MainWindow::onEditQSO(const QModelIndex& index) {
@@ -1895,6 +1920,76 @@ void MainWindow::autoPopulateExchange(const QString& callsign) {
     } else {
         m_initialExchangePopulated = false;
     }
+}
+
+bool MainWindow::checkForDuplicate(const QString& callsign, BandType band, ModeType mode, QString& dupeInfo) const {
+    if (!m_activeContest) {
+        return false;
+    }
+
+    // Get duplicate checking rule from contest
+    DuplicateCheckingRule rule = m_activeContest->getDuplicateCheckingRule();
+
+    // Build SQL query based on duplicate rule
+    QString sql = "SELECT band, mode, timestamp FROM qsos WHERE callsign = ?";
+    QVariantList params;
+    params << callsign;
+
+    // Add additional filters based on duplicate rule
+    switch (rule) {
+        case DuplicateCheckingRule::PerBandMode:
+            sql += " AND band = ? AND mode = ?";
+            params << static_cast<int>(band) << static_cast<int>(mode);
+            break;
+        case DuplicateCheckingRule::AllBandMode:
+            sql += " AND mode = ?";
+            params << static_cast<int>(mode);
+            break;
+        case DuplicateCheckingRule::PerBand:
+            sql += " AND band = ?";
+            params << static_cast<int>(band);
+            break;
+        case DuplicateCheckingRule::AllBand:
+            // No additional filter - any contact with this callsign is a dupe
+            break;
+    }
+
+    sql += " LIMIT 1";
+
+    Database& db = Database::instance();
+    QSqlQuery query = db.execute(sql, params);
+
+    if (query.next()) {
+        // Found a duplicate - build info string
+        QDateTime timestamp = QDateTime::fromSecsSinceEpoch(query.value(2).toLongLong());
+
+        switch (rule) {
+            case DuplicateCheckingRule::PerBandMode:
+                dupeInfo = QString("DUPE - Worked on %1 at %2")
+                    .arg(timestamp.toString("yyyy-MM-dd"))
+                    .arg(timestamp.toString("HH:mm"));
+                break;
+            case DuplicateCheckingRule::AllBandMode:
+                dupeInfo = QString("DUPE - Worked on %1 at %2 (same mode, different band)")
+                    .arg(timestamp.toString("yyyy-MM-dd"))
+                    .arg(timestamp.toString("HH:mm"));
+                break;
+            case DuplicateCheckingRule::PerBand:
+                dupeInfo = QString("DUPE - Worked on %1 at %2 (same band, different mode)")
+                    .arg(timestamp.toString("yyyy-MM-dd"))
+                    .arg(timestamp.toString("HH:mm"));
+                break;
+            case DuplicateCheckingRule::AllBand:
+                dupeInfo = QString("DUPE - Worked on %1 at %2 (once-per-contest)")
+                    .arg(timestamp.toString("yyyy-MM-dd"))
+                    .arg(timestamp.toString("HH:mm"));
+                break;
+        }
+
+        return true;
+    }
+
+    return false;
 }
 
 // Window menu slot implementations
