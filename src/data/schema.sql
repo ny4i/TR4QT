@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS qsos (
     itu_zone INTEGER,                   -- ITU Zone
     continent TEXT,                     -- Continent code
     state TEXT,                         -- US/VE state/province
+    county TEXT,                        -- US county (for ARRL section mapping)
 
     -- Scoring
     qso_points INTEGER DEFAULT 0,       -- Points for this QSO

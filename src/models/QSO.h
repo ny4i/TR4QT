@@ -43,6 +43,7 @@ struct QSO {
     int ituZone{0};             // ITU Zone
     QString continent;          // Continent code (NA, SA, EU, AF, AS, OC)
     QString state;              // US state or Canadian province (if applicable)
+    QString county;             // US county (for ARRL section mapping)
 
     // Contest-specific parsed fields (from exchangeReceived)
     // Populated by contest's parseReceivedExchange() method
