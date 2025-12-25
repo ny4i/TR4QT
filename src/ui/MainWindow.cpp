@@ -1185,8 +1185,8 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
     // Update radio status grid with new state
     updateRadioStatusGrid();
 
-    // Update radio control window if it's open
-    if (m_radioControlWindow && m_radioControlWindow->isVisible()) {
+    // Update radio control window if it exists (even if not visible, so state is current when shown)
+    if (m_radioControlWindow) {
         m_radioControlWindow->updateRadioState(state);
     }
 
