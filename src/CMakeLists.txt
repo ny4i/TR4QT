@@ -3,16 +3,17 @@
 set(SOURCES
     main.cpp
     core/Types.cpp
+    utils/ADIFExporter.cpp
+    utils/AppSettings.cpp
+    utils/ArrlSectionHelper.cpp
+    utils/CabrilloExporter.cpp
     utils/CountryFile.cpp
     utils/CountryFileDownloader.cpp
     utils/DXClusterListDownloader.cpp
-    utils/LOTWUserDownloader.cpp
-    utils/AppSettings.cpp
-    utils/ThemeManager.cpp
     utils/GeographicUtils.cpp
+    utils/LOTWUserDownloader.cpp
     utils/RadioEnumerator.cpp
-    utils/ADIFExporter.cpp
-    utils/CabrilloExporter.cpp
+    utils/ThemeManager.cpp
     radio/HamlibRadio.cpp
     radio/RadioController.cpp
     network/TelnetClient.cpp
@@ -57,16 +58,17 @@ set(SOURCES
 set(HEADERS
     core/Types.h
     core/Constants.h
+    utils/ADIFExporter.h
+    utils/AppSettings.h
+    utils/ArrlSectionHelper.h
+    utils/CabrilloExporter.h
     utils/CountryFile.h
     utils/CountryFileDownloader.h
     utils/DXClusterListDownloader.h
-    utils/LOTWUserDownloader.h
-    utils/AppSettings.h
-    utils/ThemeManager.h
     utils/GeographicUtils.h
+    utils/LOTWUserDownloader.h
     utils/RadioEnumerator.h
-    utils/ADIFExporter.h
-    utils/CabrilloExporter.h
+    utils/ThemeManager.h
     radio/RadioInterface.h
     radio/HamlibRadio.h
     radio/RadioController.h
