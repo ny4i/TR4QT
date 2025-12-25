@@ -475,10 +475,12 @@ QWidget* MainWindow::createBottomPanel() {
     freqLayout->addWidget(m_radioFreqBandLabel);
     freqLayout->addWidget(m_radioFreqLabel);
 
-    // Date/Time label
+    // Date/Time label - use monospace font and fixed width to prevent jumping
     m_radioDateTimeLabel = new QLabel("", radioStatusWidget);
-    m_radioDateTimeLabel->setFont(labelFont);
+    QFont dateTimeFont("Monospace", labelFont.pointSize());
+    m_radioDateTimeLabel->setFont(dateTimeFont);
     m_radioDateTimeLabel->setAlignment(Qt::AlignCenter);
+    m_radioDateTimeLabel->setMinimumWidth(220);  // Wide enough for "Wed 25-Dec-2025 13:45:30"
 
     radioLayout->addLayout(freqLayout);
     radioLayout->addWidget(m_radioDateTimeLabel);
@@ -670,6 +672,12 @@ void MainWindow::loadSettings() {
         if (!multGeometry.isEmpty()) {
             m_multiplierWindow->restoreGeometry(multGeometry);
         }
+    }
+
+    // Load and display current operator
+    QString currentOperator = settings.getCurrentOperator();
+    if (!currentOperator.isEmpty()) {
+        m_operatorLabel->setText(currentOperator);
     }
 }
 
