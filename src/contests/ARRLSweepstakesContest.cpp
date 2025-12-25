@@ -2,6 +2,7 @@
 #include "ContestRegistry.h"
 #include "../models/QSO.h"
 #include "../exchanges/SmartExchangeParser.h"
+#include "../utils/ArrlSectionHelper.h"
 #include <QRegularExpression>
 #include <QStringList>
 
@@ -218,27 +219,7 @@ bool ARRLSweepstakesContest::isValidCheck(const QString& check) const {
 }
 
 bool ARRLSweepstakesContest::isValidSection(const QString& section) const {
-    // 80 sections: 71 ARRL + 8 RAC + PR
-    static const QStringList validSections = {
-        // US ARRL Sections (71)
-        "CT", "EMA", "ME", "NH", "RI", "VT", "WMA",  // New England
-        "ENY", "NLI", "NNJ", "NNY", "SNJ", "WNY",     // Atlantic
-        "DE", "EPA", "MDC", "WPA",                     // Delta
-        "AL", "GA", "KY", "NC", "NFL", "SC", "SFL", "WCF", "TN", "VA", "PR", "VI",  // Southeastern
-        "AR", "LA", "MS", "NM", "NTX", "OK", "STX", "WTX",  // West Gulf
-        "EB", "LAX", "ORG", "SB", "SCV", "SDG", "SF", "SJV", "SV", "PAC",  // Pacific
-        "AZ", "EWA", "ID", "MT", "NV", "OR", "UT", "WWA", "WY",  // Northwestern
-        "AK", "MI", "OH", "WV",  // Great Lakes
-        "IL", "IN", "WI",  // Central
-        "CO", "IA", "KS", "MN", "MO", "ND", "NE", "SD",  // Midwest
-        "HI",  // Pacific (Hawaii)
-        // Canadian RAC Sections (8)
-        "AB", "BC", "MB", "NB", "NL", "NS", "ON", "QC", "SK", "NT", "PE",
-        // DX
-        "DX"
-    };
-
-    return validSections.contains(section.toUpper());
+    return Arrl::isValidSection(section);
 }
 
 } // namespace TR4QT

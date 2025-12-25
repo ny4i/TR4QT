@@ -47,6 +47,34 @@ QString sectionForStateCounty(const QString& stateAbbrev, const QString& countyN
  */
 QString sectionForState(const QString& stateAbbrev);
 
+/**
+ * @brief Check if a section code is a valid ARRL or RAC section.
+ *
+ * Validates against the complete list of ARRL sections (US), RAC sections (Canada),
+ * and special sections (DX, HI, PR, VI).
+ *
+ * @param section Section code to validate (case-insensitive)
+ * @return true if the section is valid, false otherwise
+ *
+ * @examples
+ * isValidSection("WMA") -> true
+ * isValidSection("STX") -> true
+ * isValidSection("BC") -> true (Canadian)
+ * isValidSection("DX") -> true
+ * isValidSection("ZZZ") -> false
+ */
+bool isValidSection(const QString& section);
+
+/**
+ * @brief Get list of all valid ARRL and RAC sections.
+ *
+ * Returns the complete list of valid section codes for use in
+ * contest exchange validation.
+ *
+ * @return QStringList containing all valid section codes
+ */
+QStringList getAllSections();
+
 } // namespace Arrl
 } // namespace TR4QT
 

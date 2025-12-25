@@ -2,6 +2,7 @@
 #include "../contests/ContestBase.h"
 #include "../contests/ARRLSweepstakesContest.h"
 #include "../contests/WinterFieldDayContest.h"
+#include "../utils/ArrlSectionHelper.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
@@ -255,6 +256,8 @@ bool SmartExchangeParser::looksLikeSerial(const QString& token) {
 }
 
 bool SmartExchangeParser::looksLikeSection(const QString& token, ContestBase* contest) {
+    Q_UNUSED(contest);  // Contest parameter not needed - using centralized helper
+
     if (token.length() < 2 || token.length() > 4) {
         return false;  // Sections are typically 2-4 characters
     }
@@ -265,53 +268,8 @@ bool SmartExchangeParser::looksLikeSection(const QString& token, ContestBase* co
         return false;
     }
 
-    // If we have a contest instance, use its validation
-    if (contest) {
-        // Try to cast to contests that have section validation
-        const ARRLSweepstakesContest* ssContest =
-            dynamic_cast<const ARRLSweepstakesContest*>(contest);
-        if (ssContest) {
-            // Use the contest's section validation (public method)
-            return ssContest->isValidSection(token);
-        }
-
-        const WinterFieldDayContest* wfdContest =
-            dynamic_cast<const WinterFieldDayContest*>(contest);
-        if (wfdContest) {
-            // Use the contest's section validation (public static method)
-            return WinterFieldDayContest::isValidSection(token);
-        }
-    }
-
-    // Heuristic: Common ARRL sections (not exhaustive, but covers most)
-    static const QStringList commonSections = {
-        // New England
-        "CT", "EMA", "ME", "NH", "RI", "VT", "WMA",
-        // Atlantic
-        "ENY", "NLI", "NNJ", "NNY", "SNJ", "WNY",
-        // Delta
-        "DE", "EPA", "MDC", "WPA",
-        // Southeastern
-        "AL", "GA", "KY", "NC", "NFL", "SC", "SFL", "TN", "VA", "PR", "VI",
-        // West Gulf
-        "AR", "LA", "MS", "NM", "NTX", "OK", "STX", "WTX",
-        // Pacific
-        "EB", "LAX", "ORG", "SB", "SCV", "SDG", "SF", "SJV", "SV", "PAC",
-        // Northwestern
-        "AZ", "EWA", "ID", "MT", "NV", "OR", "UT", "WWA", "WY",
-        // Great Lakes
-        "AK", "MI", "OH", "WV",
-        // Central
-        "IL", "IN", "WI",
-        // Midwest
-        "CO", "IA", "KS", "MN", "MO", "ND", "NE", "SD",
-        // Canadian
-        "AB", "BC", "MB", "NB", "NL", "NS", "ON", "QC", "SK", "NT", "PE",
-        // Other
-        "DX", "HI"
-    };
-
-    return commonSections.contains(token.toUpper());
+    // Use centralized ARRL section validation
+    return Arrl::isValidSection(token);
 }
 
 bool SmartExchangeParser::looksLikeClass(const QString& token) {
