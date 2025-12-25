@@ -143,18 +143,40 @@ QMap<QString, QString> WinterFieldDayContest::parseReceivedExchange(const QStrin
 }
 
 int WinterFieldDayContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) const {
-    Q_UNUSED(myStation);
+    // WFD scoring rules from WA7BNM:
+    // - 0 points: Same country (but counts as multiplier)
+    // - 1 point: Different country, same continent (except NA)
+    // - 2 points: Different country, same continent (NA only)
+    // - 3 points: Different continent
 
-    // CW and Digital modes: 2 points
-    // Phone (SSB, FM, AM): 1 point
-    if (qso.mode == ModeType::CW ||
-        qso.mode == ModeType::RTTY ||
-        qso.mode == ModeType::PSK ||
-        qso.mode == ModeType::FT8 ||
-        qso.mode == ModeType::FT4) {
+    QString theirCountry = qso.dxccEntity;
+    QString theirContinent = qso.continent;
+    QString myCountry = myStation.country;
+    QString myContinent = myStation.continent;
+
+    // Handle case where geographic data is missing
+    if (theirCountry.isEmpty() || theirContinent.isEmpty() ||
+        myCountry.isEmpty() || myContinent.isEmpty()) {
+        // Default to 1 point if we don't have complete geographic data
+        return 1;
+    }
+
+    // Same country: 0 points (but counts as multiplier)
+    if (theirCountry == myCountry) {
+        return 0;
+    }
+
+    // Different continent: 3 points
+    if (theirContinent != myContinent) {
+        return 3;
+    }
+
+    // Same continent, different country
+    // North America (NA) gets 2 points, others get 1 point
+    if (myContinent == "NA") {
         return 2;
     } else {
-        return 1;  // Phone modes
+        return 1;
     }
 }
 
@@ -174,12 +196,21 @@ int WinterFieldDayContest::calculateTotalScore(
 QList<MultiplierDefinition> WinterFieldDayContest::getMultiplierTypes() const {
     QList<MultiplierDefinition> mults;
 
-    // ARRL/RAC Sections (all-band)
-    MultiplierDefinition sectionMult;
-    sectionMult.type = MultiplierType::Section;
-    sectionMult.scope = MultiplierScope::AllBands;
-    sectionMult.displayName = "Sections";
-    mults.append(sectionMult);
+    // WFD multiplier rules from WA7BNM:
+    // - Each CQ zone once per band
+    // - Each country once per band
+
+    MultiplierDefinition cqZoneMult;
+    cqZoneMult.type = MultiplierType::CQZone;
+    cqZoneMult.scope = MultiplierScope::PerBand;
+    cqZoneMult.displayName = "CQ Zones";
+    mults.append(cqZoneMult);
+
+    MultiplierDefinition countryMult;
+    countryMult.type = MultiplierType::Country;
+    countryMult.scope = MultiplierScope::PerBand;
+    countryMult.displayName = "Countries";
+    mults.append(countryMult);
 
     return mults;
 }
@@ -189,19 +220,31 @@ QString WinterFieldDayContest::getMultiplierValue(
     MultiplierType multType,
     const QStringList& alreadyWorkedValues) const
 {
-    if (multType != MultiplierType::Section) {
-        return QString();  // Not a multiplier for this contest
+    QString multValue;
+
+    switch (multType) {
+        case MultiplierType::CQZone:
+            // CQ Zone from QSO
+            if (qso.cqZone > 0) {
+                multValue = QString::number(qso.cqZone);
+            }
+            break;
+
+        case MultiplierType::Country:
+            // Country (DXCC entity)
+            multValue = qso.dxccPrefix;  // Use DXCC prefix as country identifier
+            break;
+
+        default:
+            return QString();  // Not a multiplier for this contest
     }
 
-    // Section is stored in the QSO state field
-    QString section = qso.state.toUpper();
-
-    // Check if this section has already been worked
-    if (alreadyWorkedValues.contains(section)) {
+    // Check if this multiplier value has already been worked (on this band)
+    if (multValue.isEmpty() || alreadyWorkedValues.contains(multValue)) {
         return QString();  // Not a new multiplier
     }
 
-    return section;
+    return multValue;
 }
 
 QMap<QString, QString> WinterFieldDayContest::getCabrilloHeaders() const {
