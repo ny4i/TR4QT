@@ -149,6 +149,7 @@ private:
     void updateScoreDisplay();
     void updateRadioStatusGrid();
     void raiseAllWindows();
+    void setStatusMessage(const QString& message);  // Set status and log it
 
     // Contest management
     void activateContest(const ContestInfo& contestInfo);

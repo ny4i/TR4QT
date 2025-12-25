@@ -117,20 +117,33 @@ bool WinterFieldDayContest::validateReceivedExchange(const QString& exchange, QS
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     if (parts.size() != 2) {
-        errorMsg = "Exchange must be: Class + Section (e.g., '1O WMA')";
+        errorMsg = "Exchange must be: Class + Section (e.g., '1O WMA' or 'WMA 1O')";
         return false;
     }
 
-    QString classStr = parts[0].toUpper();
-    QString section = parts[1].toUpper();
+    // Use smart parser to detect which field is which (order-agnostic)
+    QMap<QString, QString> parsed = parseReceivedExchange(exchange);
+
+    // Check if we got both required fields
+    if (!parsed.contains("Class")) {
+        errorMsg = "Missing Class field. Expected format like: 1O, 2I, 3H, etc.";
+        return false;
+    }
+
+    if (!parsed.contains("Section")) {
+        errorMsg = "Missing Section field. Expected valid ARRL/RAC section.";
+        return false;
+    }
 
     // Validate class
+    QString classStr = parsed["Class"];
     if (!isValidClass(classStr)) {
-        errorMsg = QString("Invalid class '%1'. Expected: 1O, 2O, 3O, 1I, 2I, 3I, Home, etc.").arg(classStr);
+        errorMsg = QString("Invalid class '%1'. Expected: 1O, 2O, 3O, 1I, 2I, 3I, etc.").arg(classStr);
         return false;
     }
 
     // Validate section
+    QString section = parsed["Section"];
     if (!isValidSection(section)) {
         errorMsg = QString("Invalid section '%1'. Must be valid ARRL or RAC section.").arg(section);
         return false;
