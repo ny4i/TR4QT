@@ -195,7 +195,8 @@ void EditQSODialog::loadQSOData() {
     // Basic fields
     m_timestampEdit->setDateTime(m_qso.timestamp);
     m_callsignEdit->setText(m_qso.callsign);
-    m_frequencyEdit->setText(QString::number(m_qso.frequency));
+    // Format frequency as integer (never use scientific notation)
+    m_frequencyEdit->setText(QString::number(static_cast<qint64>(m_qso.frequency)));
 
     // Set mode combo
     int modeIndex = m_modeCombo->findData(static_cast<int>(m_qso.mode));
