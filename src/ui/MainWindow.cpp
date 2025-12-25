@@ -394,7 +394,7 @@ void MainWindow::createCentralWidget() {
 
     // Top: Band summary grid
     m_bandSummaryGrid = new BandSummaryGrid(this);
-    m_bandSummaryGrid->setEnabled(false);  // Start disabled (radio not connected)
+    m_bandSummaryGrid->setEnabled(true);  // Always enabled for manual band selection
     connect(m_bandSummaryGrid, &BandSummaryGrid::bandClicked,
             this, &MainWindow::onBandClicked);
     mainLayout->addWidget(m_bandSummaryGrid);
@@ -1872,6 +1872,28 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
                       .arg(APP_VERSION)
                       .arg(contestInfo.contestName));
 
+    // Set default band and mode from contest if radio not connected
+    if (!m_radioConnected) {
+        // Set mode based on contest type
+        if (contestInfo.contestType.contains("CW")) {
+            m_currentState.modeA = ModeType::CW;
+        } else if (contestInfo.contestType.contains("SSB")) {
+            m_currentState.modeA = ModeType::USB;
+        } else {
+            m_currentState.modeA = ModeType::CW;  // Default for mixed mode
+        }
+
+        // Set default band (20M is a good starting point)
+        m_currentState.bandA = BandType::Band20M;
+
+        // Update display
+        updateRadioStatusGrid();
+
+        LOG_DEBUG("MainWindow", QString("Set default band/mode: %1 %2 (radio not connected)")
+            .arg(bandToString(m_currentState.bandA))
+            .arg(modeToString(m_currentState.modeA)));
+    }
+
     // Update exchange fields for this contest
     updateExchangeFieldsForContest();
 }
@@ -2565,18 +2587,28 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
 }
 
 void MainWindow::onBandClicked(BandType band) {
-    if (!m_radioConnected) {
-        LOG_DEBUG("MainWindow", "Cannot change band: radio not connected");
-        return;
+    if (m_radioConnected) {
+        // Radio connected: Change radio frequency
+        freq_t frequency = getFrequencyForBand(band, m_currentState.modeA);
+        LOG_DEBUG("MainWindow", QString("Band clicked: %1 Setting frequency to: %2 Hz")
+            .arg(QString::number(static_cast<int>(band)))
+            .arg(QString::number(frequency)));
+
+        // Send frequency change to radio
+        m_radio->setFrequency(frequency);
+    } else {
+        // Radio not connected: Manual band selection for logging
+        LOG_DEBUG("MainWindow", QString("Manual band selection: %1").arg(bandToString(band)));
+
+        // Update current state with manually selected band
+        m_currentState.bandA = band;
+
+        // Update radio status display
+        updateRadioStatusGrid();
+
+        // Update status message
+        m_statusLabel->setText(QString("Band: %1 (manual)").arg(bandToString(band)));
     }
-
-    // Get frequency for the clicked band based on current mode
-    freq_t frequency = getFrequencyForBand(band, m_currentState.modeA);
-
-    LOG_DEBUG("MainWindow", QString("Band clicked: %1 Setting frequency to: %2 Hz").arg(QString::number(static_cast<int>(band))).arg(QString::number(frequency)));
-
-    // Send frequency change to radio
-    m_radio->setFrequency(frequency);
 }
 
 void MainWindow::onBandUp() {
