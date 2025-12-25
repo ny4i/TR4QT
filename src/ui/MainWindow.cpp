@@ -2652,26 +2652,25 @@ void MainWindow::onBandDown() {
 }
 
 freq_t MainWindow::getFrequencyForBand(BandType band, ModeType mode) const {
-    // Determine if we're in a CW mode
-    bool isCW = (mode == ModeType::CW || mode == ModeType::RTTY);
+    Q_UNUSED(mode);  // Not used - we return band edge for manual selection
 
-    // Return appropriate frequency for band and mode
-    // CW portions are typically lower in frequency than SSB
+    // Return low band edge as visual reminder this is manually set, not from radio
+    // Real radio would show frequency within CW/SSB segments
     switch (band) {
     case BandType::Band160M:
-        return isCW ? 1830000 : 1850000;  // 1.830 MHz CW, 1.850 MHz SSB
+        return 1800000;   // 1.800 MHz (band edge)
     case BandType::Band80M:
-        return isCW ? 3530000 : 3750000;  // 3.530 MHz CW, 3.750 MHz SSB
+        return 3500000;   // 3.500 MHz (band edge)
     case BandType::Band40M:
-        return isCW ? 7030000 : 7200000;  // 7.030 MHz CW, 7.200 MHz SSB
+        return 7000000;   // 7.000 MHz (band edge)
     case BandType::Band20M:
-        return isCW ? 14030000 : 14200000;  // 14.030 MHz CW, 14.200 MHz SSB
+        return 14000000;  // 14.000 MHz (band edge)
     case BandType::Band15M:
-        return isCW ? 21030000 : 21300000;  // 21.030 MHz CW, 21.300 MHz SSB
+        return 21000000;  // 21.000 MHz (band edge)
     case BandType::Band10M:
-        return isCW ? 28030000 : 28400000;  // 28.030 MHz CW, 28.400 MHz SSB
+        return 28000000;  // 28.000 MHz (band edge)
     default:
-        return 14030000;  // Default to 20m CW
+        return 14000000;  // Default to 20m band edge
     }
 }
 
