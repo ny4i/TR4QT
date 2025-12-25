@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.59.3";  // Fix log auto-scroll on startup
+constexpr const char* APP_VERSION = "2.60.0";  // Add ARRL Section Helper with comprehensive state/county mapping
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

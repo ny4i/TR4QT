@@ -67,6 +67,11 @@ add_tr4qt_test(test_qso
     ../src/core/Types.cpp
 )
 
+add_tr4qt_test(test_arrlsection
+    test_arrlsection.cpp
+    ../src/utils/ArrlSectionHelper.cpp
+)
+
 # Phase 2 tests - business logic
 add_tr4qt_test(test_countryfile
     test_countryfile.cpp
