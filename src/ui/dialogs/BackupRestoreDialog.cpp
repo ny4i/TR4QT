@@ -92,7 +92,7 @@ QWidget* BackupRestoreDialog::createBackupTab() {
 
     // Create backup button
     m_createBackupButton = new QPushButton("Create Backup Now", widget);
-    m_createBackupButton->setStyleSheet("QPushButton { padding: 10px; font-weight: bold; }");
+    m_createBackupButton->setStyleSheet("QPushButton { padding: 10px; font-weight: bold; border-radius: 3px; }");
     connect(m_createBackupButton, &QPushButton::clicked,
             this, &BackupRestoreDialog::onCreateBackup);
 
@@ -139,7 +139,7 @@ QWidget* BackupRestoreDialog::createRestoreTab() {
 
     // Restore button
     m_restoreButton = new QPushButton("Restore from Selected Backup", widget);
-    m_restoreButton->setStyleSheet("QPushButton { padding: 10px; font-weight: bold; }");
+    m_restoreButton->setStyleSheet("QPushButton { padding: 10px; font-weight: bold; border-radius: 3px; }");
     m_restoreButton->setEnabled(false);
     connect(m_restoreButton, &QPushButton::clicked,
             this, &BackupRestoreDialog::onRestoreBackup);

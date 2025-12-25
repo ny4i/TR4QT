@@ -94,7 +94,7 @@ void RadioControlWidget::setupUI() {
     modeFont.setBold(true);
     m_modeLabel->setFont(modeFont);
     m_modeLabel->setAlignment(Qt::AlignCenter);
-    m_modeLabel->setStyleSheet("QLabel { background-color: lightgray; padding: 5px; }");
+    m_modeLabel->setStyleSheet("QLabel { background-color: lightgray; padding: 5px; border-radius: 3px; }");
     mainLayout->addWidget(m_modeLabel);
 
     // S-Meter display - custom widget with traditional radio meter styling
@@ -194,7 +194,8 @@ void RadioControlWidget::setupUI() {
     mainLayout->addWidget(buttonWidget);
 
     // Set minimum size (no maximum to allow user resizing)
-    setMinimumSize(250, 200);
+    // Height needs to accommodate: VFO displays, mode, S-meter (60px), and buttons (50px)
+    setMinimumSize(250, 300);
 }
 
 void RadioControlWidget::updateRadioState(const RadioState& state) {

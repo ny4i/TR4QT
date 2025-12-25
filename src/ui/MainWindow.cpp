@@ -3,10 +3,12 @@
 #include "dialogs/PreferencesDialog.h"
 #include "dialogs/BackupRestoreDialog.h"
 #include "dialogs/OperatorDialog.h"
+#include "dialogs/EditQSODialog.h"
 #include "widgets/DXClusterWindow.h"
 #include "widgets/BandMapWidget.h"
 #include "widgets/RadioControlWidget.h"
 #include "widgets/MultiplierWidget.h"
+#include "widgets/StatisticsWindow.h"
 #include "../network/UdpBroadcastManager.h"
 #include "../core/Constants.h"
 #include "../logging/LogMacros.h"
@@ -23,6 +25,7 @@
 #include <QFileDialog>
 #include <QProgressDialog>
 #include <QMenuBar>
+#include <QMenu>
 #include <QStatusBar>
 #include <QToolBar>
 #include <QVBoxLayout>
@@ -49,6 +52,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_bandMapWindow(nullptr)
     , m_radioControlWindow(nullptr)
     , m_multiplierWindow(nullptr)
+    , m_statisticsWindow(nullptr)
     , m_qsosThisHour(0)
     , m_hasActiveContest(false)
     , m_activeContest(nullptr)
@@ -337,6 +341,9 @@ void MainWindow::createMenuBar() {
     QAction* multipliersAction = windowMenu->addAction("&Multipliers");
     connect(multipliersAction, &QAction::triggered, this, &MainWindow::onShowMultipliers);
 
+    QAction* statisticsAction = windowMenu->addAction("&Statistics");
+    connect(statisticsAction, &QAction::triggered, this, &MainWindow::onShowStatistics);
+
     windowMenu->addSeparator();
 
     QAction* swapMultViewAction = windowMenu->addAction("Swap Mult View");
@@ -431,6 +438,13 @@ void MainWindow::createCentralWidget() {
 
     // Op column stretches to fill remaining space (last column with stretchLastSection=true)
     header->setSectionResizeMode(QSOTableModel::ColOp, QHeaderView::Stretch);
+
+    // Connect double-click to edit QSO
+    connect(m_qsoTableView, &QTableView::doubleClicked, this, &MainWindow::onEditQSO);
+
+    // Enable context menu
+    m_qsoTableView->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_qsoTableView, &QTableView::customContextMenuRequested, this, &MainWindow::onQSOTableContextMenu);
 
     mainLayout->addWidget(m_qsoTableView, 1);  // Stretch factor 1 = takes remaining space
 
@@ -772,7 +786,8 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
             if (widget == m_dxClusterWindow ||
                 widget == m_bandMapWindow ||
                 widget == m_radioControlWindow ||
-                widget == m_multiplierWindow) {
+                widget == m_multiplierWindow ||
+                widget == m_statisticsWindow) {
                 // Raise all windows to bring them all to front
                 raiseAllWindows();
             }
@@ -815,6 +830,11 @@ void MainWindow::raiseAllWindows() {
     if (m_multiplierWindow && m_multiplierWindow->isVisible()) {
         m_multiplierWindow->raise();
         m_multiplierWindow->activateWindow();
+    }
+
+    if (m_statisticsWindow && m_statisticsWindow->isVisible()) {
+        m_statisticsWindow->raise();
+        m_statisticsWindow->activateWindow();
     }
 
     m_inRaiseAllWindows = false;
@@ -1363,6 +1383,59 @@ void MainWindow::onClearEntry() {
     m_callsignEntry->setFocus();
 }
 
+void MainWindow::onEditQSO(const QModelIndex& index) {
+    if (!index.isValid()) {
+        return;
+    }
+
+    int row = index.row();
+
+    // Get the QSO at the selected row
+    QSO qso = m_qsoTableModel->getQSO(row);
+    if (qso.id < 0) {
+        QMessageBox::warning(this, "Error", "Cannot edit QSO: Invalid QSO ID");
+        return;
+    }
+
+    // Open edit dialog
+    EditQSODialog dialog(qso, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        QSO editedQSO = dialog.getEditedQSO();
+
+        // Update in database
+        QSORepository repo;
+
+        if (repo.updateQSO(editedQSO)) {
+            // Update the table model at the specific row
+            m_qsoTableModel->updateQSO(row, editedQSO);
+
+            LOG_INFO("MainWindow", QString("Updated QSO #%1 (%2)")
+                .arg(editedQSO.id)
+                .arg(editedQSO.callsign));
+        } else {
+            QMessageBox::warning(this, "Error",
+                QString("Failed to update QSO: %1").arg(repo.lastError()));
+        }
+    }
+}
+
+void MainWindow::onQSOTableContextMenu(const QPoint& pos) {
+    QModelIndex index = m_qsoTableView->indexAt(pos);
+    if (!index.isValid()) {
+        return;  // No QSO at click position
+    }
+
+    // Create context menu
+    QMenu menu(this);
+    QAction* editAction = menu.addAction("Edit QSO");
+    connect(editAction, &QAction::triggered, [this, index]() {
+        onEditQSO(index);
+    });
+
+    // Show menu at cursor position
+    menu.exec(m_qsoTableView->viewport()->mapToGlobal(pos));
+}
+
 void MainWindow::updateScoreDisplay() {
     // TODO: Calculate actual scores per band and update band summary grid
     // For now, just update the status bar with QSO count
@@ -1482,14 +1555,14 @@ void MainWindow::applyTheme() {
     }
 
     // Update radio status labels
-    QString labelStyle = QString("QLabel { background-color: %1; padding: 5px; border: 1px solid %2; }")
+    QString labelStyle = QString("QLabel { background-color: %1; padding: 5px; border: 1px solid %2; border-radius: 3px; }")
         .arg(theme.color(ColorRole::TextDisplayBackground).name())
         .arg(theme.color(ColorRole::BorderColor).name());
 
     m_radioFreqBandLabel->setStyleSheet(labelStyle);
     m_radioDateTimeLabel->setStyleSheet(labelStyle);
 
-    QString freqLabelStyle = QString("QLabel { background-color: %1; padding: 3px; border: 1px solid %2; }")
+    QString freqLabelStyle = QString("QLabel { background-color: %1; padding: 3px; border: 1px solid %2; border-radius: 3px; }")
         .arg(theme.color(ColorRole::TextDisplayBackground).name())
         .arg(theme.color(ColorRole::BorderColor).name());
 
@@ -1777,6 +1850,18 @@ void MainWindow::onShowMultipliers() {
     m_multiplierWindow->show();
     m_multiplierWindow->raise();
     m_multiplierWindow->activateWindow();
+}
+
+void MainWindow::onShowStatistics() {
+    if (!m_statisticsWindow) {
+        m_statisticsWindow = new StatisticsWindow();
+        m_statisticsWindow->setWindowTitle("Statistics");
+        m_statisticsWindow->setWindowFlags(Qt::Window);
+        m_statisticsWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+    }
+    m_statisticsWindow->show();
+    m_statisticsWindow->raise();
+    m_statisticsWindow->activateWindow();
 }
 
 // Window menu placeholder implementations

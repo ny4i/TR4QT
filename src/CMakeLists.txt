@@ -41,12 +41,15 @@ set(SOURCES
     ui/dialogs/OperatorDialog.cpp
     ui/dialogs/ContestChooserDialog.cpp
     ui/dialogs/BackupRestoreDialog.cpp
+    ui/dialogs/EditQSODialog.cpp
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
     ui/widgets/RadioControlWidget.cpp
     ui/widgets/SMeterWidget.cpp
     ui/widgets/MultiplierWidget.cpp
     ui/widgets/DXClusterWindow.cpp
+    ui/widgets/StatisticsWindow.cpp
+    ui/plots/qcustomplot.cpp
 )
 
 set(HEADERS
@@ -96,12 +99,15 @@ set(HEADERS
     ui/dialogs/OperatorDialog.h
     ui/dialogs/ContestChooserDialog.h
     ui/dialogs/BackupRestoreDialog.h
+    ui/dialogs/EditQSODialog.h
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
     ui/widgets/RadioControlWidget.h
     ui/widgets/SMeterWidget.h
     ui/widgets/MultiplierWidget.h
     ui/widgets/DXClusterWindow.h
+    ui/widgets/StatisticsWindow.h
+    ui/plots/qcustomplot.h
 )
 
 # Set icon file for macOS
@@ -139,6 +145,7 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::Widgets
     Qt6::Sql
     Qt6::Network
+    Qt6::PrintSupport
 )
 
 # Link Hamlib (will be used when we add radio support)
