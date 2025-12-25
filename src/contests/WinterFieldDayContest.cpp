@@ -94,6 +94,13 @@ QList<ExchangeField> WinterFieldDayContest::getSentExchangeFields() const {
     return fields;
 }
 
+QList<TableColumn> WinterFieldDayContest::getTableColumns() const {
+    return {
+        TableColumn("Class", "CL", 50, TableColumn::Alignment::Center),
+        TableColumn("Section", "QTH", 60, TableColumn::Alignment::Left)
+    };
+}
+
 QString WinterFieldDayContest::formatSentExchange(int serialNumber, const QString& rst) const {
     Q_UNUSED(serialNumber);
     Q_UNUSED(rst);

@@ -94,6 +94,12 @@ QList<ExchangeField> CQWPXContest::getSentExchangeFields() const {
     return fields;
 }
 
+QList<TableColumn> CQWPXContest::getTableColumns() const {
+    return {
+        TableColumn("Serial", "#", 50, TableColumn::Alignment::Right)
+    };
+}
+
 QString CQWPXContest::formatSentExchange(int serialNumber, const QString& rst) const {
     // Format: RST + Serial (e.g., "599 001")
     return QString("%1 %2").arg(rst).arg(serialNumber, 3, 10, QChar('0'));

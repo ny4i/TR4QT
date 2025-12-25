@@ -88,6 +88,12 @@ QList<ExchangeField> CQWWContest::getSentExchangeFields() const {
     return fields;
 }
 
+QList<TableColumn> CQWWContest::getTableColumns() const {
+    return {
+        TableColumn("Zone", "Zn", 50, TableColumn::Alignment::Right)
+    };
+}
+
 QString CQWWContest::formatSentExchange(int serialNumber, const QString& rst) const {
     Q_UNUSED(serialNumber);  // CQ WW doesn't use serial numbers
 
