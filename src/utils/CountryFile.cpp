@@ -356,20 +356,27 @@ int CountryFile::getUSCallAreaZone(const QString& callsign) {
     }
 
     // Standard continental US call areas
+    // Based on official CQ WW zone definitions
     switch (callArea) {
         case 6:
         case 7:
-            return 3;  // Pacific (CA, WA, OR, ID, MT, WY, NV, UT, AZ)
+            return 3;  // Pacific (CA, NV, OR, WA, ID, MT, WY, UT, AZ)
         case 0:
         case 5:
-            return 4;  // Central (CO, IA, KS, MN, MO, ND, NE, SD, AR, LA, MS, NM, OK, TX)
+        case 8:
+        case 9:
+            return 4;  // Central (W0: CO, IA, KS, MN, MO, ND, NE, SD)
+                       //         (W5: AR, LA, MS, NM, OK, TX)
+                       //         (W8: MI, OH, WV)
+                       //         (W9: IL, IN, WI)
         case 1:
         case 2:
         case 3:
         case 4:
-        case 8:
-        case 9:
-            return 5;  // Eastern (rest of US)
+            return 5;  // Eastern (W1: CT, ME, MA, NH, RI, VT)
+                       //         (W2: NJ, NY)
+                       //         (W3: DE, MD, PA, DC)
+                       //         (W4: AL, FL, GA, KY, NC, SC, TN, VA)
         default:
             return -1;  // Unknown
     }
