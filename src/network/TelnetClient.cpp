@@ -12,6 +12,7 @@ TelnetClient::TelnetClient(QObject* parent)
     , m_port(0)
     , m_isConnected(false)
     , m_loginSent(false)
+    , m_loginTimer(new QTimer(this))
 {
     connect(m_socket, &QTcpSocket::connected,
             this, &TelnetClient::onConnected);
@@ -21,6 +22,12 @@ TelnetClient::TelnetClient(QObject* parent)
             this, &TelnetClient::onReadyRead);
     connect(m_socket, &QTcpSocket::errorOccurred,
             this, &TelnetClient::onError);
+
+    // Setup login timer (4 seconds)
+    m_loginTimer->setSingleShot(true);
+    m_loginTimer->setInterval(4000);
+    connect(m_loginTimer, &QTimer::timeout,
+            this, &TelnetClient::onLoginTimeout);
 }
 
 TelnetClient::~TelnetClient() {
@@ -67,10 +74,17 @@ void TelnetClient::setAutoLoginCallsign(const QString& callsign) {
 void TelnetClient::onConnected() {
     m_isConnected = true;
     emit connected();
+
+    // Start login timer if auto-login is configured
+    if (!m_autoLoginCallsign.isEmpty()) {
+        LOG_DEBUG("TelnetClient", "Starting 4-second login timer");
+        m_loginTimer->start();
+    }
 }
 
 void TelnetClient::onDisconnected() {
     m_isConnected = false;
+    m_loginTimer->stop();  // Stop login timer on disconnect
     emit disconnected();
 }
 
@@ -100,14 +114,16 @@ void TelnetClient::onReadyRead() {
                 // Common login prompts from various DX Cluster software versions
                 // AR-Cluster v6: "Enter your callsign"
                 // CC-Cluster: "Please enter your call"
-                // DXSpider: "login:"
+                // DXSpider: "login:" or "Please login with"
                 // TODO: Add support for other cluster server types (v5, v4, etc.)
                 //       and their specific login prompts/sequences
                 if (cleanLine.contains("Enter your callsign", Qt::CaseInsensitive) ||
                     cleanLine.contains("Please enter your call", Qt::CaseInsensitive) ||
-                    cleanLine.contains("login:", Qt::CaseInsensitive)) {
+                    cleanLine.contains("login:", Qt::CaseInsensitive) ||
+                    cleanLine.contains("Please login", Qt::CaseInsensitive)) {
 
                     LOG_DEBUG("TelnetClient", QString("Login prompt detected, sending callsign: %1").arg(m_autoLoginCallsign));
+                    m_loginTimer->stop();  // Stop timeout timer
                     sendCommand(m_autoLoginCallsign);
                     m_loginSent = true;
                 }
@@ -144,6 +160,15 @@ void TelnetClient::onError(QAbstractSocket::SocketError error) {
 
     emit connectionError(errorMsg);
     m_isConnected = false;
+}
+
+void TelnetClient::onLoginTimeout() {
+    // If no login prompt received after 4 seconds, send callsign anyway
+    if (!m_loginSent && !m_autoLoginCallsign.isEmpty()) {
+        LOG_DEBUG("TelnetClient", QString("No login prompt received after 4 seconds, sending callsign anyway: %1").arg(m_autoLoginCallsign));
+        sendCommand(m_autoLoginCallsign);
+        m_loginSent = true;
+    }
 }
 
 bool TelnetClient::parseSpotLine(const QString& line) {

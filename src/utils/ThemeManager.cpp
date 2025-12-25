@@ -81,6 +81,12 @@ QString ThemeManager::colorRoleName(ColorRole role) {
         case ColorRole::NeededMultiplierBackground: return "Needed Multiplier Background";
         case ColorRole::ConfirmedMultiplierBackground: return "Confirmed Multiplier Background";
 
+        // Spot Aging Colors
+        case ColorRole::NewSpotText: return "New Spot Text";
+        case ColorRole::NewSpotBackground: return "New Spot Background";
+        case ColorRole::AgingSpotText: return "Aging Spot Text";
+        case ColorRole::AgingSpotBackground: return "Aging Spot Background";
+
         // UI Colors
         case ColorRole::PrimaryText: return "Primary Text";
         case ColorRole::SecondaryText: return "Secondary Text";
@@ -179,6 +185,12 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::NeededMultiplierBackground] = QColor("#FFFFC8");  // Light yellow
             colors[ColorRole::ConfirmedMultiplierBackground] = QColor("#90EE90");  // Light green
 
+            // Spot Aging Colors
+            colors[ColorRole::NewSpotText] = QColor("#006400");  // Dark green
+            colors[ColorRole::NewSpotBackground] = QColor("#E0FFFF");  // Light cyan
+            colors[ColorRole::AgingSpotText] = QColor("#FF8C00");  // Dark orange
+            colors[ColorRole::AgingSpotBackground] = QColor("#FFFACD");  // Light yellow
+
             // UI Colors
             colors[ColorRole::PrimaryText] = QColor(Qt::black);
             colors[ColorRole::SecondaryText] = QColor(Qt::darkGray);
@@ -208,6 +220,12 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::NeededMultiplierBackground] = QColor("#8B8B00");  // Dark yellow
             colors[ColorRole::ConfirmedMultiplierBackground] = QColor("#006400");  // Dark green
 
+            // Spot Aging Colors
+            colors[ColorRole::NewSpotText] = QColor("#00FF00");  // Bright green
+            colors[ColorRole::NewSpotBackground] = QColor("#004040");  // Dark cyan
+            colors[ColorRole::AgingSpotText] = QColor("#FFA500");  // Orange
+            colors[ColorRole::AgingSpotBackground] = QColor("#8B8B00");  // Dark yellow
+
             // UI Colors
             colors[ColorRole::PrimaryText] = QColor("#e0e0e0");  // Light gray
             colors[ColorRole::SecondaryText] = QColor("#808080");  // Gray
@@ -236,6 +254,12 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::LotwUserText] = QColor("#00AA00");  // Medium green
             colors[ColorRole::NeededMultiplierBackground] = QColor("#FFFF00");  // Bright yellow
             colors[ColorRole::ConfirmedMultiplierBackground] = QColor("#00FF00");  // Bright green
+
+            // Spot Aging Colors
+            colors[ColorRole::NewSpotText] = QColor("#008000");  // Green
+            colors[ColorRole::NewSpotBackground] = QColor("#00FFFF");  // Cyan
+            colors[ColorRole::AgingSpotText] = QColor("#FF4500");  // Orange-red
+            colors[ColorRole::AgingSpotBackground] = QColor("#FFFF00");  // Bright yellow
 
             // UI Colors
             colors[ColorRole::PrimaryText] = QColor(Qt::black);
@@ -278,6 +302,10 @@ QString ThemeManager::colorRoleToString(ColorRole role) {
         case ColorRole::LotwUserText: return "LotwUserText";
         case ColorRole::NeededMultiplierBackground: return "NeededMultiplierBackground";
         case ColorRole::ConfirmedMultiplierBackground: return "ConfirmedMultiplierBackground";
+        case ColorRole::NewSpotText: return "NewSpotText";
+        case ColorRole::NewSpotBackground: return "NewSpotBackground";
+        case ColorRole::AgingSpotText: return "AgingSpotText";
+        case ColorRole::AgingSpotBackground: return "AgingSpotBackground";
         case ColorRole::PrimaryText: return "PrimaryText";
         case ColorRole::SecondaryText: return "SecondaryText";
         case ColorRole::HoverHighlight: return "HoverHighlight";
@@ -303,6 +331,10 @@ ColorRole ThemeManager::stringToColorRole(const QString& str, bool* ok) {
     if (str == "LotwUserText") return ColorRole::LotwUserText;
     if (str == "NeededMultiplierBackground") return ColorRole::NeededMultiplierBackground;
     if (str == "ConfirmedMultiplierBackground") return ColorRole::ConfirmedMultiplierBackground;
+    if (str == "NewSpotText") return ColorRole::NewSpotText;
+    if (str == "NewSpotBackground") return ColorRole::NewSpotBackground;
+    if (str == "AgingSpotText") return ColorRole::AgingSpotText;
+    if (str == "AgingSpotBackground") return ColorRole::AgingSpotBackground;
     if (str == "PrimaryText") return ColorRole::PrimaryText;
     if (str == "SecondaryText") return ColorRole::SecondaryText;
     if (str == "HoverHighlight") return ColorRole::HoverHighlight;

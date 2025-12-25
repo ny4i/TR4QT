@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.40.2";  // Fix Qt 6.9 deprecation warnings
+constexpr const char* APP_VERSION = "2.44.0";  // Add persistent spot storage with aging colors
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

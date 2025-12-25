@@ -5,6 +5,7 @@
 #include <QTcpSocket>
 #include <QString>
 #include <QThread>
+#include <QTimer>
 
 namespace TR4QT {
 
@@ -73,6 +74,7 @@ private slots:
     void onDisconnected();
     void onReadyRead();
     void onError(QAbstractSocket::SocketError error);
+    void onLoginTimeout();
 
 private:
     void parseData(const QString& data);
@@ -85,6 +87,7 @@ private:
     QString m_dataBuffer;  // Buffer for incomplete lines
     QString m_autoLoginCallsign;  // Callsign for auto-login
     bool m_loginSent;  // Track if we've already sent login
+    QTimer* m_loginTimer;  // Timer for auto-login if no prompt received
 };
 
 /**

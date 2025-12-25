@@ -26,3 +26,25 @@ CREATE TABLE IF NOT EXISTS global_settings (
     value TEXT,
     updated_at INTEGER NOT NULL          -- Unix timestamp
 );
+
+-- DX Cluster spots persistence (shutdown snapshot only)
+-- Stores spots in memory during operation, persisted on clean shutdown
+-- Enables band switching to show previously received spots and aging indicators
+CREATE TABLE IF NOT EXISTS dx_spots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    callsign TEXT NOT NULL UNIQUE,         -- Callsign spotted (normalized uppercase)
+    frequency INTEGER NOT NULL,            -- Transmit frequency in Hz
+    qsx INTEGER DEFAULT 0,                 -- Split RX frequency in Hz (0 if not split)
+    timestamp INTEGER NOT NULL,            -- Unix timestamp when spot was received
+    comment TEXT,                          -- DX cluster comment
+    source TEXT,                           -- Source (e.g., "DX Cluster (W1ABC)")
+    is_multiplier BOOLEAN DEFAULT 0,       -- Is this a needed multiplier?
+    is_worked BOOLEAN DEFAULT 0,           -- Already worked this station?
+    is_lotw_user BOOLEAN DEFAULT 0         -- Is this a LOTW user?
+);
+
+-- Index for fast callsign lookup (duplicate checking)
+CREATE INDEX IF NOT EXISTS idx_spots_callsign ON dx_spots(callsign);
+
+-- Index for timestamp-based queries (finding old spots)
+CREATE INDEX IF NOT EXISTS idx_spots_timestamp ON dx_spots(timestamp);

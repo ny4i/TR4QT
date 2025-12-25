@@ -338,6 +338,46 @@ bool AppSettings::getShowOnlyLotwUsers() const {
     return m_settings.value("BandMap/ShowOnlyLotwUsers", false).toBool();
 }
 
+void AppSettings::setShowAllBands(bool show) {
+    m_settings.setValue("BandMap/ShowAllBands", show);
+    m_settings.sync();
+}
+
+bool AppSettings::getShowAllBands() const {
+    return m_settings.value("BandMap/ShowAllBands", false).toBool();  // Default: false (show current band only)
+}
+
+void AppSettings::setSpotExpirySeconds(int seconds) {
+    m_settings.setValue("BandMap/SpotExpirySeconds", seconds);
+    m_settings.sync();
+}
+
+int AppSettings::getSpotExpirySeconds() const {
+    return m_settings.value("BandMap/SpotExpirySeconds", 600).toInt();  // Default: 10 minutes
+}
+
+void AppSettings::setNewSpotThresholdSeconds(int seconds) {
+    m_settings.setValue("BandMap/NewSpotThresholdSeconds", seconds);
+    m_settings.sync();
+}
+
+int AppSettings::getNewSpotThresholdSeconds() const {
+    return m_settings.value("BandMap/NewSpotThresholdSeconds", 60).toInt();  // Default: 1 minute
+}
+
+void AppSettings::setAgingSpotThresholdSeconds(int seconds) {
+    m_settings.setValue("BandMap/AgingSpotThresholdSeconds", seconds);
+    m_settings.sync();
+}
+
+int AppSettings::getAgingSpotThresholdSeconds() const {
+    return m_settings.value("BandMap/AgingSpotThresholdSeconds", 120).toInt();  // Default: 2 minutes before expiry
+}
+
+int AppSettings::getSpotRefreshIntervalMs() const {
+    return m_settings.value("BandMap/RefreshIntervalMs", 5000).toInt();  // Default: 5 seconds
+}
+
 void AppSettings::setLotwLastUpdateTime(const QDateTime& timestamp) {
     m_settings.setValue("LOTW/LastUpdateTime", timestamp.toSecsSinceEpoch());
     m_settings.sync();
