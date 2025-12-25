@@ -1694,8 +1694,23 @@ void MainWindow::reopenLastContest() {
     contestInfo.databasePath = lastContestPath;
     contestInfo.isExisting = true;
 
-    // Determine contest type from contest_id
-    contestInfo.contestType = contestInfo.contestId;
+    // Determine contest type from contest_id (strip date suffix)
+    // contest_id format: "CQWW_CW_2025_12_25" → contestType: "CQWW_CW"
+    QString contestId = contestInfo.contestId;
+    if (contestId.contains("CQWW_CW")) {
+        contestInfo.contestType = "CQWW_CW";
+    } else if (contestId.contains("CQWW_SSB")) {
+        contestInfo.contestType = "CQWW_SSB";
+    } else if (contestId.contains("CQWPX_CW")) {
+        contestInfo.contestType = "CQWPX_CW";
+    } else if (contestId.contains("CQWPX_SSB")) {
+        contestInfo.contestType = "CQWPX_SSB";
+    } else if (contestId.contains("WFD")) {
+        contestInfo.contestType = "WFD";
+    } else {
+        LOG_WARN("MainWindow", QString("Could not determine contest type from ID: %1").arg(contestId));
+        contestInfo.contestType = contestId;  // Fallback to full ID
+    }
 
     // Determine mode from contest type
     if (contestInfo.contestType.contains("CW")) {
