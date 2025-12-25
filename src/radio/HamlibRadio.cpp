@@ -547,6 +547,12 @@ RadioState HamlibRadio::pollCurrentState() {
         state.isSplitEnabled = (split == RIG_SPLIT_ON);
     }
 
+    // Poll signal strength (S-meter reading)
+    int strength = -54;  // Default to S9 if unavailable
+    if (rig_get_strength(m_rig, RIG_VFO_CURR, &strength) == RIG_OK) {
+        state.signalStrength = strength;  // Value in dBm
+    }
+
     state.isValid = true;
     return state;
 }
