@@ -194,11 +194,21 @@ CountryData CountryFile::lookup(const QString& callsign) const {
             CountryData country = m_countries[primaryPrefix];
 
             // Check for zone overrides for this exact callsign
+            bool hasExactCQOverride = false;
             if (country.cqZoneOverrides.contains(cleanCall)) {
                 country.cqZone = country.cqZoneOverrides[cleanCall];
+                hasExactCQOverride = true;
             }
             if (country.ituZoneOverrides.contains(cleanCall)) {
                 country.ituZone = country.ituZoneOverrides[cleanCall];
+            }
+
+            // Apply US call area zone logic ONLY if no cty.dat override exists
+            if (!hasExactCQOverride && country.name == "United States") {
+                int usZone = getUSCallAreaZone(cleanCall);
+                if (usZone > 0) {
+                    country.cqZone = usZone;
+                }
             }
 
             return country;
@@ -214,11 +224,21 @@ CountryData CountryFile::lookup(const QString& callsign) const {
             CountryData country = m_countries[primaryPrefix];
 
             // Apply zone overrides if they exist for this prefix
+            bool hasPrefixCQOverride = false;
             if (country.cqZoneOverrides.contains(matchedPrefix)) {
                 country.cqZone = country.cqZoneOverrides[matchedPrefix];
+                hasPrefixCQOverride = true;
             }
             if (country.ituZoneOverrides.contains(matchedPrefix)) {
                 country.ituZone = country.ituZoneOverrides[matchedPrefix];
+            }
+
+            // Apply US call area zone logic ONLY if no cty.dat override exists
+            if (!hasPrefixCQOverride && country.name == "United States") {
+                int usZone = getUSCallAreaZone(cleanCall);
+                if (usZone > 0) {
+                    country.cqZone = usZone;
+                }
             }
 
             return country;
@@ -292,6 +312,67 @@ QString CountryFile::extractWPXPrefix(const QString& callsign) {
 
     // Return everything up to and including first digit
     return base.left(firstDigit + 1);
+}
+
+int CountryFile::getUSCallAreaZone(const QString& callsign) {
+    // Determine CQ zone from US call area
+    // Based on standard ARRL/CQ zone assignments
+
+    QString base = stripPortable(callsign).toUpper();
+
+    // Check if this is a US callsign: starts with K, W, N, or A followed by digit
+    if (base.length() < 2) {
+        return -1;  // Too short
+    }
+
+    QChar firstChar = base[0];
+    QChar secondChar = base[1];
+
+    // Must start with K, W, N, or A
+    if (firstChar != 'K' && firstChar != 'W' && firstChar != 'N' && firstChar != 'A') {
+        return -1;  // Not a US call
+    }
+
+    // Second character must be a digit (call area number)
+    if (!secondChar.isDigit()) {
+        return -1;  // Not standard US format
+    }
+
+    int callArea = secondChar.digitValue();
+
+    // Map call area to CQ zone
+    // Zone 3 (Pacific): 6, 7, plus KH6/KL7 (handled separately)
+    // Zone 4 (Central): 0, 5
+    // Zone 5 (Eastern): 1, 2, 3, 4, 8, 9
+
+    // Special cases for Alaska (KL7) and Hawaii (KH6, AH6, etc.)
+    if (base.startsWith("KL") || base.startsWith("AL") ||
+        base.startsWith("NL") || base.startsWith("WL")) {
+        return 1;  // Alaska is zone 1
+    }
+    if (base.startsWith("KH") || base.startsWith("AH") ||
+        base.startsWith("NH") || base.startsWith("WH")) {
+        return 31;  // Hawaii is zone 31
+    }
+
+    // Standard continental US call areas
+    switch (callArea) {
+        case 6:
+        case 7:
+            return 3;  // Pacific (CA, WA, OR, ID, MT, WY, NV, UT, AZ)
+        case 0:
+        case 5:
+            return 4;  // Central (CO, IA, KS, MN, MO, ND, NE, SD, AR, LA, MS, NM, OK, TX)
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 8:
+        case 9:
+            return 5;  // Eastern (rest of US)
+        default:
+            return -1;  // Unknown
+    }
 }
 
 QVector<CountryData> CountryFile::getAllCountries() const {

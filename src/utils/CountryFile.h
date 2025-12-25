@@ -62,6 +62,10 @@ public:
     // Strip portable indicators (/P, /M, /MM, /QRP, etc.)
     static QString stripPortable(const QString& callsign);
 
+    // Get CQ zone from US call area (K6→3, K5→4, K1→5, etc.)
+    // Returns -1 if not a US call or unable to determine
+    static int getUSCallAreaZone(const QString& callsign);
+
 private:
     // Parse a single country entry (can span multiple lines)
     bool parseCountryEntry(const QString& mainLine, const QStringList& aliasLines);
