@@ -1936,6 +1936,10 @@ bool MainWindow::checkForDuplicate(const QString& callsign, BandType band, ModeT
     // Get duplicate checking rule from contest
     DuplicateCheckingRule rule = m_activeContest->getDuplicateCheckingRule();
 
+    // Convert band/mode enums to strings (database stores as TEXT)
+    QString bandStr = bandToString(band);
+    QString modeStr = modeToString(mode);
+
     // Build SQL query based on duplicate rule
     QString sql = "SELECT band, mode, timestamp FROM qsos WHERE callsign = ?";
     QVariantList params;
@@ -1945,15 +1949,15 @@ bool MainWindow::checkForDuplicate(const QString& callsign, BandType band, ModeT
     switch (rule) {
         case DuplicateCheckingRule::PerBandMode:
             sql += " AND band = ? AND mode = ?";
-            params << static_cast<int>(band) << static_cast<int>(mode);
+            params << bandStr << modeStr;
             break;
         case DuplicateCheckingRule::AllBandMode:
             sql += " AND mode = ?";
-            params << static_cast<int>(mode);
+            params << modeStr;
             break;
         case DuplicateCheckingRule::PerBand:
             sql += " AND band = ?";
-            params << static_cast<int>(band);
+            params << bandStr;
             break;
         case DuplicateCheckingRule::AllBand:
             // No additional filter - any contact with this callsign is a dupe
