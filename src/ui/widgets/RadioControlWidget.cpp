@@ -123,26 +123,50 @@ void RadioControlWidget::setupUI() {
         "  background-color: #45A049;"
         "}";
 
+    // RIT button with offset display
+    QVBoxLayout* ritLayout = new QVBoxLayout();
+    ritLayout->setSpacing(2);
     m_ritButton = new QPushButton("RIT", this);
     m_ritButton->setCheckable(true);
-    m_ritButton->setMaximumWidth(60);
+    m_ritButton->setMaximumWidth(70);
     m_ritButton->setStyleSheet(buttonStyle);
     connect(m_ritButton, &QPushButton::clicked, this, &RadioControlWidget::onRitClicked);
 
+    m_ritOffsetLabel = new QLabel("0 Hz", this);
+    m_ritOffsetLabel->setAlignment(Qt::AlignCenter);
+    QFont offsetFont("Monospace", 8);
+    m_ritOffsetLabel->setFont(offsetFont);
+    m_ritOffsetLabel->setMaximumWidth(70);
+
+    ritLayout->addWidget(m_ritButton);
+    ritLayout->addWidget(m_ritOffsetLabel);
+
+    // XIT button with offset display
+    QVBoxLayout* xitLayout = new QVBoxLayout();
+    xitLayout->setSpacing(2);
     m_xitButton = new QPushButton("XIT", this);
     m_xitButton->setCheckable(true);
-    m_xitButton->setMaximumWidth(60);
+    m_xitButton->setMaximumWidth(70);
     m_xitButton->setStyleSheet(buttonStyle);
     connect(m_xitButton, &QPushButton::clicked, this, &RadioControlWidget::onXitClicked);
 
+    m_xitOffsetLabel = new QLabel("0 Hz", this);
+    m_xitOffsetLabel->setAlignment(Qt::AlignCenter);
+    m_xitOffsetLabel->setFont(offsetFont);
+    m_xitOffsetLabel->setMaximumWidth(70);
+
+    xitLayout->addWidget(m_xitButton);
+    xitLayout->addWidget(m_xitOffsetLabel);
+
+    // SPLIT button (no offset display needed)
     m_splitButton = new QPushButton("SPLIT", this);
     m_splitButton->setCheckable(true);
-    m_splitButton->setMaximumWidth(60);
+    m_splitButton->setMaximumWidth(70);
     m_splitButton->setStyleSheet(buttonStyle);
     connect(m_splitButton, &QPushButton::clicked, this, &RadioControlWidget::onSplitClicked);
 
-    buttonLayout->addWidget(m_ritButton);
-    buttonLayout->addWidget(m_xitButton);
+    buttonLayout->addLayout(ritLayout);
+    buttonLayout->addLayout(xitLayout);
     buttonLayout->addWidget(m_splitButton);
 
     mainLayout->addWidget(buttonWidget);
@@ -203,8 +227,32 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
     // RIT is active when there's a non-zero offset
     m_ritButton->setChecked(state.ritOffsetA != 0);
 
+    // Display RIT offset (convert Hz to more readable format)
+    if (state.ritOffsetA == 0) {
+        m_ritOffsetLabel->setText("0 Hz");
+    } else if (abs(state.ritOffsetA) >= 1000) {
+        // Display in kHz for large offsets
+        double offsetKHz = state.ritOffsetA / 1000.0;
+        m_ritOffsetLabel->setText(QString("%1 kHz").arg(offsetKHz, 0, 'f', 1));
+    } else {
+        // Display in Hz for small offsets
+        m_ritOffsetLabel->setText(QString("%1 Hz").arg(state.ritOffsetA));
+    }
+
     // XIT is active when there's a non-zero offset
     m_xitButton->setChecked(state.xitOffsetA != 0);
+
+    // Display XIT offset
+    if (state.xitOffsetA == 0) {
+        m_xitOffsetLabel->setText("0 Hz");
+    } else if (abs(state.xitOffsetA) >= 1000) {
+        // Display in kHz for large offsets
+        double offsetKHz = state.xitOffsetA / 1000.0;
+        m_xitOffsetLabel->setText(QString("%1 kHz").arg(offsetKHz, 0, 'f', 1));
+    } else {
+        // Display in Hz for small offsets
+        m_xitOffsetLabel->setText(QString("%1 Hz").arg(state.xitOffsetA));
+    }
 
     // SPLIT is active when split mode is enabled
     m_splitButton->setChecked(state.isSplitEnabled);
