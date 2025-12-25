@@ -1298,6 +1298,17 @@ void MainWindow::onLogQSO() {
         return;
     }
 
+    // Validate exchange against contest rules
+    if (m_activeContest) {
+        QString errorMsg;
+        if (!m_activeContest->validateReceivedExchange(exchange, errorMsg)) {
+            m_statusLabel->setText(QString("Invalid exchange: %1").arg(errorMsg));
+            m_exchangeEntry->setFocus();
+            m_exchangeEntry->selectAll();
+            return;
+        }
+    }
+
     // Create QSO object with current radio state (snapshot!)
     QSO qso;
     qso.timestamp = QDateTime::currentDateTimeUtc();
@@ -1311,8 +1322,23 @@ void MainWindow::onLogQSO() {
 
     // Exchange
     qso.rstSent = (qso.mode == ModeType::CW) ? "599" : "59";
-    qso.rstReceived = (qso.mode == ModeType::CW) ? "599" : "59";
     qso.exchangeReceived = exchange;
+
+    // Parse exchange into components
+    if (m_activeContest) {
+        qso.parsedExchange = m_activeContest->parseReceivedExchange(exchange);
+
+        // Extract RST from parsed exchange if present
+        if (qso.parsedExchange.contains("RST")) {
+            qso.rstReceived = qso.parsedExchange["RST"];
+        } else {
+            // Use default if RST not in exchange
+            qso.rstReceived = (qso.mode == ModeType::CW) ? "599" : "59";
+        }
+    } else {
+        // No active contest - use default RST
+        qso.rstReceived = (qso.mode == ModeType::CW) ? "599" : "59";
+    }
 
     // Serial number handling
     if (m_activeContest && m_activeContest->usesSerialNumbers()) {
