@@ -36,6 +36,7 @@ struct RadioState {
     bool isSplitEnabled{false};
     int cwSpeed{30};            // WPM
     int filterWidth{0};         // Hz
+    int signalStrength{-54};    // Signal strength in dBm (S9 = -73 dBm)
 
     bool isValid{false};
 };
