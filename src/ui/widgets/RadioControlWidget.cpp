@@ -197,8 +197,8 @@ void RadioControlWidget::setupUI() {
 void RadioControlWidget::updateRadioState(const RadioState& state) {
     m_currentState = state;
 
-    // Debug logging for RIT/XIT values
-    LOG_DEBUG("RadioControlWidget", QString("Radio state update - RIT: %1 (offset: %2 Hz), XIT: %3 (offset: %4 Hz), SPLIT: %5")
+    // Trace logging for RIT/XIT values
+    LOG_TRACE("RadioControlWidget", QString("Radio state update - RIT: %1 (offset: %2 Hz), XIT: %3 (offset: %4 Hz), SPLIT: %5")
         .arg(state.isRitEnabled ? "ON" : "OFF").arg(state.ritOffsetA)
         .arg(state.isXitEnabled ? "ON" : "OFF").arg(state.xitOffsetA)
         .arg(state.isSplitEnabled ? "ON" : "OFF"));
