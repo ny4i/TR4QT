@@ -81,6 +81,9 @@ MainWindow::MainWindow(QWidget* parent)
     // Initialize backup manager from settings
     loadBackupSettings();
 
+    // Reopen last contest if available
+    reopenLastContest();
+
     // Install event filter to raise all windows when any window is activated
     qApp->installEventFilter(this);
 
@@ -1656,6 +1659,63 @@ void MainWindow::loadBackupSettings() {
         .arg(settings.getMaxBackups()));
 }
 
+void MainWindow::reopenLastContest() {
+    AppSettings& settings = AppSettings::instance();
+    QString lastContestPath = settings.getLastContestPath();
+
+    // Check if we have a last contest path and if the file exists
+    if (lastContestPath.isEmpty() || !QFile::exists(lastContestPath)) {
+        LOG_DEBUG("MainWindow", "No last contest to reopen");
+        return;
+    }
+
+    LOG_DEBUG("MainWindow", QString("Attempting to reopen last contest: %1").arg(lastContestPath));
+
+    // Open the database to read contest info
+    Database& db = Database::instance();
+    if (!db.open(lastContestPath)) {
+        LOG_WARN("MainWindow", QString("Failed to reopen last contest database: %1").arg(db.lastError()));
+        return;
+    }
+
+    // Read contest info from database
+    QSqlQuery query = db.execute("SELECT contest_id, contest_name, start_time FROM contests LIMIT 1", {});
+    if (!query.next()) {
+        LOG_WARN("MainWindow", "Last contest database has no contest record");
+        db.close();
+        return;
+    }
+
+    // Build ContestInfo from database
+    ContestInfo contestInfo;
+    contestInfo.contestId = query.value(0).toString();
+    contestInfo.contestName = query.value(1).toString();
+    contestInfo.startDate = QDateTime::fromSecsSinceEpoch(query.value(2).toLongLong());
+    contestInfo.databasePath = lastContestPath;
+    contestInfo.isExisting = true;
+
+    // Determine contest type from contest_id
+    contestInfo.contestType = contestInfo.contestId;
+
+    // Determine mode from contest type
+    if (contestInfo.contestType.contains("CW")) {
+        contestInfo.mode = "CW";
+    } else if (contestInfo.contestType.contains("SSB")) {
+        contestInfo.mode = "SSB";
+    } else {
+        contestInfo.mode = "Mixed";
+    }
+
+    // Close database - activateContest will reopen it
+    db.close();
+
+    // Activate the contest
+    activateContest(contestInfo);
+
+    LOG_DEBUG("MainWindow", QString("Reopened last contest: %1").arg(contestInfo.contestName));
+    m_statusLabel->setText(QString("Reopened: %1").arg(contestInfo.contestName));
+}
+
 void MainWindow::activateContest(const ContestInfo& contestInfo) {
     // Clean up previous contest if any
     if (m_activeContest) {
@@ -1743,6 +1803,9 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     // Store contest info
     m_currentContest = contestInfo;
     m_hasActiveContest = true;
+
+    // Save as last opened contest for auto-reopen on next startup
+    AppSettings::instance().setLastContestPath(contestInfo.databasePath);
 
     // Update window title to include contest name
     setWindowTitle(QString("%1 v%2 - %3")

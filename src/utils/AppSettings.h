@@ -147,6 +147,10 @@ public:
     int getNewSpotThresholdSeconds() const;  // Default: 60 (1 minute)
 
     void setAgingSpotThresholdSeconds(int seconds);
+
+    // Last opened contest
+    void setLastContestPath(const QString& path);
+    QString getLastContestPath() const;
     int getAgingSpotThresholdSeconds() const;  // Default: 120 (2 minutes before expiry)
 
     int getSpotRefreshIntervalMs() const;  // Default: 5000 (5 seconds)

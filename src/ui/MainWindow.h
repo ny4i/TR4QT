@@ -151,6 +151,7 @@ private:
     void activateContest(const ContestInfo& contestInfo);
     void updateExchangeFieldsForContest();
     void autoPopulateExchange(const QString& callsign);
+    void reopenLastContest();
 
     // Band switching helpers
     freq_t getFrequencyForBand(BandType band, ModeType mode) const;
