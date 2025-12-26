@@ -149,3 +149,15 @@ add_tr4qt_test(test_smartexchangeparser
     ../src/logging/LogFormatter.cpp
     ../src/logging/FileAppender.cpp
 )
+
+# Phase 5 tests - database persistence
+add_tr4qt_test(test_qso_persistence
+    test_qso_persistence.cpp
+    ../src/data/QSORepository.cpp
+    ../src/data/Database.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
