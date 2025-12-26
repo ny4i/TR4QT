@@ -1624,7 +1624,43 @@ void MainWindow::onLogQSO() {
     }
 
     // TODO: Check for dupe
-    // TODO: Check for new multipliers
+
+    // Check for new multipliers
+    qso.isMultiplier = false;
+    QStringList multiplierValues;
+
+    if (m_activeContest) {
+        QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
+
+        // Get list of already worked multipliers from all existing QSOs
+        QMap<MultiplierType, QStringList> workedMults;
+        for (int row = 0; row < m_qsoTableModel->count(); ++row) {
+            QSO existingQSO = m_qsoTableModel->getQSO(row);
+
+            for (const MultiplierDefinition& multDef : multDefs) {
+                QString multValue = m_activeContest->getMultiplierValue(
+                    existingQSO, multDef.type, QStringList());
+                if (!multValue.isEmpty()) {
+                    workedMults[multDef.type].append(multValue);
+                }
+            }
+        }
+
+        // Check if this QSO provides any new multipliers
+        for (const MultiplierDefinition& multDef : multDefs) {
+            QString multValue = m_activeContest->getMultiplierValue(
+                qso, multDef.type, workedMults[multDef.type]);
+
+            if (!multValue.isEmpty()) {
+                // This is a new multiplier!
+                qso.isMultiplier = true;
+                multiplierValues.append(multValue);
+            }
+        }
+    }
+
+    // Store multiplier values for later use
+    qso.multipliers = multiplierValues;
 
     // Add to table model (UI)
     m_qsoTableModel->addQSO(qso);
@@ -1930,20 +1966,15 @@ void MainWindow::updateScoreDisplay() {
     // Initialize per-band counters
     QMap<BandType, int> qsosPerBand;
     QMap<BandType, int> pointsPerBand;
-
-    // Track multipliers for SCORING (respects AllBands vs PerBand scope)
-    // Key: MultiplierType, Value: map of (band or "ALL") -> set of unique mult values
-    QMap<MultiplierType, QMap<QString, QSet<QString>>> multipliersForScoring;
-
-    // Track multipliers for DISPLAY (always per-band, regardless of scope)
-    // This lets us show which bands produced which mults
-    QMap<MultiplierType, QMap<BandType, QSet<QString>>> multipliersPerBandDisplay;
-
-    // Also track zones separately for display (legacy display column)
+    QMap<BandType, int> multsPerBand;  // Count of mult QSOs per band
     QMap<BandType, QSet<int>> zonesPerBand;
 
     int totalQSOs = 0;
     int totalQSOPoints = 0;
+    int totalMultQSOs = 0;  // Total QSOs that provided mults
+
+    // Track unique multiplier values for scoring calculation
+    QMap<MultiplierType, QSet<QString>> uniqueMultValues;
 
     // Get multiplier definitions from active contest
     QList<MultiplierDefinition> multDefs;
@@ -1967,21 +1998,20 @@ void MainWindow::updateScoreDisplay() {
         pointsPerBand[qso.band] += qso.qsoPoints;
         totalQSOPoints += qso.qsoPoints;
 
-        // Track multipliers according to contest definitions
+        // Count multiplier QSOs per band (simple - just check the flag!)
+        if (qso.isMultiplier) {
+            multsPerBand[qso.band]++;
+            totalMultQSOs++;
+        }
+
+        // Track unique multiplier values for scoring
+        // (Need to recalculate this for accurate scoring)
         if (m_activeContest) {
             for (const MultiplierDefinition& multDef : multDefs) {
                 QString multValue = m_activeContest->getMultiplierValue(
-                    qso, multDef.type, QStringList());  // Empty list - we just want the value
-
+                    qso, multDef.type, QStringList());
                 if (!multValue.isEmpty()) {
-                    // For scoring: use scope-appropriate key
-                    QString scoringKey = (multDef.scope == MultiplierScope::PerBand)
-                        ? bandToString(qso.band)
-                        : "ALL";
-                    multipliersForScoring[multDef.type][scoringKey].insert(multValue);
-
-                    // For display: always track per-band
-                    multipliersPerBandDisplay[multDef.type][qso.band].insert(multValue);
+                    uniqueMultValues[multDef.type].insert(multValue);
                 }
             }
         }
@@ -1994,17 +2024,8 @@ void MainWindow::updateScoreDisplay() {
 
     // Calculate total multiplier counts per type FOR SCORING
     QMap<MultiplierType, int> multiplierCounts;
-    for (auto it = multipliersForScoring.begin(); it != multipliersForScoring.end(); ++it) {
-        MultiplierType type = it.key();
-
-        // For PerBand scope: count unique mults across all bands
-        // For AllBands scope: count unique mults once
-        QSet<QString> uniqueMults;
-        for (const QSet<QString>& mults : it.value()) {
-            uniqueMults.unite(mults);  // Union all unique mults
-        }
-
-        multiplierCounts[type] = uniqueMults.size();
+    for (auto it = uniqueMultValues.begin(); it != uniqueMultValues.end(); ++it) {
+        multiplierCounts[it.key()] = it.value().size();
     }
 
     // Update band summary grid with calculated values
@@ -2019,21 +2040,15 @@ void MainWindow::updateScoreDisplay() {
     for (BandType band : bands) {
         int qsos = qsosPerBand.value(band, 0);
         int points = pointsPerBand.value(band, 0);
-
-        // Count unique mults worked on this band (sum across all mult types)
-        int multsThisBand = 0;
-        for (auto it = multipliersPerBandDisplay.begin(); it != multipliersPerBandDisplay.end(); ++it) {
-            multsThisBand += it.value().value(band).size();
-        }
-
+        int mults = multsPerBand.value(band, 0);  // Simple count of marked mult QSOs
         int zones = zonesPerBand.value(band).size();
 
         m_bandSummaryGrid->setQSOCount(band, qsos);
         m_bandSummaryGrid->setPointsCount(band, points);
-        m_bandSummaryGrid->setMultCount(band, multsThisBand);
+        m_bandSummaryGrid->setMultCount(band, mults);
         m_bandSummaryGrid->setZoneCount(band, zones);
 
-        totalMults += multsThisBand;
+        totalMults += mults;
         totalZones += zones;
     }
 
