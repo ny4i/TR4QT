@@ -7,6 +7,7 @@
 #include <QGridLayout>
 #include <QLabel>
 #include <QVector>
+#include <QTimer>
 #include "../../radio/RadioController.h"
 
 namespace TR4QT {
@@ -43,6 +44,7 @@ private slots:
     void onMacroClicked();
     void onAbortClicked();
     void onMacroRightClicked(int macroIndex);
+    void onTransmissionComplete();
 
 private:
     void setupUI();
@@ -51,6 +53,7 @@ private:
     void loadMacroSettings();
     void saveMacroSetting(int index, const QString& label, const QString& cwText);
     void updateMacroButton(int index, const QString& label, const QString& cwText);
+    int estimateTransmissionTimeMs(const QString& text, int wpm) const;
 
     RadioController* m_radio;
     QLineEdit* m_textEdit;
@@ -64,6 +67,7 @@ private:
 
     // Track sending state
     bool m_isSending;
+    QTimer* m_transmissionTimer;
 };
 
 } // namespace TR4QT
