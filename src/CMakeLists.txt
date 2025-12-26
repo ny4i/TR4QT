@@ -51,6 +51,7 @@ set(SOURCES
     ui/dialogs/EditQSODialog.cpp
     ui/dialogs/ExportPreviewDialog.cpp
     ui/dialogs/SendMorseDialog.cpp
+    ui/dialogs/MacroEditDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
     ui/widgets/RadioControlWidget.cpp
@@ -118,6 +119,7 @@ set(HEADERS
     ui/dialogs/EditQSODialog.h
     ui/dialogs/ExportPreviewDialog.h
     ui/dialogs/SendMorseDialog.h
+    ui/dialogs/MacroEditDialog.h
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
     ui/widgets/RadioControlWidget.h
