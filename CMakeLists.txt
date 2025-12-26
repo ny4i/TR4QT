@@ -25,22 +25,60 @@ find_package(Qt6 REQUIRED COMPONENTS
 )
 
 
-if (WIN32)
-    # Windows: Hamlib from pre-built binaries
-    set(HAMLIB_ROOT "C:/projects/hamlib")
-    set(HAMLIB_INCLUDE_DIRS "${HAMLIB_ROOT}/include")
-    set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/gcc/libhamlib.dll.a")
-elseif(APPLE)
-    # macOS
-    set(HAMLIB_ROOT "$ENV{HOME}/projects/hamlib")
-    set(HAMLIB_INCLUDE_DIRS "${HAMLIB_ROOT}/include")
-    set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/libhamlib.dylib")
-else()
-    # Linux
-    set(HAMLIB_ROOT "$ENV{HOME}/projects/hamlib")
-    set(HAMLIB_INCLUDE_DIRS "${HAMLIB_ROOT}/include")
-    set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/libhamlib.so")
+# Hamlib configuration
+# HAMLIB_ROOT can be passed via -DHAMLIB_ROOT=path or will use platform defaults
+if (NOT DEFINED HAMLIB_ROOT)
+    if (WIN32)
+        set(HAMLIB_ROOT "C:/projects/hamlib")
+    elseif(APPLE)
+        set(HAMLIB_ROOT "$ENV{HOME}/projects/hamlib")
+    else()
+        # Linux: check system location first, then user location
+        if (EXISTS "/usr/include/hamlib")
+            set(HAMLIB_ROOT "/usr")
+        else()
+            set(HAMLIB_ROOT "$ENV{HOME}/projects/hamlib")
+        endif()
+    endif()
 endif()
+
+# Set include directory
+if (EXISTS "${HAMLIB_ROOT}/include/hamlib")
+    set(HAMLIB_INCLUDE_DIRS "${HAMLIB_ROOT}/include")
+elseif (EXISTS "${HAMLIB_ROOT}/include")
+    set(HAMLIB_INCLUDE_DIRS "${HAMLIB_ROOT}/include")
+endif()
+
+# Find the library file based on platform
+if (WIN32)
+    # Windows: prefer .dll.a (import library), fallback to .lib
+    if (EXISTS "${HAMLIB_ROOT}/lib/gcc/libhamlib.dll.a")
+        set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/gcc/libhamlib.dll.a")
+    elseif (EXISTS "${HAMLIB_ROOT}/lib/libhamlib.dll.a")
+        set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/libhamlib.dll.a")
+    elseif (EXISTS "${HAMLIB_ROOT}/lib/hamlib.lib")
+        set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/hamlib.lib")
+    endif()
+elseif(APPLE)
+    # macOS: .dylib
+    if (EXISTS "${HAMLIB_ROOT}/lib/libhamlib.dylib")
+        set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/libhamlib.dylib")
+    endif()
+else()
+    # Linux: .so or system library
+    if (EXISTS "${HAMLIB_ROOT}/lib/libhamlib.so")
+        set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/libhamlib.so")
+    elseif (EXISTS "${HAMLIB_ROOT}/lib/${CMAKE_LIBRARY_ARCHITECTURE}/libhamlib.so")
+        set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/${CMAKE_LIBRARY_ARCHITECTURE}/libhamlib.so")
+    else()
+        # Fallback: let the linker find it
+        set(HAMLIB_LIBRARIES "hamlib")
+    endif()
+endif()
+
+message(STATUS "HAMLIB_ROOT: ${HAMLIB_ROOT}")
+message(STATUS "HAMLIB_INCLUDE_DIRS: ${HAMLIB_INCLUDE_DIRS}")
+message(STATUS "HAMLIB_LIBRARIES: ${HAMLIB_LIBRARIES}")
 
 
 

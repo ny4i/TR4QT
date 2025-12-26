@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.87.9";  // Fix Windows flashing (remove activateWindow loops)
+constexpr const char* APP_VERSION = "2.88.0";  // Add GitHub Actions CI workflow for multi-platform builds
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
