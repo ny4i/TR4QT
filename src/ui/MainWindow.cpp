@@ -1374,6 +1374,53 @@ void MainWindow::onLogQSO() {
     QString callsign = m_callsignEntry->text().trimmed().toUpper();
     QString exchange = m_exchangeEntry->text().trimmed();
 
+    // Check for numeric frequency entry
+    // If callsign is a number, treat it as frequency change command
+    if (!callsign.isEmpty()) {
+        bool isNumeric = false;
+        unsigned long freqValue = callsign.toULong(&isNumeric);
+
+        if (isNumeric && freqValue > 0) {
+            // Determine if this is an offset or absolute frequency
+            unsigned long targetFreqKHz = 0;
+
+            if (freqValue < 1000) {
+                // Small number - treat as offset from band edge
+                // e.g., "300" on 15m -> 21000 + 300 = 21300 kHz
+                unsigned long bandEdge = bandToBaseFrequency(m_currentState.bandA);
+                if (bandEdge > 0) {
+                    targetFreqKHz = bandEdge + freqValue;
+                    LOG_DEBUG("MainWindow", QString("Frequency offset entry: %1 + %2 = %3 kHz")
+                        .arg(bandEdge).arg(freqValue).arg(targetFreqKHz));
+                } else {
+                    m_statusLabel->setText("Error: Cannot determine band edge for current band");
+                    onClearEntry();
+                    return;
+                }
+            } else {
+                // Large number - treat as absolute frequency in kHz
+                // e.g., "14210" -> 14210 kHz
+                targetFreqKHz = freqValue;
+                LOG_DEBUG("MainWindow", QString("Absolute frequency entry: %1 kHz").arg(targetFreqKHz));
+            }
+
+            // Convert kHz to Hz for hamlib
+            freq_t targetFreqHz = static_cast<freq_t>(targetFreqKHz) * 1000;
+
+            // Set radio frequency
+            if (m_radio && m_radioConnected) {
+                m_radio->setFrequency(targetFreqHz);
+                m_statusLabel->setText(QString("Frequency set to %1 kHz").arg(targetFreqKHz));
+            } else {
+                m_statusLabel->setText("Error: Radio not connected");
+            }
+
+            // Clear entry and return (don't log QSO)
+            onClearEntry();
+            return;
+        }
+    }
+
     // Check for OPON command (change operator)
     if (callsign == "OPON") {
         OperatorDialog dialog(this);
