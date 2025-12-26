@@ -118,6 +118,7 @@ private:
     QCheckBox* m_autoConnectCheck;
     QGroupBox* m_serialGroup;
     QGroupBox* m_networkGroup;
+    QSpinBox* m_morseWpmSpin;
 
     // DX Cluster tab widgets
     QLineEdit* m_dxClusterCallsignEdit;

@@ -33,6 +33,9 @@ public slots:
     void setMode(ModeType mode, VFO vfo = VFO::VFO_A);
     void setPTT(bool transmit);
     void sendCW(const QString& text);
+    void setCWSpeed(int wpm);
+    int getCWSpeed() const;
+    void stopCW();
 
 signals:
     // Status signals (emitted from worker thread, safe to connect to UI)

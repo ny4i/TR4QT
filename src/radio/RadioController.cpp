@@ -144,4 +144,25 @@ void RadioController::sendCW(const QString& text) {
     }, Qt::QueuedConnection);
 }
 
+void RadioController::setCWSpeed(int wpm) {
+    QMetaObject::invokeMethod(m_radio, [this, wpm]() {
+        m_radio->setCWSpeed(wpm);
+    }, Qt::QueuedConnection);
+}
+
+int RadioController::getCWSpeed() const {
+    // Call synchronously since we need the return value
+    int wpm = 0;
+    QMetaObject::invokeMethod(m_radio, [this, &wpm]() {
+        wpm = m_radio->getCWSpeed();
+    }, Qt::BlockingQueuedConnection);
+    return wpm;
+}
+
+void RadioController::stopCW() {
+    QMetaObject::invokeMethod(m_radio, [this]() {
+        m_radio->stopCW();
+    }, Qt::QueuedConnection);
+}
+
 } // namespace TR4QT

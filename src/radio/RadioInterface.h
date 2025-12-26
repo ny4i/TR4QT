@@ -72,6 +72,7 @@ public:
     // CW functions
     virtual bool sendCW(const QString& text) = 0;
     virtual bool setCWSpeed(int wpm) = 0;
+    virtual int getCWSpeed() const = 0;
     virtual bool stopCW() = 0;
 
     // RIT/XIT control

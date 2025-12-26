@@ -48,6 +48,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
     bool eventFilter(QObject* obj, QEvent* event) override;
 
 private slots:
@@ -80,6 +81,7 @@ private slots:
 
     // Tools menu actions (ALT- shortcuts from TR4W)
     void onWKMode();                // TODO: Implement WinKeyer re-initialization
+    void onSendMorse();             // Send morse code dialog
     void onBackupLog();             // TODO: Implement backup log
     void onDownloadCTY(bool headless = false);   // Download CTY.dat (headless=true for testing)
     void onDownloadLOTW(bool headless = false);  // Download LOTW user list (headless=true for testing)
@@ -206,6 +208,7 @@ private:
     // Radio status grid (bottom)
     QLabel* m_radioFreqBandLabel;  // Shows "15SSB"
     QLabel* m_radioFreqLabel;      // Shows frequency
+    QLabel* m_radioWpmLabel;       // Shows CW speed (WPM)
     QLabel* m_radioDateTimeLabel;  // Shows current date/time
 
     // Radio control

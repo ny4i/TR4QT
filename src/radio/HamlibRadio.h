@@ -43,6 +43,7 @@ public:
     // CW functions
     bool sendCW(const QString& text) override;
     bool setCWSpeed(int wpm) override;
+    int getCWSpeed() const override;
     bool stopCW() override;
 
     // RIT/XIT control
