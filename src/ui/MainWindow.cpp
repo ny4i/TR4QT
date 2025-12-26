@@ -2431,7 +2431,7 @@ void MainWindow::updateRadioStatusGrid() {
 
     // Update WPM label (only enabled in CW mode AND when auto-send is enabled)
     bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
-    bool autoSendEnabled = AppSettings::instance().getAutoSendCW();
+    bool autoSendEnabled = m_autoSendCWAction->isChecked();  // Check actual action state, not settings
     int wpm = AppSettings::instance().getMorseWPM();
     m_radioWpmLabel->setText(QString("%1 WPM").arg(wpm));
     m_radioWpmLabel->setEnabled(isCWMode && autoSendEnabled);  // Gray out when not in CW mode or auto-send disabled
