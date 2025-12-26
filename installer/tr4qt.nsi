@@ -6,7 +6,7 @@
 
 ; Application metadata
 !define APPNAME "TR4QT"
-!define APPVERSION "2.88.0"
+!define APPVERSION "2.89.0"
 !define APPURL "https://github.com/ny4i/TR4QT"
 !define APPPUBLISHER "TR4QT Project"
 
@@ -42,58 +42,61 @@ Section "Install"
     SetOutPath "$INSTDIR"
 
     ; Main executable
-    File "..\build\src\tr4qt.exe"
+    File "..\dist\TR4QT\tr4qt.exe"
 
     ; Qt DLLs
-    File "..\build\src\Qt6Core.dll"
-    File "..\build\src\Qt6Gui.dll"
-    File "..\build\src\Qt6Widgets.dll"
-    File "..\build\src\Qt6Network.dll"
-    File "..\build\src\Qt6Sql.dll"
-    File "..\build\src\Qt6Svg.dll"
-    File "..\build\src\Qt6PrintSupport.dll"
-    File "..\build\src\Qt6Concurrent.dll"
+    File "..\dist\TR4QT\Qt6Core.dll"
+    File "..\dist\TR4QT\Qt6Gui.dll"
+    File "..\dist\TR4QT\Qt6Widgets.dll"
+    File "..\dist\TR4QT\Qt6Network.dll"
+    File "..\dist\TR4QT\Qt6Sql.dll"
+    File "..\dist\TR4QT\Qt6Svg.dll"
+    File "..\dist\TR4QT\Qt6PrintSupport.dll"
 
     ; MinGW runtime DLLs
-    File "..\build\src\libgcc_s_seh-1.dll"
-    File "..\build\src\libstdc++-6.dll"
-    File "..\build\src\libwinpthread-1.dll"
+    File "..\dist\TR4QT\libgcc_s_seh-1.dll"
+    File "..\dist\TR4QT\libstdc++-6.dll"
+    File "..\dist\TR4QT\libwinpthread-1.dll"
 
     ; Hamlib DLLs
-    File "..\build\src\libhamlib-4.dll"
-    File "..\build\src\libusb-1.0.dll"
+    File "..\dist\TR4QT\libhamlib-4.dll"
+    File "..\dist\TR4QT\libusb-1.0.dll"
 
     ; Graphics DLLs
-    File "..\build\src\D3Dcompiler_47.dll"
-    File "..\build\src\opengl32sw.dll"
+    File "..\dist\TR4QT\D3Dcompiler_47.dll"
+    File "..\dist\TR4QT\opengl32sw.dll"
 
     ; Qt plugins - platforms
     SetOutPath "$INSTDIR\platforms"
-    File "..\build\src\platforms\*.*"
+    File "..\dist\TR4QT\platforms\*.*"
 
     ; Qt plugins - imageformats
     SetOutPath "$INSTDIR\imageformats"
-    File "..\build\src\imageformats\*.*"
+    File "..\dist\TR4QT\imageformats\*.*"
 
     ; Qt plugins - sqldrivers
     SetOutPath "$INSTDIR\sqldrivers"
-    File "..\build\src\sqldrivers\*.*"
+    File "..\dist\TR4QT\sqldrivers\*.*"
 
     ; Qt plugins - styles
     SetOutPath "$INSTDIR\styles"
-    File "..\build\src\styles\*.*"
+    File "..\dist\TR4QT\styles\*.*"
 
     ; Qt plugins - tls
     SetOutPath "$INSTDIR\tls"
-    File "..\build\src\tls\*.*"
+    File "..\dist\TR4QT\tls\*.*"
 
     ; Qt plugins - generic
     SetOutPath "$INSTDIR\generic"
-    File "..\build\src\generic\*.*"
+    File "..\dist\TR4QT\generic\*.*"
 
     ; Qt plugins - networkinformation
     SetOutPath "$INSTDIR\networkinformation"
-    File "..\build\src\networkinformation\*.*"
+    File "..\dist\TR4QT\networkinformation\*.*"
+
+    ; Qt plugins - iconengines
+    SetOutPath "$INSTDIR\iconengines"
+    File "..\dist\TR4QT\iconengines\*.*"
 
     ; Reset output path
     SetOutPath "$INSTDIR"
@@ -141,6 +144,7 @@ Section "Uninstall"
     RMDir /r "$INSTDIR\tls"
     RMDir /r "$INSTDIR\generic"
     RMDir /r "$INSTDIR\networkinformation"
+    RMDir /r "$INSTDIR\iconengines"
     RMDir /r "$INSTDIR\translations"
 
     ; Remove install directory (if empty)
