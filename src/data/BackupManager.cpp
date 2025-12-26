@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QDateTime>
+#include <QTimeZone>
 #include <QRegularExpression>
 #include <QSqlDatabase>
 #include <QSqlQuery>
