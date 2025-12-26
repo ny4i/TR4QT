@@ -1566,15 +1566,20 @@ void MainWindow::onLogQSO() {
             // Use default if RST not in exchange
             qso.rstReceived = (qso.mode == ModeType::CW) ? "599" : "59";
         }
+
+        // Extract received serial number from parsed exchange if present
+        if (qso.parsedExchange.contains("Serial")) {
+            qso.serialNumber = qso.parsedExchange["Serial"].toInt();
+        }
     } else {
         // No active contest - use default RST
         qso.rstReceived = (qso.mode == ModeType::CW) ? "599" : "59";
     }
 
-    // Serial number handling
+    // Sent exchange handling (for contests that use serial numbers)
     if (m_activeContest && m_activeContest->usesSerialNumbers()) {
-        qso.serialNumber = m_nextSerialNumber++;
-        qso.exchangeSent = QString::number(qso.serialNumber);
+        qso.exchangeSent = QString::number(m_nextSerialNumber);
+        m_nextSerialNumber++;  // Increment for next QSO
     } else {
         qso.exchangeSent = "";  // Will be set by contest rules later
     }
