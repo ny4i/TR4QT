@@ -39,11 +39,6 @@ QString ADIFExporter::generateADIF(const QList<QSO>& qsos,
     // Write header
     stream << generateHeader();
 
-    // OPERATOR can go in header (applies to all QSOs)
-    if (!operatorCall.isEmpty()) {
-        stream << formatField("OPERATOR", operatorCall) << "\n";
-    }
-
     stream << "<EOH>\n\n";
 
     // Get official ADIF contest ID from contest instance
