@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.90.0";  // CW sender abstraction with factory pattern
+constexpr const char* APP_VERSION = "2.90.1";  // Fix macOS deployment target for Sonoma compatibility
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

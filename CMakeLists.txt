@@ -4,6 +4,12 @@ project(tr4qt VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# macOS deployment target - support macOS 11.0 (Big Sur) and later
+# This ensures compatibility with Sonoma (14.x) and earlier versions
+if(APPLE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version" FORCE)
+endif()
+
 # Qt6 setup
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -61,7 +67,11 @@ if (WIN32)
     endif()
 elseif(APPLE)
     # macOS: .dylib
-    if (EXISTS "${HAMLIB_ROOT}/lib/libhamlib.dylib")
+    # Check installed location first, then build location
+    if (EXISTS "${HAMLIB_ROOT}/hamlib_install/lib/libhamlib.dylib")
+        set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/hamlib_install/lib/libhamlib.dylib")
+        set(HAMLIB_INCLUDE_DIRS "${HAMLIB_ROOT}/hamlib_install/include")
+    elseif (EXISTS "${HAMLIB_ROOT}/lib/libhamlib.dylib")
         set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/libhamlib.dylib")
     endif()
 else()
