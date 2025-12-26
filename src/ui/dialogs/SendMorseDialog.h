@@ -9,6 +9,7 @@
 #include <QVector>
 #include <QTimer>
 #include "../../radio/RadioController.h"
+#include "../../cw/CWSender.h"
 
 namespace TR4QT {
 
@@ -45,6 +46,8 @@ private slots:
     void onAbortClicked();
     void onMacroRightClicked(int macroIndex);
     void onTransmissionComplete();
+    void onCWSenderStateChanged(CWSender::State state);
+    void onCWSenderError(const QString& error);
 
 private:
     void setupUI();
@@ -56,6 +59,7 @@ private:
     int estimateTransmissionTimeMs(const QString& text, int wpm) const;
 
     RadioController* m_radio;
+    CWSender* m_cwSender;  // CW sender abstraction
     QLineEdit* m_textEdit;
     QPushButton* m_sendButton;
     QPushButton* m_abortButton;
@@ -65,9 +69,8 @@ private:
     // Store macro buttons for easy access
     QVector<QPushButton*> m_macroButtons;
 
-    // Track sending state
+    // Track sending state (kept for backward compatibility, synced with CWSender state)
     bool m_isSending;
-    QTimer* m_transmissionTimer;
 };
 
 } // namespace TR4QT

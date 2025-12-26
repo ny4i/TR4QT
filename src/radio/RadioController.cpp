@@ -165,4 +165,12 @@ void RadioController::stopCW() {
     }, Qt::QueuedConnection);
 }
 
+bool RadioController::waitForMorseComplete() {
+    bool result = false;
+    QMetaObject::invokeMethod(m_radio, [this, &result]() {
+        result = m_radio->waitForMorseComplete();
+    }, Qt::BlockingQueuedConnection);
+    return result;
+}
+
 } // namespace TR4QT

@@ -286,6 +286,30 @@ bool HamlibRadio::stopCW() {
     return false;
 }
 
+bool HamlibRadio::waitForMorseComplete() {
+    QMutexLocker locker(&m_rigMutex);
+    if (!checkRigPointer("waitForMorseComplete")) return false;
+
+    LOG_DEBUG("HamlibRadio", "Waiting for CW transmission to complete");
+    LOG_TRACE("HamlibRadio", "rig_wait_morse called");
+
+    int retcode = rig_wait_morse(m_rig, RIG_VFO_CURR);
+
+    if (retcode == RIG_OK) {
+        LOG_DEBUG("HamlibRadio", "CW transmission complete");
+        return true;
+    }
+
+    // -1 typically means the function is not implemented for this rig
+    if (retcode == -RIG_ENAVAIL || retcode == -RIG_ENIMPL) {
+        LOG_DEBUG("HamlibRadio", "rig_wait_morse not supported by this rig");
+        return false;
+    }
+
+    logHamlibError("rig_wait_morse", retcode);
+    return false;
+}
+
 bool HamlibRadio::setRIT(int offset_hz, VFO vfo) {
     QMutexLocker locker(&m_rigMutex);
     if (!checkRigPointer("setRIT")) return false;

@@ -45,6 +45,7 @@ public:
     bool setCWSpeed(int wpm) override;
     int getCWSpeed() const override;
     bool stopCW() override;
+    bool waitForMorseComplete() override;
 
     // RIT/XIT control
     bool setRIT(int offset_hz, VFO vfo = VFO::VFO_A) override;

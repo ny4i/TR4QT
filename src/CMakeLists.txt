@@ -32,6 +32,8 @@ set(SOURCES
     data/DXCCRepository.cpp
     exchanges/InitialExchangeManager.cpp
     exchanges/SmartExchangeParser.cpp
+    cw/HamlibCWSender.cpp
+    cw/CWSenderFactory.cpp
     contests/ARRLDXContest.cpp
     contests/ARRLRTTYRoundupContest.cpp
     contests/ARRLSweepstakesContest.cpp
@@ -98,6 +100,9 @@ set(HEADERS
     data/DXCCRepository.h
     exchanges/InitialExchangeManager.h
     exchanges/SmartExchangeParser.h
+    cw/CWSender.h
+    cw/HamlibCWSender.h
+    cw/CWSenderFactory.h
     contests/ARRLDXContest.h
     contests/ARRLRTTYRoundupContest.h
     contests/ARRLSweepstakesContest.h

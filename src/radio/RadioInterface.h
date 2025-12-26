@@ -74,6 +74,7 @@ public:
     virtual bool setCWSpeed(int wpm) = 0;
     virtual int getCWSpeed() const = 0;
     virtual bool stopCW() = 0;
+    virtual bool waitForMorseComplete() = 0;  // Blocks until CW transmission finishes
 
     // RIT/XIT control
     virtual bool setRIT(int offset_hz, VFO vfo = VFO::VFO_A) = 0;
