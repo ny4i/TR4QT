@@ -10,7 +10,7 @@ set(SOURCES
     utils/CountryFile.cpp
     utils/CountryFileDownloader.cpp
     utils/DXClusterListDownloader.cpp
-    utils/MessageBox.cpp
+    utils/SelectableMessageBox.cpp
     utils/GeographicUtils.cpp
     utils/LOTWUserDownloader.cpp
     utils/RadioEnumerator.cpp
@@ -71,7 +71,7 @@ set(HEADERS
     utils/CountryFile.h
     utils/CountryFileDownloader.h
     utils/DXClusterListDownloader.h
-    utils/MessageBox.h
+    utils/SelectableMessageBox.h
     utils/GeographicUtils.h
     utils/LOTWUserDownloader.h
     utils/RadioEnumerator.h

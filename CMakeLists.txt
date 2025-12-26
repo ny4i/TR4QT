@@ -9,6 +9,10 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+if (MINGW)
+    add_compile_options(-Wa,-mbig-obj)
+endif()
+
 # Find Qt6 packages
 find_package(Qt6 REQUIRED COMPONENTS
     Core
@@ -20,16 +24,30 @@ find_package(Qt6 REQUIRED COMPONENTS
     Test
 )
 
-# Use Hamlib from source build
-set(HAMLIB_ROOT "$ENV{HOME}/projects/Hamlib/hamlib_install")
-set(HAMLIB_INCLUDE_DIRS "${HAMLIB_ROOT}/include")
-set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/libhamlib.dylib")
+
+if (WIN32)
+    # Windows: Hamlib from pre-built binaries
+    set(HAMLIB_ROOT "C:/projects/hamlib")
+    set(HAMLIB_INCLUDE_DIRS "${HAMLIB_ROOT}/include")
+    set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/gcc/libhamlib.dll.a")
+elseif(APPLE)
+    # macOS
+    set(HAMLIB_ROOT "$ENV{HOME}/projects/hamlib")
+    set(HAMLIB_INCLUDE_DIRS "${HAMLIB_ROOT}/include")
+    set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/libhamlib.dylib")
+else()
+    # Linux
+    set(HAMLIB_ROOT "$ENV{HOME}/projects/hamlib")
+    set(HAMLIB_INCLUDE_DIRS "${HAMLIB_ROOT}/include")
+    set(HAMLIB_LIBRARIES "${HAMLIB_ROOT}/lib/libhamlib.so")
+endif()
+
+
 
 # Check if Hamlib is built
 if(NOT EXISTS "${HAMLIB_LIBRARIES}")
     message(WARNING "Hamlib not found at ${HAMLIB_LIBRARIES}")
-    message(WARNING "Please build Hamlib first:")
-    message(WARNING "  cd ~/projects/Hamlib/build && make && make install")
+    message(WARNING "Please build/install Hamlib for this platform and toolchain.")
 endif()
 
 # Add source directory

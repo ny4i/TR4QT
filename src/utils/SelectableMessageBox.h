@@ -1,5 +1,5 @@
-#ifndef MESSAGEBOX_H
-#define MESSAGEBOX_H
+#ifndef SELECTABLEMESSAGEBOX_H
+#define SELECTABLEMESSAGEBOX_H
 
 #include <QMessageBox>
 #include <QWidget>
@@ -27,10 +27,10 @@ namespace TR4QT {
  *   QMessageBox::warning(this, "Error", "File not found: /path/to/file");
  *
  *   // Use:
- *   MessageBox::warning(this, "Error", "File not found: /path/to/file");
+ *   SelectableMessageBox::warning(this, "Error", "File not found: /path/to/file");
  *   // This will show the dialog AND log: [WARN] [MessageBox] [Error] File not found: /path/to/file
  */
-class MessageBox {
+class SelectableMessageBox {
 public:
     /**
      * Show warning dialog with selectable text
@@ -87,4 +87,4 @@ private:
 
 } // namespace TR4QT
 
-#endif // MESSAGEBOX_H
+#endif // SELECTABLEMESSAGEBOX_H
