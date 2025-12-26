@@ -525,16 +525,28 @@ QWidget* MainWindow::createBottomPanel() {
     m_radioWpmLabel->setMinimumWidth(80);
     m_radioWpmLabel->setEnabled(false);  // Grayed out by default
 
-    // Date/Time label - use monospace font and fixed width to prevent jumping
-    m_radioDateTimeLabel = new QLabel("", radioStatusWidget);
+    // Date/Time labels - stacked vertically to save width
     QFont dateTimeFont("Monospace", labelFont.pointSize());
-    m_radioDateTimeLabel->setFont(dateTimeFont);
-    m_radioDateTimeLabel->setAlignment(Qt::AlignCenter);
-    m_radioDateTimeLabel->setMinimumWidth(220);  // Wide enough for "Wed 25-Dec-2025 13:45:30"
+
+    m_radioDateLabel = new QLabel("", radioStatusWidget);
+    m_radioDateLabel->setFont(dateTimeFont);
+    m_radioDateLabel->setAlignment(Qt::AlignCenter);
+    m_radioDateLabel->setMinimumWidth(120);  // Narrower than single label
+
+    m_radioTimeLabel = new QLabel("", radioStatusWidget);
+    m_radioTimeLabel->setFont(dateTimeFont);
+    m_radioTimeLabel->setAlignment(Qt::AlignCenter);
+    m_radioTimeLabel->setMinimumWidth(120);
+
+    // Vertical layout for date and time
+    QVBoxLayout* dateTimeLayout = new QVBoxLayout();
+    dateTimeLayout->setSpacing(2);
+    dateTimeLayout->addWidget(m_radioDateLabel);
+    dateTimeLayout->addWidget(m_radioTimeLabel);
 
     radioLayout->addLayout(freqLayout);
     radioLayout->addWidget(m_radioWpmLabel);
-    radioLayout->addWidget(m_radioDateTimeLabel);
+    radioLayout->addLayout(dateTimeLayout);
 
     bottomLayout->addWidget(radioStatusWidget);
 
@@ -2407,8 +2419,10 @@ void MainWindow::updateRadioStatusGrid() {
 
     // Update date/time (current local time)
     QDateTime now = QDateTime::currentDateTime();
-    QString dateTimeStr = now.toString("ddd dd-MMM-yyyy hh:mm:ss");
-    m_radioDateTimeLabel->setText(dateTimeStr);
+    QString dateStr = now.toString("ddd dd-MMM-yyyy");
+    QString timeStr = now.toString("hh:mm:ss");
+    m_radioDateLabel->setText(dateStr);
+    m_radioTimeLabel->setText(timeStr);
 }
 
 void MainWindow::applyFontSettings() {
@@ -2459,7 +2473,8 @@ void MainWindow::applyTheme() {
         .arg(theme.color(ColorRole::BorderColor).name());
 
     m_radioFreqBandLabel->setStyleSheet(labelStyle);
-    m_radioDateTimeLabel->setStyleSheet(labelStyle);
+    m_radioDateLabel->setStyleSheet(labelStyle);
+    m_radioTimeLabel->setStyleSheet(labelStyle);
 
     QString freqLabelStyle = QString("QLabel { background-color: %1; padding: 3px; border: 1px solid %2; border-radius: 3px; }")
         .arg(theme.color(ColorRole::TextDisplayBackground).name())
