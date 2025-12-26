@@ -243,10 +243,10 @@ void MainWindow::createMenuBar() {
 
     m_autoSendCWAction = radioMenu->addAction("&Auto Send CW");
     m_autoSendCWAction->setCheckable(true);
-    m_autoSendCWAction->setChecked(AppSettings::instance().getAutoSendCW());
+    m_autoSendCWAction->setChecked(true);  // Always default to enabled on startup (non-persistent)
     m_autoSendCWAction->setStatusTip("Automatically send callsign via CW when Enter is pressed in CW mode");
     connect(m_autoSendCWAction, &QAction::toggled, this, [this](bool checked) {
-        AppSettings::instance().setAutoSendCW(checked);
+        // Note: This setting is not persisted - always resets to enabled on startup
         LOG_DEBUG("MainWindow", QString("Auto Send CW %1").arg(checked ? "enabled" : "disabled"));
         updateRadioStatusGrid();  // Update WPM display
     });

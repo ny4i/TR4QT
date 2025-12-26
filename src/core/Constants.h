@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.83.4";  // Calculate next serial from QSOs instead of DB field
+constexpr const char* APP_VERSION = "2.83.5";  // Auto Send CW always defaults to enabled on startup
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
