@@ -839,7 +839,7 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         }
 
         m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
-        LOG_INFO("MainWindow", QString("WPM increased to %1 (PgUp)").arg(newWpm));
+        LOG_DEBUG("MainWindow", QString("WPM increased to %1 (PgUp)").arg(newWpm));
         event->accept();
         return;
     }
@@ -861,7 +861,7 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         }
 
         m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
-        LOG_INFO("MainWindow", QString("WPM decreased to %1 (PgDn)").arg(newWpm));
+        LOG_DEBUG("MainWindow", QString("WPM decreased to %1 (PgDn)").arg(newWpm));
         event->accept();
         return;
     }
@@ -871,7 +871,7 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         if (m_radioConnected) {
             m_radio->stopCW();
             m_statusLabel->setText("CW transmission aborted");
-            LOG_INFO("MainWindow", "CW transmission aborted via ESC key");
+            LOG_DEBUG("MainWindow", "CW transmission aborted via ESC key");
         }
         event->accept();
         return;
@@ -1819,7 +1819,7 @@ void MainWindow::onCallsignEnterPressed() {
         m_radio->setCWSpeed(wpm);
 
         // Send the callsign
-        LOG_INFO("MainWindow", QString("Auto-sending callsign via CW: '%1' at %2 WPM").arg(callsign).arg(wpm));
+        LOG_DEBUG("MainWindow", QString("Auto-sending callsign via CW: '%1' at %2 WPM").arg(callsign).arg(wpm));
         m_radio->sendCW(callsign);
     }
 
