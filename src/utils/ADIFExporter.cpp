@@ -9,12 +9,12 @@ namespace TR4QT {
 
 bool ADIFExporter::exportToFile(const QList<QSO>& qsos,
                                 const QString& filePath,
-                                const QString& contestName,
+                                ContestBase* contest,
                                 const QString& operatorCall) {
     m_lastError.clear();
 
     // Generate ADIF text
-    QString adifText = generateADIF(qsos, contestName, operatorCall);
+    QString adifText = generateADIF(qsos, contest, operatorCall);
 
     // Write to file
     QFile file(filePath);
@@ -31,7 +31,7 @@ bool ADIFExporter::exportToFile(const QList<QSO>& qsos,
 }
 
 QString ADIFExporter::generateADIF(const QList<QSO>& qsos,
-                                  const QString& contestName,
+                                  ContestBase* contest,
                                   const QString& operatorCall) {
     QString result;
     QTextStream stream(&result);
@@ -39,20 +39,23 @@ QString ADIFExporter::generateADIF(const QList<QSO>& qsos,
     // Write header
     stream << generateHeader();
 
-    // Add contest/operator info if provided
-    if (!contestName.isEmpty()) {
-        stream << formatField("CONTEST_ID", contestName) << "\n";
-    }
+    // OPERATOR can go in header (applies to all QSOs)
     if (!operatorCall.isEmpty()) {
         stream << formatField("OPERATOR", operatorCall) << "\n";
     }
 
     stream << "<EOH>\n\n";
 
-    // Write each QSO
+    // Get official ADIF contest ID from contest instance
+    QString adifContestId;
+    if (contest) {
+        adifContestId = contest->getADIFContestId();
+    }
+
+    // Write each QSO (CONTEST_ID goes in each record)
     for (const QSO& qso : qsos) {
         if (!qso.isDupe) {  // Skip dupes in export
-            stream << formatQSO(qso) << "\n";
+            stream << formatQSO(qso, adifContestId) << "\n";
         }
     }
 
@@ -72,7 +75,7 @@ QString ADIFExporter::generateHeader() {
     return header;
 }
 
-QString ADIFExporter::formatQSO(const QSO& qso) {
+QString ADIFExporter::formatQSO(const QSO& qso, const QString& contestId) {
     QString result;
     QTextStream stream(&result);
 
@@ -84,6 +87,11 @@ QString ADIFExporter::formatQSO(const QSO& qso) {
     QString qsoTime = qso.timestamp.toUTC().toString("HHmmss");
     stream << formatField("QSO_DATE", qsoDate);
     stream << formatField("TIME_ON", qsoTime);
+
+    // Contest ID (official ADIF contest name)
+    if (!contestId.isEmpty()) {
+        stream << formatField("CONTEST_ID", contestId);
+    }
 
     // Band
     stream << formatField("BAND", bandToString(qso.band).remove('M').toLower() + "m");
@@ -128,9 +136,9 @@ QString ADIFExporter::formatQSO(const QSO& qso) {
         stream << formatField("SRX_STRING", qso.exchangeReceived);
     }
 
-    // DXCC and zone information
-    if (!qso.dxccPrefix.isEmpty()) {
-        stream << formatField("DXCC", qso.dxccPrefix);
+    // DXCC and zone information (use ADIF DXCC Entity Code enumeration)
+    if (qso.dxccEntityCode > 0) {
+        stream << formatField("DXCC", QString::number(qso.dxccEntityCode));
     }
     if (qso.cqZone > 0) {
         stream << formatField("CQZ", QString::number(qso.cqZone));

@@ -45,13 +45,13 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         INSERT INTO qsos (
             contest_id, guid, timestamp, callsign, frequency, mode, band,
             rst_sent, rst_received, exchange_sent, exchange_received,
-            dxcc_entity, dxcc_prefix, cq_zone, itu_zone, continent, state, county, arrl_section,
+            dxcc_entity, dxcc_prefix, dxcc_entity_code, cq_zone, itu_zone, continent, state, county, arrl_section,
             qso_points, is_dupe, is_multiplier, multipliers,
             serial_number, operator_call, notes
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?
         )
@@ -71,6 +71,7 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         qso.exchangeReceived,
         qso.dxccEntity,
         qso.dxccPrefix,
+        qso.dxccEntityCode,
         qso.cqZone,
         qso.ituZone,
         qso.continent,
@@ -129,7 +130,7 @@ bool QSORepository::updateQSO(const QSO& qso) {
         UPDATE qsos SET
             timestamp = ?, callsign = ?, frequency = ?, mode = ?, band = ?,
             rst_sent = ?, rst_received = ?, exchange_sent = ?, exchange_received = ?,
-            dxcc_entity = ?, dxcc_prefix = ?, cq_zone = ?, itu_zone = ?, continent = ?, state = ?, county = ?, arrl_section = ?,
+            dxcc_entity = ?, dxcc_prefix = ?, dxcc_entity_code = ?, cq_zone = ?, itu_zone = ?, continent = ?, state = ?, county = ?, arrl_section = ?,
             qso_points = ?, is_dupe = ?, is_multiplier = ?, multipliers = ?,
             serial_number = ?, operator_call = ?, notes = ?
         WHERE id = ?
@@ -147,6 +148,7 @@ bool QSORepository::updateQSO(const QSO& qso) {
         qso.exchangeReceived,
         qso.dxccEntity,
         qso.dxccPrefix,
+        qso.dxccEntityCode,
         qso.cqZone,
         qso.ituZone,
         qso.continent,
@@ -512,6 +514,7 @@ QSO QSORepository::qsoFromQuery(const QSqlQuery& query) const {
 
     qso.dxccEntity = query.value("dxcc_entity").toString();
     qso.dxccPrefix = query.value("dxcc_prefix").toString();
+    qso.dxccEntityCode = query.value("dxcc_entity_code").toInt();
     qso.cqZone = query.value("cq_zone").toInt();
     qso.ituZone = query.value("itu_zone").toInt();
     qso.continent = query.value("continent").toString();

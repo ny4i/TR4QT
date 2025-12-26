@@ -52,6 +52,10 @@ QString CQWWContest::getContestName() const {
            "CQ World Wide DX Contest - SSB";
 }
 
+QString CQWWContest::getADIFContestId() const {
+    return m_mode == ModeType::CW ? ADIF_CONTEST_ID_CW : ADIF_CONTEST_ID_SSB;
+}
+
 QList<ExchangeField> CQWWContest::getReceivedExchangeFields() const {
     QList<ExchangeField> fields;
 

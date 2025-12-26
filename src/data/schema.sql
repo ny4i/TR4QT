@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS qsos (
     -- DXCC/Geographic (from cty.dat lookup)
     dxcc_entity TEXT,                   -- Country name
     dxcc_prefix TEXT,                   -- DXCC prefix
+    dxcc_entity_code INTEGER,           -- ADIF DXCC Entity Code (enumeration)
     cq_zone INTEGER,                    -- CQ Zone
     itu_zone INTEGER,                   -- ITU Zone
     continent TEXT,                     -- Continent code

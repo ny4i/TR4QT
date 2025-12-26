@@ -4,6 +4,7 @@
 #include "dialogs/BackupRestoreDialog.h"
 #include "dialogs/OperatorDialog.h"
 #include "dialogs/EditQSODialog.h"
+#include "dialogs/ExportPreviewDialog.h"
 #include "widgets/DXClusterWindow.h"
 #include "widgets/BandMapWidget.h"
 #include "widgets/RadioControlWidget.h"
@@ -1067,30 +1068,31 @@ void MainWindow::onExportADIF() {
         return;
     }
 
-    // Get file name from user
-    QString fileName = QFileDialog::getSaveFileName(
-        this,
-        "Export ADIF File",
-        QDir::homePath() + "/log.adi",
-        "ADIF Files (*.adi *.adif);;All Files (*)");
-
-    if (fileName.isEmpty()) {
-        return;  // User cancelled
-    }
-
-    // Export to file
+    // Generate ADIF content
     ADIFExporter exporter;
-    QString contestName = m_hasActiveContest ? m_currentContest.contestName : QString();
     QString operatorCall = AppSettings::instance().getMyCallsign();
+    QString adifContent = exporter.generateADIF(qsos, m_activeContest, operatorCall);
 
-    if (exporter.exportToFile(qsos, fileName, contestName, operatorCall)) {
+    // Generate default filename
+    QString defaultFileName = m_hasActiveContest ?
+        m_currentContest.contestName.toLower().replace(" ", "_") + ".adi" :
+        "log.adi";
+
+    // Show preview dialog
+    ExportPreviewDialog preview(
+        QString("ADIF Export Preview - %1 QSOs").arg(qsos.size()),
+        adifContent,
+        "ADIF Files (*.adi *.adif);;All Files (*)",
+        defaultFileName,
+        this);
+
+    preview.exec();
+
+    // Update status if saved
+    if (preview.wasSaved()) {
         m_statusLabel->setText(QString("Exported %1 QSOs to %2")
                                   .arg(qsos.size())
-                                  .arg(QFileInfo(fileName).fileName()));
-    } else {
-        QMessageBox::critical(this, "Export Error",
-                            QString("Failed to export ADIF: %1")
-                                .arg(exporter.lastError()));
+                                  .arg(QFileInfo(preview.getSaveFilePath()).fileName()));
     }
 }
 
@@ -1146,21 +1148,12 @@ void MainWindow::onExportCabrillo() {
         return;
     }
 
-    // Get file name from user
+    // Generate default filename
     QString defaultFileName;
     if (m_hasActiveContest && !m_currentContest.contestName.isEmpty()) {
         defaultFileName = QString("%1.cbr").arg(m_currentContest.contestName.replace(' ', '_'));
     } else {
         defaultFileName = "log.cbr";
-    }
-    QString fileName = QFileDialog::getSaveFileName(
-        this,
-        "Export Cabrillo File",
-        QDir::homePath() + "/" + defaultFileName,
-        "Cabrillo Files (*.cbr *.log);;All Files (*)");
-
-    if (fileName.isEmpty()) {
-        return;  // User cancelled
     }
 
     // Set up exporter with station information
@@ -1196,15 +1189,24 @@ void MainWindow::onExportCabrillo() {
     exporter.setClaimedScore(claimedScore);
     exporter.setOperators(AppSettings::instance().getMyCallsign());
 
-    // Export to file
-    if (exporter.exportToFile(qsos, m_activeContest, fileName)) {
+    // Generate Cabrillo content
+    QString cabrilloContent = exporter.generateCabrillo(qsos, m_activeContest);
+
+    // Show preview dialog
+    ExportPreviewDialog preview(
+        QString("Cabrillo Export Preview - %1 QSOs").arg(qsos.size()),
+        cabrilloContent,
+        "Cabrillo Files (*.cbr *.log);;All Files (*)",
+        defaultFileName,
+        this);
+
+    preview.exec();
+
+    // Update status if saved
+    if (preview.wasSaved()) {
         m_statusLabel->setText(QString("Exported %1 QSOs to %2")
                                   .arg(qsos.size())
-                                  .arg(QFileInfo(fileName).fileName()));
-    } else {
-        QMessageBox::critical(this, "Export Error",
-                            QString("Failed to export Cabrillo: %1")
-                                .arg(exporter.lastError()));
+                                  .arg(QFileInfo(preview.getSaveFilePath()).fileName()));
     }
 }
 
@@ -1426,6 +1428,7 @@ void MainWindow::onLogQSO() {
         qso.ituZone = countryData.ituZone;
         qso.dxccEntity = countryData.name;
         qso.dxccPrefix = countryData.primaryPrefix;
+        qso.dxccEntityCode = countryData.dxccEntity;  // ADIF DXCC Entity Code
         qso.continent = continentToString(countryData.continent);
 
         LOG_DEBUG("MainWindow", QString("Looked up %1: %2 (Zone %3, %4)")

@@ -86,6 +86,16 @@ public:
      */
     virtual ModeType getContestMode() const = 0;
 
+    /**
+     * Get official ADIF Contest-ID for this contest
+     * Returns the official ADIF Contest-ID per ADIF specification
+     * (e.g., "CQ-WW-CW", "CQ-WPX-SSB", "ARRL-SS-CW")
+     * This is NOT user-editable and must match ADIF spec exactly
+     *
+     * @return Official ADIF Contest-ID, empty string if none
+     */
+    virtual QString getADIFContestId() const = 0;
+
     // ===== Exchange Configuration =====
 
     /**

@@ -52,6 +52,10 @@ QString WinterFieldDayContest::getContestName() const {
     return "Winter Field Day";
 }
 
+QString WinterFieldDayContest::getADIFContestId() const {
+    return ADIF_CONTEST_ID;
+}
+
 QList<ExchangeField> WinterFieldDayContest::getReceivedExchangeFields() const {
     QList<ExchangeField> fields;
 
