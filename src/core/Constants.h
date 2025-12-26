@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.83.3";  // Fix received serial display and dataChanged warnings
+constexpr const char* APP_VERSION = "2.83.4";  // Calculate next serial from QSOs instead of DB field
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

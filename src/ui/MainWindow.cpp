@@ -2653,6 +2653,23 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         }
         LOG_DEBUG("MainWindow", QString("Loaded %1 existing QSOs").arg(existingQSOs.size()));
 
+        // Calculate next serial number from loaded QSOs (for contests that use serial numbers)
+        // This ensures we don't reuse serial numbers even if current_serial in DB is out of sync
+        if (!existingQSOs.isEmpty()) {
+            int maxSerial = 0;
+            for (const QSO& qso : existingQSOs) {
+                // exchangeSent contains the sent serial number as a string (e.g., "1", "2", "3")
+                bool ok;
+                int serial = qso.exchangeSent.toInt(&ok);
+                if (ok && serial > maxSerial) {
+                    maxSerial = serial;
+                }
+            }
+            m_nextSerialNumber = maxSerial + 1;
+            LOG_DEBUG("MainWindow", QString("Calculated next serial number from QSOs: %1 (max was %2)")
+                .arg(m_nextSerialNumber).arg(maxSerial));
+        }
+
         // Update band summary grid with loaded QSOs
         updateScoreDisplay();
 
