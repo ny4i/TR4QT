@@ -2,6 +2,21 @@
 
 This file contains important reminders and conventions for Claude when working on TR4QT.
 
+## ⚠️ CRITICAL REMINDERS
+
+### Always Bump Version Before Building
+**NEVER build without updating the version constant first!**
+
+Before making any code changes:
+1. Edit `/src/core/Constants.h`
+2. Increment `APP_VERSION` appropriately
+3. Update the comment with what's changing
+4. Then make your code changes
+5. Build with `make tr4qt -j4`
+6. Commit with version in message
+
+This prevents confusion about which version is running.
+
 ## Version Management
 
 **CRITICAL**: The version number must be updated with every release commit.
