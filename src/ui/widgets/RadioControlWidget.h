@@ -85,6 +85,7 @@ private:
     QLabel* m_vfoBLabel;
     QLabel* m_vfoBFreqLabel;
     QLabel* m_modeLabel;
+    QLabel* m_wpmLabel;
 
     // S-meter widget
     SMeterWidget* m_sMeter;         // Custom S-meter display

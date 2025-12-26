@@ -1,5 +1,6 @@
 #include "RadioControlWidget.h"
 #include "../../utils/ThemeManager.h"
+#include "../../utils/AppSettings.h"
 #include "../../logging/LogMacros.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -96,6 +97,17 @@ void RadioControlWidget::setupUI() {
     m_modeLabel->setAlignment(Qt::AlignCenter);
     m_modeLabel->setStyleSheet("QLabel { background-color: lightgray; padding: 5px; border-radius: 3px; }");
     mainLayout->addWidget(m_modeLabel);
+
+    // WPM display (for CW mode)
+    m_wpmLabel = new QLabel("-- WPM", this);
+    QFont wpmFont;
+    wpmFont.setPointSize(10);
+    wpmFont.setBold(true);
+    m_wpmLabel->setFont(wpmFont);
+    m_wpmLabel->setAlignment(Qt::AlignCenter);
+    m_wpmLabel->setStyleSheet("QLabel { background-color: #E0E0E0; padding: 3px; border-radius: 3px; }");
+    m_wpmLabel->setEnabled(false);  // Grayed out by default
+    mainLayout->addWidget(m_wpmLabel);
 
     // S-Meter display - custom widget with traditional radio meter styling
     m_sMeter = new SMeterWidget(this);
@@ -245,6 +257,12 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
         break;
     }
     m_modeLabel->setText(modeStr);
+
+    // Update WPM label (only enabled in CW mode)
+    bool isCWMode = (state.modeA == ModeType::CW || state.modeA == ModeType::CWR);
+    int wpm = AppSettings::instance().getMorseWPM();
+    m_wpmLabel->setText(QString("%1 WPM").arg(wpm));
+    m_wpmLabel->setEnabled(isCWMode);  // Gray out when not in CW mode
 
     // Enable widgets when radio is connected
     m_ritWidget->setEnabled(true);

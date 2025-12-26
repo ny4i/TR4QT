@@ -272,6 +272,13 @@ QWidget* PreferencesDialog::createRadioTab() {
     advancedLayout->addRow("CI-V Address:", m_civAddressSpin);
     advancedLayout->addRow("Poll Interval:", m_pollIntervalSpin);
 
+    m_morseWpmSpin = new QSpinBox(this);
+    m_morseWpmSpin->setRange(5, 60);
+    m_morseWpmSpin->setValue(25);
+    m_morseWpmSpin->setSuffix(" WPM");
+    m_morseWpmSpin->setToolTip("Morse code speed in words per minute for CW sending");
+    advancedLayout->addRow("Morse Speed:", m_morseWpmSpin);
+
     m_autoConnectCheck = new QCheckBox("Auto-connect on startup", this);
     m_autoConnectCheck->setChecked(true);
     m_autoConnectCheck->setToolTip("Automatically connect to radio when application starts");
@@ -861,6 +868,7 @@ void PreferencesDialog::loadSettings() {
     }
 
     m_autoConnectCheck->setChecked(settings.getRadioAutoConnect());
+    m_morseWpmSpin->setValue(settings.getMorseWPM());
 
     // Radio status filter checkboxes
     m_showStableRadiosCheck->setChecked(settings.getShowStableRadios());
@@ -971,6 +979,7 @@ void PreferencesDialog::saveSettings() {
 
     settings.saveRadioConfig(config);
     settings.setRadioAutoConnect(m_autoConnectCheck->isChecked());
+    settings.setMorseWPM(m_morseWpmSpin->value());
 
     // Radio status filter checkboxes
     settings.setShowStableRadios(m_showStableRadiosCheck->isChecked());

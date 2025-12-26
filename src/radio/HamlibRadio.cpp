@@ -212,9 +212,14 @@ bool HamlibRadio::sendCW(const QString& text) {
     QMutexLocker locker(&m_rigMutex);
     if (!checkRigPointer("sendCW")) return false;
 
+    LOG_DEBUG("HamlibRadio", QString("Sending CW: '%1'").arg(text));
+    LOG_TRACE("HamlibRadio", QString("rig_send_morse called with text: '%1'").arg(text));
+
     int retcode = rig_send_morse(m_rig, RIG_VFO_CURR, text.toStdString().c_str());
 
     if (retcode == RIG_OK) {
+        LOG_TRACE("HamlibRadio", "Radio started sending CW");
+        LOG_DEBUG("HamlibRadio", QString("CW transmission started for '%1'").arg(text));
         return true;
     }
 
@@ -226,12 +231,16 @@ bool HamlibRadio::setCWSpeed(int wpm) {
     QMutexLocker locker(&m_rigMutex);
     if (!checkRigPointer("setCWSpeed")) return false;
 
+    LOG_DEBUG("HamlibRadio", QString("Setting CW speed to %1 WPM").arg(wpm));
+    LOG_TRACE("HamlibRadio", QString("rig_set_level(RIG_LEVEL_KEYSPD, %1)").arg(wpm));
+
     // Set CW speed via level parameter
     value_t val;
     val.i = wpm;
     int retcode = rig_set_level(m_rig, RIG_VFO_CURR, RIG_LEVEL_KEYSPD, val);
 
     if (retcode == RIG_OK) {
+        LOG_DEBUG("HamlibRadio", QString("CW speed set to %1 WPM successfully").arg(wpm));
         return true;
     }
 
@@ -239,13 +248,37 @@ bool HamlibRadio::setCWSpeed(int wpm) {
     return false;
 }
 
+int HamlibRadio::getCWSpeed() const {
+    QMutexLocker locker(&m_rigMutex);
+    if (!checkRigPointer("getCWSpeed")) return 0;
+
+    LOG_TRACE("HamlibRadio", "rig_get_level(RIG_LEVEL_KEYSPD)");
+
+    value_t val;
+    int retcode = rig_get_level(m_rig, RIG_VFO_CURR, RIG_LEVEL_KEYSPD, &val);
+
+    if (retcode == RIG_OK) {
+        int wpm = val.i;
+        LOG_DEBUG("HamlibRadio", QString("Got CW speed from radio: %1 WPM").arg(wpm));
+        return wpm;
+    }
+
+    logHamlibError("getCWSpeed", retcode);
+    return 0;  // Return 0 on error
+}
+
 bool HamlibRadio::stopCW() {
     QMutexLocker locker(&m_rigMutex);
     if (!checkRigPointer("stopCW")) return false;
 
+    LOG_DEBUG("HamlibRadio", "Stopping CW transmission");
+    LOG_TRACE("HamlibRadio", "rig_stop_morse called");
+
     int retcode = rig_stop_morse(m_rig, RIG_VFO_CURR);
 
     if (retcode == RIG_OK) {
+        LOG_TRACE("HamlibRadio", "Radio stopped sending CW");
+        LOG_DEBUG("HamlibRadio", "CW transmission stopped successfully");
         return true;
     }
 
@@ -552,6 +585,15 @@ RadioState HamlibRadio::pollCurrentState() {
     if (rig_get_strength(m_rig, RIG_VFO_CURR, &strength) == RIG_OK) {
         state.signalStrength = strength;  // Value in dBm
         LOG_DEBUG("HamlibRadio", QString("Signal strength from hamlib: %1").arg(strength));
+    }
+
+    // Poll CW speed (only when in CW mode to avoid unnecessary hamlib calls)
+    if (state.modeA == ModeType::CW || state.modeA == ModeType::CWR) {
+        value_t val;
+        if (rig_get_level(m_rig, RIG_VFO_CURR, RIG_LEVEL_KEYSPD, &val) == RIG_OK) {
+            state.cwSpeed = val.i;
+            LOG_TRACE("HamlibRadio", QString("Polled CW speed: %1 WPM").arg(state.cwSpeed));
+        }
     }
 
     state.isValid = true;

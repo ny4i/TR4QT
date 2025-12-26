@@ -90,6 +90,15 @@ bool AppSettings::getShowUntestedRadios() const {
     return m_settings.value("Radio/showUntestedRadios", false).toBool();  // Default: false
 }
 
+void AppSettings::setMorseWPM(int wpm) {
+    m_settings.setValue("Morse/wpm", wpm);
+    m_settings.sync();
+}
+
+int AppSettings::getMorseWPM() const {
+    return m_settings.value("Morse/wpm", 25).toInt();  // Default: 25 WPM
+}
+
 void AppSettings::setMyCallsign(const QString& callsign) {
     m_settings.setValue("Station/callsign", callsign.toUpper());
     m_settings.sync();

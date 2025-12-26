@@ -41,6 +41,10 @@ public:
     void setShowUntestedRadios(bool show);
     bool getShowUntestedRadios() const;
 
+    // Morse code settings
+    void setMorseWPM(int wpm);
+    int getMorseWPM() const;  // Default: 25 WPM
+
     // Station information
     void setMyCallsign(const QString& callsign);
     QString getMyCallsign() const;

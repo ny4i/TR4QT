@@ -5,6 +5,7 @@
 #include "dialogs/OperatorDialog.h"
 #include "dialogs/EditQSODialog.h"
 #include "dialogs/ExportPreviewDialog.h"
+#include "dialogs/SendMorseDialog.h"
 #include "widgets/DXClusterWindow.h"
 #include "widgets/BandMapWidget.h"
 #include "widgets/RadioControlWidget.h"
@@ -264,6 +265,10 @@ void MainWindow::createMenuBar() {
     wkModeAction->setShortcut(QKeySequence("Alt+A"));
     connect(wkModeAction, &QAction::triggered, this, &MainWindow::onWKMode);
 
+    QAction* sendMorseAction = toolsMenu->addAction("Send Morse Code");
+    sendMorseAction->setShortcut(QKeySequence("Alt+K"));
+    connect(sendMorseAction, &QAction::triggered, this, &MainWindow::onSendMorse);
+
     QAction* backupLogAction = toolsMenu->addAction("Backup Log");
     backupLogAction->setShortcut(QKeySequence("Alt+F"));
     connect(backupLogAction, &QAction::triggered, this, &MainWindow::onBackupLog);
@@ -513,6 +518,13 @@ QWidget* MainWindow::createBottomPanel() {
     freqLayout->addWidget(m_radioFreqBandLabel);
     freqLayout->addWidget(m_radioFreqLabel);
 
+    // WPM label for CW speed
+    m_radioWpmLabel = new QLabel("-- WPM", radioStatusWidget);
+    m_radioWpmLabel->setFont(labelFont);
+    m_radioWpmLabel->setAlignment(Qt::AlignCenter);
+    m_radioWpmLabel->setMinimumWidth(80);
+    m_radioWpmLabel->setEnabled(false);  // Grayed out by default
+
     // Date/Time label - use monospace font and fixed width to prevent jumping
     m_radioDateTimeLabel = new QLabel("", radioStatusWidget);
     QFont dateTimeFont("Monospace", labelFont.pointSize());
@@ -521,6 +533,7 @@ QWidget* MainWindow::createBottomPanel() {
     m_radioDateTimeLabel->setMinimumWidth(220);  // Wide enough for "Wed 25-Dec-2025 13:45:30"
 
     radioLayout->addLayout(freqLayout);
+    radioLayout->addWidget(m_radioWpmLabel);
     radioLayout->addWidget(m_radioDateTimeLabel);
 
     bottomLayout->addWidget(radioStatusWidget);
@@ -806,6 +819,64 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 
     // Ensure application quits
     QApplication::quit();
+}
+
+void MainWindow::keyPressEvent(QKeyEvent* event) {
+    // PgUp: Increase WPM by 3
+    if (event->key() == Qt::Key_PageUp) {
+        int currentWpm = AppSettings::instance().getMorseWPM();
+        int newWpm = qMin(currentWpm + 3, 60);  // Max 60 WPM
+        AppSettings::instance().setMorseWPM(newWpm);
+
+        // Update display
+        updateRadioStatusGrid();
+
+        // Send to radio if in CW mode
+        bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
+        if (isCWMode && m_radioConnected) {
+            m_radio->setCWSpeed(newWpm);
+        }
+
+        m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
+        LOG_INFO("MainWindow", QString("WPM increased to %1 (PgUp)").arg(newWpm));
+        event->accept();
+        return;
+    }
+
+    // PgDown: Decrease WPM by 3
+    if (event->key() == Qt::Key_PageDown) {
+        int currentWpm = AppSettings::instance().getMorseWPM();
+        int newWpm = qMax(currentWpm - 3, 5);  // Min 5 WPM
+        AppSettings::instance().setMorseWPM(newWpm);
+
+        // Update display
+        updateRadioStatusGrid();
+
+        // Send to radio if in CW mode
+        bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
+        if (isCWMode && m_radioConnected) {
+            m_radio->setCWSpeed(newWpm);
+        }
+
+        m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
+        LOG_INFO("MainWindow", QString("WPM decreased to %1 (PgDn)").arg(newWpm));
+        event->accept();
+        return;
+    }
+
+    // ESC: Abort CW transmission
+    if (event->key() == Qt::Key_Escape) {
+        if (m_radioConnected) {
+            m_radio->stopCW();
+            m_statusLabel->setText("CW transmission aborted");
+            LOG_INFO("MainWindow", "CW transmission aborted via ESC key");
+        }
+        event->accept();
+        return;
+    }
+
+    // Let parent handle other keys
+    QMainWindow::keyPressEvent(event);
 }
 
 bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
@@ -1326,6 +1397,16 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
 
     m_currentState = state;
     // Radio state is cached for use when logging QSOs
+
+    // Sync CW speed from radio to program settings (when in CW mode)
+    static int lastCwSpeed = 0;
+    if ((state.modeA == ModeType::CW || state.modeA == ModeType::CWR) && state.cwSpeed > 0) {
+        if (state.cwSpeed != lastCwSpeed) {
+            AppSettings::instance().setMorseWPM(state.cwSpeed);
+            lastCwSpeed = state.cwSpeed;
+            LOG_DEBUG("MainWindow", QString("Synced CW speed from radio: %1 WPM").arg(state.cwSpeed));
+        }
+    }
 
     // Update radio status grid with new state
     updateRadioStatusGrid();
@@ -2304,6 +2385,12 @@ void MainWindow::updateRadioStatusGrid() {
         m_radioFreqLabel->setText("0.000 MHz");
     }
 
+    // Update WPM label (only enabled in CW mode)
+    bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
+    int wpm = AppSettings::instance().getMorseWPM();
+    m_radioWpmLabel->setText(QString("%1 WPM").arg(wpm));
+    m_radioWpmLabel->setEnabled(isCWMode);  // Gray out when not in CW mode
+
     // Update date/time (current local time)
     QDateTime now = QDateTime::currentDateTime();
     QString dateTimeStr = now.toString("ddd dd-MMM-yyyy hh:mm:ss");
@@ -2915,6 +3002,18 @@ void MainWindow::onWKMode() {
     QMessageBox::information(this, "Not Implemented",
                            "WinKeyer re-initialization will be implemented in a future version.\n\n"
                            "This will re-initialize the WinKeyer for CW keying.");
+}
+
+void MainWindow::onSendMorse() {
+    if (!m_radioConnected) {
+        QMessageBox::warning(this, "Radio Not Connected",
+            "Radio must be connected to send morse code.\n\n"
+            "Please connect to your radio first.");
+        return;
+    }
+
+    SendMorseDialog dialog(m_radio, this);
+    dialog.exec();
 }
 
 void MainWindow::onBackupLog() {
