@@ -209,7 +209,8 @@ private:
     QLabel* m_radioFreqBandLabel;  // Shows "15SSB"
     QLabel* m_radioFreqLabel;      // Shows frequency
     QLabel* m_radioWpmLabel;       // Shows CW speed (WPM)
-    QLabel* m_radioDateTimeLabel;  // Shows current date/time
+    QLabel* m_radioDateLabel;      // Shows current date
+    QLabel* m_radioTimeLabel;      // Shows current time
 
     // Radio control
     RadioController* m_radio;
