@@ -2066,7 +2066,8 @@ void MainWindow::updateScoreDisplay() {
     m_bandSummaryGrid->setAllQSOs(totalQSOs);
     m_bandSummaryGrid->setAllMults(totalMults);
     m_bandSummaryGrid->setAllZones(totalZones);
-    m_bandSummaryGrid->setTotalPoints(finalScore);  // Use final score, not just QSO points
+    m_bandSummaryGrid->setAllPoints(totalQSOPoints);  // Sum of QSO points
+    m_bandSummaryGrid->setFinalScore(finalScore);     // Contest score (points × mults)
 
     // Update status bar
     m_statusLabel->setText(QString("%1 QSOs, %2 Points").arg(totalQSOs).arg(finalScore));

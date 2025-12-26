@@ -37,7 +37,8 @@ public:
     void setAllQSOs(int count);
     void setAllMults(int count);
     void setAllZones(int count);
-    void setTotalPoints(int points);  // Sets both All column and total display
+    void setAllPoints(int points);   // Total QSO points in All column
+    void setFinalScore(int score);   // Final contest score (e.g., "36 Pts")
 
     void setBothNeeded(const QString& bands);
 

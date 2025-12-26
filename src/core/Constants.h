@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.85.1";  // Add Rescore Contest menu item
+constexpr const char* APP_VERSION = "2.85.2";  // Fix Points All column to show QSO points, not final score
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
