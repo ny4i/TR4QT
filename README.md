@@ -6,9 +6,13 @@ Cross-platform Qt/C++ port of TR4W (Delphi contest logger) with centralized radi
 
 - ✅ cty.dat country file parser with auto-download
 - ✅ DXCC entity lookup
-- 🚧 Radio control via hamlib (K4, IC-7610/7760 focus)
-- 🚧 SQLite database for portable log storage
-- 🚧 Contest support: CQ WW, CQ WPX, Winter Field Day
+- ✅ Radio control via hamlib (K4, IC-7610/7760 focus)
+- ✅ SQLite database for portable log storage
+- ✅ Contest support: CQ WW, CQ WPX, Winter Field Day, ARRl Field Day, ARRL Sweepstakes
+- ✅ ADIF and Cabrillo export
+- ✅ DX Cluster support
+- ✅ Band Map Window
+- ✅ Downloads fresh CTY.DAT files and LOTW users file (allows bandmap to filter by recent LOTW user)
 
 ## Priority Contests
 
