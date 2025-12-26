@@ -484,6 +484,7 @@ QSO QSORepository::qsoFromQuery(const QSqlQuery& query) const {
     }
 
     qso.serialNumber = query.value("serial_number").toInt();
+    qso.operatorCall = query.value("operator_call").toString();
     qso.deleted = query.value("deleted").toBool();
     qso.notes = query.value("notes").toString();
 
