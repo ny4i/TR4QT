@@ -43,6 +43,8 @@
 #include <QHeaderView>
 #include <QLineEdit>
 #include <QTextEdit>
+#include <QtConcurrent/QtConcurrent>
+#include <QThread>
 
 namespace TR4QT {
 
@@ -56,6 +58,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_multiplierWindow(nullptr)
     , m_statisticsWindow(nullptr)
     , m_qsosThisHour(0)
+    , m_qsosSinceLastIntegrityCheck(0)
     , m_hasActiveContest(false)
     , m_activeContest(nullptr)
     , m_currentContestDbId(-1)
@@ -92,6 +95,11 @@ MainWindow::MainWindow(QWidget* parent)
     m_updateTimer = new QTimer(this);
     connect(m_updateTimer, &QTimer::timeout, this, &MainWindow::updateTimeDisplay);
     m_updateTimer->start(1000);  // Update every second
+
+    // Setup periodic integrity check timer (Tier 2)
+    m_integrityCheckTimer = new QTimer(this);
+    connect(m_integrityCheckTimer, &QTimer::timeout, this, &MainWindow::onPeriodicIntegrityCheck);
+    m_integrityCheckTimer->start(5 * 60 * 1000);  // Check every 5 minutes
 
     // Connect radio signals (RadioController automatically uses Qt::QueuedConnection for cross-thread)
     connect(m_radio, &RadioController::connectionStatusChanged,
@@ -274,6 +282,13 @@ void MainWindow::createMenuBar() {
     QAction* initializeAction = toolsMenu->addAction("Initialize");
     initializeAction->setShortcut(QKeySequence("Alt+W"));
     connect(initializeAction, &QAction::triggered, this, &MainWindow::onInitialize);
+
+    toolsMenu->addSeparator();
+
+    // Data integrity check
+    QAction* integrityCheckAction = toolsMenu->addAction("Validate Log Integrity");
+    integrityCheckAction->setShortcut(QKeySequence("Alt+I"));
+    connect(integrityCheckAction, &QAction::triggered, this, &MainWindow::onFullIntegrityCheck);
 
     toolsMenu->addSeparator();
 
@@ -1086,6 +1101,27 @@ void MainWindow::onExportCabrillo() {
         return;
     }
 
+    // Tier 4: Run integrity check before export
+    if (m_hasActiveContest) {
+        if (!quickIntegrityCheck()) {
+            QMessageBox::StandardButton reply = QMessageBox::warning(
+                this,
+                "Data Integrity Warning",
+                "Log integrity check failed!\n\n"
+                "There is a mismatch between memory and database.\n"
+                "Exporting may result in incomplete or incorrect data.\n\n"
+                "Continue with export anyway?",
+                QMessageBox::Yes | QMessageBox::No,
+                QMessageBox::No);
+
+            if (reply == QMessageBox::No) {
+                return;  // Abort export
+            }
+        } else {
+            LOG_INFO("MainWindow", "Pre-export integrity check passed");
+        }
+    }
+
     // Warn if no contest is active
     if (!m_hasActiveContest || !m_activeContest) {
         QMessageBox::StandardButton reply = QMessageBox::question(
@@ -1312,6 +1348,15 @@ void MainWindow::onLogQSO() {
         return;
     }
 
+    // Check for UDP command (rebroadcast entire log)
+    if (callsign == "UDP") {
+        onRebroadcastLog();
+
+        // Clear entry fields and focus callsign
+        onClearEntry();
+        return;
+    }
+
     if (callsign.isEmpty()) {
         m_statusLabel->setText("Error: Callsign is required");
         m_callsignEntry->setFocus();
@@ -1418,6 +1463,9 @@ void MainWindow::onLogQSO() {
     // Add to table model (UI)
     m_qsoTableModel->addQSO(qso);
 
+    // Update band summary grid with new scores
+    updateScoreDisplay();
+
     // Scroll to show the newly logged QSO
     m_qsoTableView->scrollToBottom();
 
@@ -1474,6 +1522,13 @@ void MainWindow::onLogQSO() {
                               .arg(callsign)
                               .arg(bandToString(qso.band))
                               .arg(modeToString(qso.mode)));
+
+    // Tier 2 Integrity Check: Check after every 50 QSOs
+    m_qsosSinceLastIntegrityCheck++;
+    if (m_qsosSinceLastIntegrityCheck >= 50) {
+        quickIntegrityCheck();
+        m_qsosSinceLastIntegrityCheck = 0;
+    }
 
     // Clear entry fields and focus callsign
     onClearEntry();
@@ -1536,6 +1591,18 @@ void MainWindow::onCallsignEnterPressed() {
     QString callsign = m_callsignEntry->text().trimmed().toUpper();
 
     if (callsign.isEmpty()) {
+        return;
+    }
+
+    // Check for OPON command (change operator)
+    if (callsign == "OPON") {
+        onLogQSO();  // Handle OPON in onLogQSO which has the full implementation
+        return;
+    }
+
+    // Check for UDP command (rebroadcast entire log)
+    if (callsign == "UDP") {
+        onLogQSO();  // Handle UDP in onLogQSO which has the full implementation
         return;
     }
 
@@ -1626,10 +1693,446 @@ void MainWindow::onQSOTableContextMenu(const QPoint& pos) {
 }
 
 void MainWindow::updateScoreDisplay() {
-    // TODO: Calculate actual scores per band and update band summary grid
-    // For now, just update the status bar with QSO count
-    int qsoCount = m_qsoTableModel->count();
-    m_statusLabel->setText(QString("%1 QSOs logged").arg(qsoCount));
+    if (!m_bandSummaryGrid) {
+        return;
+    }
+
+    // Initialize per-band counters
+    QMap<BandType, int> qsosPerBand;
+    QMap<BandType, int> pointsPerBand;
+    QMap<BandType, QSet<QString>> multsPerBand;    // Track unique mults
+    QMap<BandType, QSet<int>> zonesPerBand;         // Track unique zones
+
+    int totalQSOs = 0;
+    int totalPoints = 0;
+
+    // Iterate through all QSOs in the table model
+    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
+        QSO qso = m_qsoTableModel->getQSO(row);
+
+        if (qso.band == BandType::None) {
+            continue;  // Skip QSOs with no band
+        }
+
+        // Count QSOs per band
+        qsosPerBand[qso.band]++;
+        totalQSOs++;
+
+        // Sum points per band
+        pointsPerBand[qso.band] += qso.qsoPoints;
+        totalPoints += qso.qsoPoints;
+
+        // Track unique multipliers per band (DXCC prefix)
+        if (!qso.dxccPrefix.isEmpty()) {
+            multsPerBand[qso.band].insert(qso.dxccPrefix);
+        }
+
+        // Track unique zones per band
+        if (qso.cqZone > 0) {
+            zonesPerBand[qso.band].insert(qso.cqZone);
+        }
+    }
+
+    // Update band summary grid with calculated values
+    QList<BandType> bands = {
+        BandType::Band160M, BandType::Band80M, BandType::Band40M,
+        BandType::Band20M, BandType::Band15M, BandType::Band10M
+    };
+
+    int totalMults = 0;
+    int totalZones = 0;
+
+    for (BandType band : bands) {
+        int qsos = qsosPerBand.value(band, 0);
+        int points = pointsPerBand.value(band, 0);
+        int mults = multsPerBand.value(band).size();
+        int zones = zonesPerBand.value(band).size();
+
+        m_bandSummaryGrid->setQSOCount(band, qsos);
+        m_bandSummaryGrid->setPointsCount(band, points);
+        m_bandSummaryGrid->setMultCount(band, mults);
+        m_bandSummaryGrid->setZoneCount(band, zones);
+
+        totalMults += mults;
+        totalZones += zones;
+    }
+
+    // Update "All" column totals
+    m_bandSummaryGrid->setAllQSOs(totalQSOs);
+    m_bandSummaryGrid->setAllMults(totalMults);
+    m_bandSummaryGrid->setAllZones(totalZones);
+    m_bandSummaryGrid->setTotalPoints(totalPoints);
+
+    // Update status bar
+    m_statusLabel->setText(QString("%1 QSOs, %2 Points").arg(totalQSOs).arg(totalPoints));
+}
+
+void MainWindow::recalculateAllPoints() {
+    if (!m_activeContest || !m_qsoTableModel) {
+        LOG_WARN("MainWindow", "Cannot recalculate points - no active contest or table model");
+        return;
+    }
+
+    LOG_INFO("MainWindow", QString("Recalculating points for %1 QSOs").arg(m_qsoTableModel->count()));
+
+    // Setup station info
+    StationInfo myStation;
+    myStation.callsign = AppSettings::instance().getMyCallsign();
+    myStation.continent = AppSettings::instance().getMyContinent();
+    myStation.cqZone = AppSettings::instance().getMyCQZone();
+
+    CountryData myCountryData = m_countryFile.lookup(myStation.callsign);
+    if (myCountryData.isValid()) {
+        myStation.country = myCountryData.name;
+    }
+
+    int updatedCount = 0;
+    QSORepository repo;
+
+    // Iterate through all QSOs and recalculate points
+    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
+        QSO qso = m_qsoTableModel->getQSO(row);
+
+        // Calculate new points
+        int newPoints = m_activeContest->calculateQSOPoints(qso, myStation);
+
+        // Update if different
+        if (qso.qsoPoints != newPoints) {
+            qso.qsoPoints = newPoints;
+
+            // Update in database
+            if (repo.updateQSO(qso)) {
+                // Update in table model
+                m_qsoTableModel->updateQSO(row, qso);
+                updatedCount++;
+            } else {
+                LOG_ERROR("MainWindow", QString("Failed to update QSO %1 in database").arg(qso.id));
+            }
+        }
+    }
+
+    LOG_INFO("MainWindow", QString("Recalculated points for %1 QSOs").arg(updatedCount));
+
+    // Update display
+    updateScoreDisplay();
+
+    // Show result to user
+    m_statusLabel->setText(QString("Recalculated points for %1 QSOs").arg(updatedCount));
+}
+
+// Tier 2: Periodic lightweight integrity check
+void MainWindow::onPeriodicIntegrityCheck() {
+    if (!m_hasActiveContest || !m_qsoTableModel) {
+        return;  // No contest active, skip check
+    }
+
+    if (!quickIntegrityCheck()) {
+        LOG_WARN("MainWindow", "Periodic integrity check failed");
+    }
+}
+
+bool MainWindow::quickIntegrityCheck() {
+    if (!m_hasActiveContest || !m_qsoTableModel) {
+        return true;  // Nothing to check
+    }
+
+    // Quick count comparison
+    int memoryCount = m_qsoTableModel->count();
+    QSORepository repo;
+
+    // Count non-deleted QSOs in database
+    Database& db = Database::instance();
+    QSqlQuery query = db.execute(
+        "SELECT COUNT(*) FROM qsos WHERE contest_id = ? AND deleted = 0",
+        {m_currentContestDbId});
+
+    int dbCount = 0;
+    if (query.next()) {
+        dbCount = query.value(0).toInt();
+    }
+
+    if (memoryCount != dbCount) {
+        LOG_ERROR("MainWindow", QString("INTEGRITY CHECK FAILED: Memory=%1 DB=%2")
+            .arg(memoryCount).arg(dbCount));
+
+        handleIntegrityMismatch(memoryCount, dbCount);
+        return false;
+    }
+
+    LOG_DEBUG("MainWindow", QString("Integrity check passed: %1 QSOs").arg(memoryCount));
+    return true;
+}
+
+void MainWindow::handleIntegrityMismatch(int memoryCount, int dbCount) {
+    QString message = QString(
+        "Data integrity mismatch detected!\n\n"
+        "QSOs in memory: %1\n"
+        "QSOs in database: %2\n\n"
+        "This may indicate a database write failure.\n"
+        "Recommend reloading the contest to synchronize data.\n\n"
+        "Reload contest now?")
+        .arg(memoryCount)
+        .arg(dbCount);
+
+    QMessageBox::StandardButton reply = QMessageBox::warning(
+        this,
+        "Data Integrity Warning",
+        message,
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::Yes);
+
+    if (reply == QMessageBox::Yes) {
+        // Reload contest from database
+        LOG_INFO("MainWindow", "User requested contest reload after integrity mismatch");
+        reopenLastContest();
+    }
+}
+
+// Tier 3: Full detailed integrity check
+void MainWindow::onFullIntegrityCheck() {
+    if (!m_hasActiveContest || !m_qsoTableModel) {
+        QMessageBox::information(this, "Integrity Check",
+            "No active contest to validate.");
+        return;
+    }
+
+    m_statusLabel->setText("Running full integrity check...");
+    QApplication::processEvents();  // Update UI
+
+    QString report = fullIntegrityCheck();
+
+    // Display report
+    QDialog* dialog = new QDialog(this);
+    dialog->setWindowTitle("Log Integrity Check Report");
+    dialog->resize(600, 400);
+
+    QVBoxLayout* layout = new QVBoxLayout(dialog);
+
+    QTextEdit* reportText = new QTextEdit(dialog);
+    reportText->setReadOnly(true);
+    reportText->setPlainText(report);
+    reportText->setFont(QFont("Monospace", 10));
+    layout->addWidget(reportText);
+
+    QPushButton* closeButton = new QPushButton("Close", dialog);
+    connect(closeButton, &QPushButton::clicked, dialog, &QDialog::accept);
+    layout->addWidget(closeButton);
+
+    dialog->exec();
+    delete dialog;
+
+    m_statusLabel->setText("Integrity check complete");
+}
+
+QString MainWindow::fullIntegrityCheck() {
+    QString report;
+    report += "=== LOG INTEGRITY CHECK REPORT ===\n\n";
+    report += QString("Contest: %1\n").arg(m_currentContest.contestName);
+    report += QString("Database: %1\n").arg(m_currentContest.databasePath);
+    report += QString("Check time: %1\n\n").arg(QDateTime::currentDateTime().toString(Qt::ISODate));
+
+    int memoryCount = m_qsoTableModel->count();
+    Database& db = Database::instance();
+
+    // Count database QSOs
+    QSqlQuery countQuery = db.execute(
+        "SELECT COUNT(*) FROM qsos WHERE contest_id = ? AND deleted = 0",
+        {m_currentContestDbId});
+    int dbCount = 0;
+    if (countQuery.next()) {
+        dbCount = countQuery.value(0).toInt();
+    }
+
+    report += QString("QSOs in memory: %1\n").arg(memoryCount);
+    report += QString("QSOs in database: %1\n\n").arg(dbCount);
+
+    // Check 1: Count match
+    if (memoryCount == dbCount) {
+        report += "✓ QSO count matches\n\n";
+    } else {
+        report += QString("✗ QSO COUNT MISMATCH (diff: %1)\n\n")
+            .arg(qAbs(memoryCount - dbCount));
+    }
+
+    // Check 2: Verify all memory QSOs exist in database
+    QStringList missingInDB;
+    QSORepository repo;
+    for (int row = 0; row < memoryCount; ++row) {
+        QSO qso = m_qsoTableModel->getQSO(row);
+        if (qso.id < 0) {
+            missingInDB.append(QString("Row %1: %2 (no database ID)")
+                .arg(row).arg(qso.callsign));
+        } else {
+            QSO dbQso = repo.findById(qso.id);
+            if (dbQso.id < 0) {
+                missingInDB.append(QString("Row %1: %2 (ID=%3 not found in DB)")
+                    .arg(row).arg(qso.callsign).arg(qso.id));
+            }
+        }
+    }
+
+    if (missingInDB.isEmpty()) {
+        report += "✓ All memory QSOs exist in database\n\n";
+    } else {
+        report += QString("✗ %1 QSOs in memory not found in database:\n")
+            .arg(missingInDB.size());
+        for (const QString& item : missingInDB) {
+            report += QString("  - %1\n").arg(item);
+        }
+        report += "\n";
+    }
+
+    // Check 3: Look for orphaned QSOs in database
+    QSqlQuery dbQuery = db.execute(
+        "SELECT id, callsign FROM qsos WHERE contest_id = ? AND deleted = 0",
+        {m_currentContestDbId});
+
+    QList<int> dbIds;
+    QMap<int, QString> dbCallsigns;
+    while (dbQuery.next()) {
+        int id = dbQuery.value(0).toInt();
+        QString callsign = dbQuery.value(1).toString();
+        dbIds.append(id);
+        dbCallsigns[id] = callsign;
+    }
+
+    QSet<int> memoryIds;
+    for (int row = 0; row < memoryCount; ++row) {
+        QSO qso = m_qsoTableModel->getQSO(row);
+        if (qso.id >= 0) {
+            memoryIds.insert(qso.id);
+        }
+    }
+
+    QStringList orphanedInDB;
+    for (int dbId : dbIds) {
+        if (!memoryIds.contains(dbId)) {
+            orphanedInDB.append(QString("ID=%1: %2")
+                .arg(dbId).arg(dbCallsigns[dbId]));
+        }
+    }
+
+    if (orphanedInDB.isEmpty()) {
+        report += "✓ No orphaned QSOs in database\n\n";
+    } else {
+        report += QString("✗ %1 QSOs in database not loaded in memory:\n")
+            .arg(orphanedInDB.size());
+        for (const QString& item : orphanedInDB) {
+            report += QString("  - %1\n").arg(item);
+        }
+        report += "\n";
+    }
+
+    // Check 4: Verify critical fields match
+    int fieldMismatches = 0;
+    for (int row = 0; row < qMin(memoryCount, 100); ++row) {  // Sample first 100
+        QSO memQso = m_qsoTableModel->getQSO(row);
+        if (memQso.id < 0) continue;
+
+        QSO dbQso = repo.findById(memQso.id);
+        if (dbQso.id < 0) continue;
+
+        if (memQso.callsign != dbQso.callsign ||
+            memQso.qsoPoints != dbQso.qsoPoints ||
+            memQso.band != dbQso.band) {
+            fieldMismatches++;
+        }
+    }
+
+    if (fieldMismatches == 0) {
+        report += QString("✓ Field values match (sampled first 100 QSOs)\n\n");
+    } else {
+        report += QString("✗ %1 field mismatches detected in sample\n\n")
+            .arg(fieldMismatches);
+    }
+
+    // Summary
+    report += "=== SUMMARY ===\n";
+    bool allPassed = (memoryCount == dbCount) &&
+                     missingInDB.isEmpty() &&
+                     orphanedInDB.isEmpty() &&
+                     (fieldMismatches == 0);
+
+    if (allPassed) {
+        report += "✓ ALL CHECKS PASSED - Log integrity verified\n";
+    } else {
+        report += "✗ ISSUES DETECTED - See details above\n";
+        report += "\nRecommendation: Consider reloading contest from database\n";
+    }
+
+    LOG_INFO("MainWindow", QString("Full integrity check: %1")
+        .arg(allPassed ? "PASSED" : "FAILED"));
+
+    return report;
+}
+
+// UDP command: Rebroadcast entire log
+void MainWindow::onRebroadcastLog() {
+    if (!m_hasActiveContest || !m_qsoTableModel) {
+        m_statusLabel->setText("Error: No active contest to rebroadcast");
+        return;
+    }
+
+    if (!m_udpBroadcastManager->isEnabled()) {
+        m_statusLabel->setText("Error: UDP broadcasting is disabled");
+        return;
+    }
+
+    int totalQSOs = m_qsoTableModel->count();
+    if (totalQSOs == 0) {
+        m_statusLabel->setText("No QSOs to rebroadcast");
+        return;
+    }
+
+    LOG_INFO("MainWindow", QString("Starting UDP rebroadcast of %1 QSOs").arg(totalQSOs));
+    m_statusLabel->setText(QString("Starting UDP rebroadcast of %1 QSOs...").arg(totalQSOs));
+
+    // Run in separate thread to avoid blocking UI
+    // Note: Rebroadcast is read-only (no database writes), so it doesn't interfere with QSO logging
+    auto future = QtConcurrent::run([this, totalQSOs]() {
+        QString stationCall = AppSettings::instance().getMyCallsign();
+        QString contestName = m_currentContest.contestName;
+
+        int quarter = qMax(1, totalQSOs / 4);  // For progress updates
+        int sent = 0;
+
+        for (int row = 0; row < totalQSOs; ++row) {
+            QSO qso = m_qsoTableModel->getQSO(row);
+
+            // Broadcast this QSO
+            m_udpBroadcastManager->onQSOLogged(qso, stationCall, contestName);
+            sent++;
+
+            // Progress updates at 25%, 50%, 75%
+            if (sent == quarter) {
+                QMetaObject::invokeMethod(this, [this, sent, totalQSOs]() {
+                    m_statusLabel->setText(QString("UDP rebroadcast: %1/%2 (25%)")
+                        .arg(sent).arg(totalQSOs));
+                }, Qt::QueuedConnection);
+            } else if (sent == quarter * 2) {
+                QMetaObject::invokeMethod(this, [this, sent, totalQSOs]() {
+                    m_statusLabel->setText(QString("UDP rebroadcast: %1/%2 (50%)")
+                        .arg(sent).arg(totalQSOs));
+                }, Qt::QueuedConnection);
+            } else if (sent == quarter * 3) {
+                QMetaObject::invokeMethod(this, [this, sent, totalQSOs]() {
+                    m_statusLabel->setText(QString("UDP rebroadcast: %1/%2 (75%)")
+                        .arg(sent).arg(totalQSOs));
+                }, Qt::QueuedConnection);
+            }
+
+            // Wait after every 5 QSOs
+            if ((sent % 5) == 0 && sent < totalQSOs) {
+                QThread::msleep(100);  // 100ms wait between batches
+            }
+        }
+
+        // Final status
+        QMetaObject::invokeMethod(this, [this, totalQSOs]() {
+            m_statusLabel->setText(QString("UDP rebroadcast complete: %1 QSOs sent").arg(totalQSOs));
+            LOG_INFO("MainWindow", QString("UDP rebroadcast complete: %1 QSOs sent").arg(totalQSOs));
+        }, Qt::QueuedConnection);
+    });
 }
 
 void MainWindow::updateTimeDisplay() {
@@ -1910,6 +2413,9 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         }
         LOG_DEBUG("MainWindow", QString("Loaded %1 existing QSOs").arg(existingQSOs.size()));
 
+        // Update band summary grid with loaded QSOs
+        updateScoreDisplay();
+
         // Scroll to bottom to show latest QSO and ensure scroll bars are visible
         if (!existingQSOs.isEmpty()) {
             m_qsoTableView->scrollToBottom();
@@ -2004,6 +2510,12 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
             .arg(bandToString(m_currentState.bandA))
             .arg(modeToString(m_currentState.modeA))
             .arg(m_currentState.frequencyA));
+    }
+
+    // Recalculate points for all QSOs (fixes old QSOs with 0 points)
+    // Must be called after m_activeContest is created
+    if (m_qsoTableModel->count() > 0) {
+        recalculateAllPoints();
     }
 
     // Update exchange fields for this contest

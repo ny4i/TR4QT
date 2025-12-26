@@ -133,6 +133,13 @@ private slots:
     // Timer update
     void updateTimeDisplay();
 
+    // Data integrity checks
+    void onPeriodicIntegrityCheck();  // Tier 2: Periodic check
+    void onFullIntegrityCheck();      // Tier 3: On-demand full check
+
+    // UDP log rebroadcast
+    void onRebroadcastLog();          // UDP command: rebroadcast entire log
+
 private:
     void setupUI();
     void createMenuBar();
@@ -147,6 +154,7 @@ private:
     void loadBackupSettings();
     void updateConnectionStatus(bool connected);
     void updateScoreDisplay();
+    void recalculateAllPoints();  // Recalculate points for all QSOs in log
     void updateRadioStatusGrid();
     void raiseAllWindows();
     void setStatusMessage(const QString& message);  // Set status and log it
@@ -165,6 +173,11 @@ private:
 
     // Duplicate checking
     bool checkForDuplicate(const QString& callsign, BandType band, ModeType mode, QString& dupeInfo) const;
+
+    // Data integrity helpers
+    bool quickIntegrityCheck();         // Quick count-based check
+    QString fullIntegrityCheck();       // Detailed check with report
+    void handleIntegrityMismatch(int memoryCount, int dbCount);
 
     // UI Components
     QLabel* m_statusLabel;
@@ -215,6 +228,10 @@ private:
     QTimer* m_updateTimer;
     QDateTime m_lastQSOTime;
     int m_qsosThisHour;
+
+    // Data integrity tracking (Tier 2)
+    QTimer* m_integrityCheckTimer;
+    int m_qsosSinceLastIntegrityCheck;
 
     // Contest information
     ContestInfo m_currentContest;

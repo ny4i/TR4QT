@@ -70,6 +70,9 @@ public:
     // Serial number (if contest uses them)
     int serialNumber{0};            // Our sent serial number
     int serialNumberRcvd{0};        // Received serial number (if applicable)
+
+    // Unique identifier
+    QString id;                     // GUID for this QSO (32 hex chars, no hyphens)
 };
 
 } // namespace TR4QT

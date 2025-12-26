@@ -16,6 +16,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Sql
     Network
     PrintSupport
+    Concurrent
     Test
 )
 

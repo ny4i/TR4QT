@@ -233,6 +233,11 @@ ContactInfo UdpBroadcastManager::createContactInfo(const QSO& qso,
     info.serialNumber = qso.serialNumber;
     // Note: serialNumberRcvd not currently in QSO struct
 
+    // Unique identifier (GUID without hyphens)
+    if (!qso.guid.isEmpty()) {
+        info.id = QString(qso.guid).remove('-');  // Remove hyphens for N1MM+ format
+    }
+
     return info;
 }
 

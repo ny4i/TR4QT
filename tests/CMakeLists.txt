@@ -161,3 +161,9 @@ add_tr4qt_test(test_qso_persistence
     ../src/logging/LogFormatter.cpp
     ../src/logging/FileAppender.cpp
 )
+
+# Performance tests
+add_tr4qt_test(test_score_performance
+    test_score_performance.cpp
+    ../src/core/Types.cpp
+)

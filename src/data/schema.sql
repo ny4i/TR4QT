@@ -28,6 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_contests_id ON contests(contest_id);
 CREATE TABLE IF NOT EXISTS qsos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     contest_id INTEGER NOT NULL,        -- FK to contests table
+    guid TEXT UNIQUE NOT NULL,          -- Globally Unique Identifier (UUID)
 
     -- QSO timing
     timestamp INTEGER NOT NULL,         -- Unix timestamp (UTC)
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS qsos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_qsos_contest ON qsos(contest_id);
+CREATE INDEX IF NOT EXISTS idx_qsos_guid ON qsos(guid);
 CREATE INDEX IF NOT EXISTS idx_qsos_callsign ON qsos(callsign);
 CREATE INDEX IF NOT EXISTS idx_qsos_timestamp ON qsos(timestamp);
 CREATE INDEX IF NOT EXISTS idx_qsos_band_mode ON qsos(band, mode);

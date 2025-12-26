@@ -66,6 +66,11 @@ QByteArray ContactInfo::toXml() const
         xml.writeTextElement("serialNumberRcvd", QString::number(serialNumberRcvd));
     }
 
+    // Unique identifier (GUID)
+    if (!id.isEmpty()) {
+        xml.writeTextElement("ID", id);
+    }
+
     xml.writeEndElement(); // ContactInfo
     xml.writeEndDocument();
 

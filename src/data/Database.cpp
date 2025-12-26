@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QVariant>
+#include <QUuid>
 
 namespace TR4QT {
 
@@ -71,8 +72,13 @@ bool Database::open(const QString& dbPath) {
                          "Please create a new contest or delete the old database file.";
             LOG_WARN("Database", m_lastError);
             LOG_WARN("Database", QString("Database path: %1").arg(dbPath));
-            // TODO: Offer to migrate/upgrade database schema in a future version
-            //       Show dialog: "Upgrade database schema?" [Yes] [No] [Delete and recreate]
+            close();
+            return false;
+        }
+
+        // Migrate schema for existing databases
+        if (!migrateSchema()) {
+            LOG_WARN("Database", "Schema migration failed");
             close();
             return false;
         }
@@ -228,6 +234,80 @@ QString Database::loadSchemaSql() {
     }
 
     return sql;
+}
+
+bool Database::migrateSchema() {
+    LOG_DEBUG("Database", "Checking for schema migrations...");
+
+    QSqlQuery query(m_db);
+
+    // Migration 1: Add guid column to qsos table (v2.74.0)
+    // Check if guid column exists
+    query.exec("PRAGMA table_info(qsos)");
+    bool hasGuidColumn = false;
+    while (query.next()) {
+        QString columnName = query.value(1).toString();
+        if (columnName == "guid") {
+            hasGuidColumn = true;
+            break;
+        }
+    }
+
+    if (!hasGuidColumn) {
+        LOG_INFO("Database", "Migrating schema: Adding guid column to qsos table");
+
+        // Add guid column (allow NULL temporarily for migration)
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN guid TEXT")) {
+            m_lastError = QString("Failed to add guid column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+
+        // Generate GUIDs for all existing QSOs
+        LOG_INFO("Database", "Generating GUIDs for existing QSOs...");
+
+        // Get all QSO IDs
+        if (!query.exec("SELECT id FROM qsos WHERE guid IS NULL")) {
+            m_lastError = QString("Failed to query existing QSOs: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+
+        QList<int> qsoIds;
+        while (query.next()) {
+            qsoIds.append(query.value(0).toInt());
+        }
+
+        LOG_INFO("Database", QString("Updating %1 QSOs with GUIDs...").arg(qsoIds.size()));
+
+        // Update each QSO with a GUID
+        QSqlQuery updateQuery(m_db);
+        updateQuery.prepare("UPDATE qsos SET guid = ? WHERE id = ?");
+
+        for (int qsoId : qsoIds) {
+            QString guid = QUuid::createUuid().toString(QUuid::WithoutBraces);
+            updateQuery.bindValue(0, guid);
+            updateQuery.bindValue(1, qsoId);
+
+            if (!updateQuery.exec()) {
+                m_lastError = QString("Failed to update QSO %1 with GUID: %2")
+                    .arg(qsoId).arg(updateQuery.lastError().text());
+                LOG_ERROR("Database", m_lastError);
+                return false;
+            }
+        }
+
+        LOG_INFO("Database", QString("Successfully migrated %1 QSOs with GUIDs").arg(qsoIds.size()));
+
+        // Create unique index on guid column
+        if (!query.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_qsos_guid ON qsos(guid)")) {
+            LOG_WARN("Database", QString("Failed to create guid index: %1").arg(query.lastError().text()));
+            // Not critical, continue
+        }
+    }
+
+    LOG_DEBUG("Database", "Schema migration complete");
+    return true;
 }
 
 } // namespace TR4QT

@@ -1,12 +1,14 @@
 #include "QSORepository.h"
 #include "Database.h"
 #include "../core/Types.h"
+#include "../logging/LogMacros.h"
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QVariant>
 #include <QDebug>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QUuid>
 
 namespace TR4QT {
 
@@ -23,6 +25,11 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         return false;
     }
 
+    // Generate GUID if not already set
+    if (qso.guid.isEmpty()) {
+        qso.guid = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    }
+
     // Convert enums to strings
     QString modeStr = modeToString(qso.mode);
     QString bandStr = bandToString(qso.band);
@@ -36,13 +43,13 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
 
     QString sql = R"(
         INSERT INTO qsos (
-            contest_id, timestamp, callsign, frequency, mode, band,
+            contest_id, guid, timestamp, callsign, frequency, mode, band,
             rst_sent, rst_received, exchange_sent, exchange_received,
             dxcc_entity, dxcc_prefix, cq_zone, itu_zone, continent, state, county, arrl_section,
             qso_points, is_dupe, is_multiplier, multipliers,
             serial_number, operator_call, notes
         ) VALUES (
-            ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
@@ -52,6 +59,7 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
 
     QVariantList values{
         contestId,
+        qso.guid,
         qso.timestamp.toSecsSinceEpoch(),
         qso.callsign,
         static_cast<qint64>(qso.frequency),
@@ -87,6 +95,15 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
 
     // Set ID on the QSO object
     qso.id = db.lastInsertId();
+
+    // Tier 1 Integrity Check: Verify the QSO was actually saved
+    QSO verification = findById(qso.id);
+    if (verification.id < 0 || verification.callsign != qso.callsign) {
+        m_lastError = "Save verification failed - QSO not found in database after insert";
+        LOG_ERROR("QSORepository", QString("INTEGRITY ERROR: Failed to verify saved QSO id=%1 callsign=%2")
+            .arg(qso.id).arg(qso.callsign));
+        return false;
+    }
 
     return true;
 }
@@ -153,6 +170,20 @@ bool QSORepository::updateQSO(const QSO& qso) {
         return false;
     }
 
+    // Tier 1 Integrity Check: Verify the update was persisted
+    QSO verification = findById(qso.id);
+    if (verification.id < 0) {
+        m_lastError = "Update verification failed - QSO not found after update";
+        LOG_ERROR("QSORepository", QString("INTEGRITY ERROR: QSO id=%1 disappeared after update")
+            .arg(qso.id));
+        return false;
+    }
+    // Quick check: verify a key field was updated
+    if (verification.callsign != qso.callsign || verification.qsoPoints != qso.qsoPoints) {
+        LOG_WARN("QSORepository", QString("Update verification: field mismatch for QSO id=%1")
+            .arg(qso.id));
+    }
+
     return true;
 }
 
@@ -171,6 +202,26 @@ bool QSORepository::deleteQSO(int qsoId, bool hardDelete) {
     if (!query.isActive()) {
         m_lastError = db.lastError();
         return false;
+    }
+
+    // Tier 1 Integrity Check: Verify the deletion
+    if (hardDelete) {
+        QSO verification = findById(qsoId);
+        if (verification.id >= 0) {
+            m_lastError = "Delete verification failed - QSO still exists after hard delete";
+            LOG_ERROR("QSORepository", QString("INTEGRITY ERROR: QSO id=%1 still exists after hard delete")
+                .arg(qsoId));
+            return false;
+        }
+    } else {
+        // Soft delete - verify deleted flag is set
+        QSO verification = findById(qsoId);
+        if (verification.id >= 0 && !verification.deleted) {
+            m_lastError = "Delete verification failed - deleted flag not set";
+            LOG_ERROR("QSORepository", QString("INTEGRITY ERROR: QSO id=%1 not marked as deleted")
+                .arg(qsoId));
+            return false;
+        }
     }
 
     return true;
@@ -447,6 +498,7 @@ QSO QSORepository::qsoFromQuery(const QSqlQuery& query) const {
     QSO qso;
 
     qso.id = query.value("id").toInt();
+    qso.guid = query.value("guid").toString();
     qso.timestamp = QDateTime::fromSecsSinceEpoch(query.value("timestamp").toLongLong());
     qso.callsign = query.value("callsign").toString();
     qso.frequency = query.value("frequency").toLongLong();

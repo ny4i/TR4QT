@@ -68,6 +68,11 @@ void BandSummaryGrid::setupUI() {
     zoneLabel->setMinimumWidth(70);
     m_gridLayout->addWidget(zoneLabel, 3, 0);
 
+    QLabel* pointsLabel = new QLabel("Points", this);
+    pointsLabel->setFont(headerFont);
+    pointsLabel->setMinimumWidth(70);
+    m_gridLayout->addWidget(pointsLabel, 4, 0);
+
     // Create data labels for each band
     QList<BandType> bands = {
         BandType::Band160M, BandType::Band80M, BandType::Band40M,
@@ -100,6 +105,14 @@ void BandSummaryGrid::setupUI() {
         zone->setMinimumWidth(50);
         m_gridLayout->addWidget(zone, 3, col + 1);
         m_zoneLabels[band] = zone;
+
+        // Points count
+        QLabel* points = new QLabel("0", this);
+        points->setFont(dataFont);
+        points->setAlignment(Qt::AlignCenter);
+        points->setMinimumWidth(50);
+        m_gridLayout->addWidget(points, 4, col + 1);
+        m_pointsLabels[band] = points;
     }
 
     // "All" column (totals)
@@ -121,22 +134,28 @@ void BandSummaryGrid::setupUI() {
     m_zoneAllLabel->setMinimumWidth(50);
     m_gridLayout->addWidget(m_zoneAllLabel, 3, 7);
 
-    // Total points (right of "All" column, row 1)
+    m_pointsAllLabel = new QLabel("0", this);
+    m_pointsAllLabel->setFont(dataFont);
+    m_pointsAllLabel->setAlignment(Qt::AlignCenter);
+    m_pointsAllLabel->setMinimumWidth(50);
+    m_gridLayout->addWidget(m_pointsAllLabel, 4, 7);
+
+    // Total points label (right of "All" column, row 1)
     m_totalPointsLabel = new QLabel("0 Pts", this);
     m_totalPointsLabel->setFont(headerFont);
     m_totalPointsLabel->setStyleSheet("font-size: 14pt; font-weight: bold;");
     m_totalPointsLabel->setMinimumWidth(100);
     m_gridLayout->addWidget(m_totalPointsLabel, 1, 8, 1, 2);
 
-    // "Both:" field (right side, row 3)
+    // "Both:" field (right side, row 4 now since we added Points row)
     QLabel* bothLabelText = new QLabel("Both:", this);
     bothLabelText->setFont(headerFont);
-    m_gridLayout->addWidget(bothLabelText, 3, 8);
+    m_gridLayout->addWidget(bothLabelText, 4, 8);
 
     m_bothLabel = new QLabel("", this);
     m_bothLabel->setFont(dataFont);
     m_bothLabel->setMinimumWidth(100);
-    m_gridLayout->addWidget(m_bothLabel, 3, 9);
+    m_gridLayout->addWidget(m_bothLabel, 4, 9);
 
     m_gridLayout->setColumnStretch(10, 1);  // Push everything left
 }
@@ -159,9 +178,27 @@ void BandSummaryGrid::setZoneCount(BandType band, int count) {
     }
 }
 
+void BandSummaryGrid::setPointsCount(BandType band, int points) {
+    if (m_pointsLabels.contains(band)) {
+        m_pointsLabels[band]->setText(QString::number(points));
+    }
+}
+
+void BandSummaryGrid::setAllQSOs(int count) {
+    m_qsoAllLabel->setText(QString::number(count));
+}
+
+void BandSummaryGrid::setAllMults(int count) {
+    m_multAllLabel->setText(QString::number(count));
+}
+
+void BandSummaryGrid::setAllZones(int count) {
+    m_zoneAllLabel->setText(QString::number(count));
+}
+
 void BandSummaryGrid::setTotalPoints(int points) {
     m_totalPointsLabel->setText(QString("%1 Pts").arg(points));
-    m_qsoAllLabel->setText(QString::number(points));  // Placeholder for now
+    m_pointsAllLabel->setText(QString::number(points));
 }
 
 void BandSummaryGrid::setBothNeeded(const QString& bands) {
@@ -179,11 +216,15 @@ void BandSummaryGrid::clearAll() {
     for (auto label : m_zoneLabels) {
         label->setText("0");
     }
+    for (auto label : m_pointsLabels) {
+        label->setText("0");
+    }
 
     // Clear totals
     m_qsoAllLabel->setText("0");
     m_multAllLabel->setText("0");
     m_zoneAllLabel->setText("0");
+    m_pointsAllLabel->setText("0");
     m_totalPointsLabel->setText("0 Pts");
     m_bothLabel->setText("");
 }
@@ -213,10 +254,14 @@ void BandSummaryGrid::setFontSize(int pointSize) {
     for (auto label : m_zoneLabels.values()) {
         if (label) label->setFont(font);
     }
+    for (auto label : m_pointsLabels.values()) {
+        if (label) label->setFont(font);
+    }
 
     if (m_qsoAllLabel) m_qsoAllLabel->setFont(font);
     if (m_multAllLabel) m_multAllLabel->setFont(font);
     if (m_zoneAllLabel) m_zoneAllLabel->setFont(font);
+    if (m_pointsAllLabel) m_pointsAllLabel->setFont(font);
     if (m_totalPointsLabel) m_totalPointsLabel->setFont(font);
     if (m_bothLabel) m_bothLabel->setFont(font);
 
