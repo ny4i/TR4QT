@@ -192,7 +192,7 @@ void QSOTableModel::updateQSO(int row, const QSO& qso) {
     }
 
     m_qsos[row] = qso;
-    emit dataChanged(index(row, 0), index(row, ColCount - 1));
+    emit dataChanged(index(row, 0), index(row, columnCount() - 1));
 }
 
 void QSOTableModel::removeQSO(int row) {
@@ -307,7 +307,7 @@ void QSOTableModel::onThemeChanged() {
     // Refresh all cells when theme changes
     if (!m_qsos.isEmpty()) {
         QModelIndex topLeft = index(0, 0);
-        QModelIndex bottomRight = index(m_qsos.size() - 1, ColCount - 1);
+        QModelIndex bottomRight = index(m_qsos.size() - 1, columnCount() - 1);
         emit dataChanged(topLeft, bottomRight, {Qt::ForegroundRole, Qt::BackgroundRole});
     }
 }
