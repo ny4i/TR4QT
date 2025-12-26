@@ -279,6 +279,13 @@ QWidget* PreferencesDialog::createRadioTab() {
     m_morseWpmSpin->setToolTip("Morse code speed in words per minute for CW sending");
     advancedLayout->addRow("Morse Speed:", m_morseWpmSpin);
 
+    m_morseWpmIncrementSpin = new QSpinBox(this);
+    m_morseWpmIncrementSpin->setRange(1, 10);
+    m_morseWpmIncrementSpin->setValue(3);
+    m_morseWpmIncrementSpin->setSuffix(" WPM");
+    m_morseWpmIncrementSpin->setToolTip("WPM change when pressing PgUp/PgDn keys");
+    advancedLayout->addRow("WPM Increment:", m_morseWpmIncrementSpin);
+
     m_autoConnectCheck = new QCheckBox("Auto-connect on startup", this);
     m_autoConnectCheck->setChecked(true);
     m_autoConnectCheck->setToolTip("Automatically connect to radio when application starts");
@@ -869,6 +876,7 @@ void PreferencesDialog::loadSettings() {
 
     m_autoConnectCheck->setChecked(settings.getRadioAutoConnect());
     m_morseWpmSpin->setValue(settings.getMorseWPM());
+    m_morseWpmIncrementSpin->setValue(settings.getMorseWPMIncrement());
 
     // Radio status filter checkboxes
     m_showStableRadiosCheck->setChecked(settings.getShowStableRadios());
@@ -980,6 +988,7 @@ void PreferencesDialog::saveSettings() {
     settings.saveRadioConfig(config);
     settings.setRadioAutoConnect(m_autoConnectCheck->isChecked());
     settings.setMorseWPM(m_morseWpmSpin->value());
+    settings.setMorseWPMIncrement(m_morseWpmIncrementSpin->value());
 
     // Radio status filter checkboxes
     settings.setShowStableRadios(m_showStableRadiosCheck->isChecked());
