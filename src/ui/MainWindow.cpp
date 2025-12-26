@@ -1842,7 +1842,7 @@ void MainWindow::onCallsignEnterPressed() {
 
     // Auto-send callsign via CW when in CW mode (if enabled)
     bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
-    bool autoSendEnabled = AppSettings::instance().getAutoSendCW();
+    bool autoSendEnabled = m_autoSendCWAction->isChecked();  // Check actual action state
     if (isCWMode && m_radioConnected && m_radio && autoSendEnabled) {
         // Set CW speed from settings
         int wpm = AppSettings::instance().getMorseWPM();
