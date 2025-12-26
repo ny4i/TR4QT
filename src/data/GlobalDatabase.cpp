@@ -284,6 +284,41 @@ bool GlobalDatabase::migrateSchema() {
         LOG_DEBUG("GlobalDatabase", "No schema migration needed - database is up to date");
     }
 
+    // Migration: Add DXCC entities table (v2.78.0)
+    // Check if dxcc_entities table exists
+    QSqlQuery checkDXCCTable(m_db);
+    checkDXCCTable.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='dxcc_entities'");
+    bool hasDXCCTable = checkDXCCTable.next();
+
+    if (!hasDXCCTable) {
+        LOG_INFO("GlobalDatabase", "Creating dxcc_entities table...");
+
+        // Create the table
+        QSqlQuery createTable(m_db);
+        QString createSQL = R"(
+            CREATE TABLE IF NOT EXISTS dxcc_entities (
+                entity_code INTEGER PRIMARY KEY,
+                entity_name TEXT NOT NULL UNIQUE,
+                is_deleted BOOLEAN DEFAULT 0,
+                notes TEXT
+            )
+        )";
+
+        if (!createTable.exec(createSQL)) {
+            LOG_WARN("GlobalDatabase", QString("Failed to create dxcc_entities table: %1")
+                .arg(createTable.lastError().text()));
+            return true;  // Don't fail migration
+        }
+
+        // Create index
+        QSqlQuery createIndex(m_db);
+        if (!createIndex.exec("CREATE INDEX IF NOT EXISTS idx_dxcc_name ON dxcc_entities(entity_name)")) {
+            LOG_WARN("GlobalDatabase", "Failed to create dxcc_entities index");
+        }
+
+        LOG_INFO("GlobalDatabase", "dxcc_entities table created successfully");
+    }
+
     // Check if DXCC entities table needs to be populated
     QSqlQuery checkDXCC(m_db);
     checkDXCC.exec("SELECT COUNT(*) FROM dxcc_entities");
@@ -293,10 +328,8 @@ bool GlobalDatabase::migrateSchema() {
     }
 
     if (dxccCount == 0) {
-        LOG_INFO("GlobalDatabase", "Initializing DXCC entities table...");
+        LOG_INFO("GlobalDatabase", "Initializing DXCC entities table with ADIF specification data...");
         // Initialize DXCC entities from ADIF specification
-        // This is done in the migrateSchema phase because it needs to happen
-        // once when the database is first created
         DXCCRepository repo;
         if (!repo.initializeDXCCEntities()) {
             LOG_WARN("GlobalDatabase", "Failed to initialize DXCC entities - will retry on next startup");
