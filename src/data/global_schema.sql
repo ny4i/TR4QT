@@ -50,3 +50,16 @@ CREATE INDEX IF NOT EXISTS idx_spots_callsign ON dx_spots(callsign);
 
 -- Index for timestamp-based queries (finding old spots)
 CREATE INDEX IF NOT EXISTS idx_spots_timestamp ON dx_spots(timestamp);
+
+-- DXCC Entity mapping (ADIF specification)
+-- Maps DXCC entity codes to entity names for ADIF exports
+-- Based on ADIF specification: https://adif.org.uk/316/ADIF_316.htm
+CREATE TABLE IF NOT EXISTS dxcc_entities (
+    entity_code INTEGER PRIMARY KEY,       -- ADIF DXCC Entity Code (1-522)
+    entity_name TEXT NOT NULL UNIQUE,      -- Official ADIF entity name
+    is_deleted BOOLEAN DEFAULT 0,          -- True if entity was deleted from DXCC list
+    notes TEXT                             -- Additional notes (e.g., "Deleted 1991")
+);
+
+-- Index for reverse lookup (entity name -> code)
+CREATE INDEX IF NOT EXISTS idx_dxcc_name ON dxcc_entities(entity_name);

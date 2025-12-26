@@ -1,4 +1,5 @@
 #include "CountryFile.h"
+#include "../data/DXCCRepository.h"
 #include "../logging/LogMacros.h"
 #include <QFile>
 #include <QTextStream>
@@ -125,27 +126,11 @@ bool CountryFile::parseMainLine(const QString& line, CountryData& country) {
     return true;
 }
 
-// Static mapping of CTY.DAT country names to ADIF DXCC Entity Codes
+// Get DXCC Entity Code from country name using global database
 // Based on ADIF specification: https://adif.org.uk/316/ADIF_316.htm#DXCC_Entity_Code_Enumeration
 int CountryFile::getDXCCEntityCode(const QString& countryName) {
-    static const QMap<QString, int> dxccMap = {
-        {"United States", 291},
-        {"Canada", 1},
-        {"Mexico", 50},
-        {"United Kingdom", 223},
-        {"Germany", 230},
-        {"France", 227},
-        {"Spain", 281},
-        {"Italy", 248},
-        {"Japan", 339},
-        {"Australia", 150},
-        {"Brazil", 108},
-        {"Russia", 15},
-        // Add more mappings as needed - this is a starter set
-        // TODO: Complete mapping for all DXCC entities
-    };
-
-    return dxccMap.value(countryName, 0);  // Return 0 if not found
+    DXCCRepository repo;
+    return repo.getEntityCode(countryName);
 }
 
 void CountryFile::parseAliases(const QStringList& aliasLines, CountryData& country) {
