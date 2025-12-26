@@ -235,30 +235,9 @@ void BandMapWidget::sortSpots() {
 }
 
 void BandMapWidget::calculateColumnLayout() {
-    // Column-first layout: Calculate columns needed based on available height
-    // Each column needs minimum 150 pixels (for "14025.0 M W1ABC" format)
-    const int MIN_COLUMN_WIDTH = 150;
-    m_columnWidth = MIN_COLUMN_WIDTH;
-
-    // Calculate how many rows fit in available height
-    QFontMetrics fm(QFont("Monospace", 9));
-    const int FOOTER_HEIGHT = fm.height() + 10;
-    int availableHeight = viewport()->height() - FOOTER_HEIGHT;
-
-    // Account for horizontal scrollbar if needed (use range, not isVisible)
-    if (horizontalScrollBar()->maximum() > 0) {
-        availableHeight -= horizontalScrollBar()->height();
-    }
-
-    int lineHeight = rowHeight();
-    int maxRowsPerColumn = qMax(1, availableHeight / lineHeight);
-
-    // Calculate how many columns needed to show all spots
-    m_columnCount = (m_displaySpots.size() + maxRowsPerColumn - 1) / maxRowsPerColumn;
-    if (m_columnCount < 1) m_columnCount = 1;
-
-    // Note: If total width (m_columnCount * m_columnWidth) exceeds viewport width,
-    // horizontal scrollbar will appear automatically
+    // This function is now a wrapper that calls updateScrollBars()
+    // All layout calculations are done in updateScrollBars() to avoid circular dependencies
+    updateScrollBars();
 }
 
 void BandMapWidget::paintEvent(QPaintEvent* event) {
@@ -453,7 +432,6 @@ void BandMapWidget::showEvent(QShowEvent* event) {
     // Recalculate layout and scrollbars when widget is shown
     // This fixes the issue where scrollbars don't appear on startup
     // when spots are loaded from database before widget is properly sized
-    calculateColumnLayout();
     updateScrollBars();
     viewport()->update();
 }
@@ -495,7 +473,6 @@ bool BandMapWidget::event(QEvent* event) {
 
 void BandMapWidget::resizeEvent(QResizeEvent* event) {
     QAbstractScrollArea::resizeEvent(event);
-    calculateColumnLayout();
     updateScrollBars();
     viewport()->update();
 }
@@ -703,35 +680,44 @@ QString BandMapWidget::formatFrequency(freq_t freq) const {
 
 void BandMapWidget::updateScrollBars() {
     // Column-first layout: Calculate scrollbar ranges for both directions
-    int lineHeight = rowHeight();
+    // This function now does ALL layout calculations to avoid circular dependencies
 
+    int lineHeight = rowHeight();
     QFontMetrics fm(QFont("Monospace", 9));
     const int FOOTER_HEIGHT = fm.height() + 10;
     const int SCROLLBAR_HEIGHT = horizontalScrollBar()->sizeHint().height();
+    const int MIN_COLUMN_WIDTH = 150;
 
     int viewportHeight = viewport()->height();
     int viewportWidth = viewport()->width();
 
-    // Safety check
-    if (m_columnCount < 1) m_columnCount = 1;
-
-    // Calculate total content width
-    int totalWidth = m_columnCount * m_columnWidth;
+    // First pass: Calculate columns needed WITHOUT horizontal scrollbar
+    int availableHeight1 = viewportHeight - FOOTER_HEIGHT;
+    int rowsPerColumn1 = qMax(1, availableHeight1 / lineHeight);
+    int columnCount1 = qMax(1, (m_displaySpots.size() + rowsPerColumn1 - 1) / rowsPerColumn1);
+    int totalWidth1 = columnCount1 * MIN_COLUMN_WIDTH;
 
     // Determine if horizontal scrollbar will be needed
-    bool needsHScrollBar = (totalWidth > viewportWidth);
+    bool needsHScrollBar = (totalWidth1 > viewportWidth);
 
-    // Calculate available height (reserve space for horizontal scrollbar if needed)
-    int availableHeight = viewportHeight - FOOTER_HEIGHT;
+    // Second pass: Recalculate WITH horizontal scrollbar if needed
+    int availableHeight = availableHeight1;
+    int rowsPerColumn = rowsPerColumn1;
+    int columnCount = columnCount1;
+    int totalWidth = totalWidth1;
+
     if (needsHScrollBar) {
-        availableHeight -= SCROLLBAR_HEIGHT;
+        availableHeight = viewportHeight - FOOTER_HEIGHT - SCROLLBAR_HEIGHT;
+        rowsPerColumn = qMax(1, availableHeight / lineHeight);
+        columnCount = qMax(1, (m_displaySpots.size() + rowsPerColumn - 1) / rowsPerColumn);
+        totalWidth = columnCount * MIN_COLUMN_WIDTH;
     }
 
-    // Calculate rows per column based on available height
-    int rowsPerColumn = qMax(1, availableHeight / lineHeight);
+    // Update member variables
+    m_columnWidth = MIN_COLUMN_WIDTH;
+    m_columnCount = columnCount;
 
     // Calculate actual number of spots in tallest column (column-first layout)
-    // The first column fills up to rowsPerColumn before spilling to next column
     int spotsInTallestColumn = qMin(rowsPerColumn, m_displaySpots.size());
     int tallestColumnHeight = spotsInTallestColumn * lineHeight;
 
@@ -907,7 +893,6 @@ void BandMapWidget::rebuildDisplayList() {
         }
     }
 
-    calculateColumnLayout();
     updateScrollBars();
     viewport()->update();
 }
