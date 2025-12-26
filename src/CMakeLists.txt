@@ -29,6 +29,7 @@ set(SOURCES
     data/SpotRepository.cpp
     data/BackupManager.cpp
     data/ExchangeMemoryRepository.cpp
+    data/DXCCRepository.cpp
     exchanges/InitialExchangeManager.cpp
     exchanges/SmartExchangeParser.cpp
     contests/ARRLSweepstakesContest.cpp
@@ -89,6 +90,7 @@ set(HEADERS
     data/SpotRepository.h
     data/BackupManager.h
     data/ExchangeMemoryRepository.h
+    data/DXCCRepository.h
     exchanges/InitialExchangeManager.h
     exchanges/SmartExchangeParser.h
     contests/ARRLSweepstakesContest.h

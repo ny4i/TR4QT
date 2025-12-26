@@ -1,4 +1,5 @@
 #include "GlobalDatabase.h"
+#include "DXCCRepository.h"
 #include "../logging/LogMacros.h"
 #include <QSqlQuery>
 #include <QSqlError>
@@ -281,6 +282,28 @@ bool GlobalDatabase::migrateSchema() {
         LOG_DEBUG("GlobalDatabase", "Schema migration completed successfully");
     } else {
         LOG_DEBUG("GlobalDatabase", "No schema migration needed - database is up to date");
+    }
+
+    // Check if DXCC entities table needs to be populated
+    QSqlQuery checkDXCC(m_db);
+    checkDXCC.exec("SELECT COUNT(*) FROM dxcc_entities");
+    int dxccCount = 0;
+    if (checkDXCC.next()) {
+        dxccCount = checkDXCC.value(0).toInt();
+    }
+
+    if (dxccCount == 0) {
+        LOG_INFO("GlobalDatabase", "Initializing DXCC entities table...");
+        // Initialize DXCC entities from ADIF specification
+        // This is done in the migrateSchema phase because it needs to happen
+        // once when the database is first created
+        DXCCRepository repo;
+        if (!repo.initializeDXCCEntities()) {
+            LOG_WARN("GlobalDatabase", "Failed to initialize DXCC entities - will retry on next startup");
+            // Don't fail the migration - this isn't critical for app operation
+        } else {
+            LOG_INFO("GlobalDatabase", "DXCC entities initialized successfully");
+        }
     }
 
     return true;
