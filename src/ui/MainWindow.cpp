@@ -277,10 +277,6 @@ void MainWindow::createMenuBar() {
     wkModeAction->setShortcut(QKeySequence("Alt+A"));
     connect(wkModeAction, &QAction::triggered, this, &MainWindow::onWKMode);
 
-    QAction* sendMorseAction = toolsMenu->addAction("Send Morse Code");
-    sendMorseAction->setShortcut(QKeySequence("Alt+K"));
-    connect(sendMorseAction, &QAction::triggered, this, &MainWindow::onSendMorse);
-
     QAction* backupLogAction = toolsMenu->addAction("Backup Log");
     backupLogAction->setShortcut(QKeySequence("Alt+F"));
     connect(backupLogAction, &QAction::triggered, this, &MainWindow::onBackupLog);
@@ -378,6 +374,10 @@ void MainWindow::createMenuBar() {
 
     QAction* radioControlAction = windowMenu->addAction("&Radio Control");
     connect(radioControlAction, &QAction::triggered, this, &MainWindow::onShowRadioControl);
+
+    QAction* sendMorseAction = windowMenu->addAction("Send &Morse Code");
+    sendMorseAction->setShortcut(QKeySequence("Alt+K"));
+    connect(sendMorseAction, &QAction::triggered, this, &MainWindow::onSendMorse);
 
     QAction* multipliersAction = windowMenu->addAction("&Multipliers");
     connect(multipliersAction, &QAction::triggered, this, &MainWindow::onShowMultipliers);
@@ -2643,7 +2643,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         QSORepository repo;
         QList<QSO> existingQSOs = repo.findByContest(m_currentContestDbId);
         m_qsoTableModel->clear();
-        for (const QSO& qso : existingQSOs) {
+        for (QSO& qso : existingQSOs) {
             m_qsoTableModel->addQSO(qso);
         }
         LOG_DEBUG("MainWindow", QString("Loaded %1 existing QSOs").arg(existingQSOs.size()));
@@ -2706,6 +2706,17 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     } else {
         LOG_WARN("MainWindow", QString("Unknown contest type: %1").arg(contestInfo.contestType));
         return;
+    }
+
+    // Reparse all loaded QSOs to populate parsedExchange field
+    // (parsedExchange is not stored in database, must be regenerated)
+    if (m_activeContest && m_qsoTableModel->count() > 0) {
+        for (int i = 0; i < m_qsoTableModel->count(); ++i) {
+            QSO qso = m_qsoTableModel->getQSO(i);
+            qso.parsedExchange = m_activeContest->parseReceivedExchange(qso.exchangeReceived);
+            m_qsoTableModel->updateQSO(i, qso);
+        }
+        LOG_DEBUG("MainWindow", QString("Reparsed exchange fields for %1 QSOs").arg(m_qsoTableModel->count()));
     }
 
     // Store contest info
