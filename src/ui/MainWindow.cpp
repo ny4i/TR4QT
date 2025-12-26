@@ -2708,17 +2708,6 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         return;
     }
 
-    // Reparse all loaded QSOs to populate parsedExchange field
-    // (parsedExchange is not stored in database, must be regenerated)
-    if (m_activeContest && m_qsoTableModel->count() > 0) {
-        for (int i = 0; i < m_qsoTableModel->count(); ++i) {
-            QSO qso = m_qsoTableModel->getQSO(i);
-            qso.parsedExchange = m_activeContest->parseReceivedExchange(qso.exchangeReceived);
-            m_qsoTableModel->updateQSO(i, qso);
-        }
-        LOG_DEBUG("MainWindow", QString("Reparsed exchange fields for %1 QSOs").arg(m_qsoTableModel->count()));
-    }
-
     // Store contest info
     m_currentContest = contestInfo;
     m_hasActiveContest = true;
