@@ -131,8 +131,9 @@ void BandMapWidget::addSpot(const Spot& spot) {
             return;
         }
     } else {
-        LOG_DEBUG("BandMapWidget", QString("Band filter disabled or no current freq: m_showAllBands=%1, m_currentFrequency=%2")
-            .arg(m_showAllBands).arg(m_currentFrequency));
+        double freqMHz = m_currentFrequency / 1000000.0;
+        LOG_DEBUG("BandMapWidget", QString("Band filter disabled or no current freq: m_showAllBands=%1, m_currentFrequency=%2 MHz")
+            .arg(m_showAllBands).arg(freqMHz, 0, 'f', 3));
     }
 
     // Check if spot already exists (update it)
@@ -171,7 +172,7 @@ void BandMapWidget::setCurrentFrequency(freq_t freq) {
     if (m_currentFrequency != freq) {
         QString band = getBandFromFrequency(freq);
         LOG_DEBUG("BandMapWidget", QString("Current frequency changed: %1 Hz (%2 MHz) - Band: %3")
-            .arg(freq).arg(freq / 1000000.0, 0, 'f', 3).arg(band.isEmpty() ? "unknown" : band));
+            .arg(freq, 0, 'f', 0).arg(freq / 1000000.0, 0, 'f', 3).arg(band.isEmpty() ? "unknown" : band));
         m_currentFrequency = freq;
         viewport()->update();
     }
