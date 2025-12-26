@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.82.2";  // Stack date/time vertically in radio status widget
+constexpr const char* APP_VERSION = "2.83.0";  // Add Auto Send CW menu item and change DX Mults to Mults
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

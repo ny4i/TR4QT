@@ -220,6 +220,7 @@ private:
     // Menus
     QAction* m_connectAction;
     QAction* m_disconnectAction;
+    QAction* m_autoSendCWAction;
 
     // Window widgets
     DXClusterWindow* m_dxClusterWindow;
