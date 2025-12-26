@@ -196,9 +196,12 @@ void BandSummaryGrid::setAllZones(int count) {
     m_zoneAllLabel->setText(QString::number(count));
 }
 
-void BandSummaryGrid::setTotalPoints(int points) {
-    m_totalPointsLabel->setText(QString("%1 Pts").arg(points));
+void BandSummaryGrid::setAllPoints(int points) {
     m_pointsAllLabel->setText(QString::number(points));
+}
+
+void BandSummaryGrid::setFinalScore(int score) {
+    m_totalPointsLabel->setText(QString("%1 Pts").arg(score));
 }
 
 void BandSummaryGrid::setBothNeeded(const QString& bands) {
