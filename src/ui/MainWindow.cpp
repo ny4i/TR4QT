@@ -1930,11 +1930,22 @@ void MainWindow::updateScoreDisplay() {
     // Initialize per-band counters
     QMap<BandType, int> qsosPerBand;
     QMap<BandType, int> pointsPerBand;
-    QMap<BandType, QSet<QString>> multsPerBand;    // Track unique mults
-    QMap<BandType, QSet<int>> zonesPerBand;         // Track unique zones
+
+    // Track multipliers according to contest rules
+    // Key: MultiplierType, Value: map of (band or "ALL") -> set of unique mult values
+    QMap<MultiplierType, QMap<QString, QSet<QString>>> multipliersTracked;
+
+    // Also track zones separately for display (legacy display column)
+    QMap<BandType, QSet<int>> zonesPerBand;
 
     int totalQSOs = 0;
-    int totalPoints = 0;
+    int totalQSOPoints = 0;
+
+    // Get multiplier definitions from active contest
+    QList<MultiplierDefinition> multDefs;
+    if (m_activeContest) {
+        multDefs = m_activeContest->getMultiplierTypes();
+    }
 
     // Iterate through all QSOs in the table model
     for (int row = 0; row < m_qsoTableModel->count(); ++row) {
@@ -1950,17 +1961,43 @@ void MainWindow::updateScoreDisplay() {
 
         // Sum points per band
         pointsPerBand[qso.band] += qso.qsoPoints;
-        totalPoints += qso.qsoPoints;
+        totalQSOPoints += qso.qsoPoints;
 
-        // Track unique multipliers per band (DXCC prefix)
-        if (!qso.dxccPrefix.isEmpty()) {
-            multsPerBand[qso.band].insert(qso.dxccPrefix);
+        // Track multipliers according to contest definitions
+        if (m_activeContest) {
+            for (const MultiplierDefinition& multDef : multDefs) {
+                QString multValue = m_activeContest->getMultiplierValue(
+                    qso, multDef.type, QStringList());  // Empty list - we just want the value
+
+                if (!multValue.isEmpty()) {
+                    // Determine key: per-band uses band name, all-bands uses "ALL"
+                    QString key = (multDef.scope == MultiplierScope::PerBand)
+                        ? bandToString(qso.band)
+                        : "ALL";
+
+                    multipliersTracked[multDef.type][key].insert(multValue);
+                }
+            }
         }
 
-        // Track unique zones per band
+        // Track unique zones per band (for "Zones" display column)
         if (qso.cqZone > 0) {
             zonesPerBand[qso.band].insert(qso.cqZone);
         }
+    }
+
+    // Calculate total multiplier counts per type
+    QMap<MultiplierType, int> multiplierCounts;
+    for (auto it = multipliersTracked.begin(); it != multipliersTracked.end(); ++it) {
+        MultiplierType type = it.key();
+        int count = 0;
+
+        // Sum unique mults across all bands/scopes
+        for (const QSet<QString>& mults : it.value()) {
+            count += mults.size();
+        }
+
+        multiplierCounts[type] = count;
     }
 
     // Update band summary grid with calculated values
@@ -1975,26 +2012,38 @@ void MainWindow::updateScoreDisplay() {
     for (BandType band : bands) {
         int qsos = qsosPerBand.value(band, 0);
         int points = pointsPerBand.value(band, 0);
-        int mults = multsPerBand.value(band).size();
+
+        // Count unique mults per band (sum across all mult types for this band)
+        int multsThisBand = 0;
+        for (auto it = multipliersTracked.begin(); it != multipliersTracked.end(); ++it) {
+            multsThisBand += it.value().value(bandToString(band)).size();
+        }
+
         int zones = zonesPerBand.value(band).size();
 
         m_bandSummaryGrid->setQSOCount(band, qsos);
         m_bandSummaryGrid->setPointsCount(band, points);
-        m_bandSummaryGrid->setMultCount(band, mults);
+        m_bandSummaryGrid->setMultCount(band, multsThisBand);
         m_bandSummaryGrid->setZoneCount(band, zones);
 
-        totalMults += mults;
+        totalMults += multsThisBand;
         totalZones += zones;
+    }
+
+    // Calculate final contest score using contest's formula
+    int finalScore = totalQSOPoints;  // Default if no contest active
+    if (m_activeContest) {
+        finalScore = m_activeContest->calculateTotalScore(totalQSOPoints, multiplierCounts);
     }
 
     // Update "All" column totals
     m_bandSummaryGrid->setAllQSOs(totalQSOs);
     m_bandSummaryGrid->setAllMults(totalMults);
     m_bandSummaryGrid->setAllZones(totalZones);
-    m_bandSummaryGrid->setTotalPoints(totalPoints);
+    m_bandSummaryGrid->setTotalPoints(finalScore);  // Use final score, not just QSO points
 
     // Update status bar
-    m_statusLabel->setText(QString("%1 QSOs, %2 Points").arg(totalQSOs).arg(totalPoints));
+    m_statusLabel->setText(QString("%1 QSOs, %2 Points").arg(totalQSOs).arg(finalScore));
 }
 
 void MainWindow::recalculateAllPoints() {
