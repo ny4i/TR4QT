@@ -299,6 +299,10 @@ void MainWindow::createMenuBar() {
 
     toolsMenu->addSeparator();
 
+    // Rescore contest (recalculate points and multipliers)
+    QAction* rescoreAction = toolsMenu->addAction("Rescore Contest");
+    connect(rescoreAction, &QAction::triggered, this, &MainWindow::onRescoreContest);
+
     // Data integrity check
     QAction* integrityCheckAction = toolsMenu->addAction("Validate Log Integrity");
     integrityCheckAction->setShortcut(QKeySequence("Alt+I"));
@@ -2187,6 +2191,118 @@ void MainWindow::handleIntegrityMismatch(int memoryCount, int dbCount) {
         LOG_INFO("MainWindow", "User requested contest reload after integrity mismatch");
         reopenLastContest();
     }
+}
+
+// Rescore entire contest (recalculate QSO points and multiplier flags)
+void MainWindow::onRescoreContest() {
+    if (!m_hasActiveContest || !m_activeContest || !m_qsoTableModel) {
+        QMessageBox::information(this, "Rescore Contest",
+            "No active contest to rescore.");
+        return;
+    }
+
+    // Confirm with user
+    QMessageBox::StandardButton reply = QMessageBox::question(this,
+        "Rescore Contest",
+        QString("This will recalculate QSO points and multiplier flags for all %1 QSOs in the contest log.\n\n"
+                "This is useful for:\n"
+                "- Updating old logs to new scoring rules\n"
+                "- Fixing multiplier flags on pre-v2.85.0 QSOs\n"
+                "- Validating scoring calculations\n\n"
+                "Continue?").arg(m_qsoTableModel->count()),
+        QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+
+    m_statusLabel->setText("Rescoring contest...");
+    QApplication::processEvents();
+
+    // Get station info for QSO point calculation
+    StationInfo myStation;
+    myStation.callsign = AppSettings::instance().getMyCallsign();
+    myStation.continent = AppSettings::instance().getMyContinent();
+    myStation.cqZone = AppSettings::instance().getMyCQZone();
+
+    CountryData myCountryData = m_countryFile.lookup(myStation.callsign);
+    if (myCountryData.isValid()) {
+        myStation.country = myCountryData.name;
+    }
+
+    QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
+    int qsosUpdated = 0;
+    int multsMarked = 0;
+
+    // Track worked multipliers as we go through QSOs in chronological order
+    QMap<MultiplierType, QStringList> workedMults;
+
+    // Iterate through all QSOs in chronological order
+    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
+        QSO qso = m_qsoTableModel->getQSO(row);
+
+        // Recalculate QSO points
+        int oldPoints = qso.qsoPoints;
+        qso.qsoPoints = m_activeContest->calculateQSOPoints(qso, myStation);
+
+        // Check for multipliers
+        qso.isMultiplier = false;
+        QStringList multiplierValues;
+
+        for (const MultiplierDefinition& multDef : multDefs) {
+            QString multValue = m_activeContest->getMultiplierValue(
+                qso, multDef.type, workedMults[multDef.type]);
+
+            if (!multValue.isEmpty()) {
+                // This is a new multiplier!
+                qso.isMultiplier = true;
+                multiplierValues.append(multValue);
+                workedMults[multDef.type].append(multValue);
+                multsMarked++;
+            } else {
+                // Not a new mult, but still track it as worked
+                QString existingValue = m_activeContest->getMultiplierValue(
+                    qso, multDef.type, QStringList());
+                if (!existingValue.isEmpty() && !workedMults[multDef.type].contains(existingValue)) {
+                    workedMults[multDef.type].append(existingValue);
+                }
+            }
+        }
+
+        qso.multipliers = multiplierValues;
+
+        // Update in memory
+        m_qsoTableModel->updateQSO(row, qso);
+
+        // Update in database
+        QSORepository repo;
+        if (!repo.updateQSO(qso)) {
+            LOG_WARN("MainWindow", QString("Failed to update QSO %1 in database").arg(qso.id));
+        } else {
+            qsosUpdated++;
+        }
+
+        // Progress update every 100 QSOs
+        if (row % 100 == 0 && row > 0) {
+            m_statusLabel->setText(QString("Rescoring... %1 / %2 QSOs")
+                .arg(row).arg(m_qsoTableModel->count()));
+            QApplication::processEvents();
+        }
+    }
+
+    // Refresh display
+    updateScoreDisplay();
+
+    // Show results
+    QMessageBox::information(this, "Rescore Complete",
+        QString("Contest rescored successfully!\n\n"
+                "QSOs updated: %1\n"
+                "Multipliers marked: %2\n\n"
+                "Score display has been refreshed.")
+            .arg(qsosUpdated).arg(multsMarked));
+
+    m_statusLabel->setText(QString("Rescore complete: %1 QSOs updated, %2 mults marked")
+        .arg(qsosUpdated).arg(multsMarked));
 }
 
 // Tier 3: Full detailed integrity check

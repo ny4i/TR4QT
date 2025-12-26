@@ -138,6 +138,7 @@ private slots:
     // Data integrity checks
     void onPeriodicIntegrityCheck();  // Tier 2: Periodic check
     void onFullIntegrityCheck();      // Tier 3: On-demand full check
+    void onRescoreContest();          // Rescore entire contest (points + mults)
 
     // UDP log rebroadcast
     void onRebroadcastLog();          // UDP command: rebroadcast entire log

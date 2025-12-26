@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.85.0";  // Mark multipliers when logging, simplify display
+constexpr const char* APP_VERSION = "2.85.1";  // Add Rescore Contest menu item
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
