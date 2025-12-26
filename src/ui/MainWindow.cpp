@@ -47,6 +47,7 @@
 #include <QTextEdit>
 #include <QtConcurrent/QtConcurrent>
 #include <QThread>
+#include <QTimeZone>
 
 namespace TR4QT {
 
@@ -2688,7 +2689,7 @@ void MainWindow::updateTimeDisplay() {
 
     // Calculate QSOs this hour
     QDateTime now = QDateTime::currentDateTimeUtc();
-    QDateTime hourStart = QDateTime(now.date(), QTime(now.time().hour(), 0), QTimeZone::UTC);
+    QDateTime hourStart = QDateTime(now.date(), QTime(now.time().hour(), 0), QTimeZone::utc());
 
     m_qsosThisHour = 0;
     for (int i = 0; i < m_qsoTableModel->count(); ++i) {
