@@ -243,11 +243,8 @@ void BandMapWidget::calculateColumnLayout() {
 void BandMapWidget::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
 
-    // Keep horizontal scrollbar visible if it should be shown
-    // This prevents Qt from hiding it between layout updates
-    if (horizontalScrollBar()->maximum() > 0) {
-        horizontalScrollBar()->show();
-    }
+    // Don't call show()/hide() on scrollbars here - it causes layout oscillation on Windows.
+    // The scrollbar range set in updateScrollBars() controls whether scrolling is possible.
 
     QPainter painter(viewport());
     painter.fillRect(viewport()->rect(), Qt::white);
@@ -731,12 +728,9 @@ void BandMapWidget::updateScrollBars() {
     int hScrollRange = qMax(0, totalWidth - viewportWidth);
     horizontalScrollBar()->setRange(0, hScrollRange);
 
-    // Explicitly show scrollbar if range > 0 (Qt's AsNeeded policy is unreliable here)
-    if (hScrollRange > 0) {
-        horizontalScrollBar()->show();
-    } else {
-        horizontalScrollBar()->hide();
-    }
+    // Don't explicitly show/hide scrollbar - it causes layout oscillation on Windows.
+    // Just set the range and let Qt handle visibility based on ScrollBarAsNeeded policy.
+    // The range being 0 or >0 will control whether scrolling is possible.
 }
 
 void BandMapWidget::scrollContentsBy(int dx, int dy) {
