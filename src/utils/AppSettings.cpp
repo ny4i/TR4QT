@@ -99,6 +99,15 @@ int AppSettings::getMorseWPM() const {
     return m_settings.value("Morse/wpm", 25).toInt();  // Default: 25 WPM
 }
 
+void AppSettings::setMorseWPMIncrement(int increment) {
+    m_settings.setValue("Morse/wpmIncrement", increment);
+    m_settings.sync();
+}
+
+int AppSettings::getMorseWPMIncrement() const {
+    return m_settings.value("Morse/wpmIncrement", 3).toInt();  // Default: 3 WPM
+}
+
 void AppSettings::setMyCallsign(const QString& callsign) {
     m_settings.setValue("Station/callsign", callsign.toUpper());
     m_settings.sync();

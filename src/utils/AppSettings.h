@@ -44,6 +44,8 @@ public:
     // Morse code settings
     void setMorseWPM(int wpm);
     int getMorseWPM() const;  // Default: 25 WPM
+    void setMorseWPMIncrement(int increment);
+    int getMorseWPMIncrement() const;  // Default: 3 WPM
 
     // Station information
     void setMyCallsign(const QString& callsign);

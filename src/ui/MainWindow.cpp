@@ -822,10 +822,11 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event) {
-    // PgUp: Increase WPM by 3
+    // PgUp: Increase WPM by configurable increment
     if (event->key() == Qt::Key_PageUp) {
+        int increment = AppSettings::instance().getMorseWPMIncrement();
         int currentWpm = AppSettings::instance().getMorseWPM();
-        int newWpm = qMin(currentWpm + 3, 60);  // Max 60 WPM
+        int newWpm = qMin(currentWpm + increment, 60);  // Max 60 WPM
         AppSettings::instance().setMorseWPM(newWpm);
 
         // Update display
@@ -843,10 +844,11 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
-    // PgDown: Decrease WPM by 3
+    // PgDown: Decrease WPM by configurable increment
     if (event->key() == Qt::Key_PageDown) {
+        int increment = AppSettings::instance().getMorseWPMIncrement();
         int currentWpm = AppSettings::instance().getMorseWPM();
-        int newWpm = qMax(currentWpm - 3, 5);  // Min 5 WPM
+        int newWpm = qMax(currentWpm - increment, 5);  // Min 5 WPM
         AppSettings::instance().setMorseWPM(newWpm);
 
         // Update display
@@ -1808,6 +1810,18 @@ void MainWindow::onCallsignEnterPressed() {
 
     // Auto-populate exchange based on callsign
     autoPopulateExchange(callsign);
+
+    // Auto-send callsign via CW when in CW mode
+    bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
+    if (isCWMode && m_radioConnected && m_radio) {
+        // Set CW speed from settings
+        int wpm = AppSettings::instance().getMorseWPM();
+        m_radio->setCWSpeed(wpm);
+
+        // Send the callsign
+        LOG_INFO("MainWindow", QString("Auto-sending callsign via CW: '%1' at %2 WPM").arg(callsign).arg(wpm));
+        m_radio->sendCW(callsign);
+    }
 
     // Move focus to exchange field
     m_exchangeEntry->setFocus();

@@ -119,6 +119,7 @@ private:
     QGroupBox* m_serialGroup;
     QGroupBox* m_networkGroup;
     QSpinBox* m_morseWpmSpin;
+    QSpinBox* m_morseWpmIncrementSpin;
 
     // DX Cluster tab widgets
     QLineEdit* m_dxClusterCallsignEdit;
