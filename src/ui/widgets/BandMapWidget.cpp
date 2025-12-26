@@ -706,17 +706,25 @@ void BandMapWidget::updateScrollBars() {
 
     QFontMetrics fm(QFont("Monospace", 9));
     const int FOOTER_HEIGHT = fm.height() + 10;
-    int availableHeight = viewport()->height() - FOOTER_HEIGHT;
+    const int SCROLLBAR_HEIGHT = horizontalScrollBar()->sizeHint().height();
 
-    // Account for horizontal scrollbar if visible
-    if (horizontalScrollBar()->isVisible()) {
-        availableHeight -= horizontalScrollBar()->height();
-    }
-
-    int availableWidth = viewport()->width();
+    int viewportHeight = viewport()->height();
+    int viewportWidth = viewport()->width();
 
     // Safety check
     if (m_columnCount < 1) m_columnCount = 1;
+
+    // Calculate total content width
+    int totalWidth = m_columnCount * m_columnWidth;
+
+    // Determine if horizontal scrollbar will be needed
+    bool needsHScrollBar = (totalWidth > viewportWidth);
+
+    // Calculate available height (reserve space for horizontal scrollbar if needed)
+    int availableHeight = viewportHeight - FOOTER_HEIGHT;
+    if (needsHScrollBar) {
+        availableHeight -= SCROLLBAR_HEIGHT;
+    }
 
     // Calculate rows per column based on available height
     int rowsPerColumn = qMax(1, availableHeight / lineHeight);
@@ -732,15 +740,14 @@ void BandMapWidget::updateScrollBars() {
     verticalScrollBar()->setRange(0, vScrollRange);
 
     // Horizontal scrollbar: Needed when columns extend beyond viewport width
-    int totalWidth = m_columnCount * m_columnWidth;
-    horizontalScrollBar()->setPageStep(availableWidth);
-    int hScrollRange = qMax(0, totalWidth - availableWidth);
+    horizontalScrollBar()->setPageStep(viewportWidth);
+    int hScrollRange = qMax(0, totalWidth - viewportWidth);
     horizontalScrollBar()->setRange(0, hScrollRange);
 
-    LOG_TRACE("BandMapWidget", QString("Scrollbar update: spots=%1, columns=%2, rowsPerCol=%3, spotInTallest=%4, tallestHeight=%5, availHeight=%6, vRange=%7, totalWidth=%8, availWidth=%9, hRange=%10")
+    LOG_TRACE("BandMapWidget", QString("Scrollbar update: spots=%1, columns=%2, rowsPerCol=%3, spotInTallest=%4, tallestHeight=%5, availHeight=%6, vRange=%7, totalWidth=%8, viewportWidth=%9, hRange=%10, needsHScroll=%11")
         .arg(m_displaySpots.size()).arg(m_columnCount).arg(rowsPerColumn).arg(spotsInTallestColumn)
         .arg(tallestColumnHeight).arg(availableHeight).arg(vScrollRange)
-        .arg(totalWidth).arg(availableWidth).arg(hScrollRange));
+        .arg(totalWidth).arg(viewportWidth).arg(hScrollRange).arg(needsHScrollBar));
 }
 
 void BandMapWidget::scrollContentsBy(int dx, int dy) {
