@@ -330,8 +330,7 @@ bool GlobalDatabase::migrateSchema() {
     if (dxccCount == 0) {
         LOG_INFO("GlobalDatabase", "Initializing DXCC entities table with ADIF specification data...");
         // Initialize DXCC entities from ADIF specification
-        DXCCRepository repo;
-        if (!repo.initializeDXCCEntities()) {
+        if (!DXCCRepository::instance().initializeDXCCEntities()) {
             LOG_WARN("GlobalDatabase", "Failed to initialize DXCC entities - will retry on next startup");
             // Don't fail the migration - this isn't critical for app operation
         } else {

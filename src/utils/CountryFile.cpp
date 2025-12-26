@@ -129,8 +129,7 @@ bool CountryFile::parseMainLine(const QString& line, CountryData& country) {
 // Get DXCC Entity Code from country name using global database
 // Based on ADIF specification: https://adif.org.uk/316/ADIF_316.htm#DXCC_Entity_Code_Enumeration
 int CountryFile::getDXCCEntityCode(const QString& countryName) {
-    DXCCRepository repo;
-    return repo.getEntityCode(countryName);
+    return DXCCRepository::instance().getEntityCode(countryName);
 }
 
 void CountryFile::parseAliases(const QStringList& aliasLines, CountryData& country) {

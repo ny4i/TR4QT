@@ -6,6 +6,11 @@
 
 namespace TR4QT {
 
+DXCCRepository& DXCCRepository::instance() {
+    static DXCCRepository instance;
+    return instance;
+}
+
 // Complete ADIF DXCC Entity mapping
 // Source: https://adif.org.uk/316/ADIF_316.htm#DXCC_Entity_Code_Enumeration
 static const struct {
@@ -508,7 +513,7 @@ void DXCCRepository::loadCache() const {
 
     m_cacheLoaded = true;
 
-    LOG_DEBUG("DXCCRepository", QString("Loaded %1 DXCC entities into cache").arg(m_nameToCodeCache.size()));
+    LOG_INFO("DXCCRepository", QString("Loaded %1 DXCC entities into cache").arg(m_nameToCodeCache.size()));
 }
 
 } // namespace TR4QT
