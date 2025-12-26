@@ -49,6 +49,7 @@ private slots:
     // Exchange parsing tests
     void testParseExchange_Valid();
     void testParseExchange_MultipleSpaces();
+    void testParseExchange_OrderAgnostic();
     void testFormatSentExchange_Padding();
 
     // QSO points - CW mode
@@ -177,22 +178,34 @@ void TestCQWPX::testExtractPrefix_NoDigit() {
 // Exchange validation tests
 
 void TestCQWPX::testValidateExchange_Valid() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest cwContest(ModeType::CW);
+    CQWPXContest ssbContest(ModeType::USB);
     QString errorMsg;
 
-    QVERIFY(contest.validateReceivedExchange("599 001", errorMsg));
-    QVERIFY(contest.validateReceivedExchange("599 123", errorMsg));
-    QVERIFY(contest.validateReceivedExchange("599 9999", errorMsg));
-    QVERIFY(contest.validateReceivedExchange("59 001", errorMsg));  // SSB format also ok
+    // CW mode: Requires 3-digit RST
+    QVERIFY(cwContest.validateReceivedExchange("599 001", errorMsg));
+    QVERIFY(cwContest.validateReceivedExchange("599 123", errorMsg));
+    QVERIFY(cwContest.validateReceivedExchange("599 9999", errorMsg));
+    QVERIFY(cwContest.validateReceivedExchange("579 001", errorMsg));
+
+    // SSB mode: Accepts 2-3 digit RST
+    QVERIFY(ssbContest.validateReceivedExchange("59 001", errorMsg));
+    QVERIFY(ssbContest.validateReceivedExchange("599 001", errorMsg));
+
+    // Order-agnostic: Serial first, RST second
+    QVERIFY(ssbContest.validateReceivedExchange("4 59", errorMsg));  // Serial=4, RST=59
+    QVERIFY(ssbContest.validateReceivedExchange("1 59", errorMsg));  // Serial=1, RST=59
+    QVERIFY(cwContest.validateReceivedExchange("7 599", errorMsg));  // Serial=7, RST=599
 }
 
 void TestCQWPX::testValidateExchange_InvalidFormat() {
     CQWPXContest contest(ModeType::CW);
     QString errorMsg;
 
-    // Too few fields
-    QVERIFY(!contest.validateReceivedExchange("599", errorMsg));
-    QVERIFY(errorMsg.contains("RST + Serial"));
+    // Single number is accepted as serial (RST auto-filled)
+    QVERIFY(contest.validateReceivedExchange("599", errorMsg));
+    QVERIFY(contest.validateReceivedExchange("1", errorMsg));
+    QVERIFY(contest.validateReceivedExchange("9999", errorMsg));
 
     // Too many fields
     QVERIFY(!contest.validateReceivedExchange("599 001 extra", errorMsg));
@@ -250,6 +263,26 @@ void TestCQWPX::testParseExchange_MultipleSpaces() {
     auto parsed = contest.parseReceivedExchange("599   123");
     QCOMPARE(parsed["RST"], QString("599"));
     QCOMPARE(parsed["Serial"], QString("123"));
+}
+
+void TestCQWPX::testParseExchange_OrderAgnostic() {
+    CQWPXContest ssbContest(ModeType::USB);
+    CQWPXContest cwContest(ModeType::CW);
+
+    // SSB: Serial first, RST second
+    auto parsed1 = ssbContest.parseReceivedExchange("4 59");
+    QCOMPARE(parsed1["Serial"], QString("4"));
+    QCOMPARE(parsed1["RST"], QString("59"));
+
+    // CW: Serial first, RST second
+    auto parsed2 = cwContest.parseReceivedExchange("7 599");
+    QCOMPARE(parsed2["Serial"], QString("7"));
+    QCOMPARE(parsed2["RST"], QString("599"));
+
+    // SSB: RST first, Serial second (traditional order)
+    auto parsed3 = ssbContest.parseReceivedExchange("59 123");
+    QCOMPARE(parsed3["RST"], QString("59"));
+    QCOMPARE(parsed3["Serial"], QString("123"));
 }
 
 void TestCQWPX::testFormatSentExchange_Padding() {

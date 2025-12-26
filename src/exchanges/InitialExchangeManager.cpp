@@ -67,13 +67,20 @@ QString InitialExchangeManager::predictExchange(const QString& callsign,
         }
     }
 
-    // Strategy 3: Contest defaults (RST)
-    if (prediction.isEmpty()) {
-        prediction = getDefaults(contest, mode);
-        LOG_DEBUG("InitialExchangeManager",
-                  QString("Using defaults: %1 → %2")
-                  .arg(callsign, prediction));
-    }
+    // Strategy 3: Contest defaults (RST) - DISABLED
+    // Don't auto-fill RST for contests with optional/user-entered RST.
+    // This prevents pre-filling "599" in CQWPX when user just needs to enter serial.
+    // User workflow:
+    //   - Enter just serial: "3" → parsed as serial, RST auto-filled in parseReceivedExchange()
+    //   - Enter RST + serial: "579 3" → parsed as RST + serial
+    // Leaving exchange field empty allows user to decide what to enter.
+    //
+    // if (prediction.isEmpty()) {
+    //     prediction = getDefaults(contest, mode);
+    //     LOG_DEBUG("InitialExchangeManager",
+    //               QString("Using defaults: %1 → %2")
+    //               .arg(callsign, prediction));
+    // }
 
     // Cache the prediction
     if (!prediction.isEmpty()) {

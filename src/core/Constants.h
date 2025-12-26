@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.68.0";  // Fix exchange validation, CQWW/CQWPX scoring rules
+constexpr const char* APP_VERSION = "2.70.0";  // QSO points calculation and selectable error message text
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

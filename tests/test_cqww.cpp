@@ -34,7 +34,7 @@ private slots:
     // Exchange parsing tests
     void testParseExchange_Valid();
     void testParseExchange_MultipleSpaces();
-    void testParseExchange_Invalid();
+    void testParseExchange_OrderAgnostic();
 
     // QSO points - CW mode
     void testCalculatePoints_CW_SameContinent();
@@ -118,9 +118,14 @@ void TestCQWW::testValidateExchange_InvalidFormat() {
     CQWWContest contest(ModeType::CW);
     QString errorMsg;
 
-    // Missing zone
+    // Single number is accepted as zone (RST auto-filled)
+    QVERIFY(contest.validateReceivedExchange("14", errorMsg));
+    QVERIFY(contest.validateReceivedExchange("1", errorMsg));
+    QVERIFY(contest.validateReceivedExchange("40", errorMsg));
+
+    // Zone out of range
     QVERIFY(!contest.validateReceivedExchange("599", errorMsg));
-    QVERIFY(errorMsg.contains("RST + Zone"));
+    QVERIFY(errorMsg.contains("between 1 and 40"));
 
     // Empty
     QVERIFY(!contest.validateReceivedExchange("", errorMsg));
@@ -141,9 +146,14 @@ void TestCQWW::testValidateExchange_InvalidRST_SSB() {
     CQWWContest contest(ModeType::USB);
     QString errorMsg;
 
-    // SSB requires 2-3 digit RST
-    QVERIFY(!contest.validateReceivedExchange("5 14", errorMsg));
-    QVERIFY(errorMsg.contains("2-3 digits"));
+    // SSB requires 2-3 digit RST with pattern [1-5][1-9][1-9]?
+    // Neither field is valid RST - both fail pattern
+    QVERIFY(!contest.validateReceivedExchange("60 70", errorMsg));
+    QVERIFY(errorMsg.contains("Pattern") || errorMsg.contains("RST"));
+
+    // "80 90" - both have invalid first digit (8,9 > 5)
+    QVERIFY(!contest.validateReceivedExchange("80 90", errorMsg));
+    QVERIFY(errorMsg.contains("Pattern") || errorMsg.contains("RST"));
 }
 
 void TestCQWW::testValidateExchange_InvalidZone_Low() {
@@ -195,12 +205,24 @@ void TestCQWW::testParseExchange_MultipleSpaces() {
     QCOMPARE(parsed["Zone"], QString("14"));
 }
 
-void TestCQWW::testParseExchange_Invalid() {
-    CQWWContest contest(ModeType::CW);
+void TestCQWW::testParseExchange_OrderAgnostic() {
+    CQWWContest ssbContest(ModeType::USB);
+    CQWWContest cwContest(ModeType::CW);
 
-    // Incomplete exchange should still parse what's there
-    auto parsed = contest.parseReceivedExchange("599");
-    QVERIFY(parsed.isEmpty() || !parsed.contains("Zone"));
+    // Single number treated as zone (RST auto-filled)
+    auto parsed1 = ssbContest.parseReceivedExchange("14");
+    QCOMPARE(parsed1["Zone"], QString("14"));
+    QCOMPARE(parsed1["RST"], QString("59"));
+
+    // Zone first, RST second (non-traditional order)
+    auto parsed2 = ssbContest.parseReceivedExchange("14 59");
+    QCOMPARE(parsed2["Zone"], QString("14"));
+    QCOMPARE(parsed2["RST"], QString("59"));
+
+    // RST first, Zone second (traditional order)
+    auto parsed3 = cwContest.parseReceivedExchange("599 14");
+    QCOMPARE(parsed3["RST"], QString("599"));
+    QCOMPARE(parsed3["Zone"], QString("14"));
 }
 
 // QSO points - CW mode
