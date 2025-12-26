@@ -1216,6 +1216,43 @@ void MainWindow::onClearLog() {
         return;
     }
 
+    // Ask if user wants to create a backup first
+    QMessageBox::StandardButton backupReply = QMessageBox::question(
+        this, "Create Backup?",
+        QString("Would you like to create a backup before clearing %1 QSOs?\n\n"
+                "The backup will be saved as an archived copy for safety.")
+            .arg(m_qsoTableModel->count()),
+        QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
+        QMessageBox::Yes);
+
+    if (backupReply == QMessageBox::Cancel) {
+        return;  // User cancelled
+    }
+
+    // Create backup if requested
+    if (backupReply == QMessageBox::Yes) {
+        BackupManager& backupMgr = BackupManager::instance();
+        QString backupPath;
+        QString backupDir = QDir::homePath() + "/.tr4qt/backups";
+
+        if (!backupMgr.createBackup(m_currentContest.databasePath, backupDir, backupPath)) {
+            QMessageBox::StandardButton continueReply = QMessageBox::warning(
+                this, "Backup Failed",
+                QString("Failed to create backup: %1\n\nDo you still want to clear the log?")
+                    .arg(backupMgr.lastError()),
+                QMessageBox::Yes | QMessageBox::No,
+                QMessageBox::No);
+
+            if (continueReply != QMessageBox::Yes) {
+                return;  // User chose not to continue
+            }
+        } else {
+            m_statusLabel->setText(QString("Backup created: %1")
+                .arg(QFileInfo(backupPath).fileName()));
+        }
+    }
+
+    // Confirm clear
     QMessageBox::StandardButton reply = QMessageBox::question(
         this, "Clear Log",
         QString("Are you sure you want to clear all %1 QSOs from the log?\n\nThis action cannot be undone.")
@@ -1224,6 +1261,20 @@ void MainWindow::onClearLog() {
         QMessageBox::No);
 
     if (reply == QMessageBox::Yes) {
+        // Clear QSOs and multipliers from database
+        QSORepository repo;
+        if (!repo.deleteAllQSOs(m_currentContestDbId)) {
+            QMessageBox::critical(this, "Error",
+                QString("Failed to clear log from database: %1").arg(repo.lastError()));
+            return;
+        }
+
+        // Clear exchange memory for this contest
+        ExchangeMemoryRepository memRepo;
+        QString contestType = m_activeContest ? m_activeContest->getContestId() : QString();
+        memRepo.clearForContest(contestType);
+
+        // Clear in-memory model
         m_qsoTableModel->clear();
         m_lastQSOTime = QDateTime();  // Reset time tracking
         m_qsosThisHour = 0;
@@ -2566,6 +2617,13 @@ void MainWindow::updateExchangeFieldsForContest() {
 
 void MainWindow::autoPopulateExchange(const QString& callsign) {
     if (callsign.length() < 2 || !m_activeContest) {
+        return;
+    }
+
+    // Skip exchange memory for contests with serial numbers
+    // Serial numbers auto-increment and should not be predicted from history
+    if (m_activeContest->usesSerialNumbers()) {
+        m_initialExchangePopulated = false;
         return;
     }
 

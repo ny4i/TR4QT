@@ -58,6 +58,17 @@ public:
     bool deleteQSO(int qsoId, bool hardDelete = false);
 
     /**
+     * Delete all QSOs for a contest
+     *
+     * Hard deletes all QSOs and multipliers for the specified contest.
+     * Used when clearing the log.
+     *
+     * @param contestId Contest ID
+     * @return true if successful
+     */
+    bool deleteAllQSOs(int contestId);
+
+    /**
      * Find QSO by ID
      *
      * @param qsoId QSO ID

@@ -90,6 +90,17 @@ public:
     int deleteOlderThan(int days);
 
     /**
+     * Clear all exchange memory entries for a specific contest
+     *
+     * Used when the log is cleared to remove all exchange memory
+     * associated with that contest.
+     *
+     * @param contestType Contest identifier (e.g., "CQWW", "WFD")
+     * @return Number of entries deleted
+     */
+    int clearForContest(const QString& contestType);
+
+    /**
      * Get total number of entries in memory
      * @return Entry count
      */
