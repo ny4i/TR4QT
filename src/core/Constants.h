@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.83.1";  // Move Send Morse to Window menu and fix serial number display
+constexpr const char* APP_VERSION = "2.83.2";  // Fix serial number display using database field
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

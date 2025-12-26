@@ -274,6 +274,8 @@ QString QSOTableModel::getExchangeFieldValue(const QSO& qso, int fieldIndex) con
             return qso.cqZone > 0 ? QString::number(qso.cqZone) : QString();
         } else if (fieldName == "ITU Zone") {
             return qso.ituZone > 0 ? QString::number(qso.ituZone) : QString();
+        } else if (fieldName == "Serial") {
+            return qso.serialNumber > 0 ? QString::number(qso.serialNumber) : QString();
         } else if (fieldName == "Section") {
             // Try ARRL section field first, then state, then parsed exchange
             if (!qso.arrlSection.isEmpty()) {
