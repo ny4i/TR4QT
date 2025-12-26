@@ -28,14 +28,8 @@ jobs:
         host: windows
         target: desktop
         arch: win64_mingw
-        modules: qtconnectivity
+        tools: 'tools_mingw1310'
         cache: true
-
-    - name: Setup MinGW
-      uses: egor-tensin/setup-mingw@v2
-      with:
-        platform: x64
-        version: 13.2.0
 
     - name: Download Hamlib
       shell: bash
@@ -50,18 +44,28 @@ jobs:
         mkdir -p C:/hamlib
         cp -r "$HAMLIB_DIR"/* C:/hamlib/ || cp -r hamlib-temp/* C:/hamlib/
         ls -la C:/hamlib/
+        ls -la C:/hamlib/bin/ || true
+        ls -la C:/hamlib/lib/ || true
 
     - name: Configure CMake
+      shell: bash
       run: |
-        cmake -B build -G "MinGW Makefiles" `
-          -DCMAKE_BUILD_TYPE=Release `
+        export PATH="${{ runner.temp }}/../Qt/Tools/mingw1310_64/bin:$PATH"
+        cmake -B build -G "MinGW Makefiles" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}" \
           -DHAMLIB_ROOT="C:/hamlib"
 
     - name: Build
-      run: cmake --build build --config Release -j4
+      shell: bash
+      run: |
+        export PATH="${{ runner.temp }}/../Qt/Tools/mingw1310_64/bin:$PATH"
+        cmake --build build --config Release -j4
 
     - name: Run Tests
+      shell: bash
       run: |
+        export PATH="${{ runner.temp }}/../Qt/Tools/mingw1310_64/bin:${{ env.QT_ROOT_DIR }}/bin:C:/hamlib/bin:$PATH"
         cd build
         ctest --output-on-failure -C Release
       continue-on-error: true
@@ -69,6 +73,7 @@ jobs:
     - name: Deploy Qt
       shell: bash
       run: |
+        export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
         windeployqt build/src/tr4qt.exe --release --no-translations
         cp C:/hamlib/bin/*.dll build/src/ || true
 
@@ -127,7 +132,7 @@ jobs:
 
   build-linux:
     name: Linux (Ubuntu/Debian)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Checkout
@@ -148,7 +153,8 @@ jobs:
           libqt6concurrent6 \
           libgl1-mesa-dev \
           libhamlib-dev \
-          libhamlib4
+          libhamlib4 \
+          libhamlib-utils
 
     - name: Configure CMake
       run: |
@@ -181,48 +187,48 @@ jobs:
 
   build-raspberry-pi:
     name: Raspberry Pi (ARM64)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          cmake \
-          qt6-base-dev \
-          qt6-tools-dev \
-          qt6-tools-dev-tools \
-          libqt6sql6-sqlite \
-          libqt6network6 \
-          libqt6printsupport6 \
-          libqt6concurrent6 \
-          libgl1-mesa-dev \
-          libhamlib-dev \
-          libhamlib4
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
 
-    - name: Configure CMake
-      run: |
-        cmake -B build \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DHAMLIB_ROOT="/usr"
-
-    - name: Build
-      run: cmake --build build --config Release -j$(nproc)
-
-    - name: Run Tests
-      run: |
-        cd build
-        ctest --output-on-failure -C Release
-      continue-on-error: true
+    - name: Build in ARM64 container
+      uses: uraimo/run-on-arch-action@v2
+      with:
+        arch: aarch64
+        distro: ubuntu24.04
+        githubToken: ${{ github.token }}
+        install: |
+          apt-get update
+          apt-get install -y \
+            build-essential \
+            cmake \
+            qt6-base-dev \
+            qt6-tools-dev \
+            qt6-tools-dev-tools \
+            libqt6sql6-sqlite \
+            libqt6network6 \
+            libqt6printsupport6 \
+            libqt6concurrent6 \
+            libgl1-mesa-dev \
+            libhamlib-dev \
+            libhamlib4
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DHAMLIB_ROOT="/usr"
+          cmake --build build --config Release -j$(nproc)
+          mkdir -p package/TR4QT
+          cp build/src/tr4qt package/TR4QT/
 
     - name: Package
       run: |
-        mkdir -p package/TR4QT
-        cp build/src/tr4qt package/TR4QT/
         cd package
         tar -czvf TR4QT-Linux-ARM64.tar.gz TR4QT/
 
@@ -253,12 +259,16 @@ jobs:
         cd artifacts/TR4QT-Windows
         zip -r ../TR4QT-${{ github.ref_name }}-Windows.zip .
 
+    - name: Rename macOS DMG
+      run: |
+        mv artifacts/TR4QT-macOS/tr4qt.dmg artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
           artifacts/TR4QT-${{ github.ref_name }}-Windows.zip
-          artifacts/TR4QT-macOS/tr4qt.dmg
+          artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
           artifacts/TR4QT-Linux-x86_64/TR4QT-Linux-x86_64.tar.gz
           artifacts/TR4QT-Linux-ARM64/TR4QT-Linux-ARM64.tar.gz
         draft: true

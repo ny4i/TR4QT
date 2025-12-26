@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.88.0";  // Add GitHub Actions CI workflow for multi-platform builds
+constexpr const char* APP_VERSION = "2.88.1";  // Fix CI workflow - use Qt MinGW, add QTimeZone include, QEMU for ARM
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
