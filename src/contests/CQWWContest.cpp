@@ -102,6 +102,23 @@ QString CQWWContest::formatSentExchange(int serialNumber, const QString& rst) co
     return rst + " {ZONE}";  // {ZONE} will be replaced by actual zone from settings
 }
 
+bool CQWWContest::isValidRST(const QString& rst, ModeType mode) {
+    // RST pattern: [1-5][1-9][1-9]*
+    // - First digit: 1-5 (Readability)
+    // - Second digit: 1-9 (Strength)
+    // - Third digit: 1-9 (Tone) - required for CW, optional for SSB/AM/FM
+
+    if (mode == ModeType::CW || mode == ModeType::CWR) {
+        // CW: Must be exactly 3 digits (e.g., 599, 579, 339)
+        QRegularExpression re("^[1-5][1-9][1-9]$");
+        return re.match(rst).hasMatch();
+    } else {
+        // SSB/AM/FM: 2 or 3 digits (e.g., 59, 57, 599)
+        QRegularExpression re("^[1-5][1-9][1-9]?$");
+        return re.match(rst).hasMatch();
+    }
+}
+
 bool CQWWContest::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
@@ -114,31 +131,56 @@ bool CQWWContest::validateReceivedExchange(const QString& exchange, QString& err
     QString zoneStr;
     if (parts.size() == 1) {
         // Only zone provided - RST will be auto-filled
-        // But reject if it looks like RST (59x pattern) to avoid ambiguity
-        QString field = parts[0];
-        bool ok;
-        int val = field.toInt(&ok);
-        if (ok && ((field.length() == 2 && val >= 11 && val <= 59) ||
-                   (field.length() == 3 && val >= 111 && val <= 599))) {
-            errorMsg = "Ambiguous input - looks like RST. Please enter: RST + Zone (e.g., '599 14')";
-            return false;
-        }
+        // Single number is always assumed to be zone, not RST
         zoneStr = parts[0];
     } else if (parts.size() == 2) {
-        // RST + Zone provided - validate RST
-        QString rst = parts[0];
-        if (m_mode == ModeType::CW) {
-            if (rst.length() != 3) {
-                errorMsg = "CW RST must be 3 digits (e.g., 599)";
-                return false;
+        // Two fields: detect which is RST and which is Zone
+        // Be smart about order - check patterns AND zone range (1-40)
+        QString first = parts[0];
+        QString second = parts[1];
+
+        bool firstIsRST = isValidRST(first, m_mode);
+        bool secondIsRST = isValidRST(second, m_mode);
+
+        // Check if values are in valid zone range (1-40)
+        bool ok1, ok2;
+        int firstInt = first.toInt(&ok1);
+        int secondInt = second.toInt(&ok2);
+        bool firstIsValidZone = ok1 && firstInt >= 1 && firstInt <= 40;
+        bool secondIsValidZone = ok2 && secondInt >= 1 && secondInt <= 40;
+
+        if (firstIsRST && !secondIsRST) {
+            // First is RST, second is zone (e.g., "599 14")
+            zoneStr = second;
+        } else if (!firstIsRST && secondIsRST) {
+            // Second is RST, first is zone (e.g., "14 59" or "5 14")
+            zoneStr = first;
+        } else if (firstIsRST && secondIsRST) {
+            // Both match RST pattern - use zone range to decide
+            if (firstIsValidZone && !secondIsValidZone) {
+                // First is valid zone → first=zone, second=RST (e.g., "14 59")
+                zoneStr = first;
+            } else if (!firstIsValidZone && secondIsValidZone) {
+                // Second is valid zone → first=RST, second=zone (e.g., "59 14")
+                zoneStr = second;
+            } else {
+                // Both or neither in valid zone range - assume first is RST
+                zoneStr = second;
             }
         } else {
-            if (rst.length() != 2 && rst.length() != 3) {
-                errorMsg = "SSB RST must be 2-3 digits (e.g., 59)";
-                return false;
-            }
+            // Neither is valid RST
+            QString expectedFormat = (m_mode == ModeType::CW || m_mode == ModeType::CWR) ?
+                "3 digits (e.g., 599, 579)" : "2-3 digits (e.g., 59, 599)";
+            errorMsg = QString("Invalid RST format. Expected %1 (Pattern: [1-5][1-9][1-9]?)")
+                .arg(expectedFormat);
+            return false;
         }
-        zoneStr = parts[1];
+
+        // Validate zone is provided
+        if (zoneStr.isEmpty()) {
+            errorMsg = "Zone required";
+            return false;
+        }
     } else {
         // Too many fields
         errorMsg = "Exchange must be: Zone (e.g., '14') or RST + Zone (e.g., '599 14')";
@@ -162,26 +204,52 @@ QMap<QString, QString> CQWWContest::parseReceivedExchange(const QString& exchang
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     if (parts.size() == 1) {
-        QString field = parts[0];
-        bool ok;
-        int val = field.toInt(&ok);
-
-        // Check if it looks like RST (59x pattern)
-        bool looksLikeRST = ok && ((field.length() == 2 && val >= 11 && val <= 59) ||
-                                   (field.length() == 3 && val >= 111 && val <= 599));
-
-        if (looksLikeRST) {
-            // Treat as RST only, no zone (incomplete exchange)
-            parsed["RST"] = field;
-        } else {
-            // Treat as zone, auto-fill RST
-            parsed["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
-            parsed["Zone"] = field;
-        }
+        // Only zone provided - auto-fill RST
+        parsed["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
+        parsed["Zone"] = parts[0];
     } else if (parts.size() >= 2) {
-        // Full exchange: RST + Zone
-        parsed["RST"] = parts[0];
-        parsed["Zone"] = parts[1];
+        // Two fields: detect which is RST and which is Zone (order-agnostic)
+        QString first = parts[0];
+        QString second = parts[1];
+
+        bool firstIsRST = isValidRST(first, m_mode);
+        bool secondIsRST = isValidRST(second, m_mode);
+
+        // Check if values are in valid zone range (1-40)
+        bool ok1, ok2;
+        int firstInt = first.toInt(&ok1);
+        int secondInt = second.toInt(&ok2);
+        bool firstIsValidZone = ok1 && firstInt >= 1 && firstInt <= 40;
+        bool secondIsValidZone = ok2 && secondInt >= 1 && secondInt <= 40;
+
+        if (firstIsRST && !secondIsRST) {
+            // First is RST, second is zone (e.g., "599 14")
+            parsed["RST"] = first;
+            parsed["Zone"] = second;
+        } else if (!firstIsRST && secondIsRST) {
+            // Second is RST, first is zone (e.g., "14 59" or "5 14")
+            parsed["RST"] = second;
+            parsed["Zone"] = first;
+        } else if (firstIsRST && secondIsRST) {
+            // Both match RST pattern - use zone range to decide
+            if (firstIsValidZone && !secondIsValidZone) {
+                // First is valid zone → first=zone, second=RST (e.g., "14 59")
+                parsed["Zone"] = first;
+                parsed["RST"] = second;
+            } else if (!firstIsValidZone && secondIsValidZone) {
+                // Second is valid zone → first=RST, second=zone (e.g., "59 14")
+                parsed["RST"] = first;
+                parsed["Zone"] = second;
+            } else {
+                // Both or neither in valid zone range - assume first is RST
+                parsed["RST"] = first;
+                parsed["Zone"] = second;
+            }
+        } else {
+            // Neither is valid RST - use defaults
+            parsed["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
+            parsed["Zone"] = first;  // Assume first is zone
+        }
     }
 
     return parsed;

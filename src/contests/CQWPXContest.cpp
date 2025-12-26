@@ -105,6 +105,23 @@ QString CQWPXContest::formatSentExchange(int serialNumber, const QString& rst) c
     return QString("%1 %2").arg(rst).arg(serialNumber, 3, 10, QChar('0'));
 }
 
+bool CQWPXContest::isValidRST(const QString& rst, ModeType mode) {
+    // RST pattern: [1-5][1-9][1-9]*
+    // - First digit: 1-5 (Readability)
+    // - Second digit: 1-9 (Strength)
+    // - Third digit: 1-9 (Tone) - required for CW, optional for SSB/AM/FM
+
+    if (mode == ModeType::CW || mode == ModeType::CWR) {
+        // CW: Must be exactly 3 digits (e.g., 599, 579, 339)
+        QRegularExpression re("^[1-5][1-9][1-9]$");
+        return re.match(rst).hasMatch();
+    } else {
+        // SSB/AM/FM: 2 or 3 digits (e.g., 59, 57, 599)
+        QRegularExpression re("^[1-5][1-9][1-9]?$");
+        return re.match(rst).hasMatch();
+    }
+}
+
 bool CQWPXContest::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
@@ -116,24 +133,40 @@ bool CQWPXContest::validateReceivedExchange(const QString& exchange, QString& er
     QString serial;
     if (parts.size() == 1) {
         // Only serial provided - RST will be auto-filled
-        // But reject if it looks like RST (59x pattern) to avoid ambiguity
-        QString field = parts[0];
-        bool ok;
-        int val = field.toInt(&ok);
-        if (ok && ((field.length() == 2 && val >= 11 && val <= 59) ||
-                   (field.length() == 3 && val >= 111 && val <= 599))) {
-            errorMsg = "Ambiguous input - looks like RST. Please enter: RST + Serial (e.g., '599 001')";
-            return false;
-        }
+        // Single number is always assumed to be serial, not RST
         serial = parts[0];
     } else if (parts.size() == 2) {
-        // RST + Serial provided - validate RST
-        QString rst = parts[0];
-        if (rst.length() < 2 || rst.length() > 3) {
-            errorMsg = "Invalid RST format";
+        // Two fields: detect which is RST and which is Serial
+        // Be smart about order - check patterns to determine fields
+        QString first = parts[0];
+        QString second = parts[1];
+
+        bool firstIsRST = isValidRST(first, m_mode);
+        bool secondIsRST = isValidRST(second, m_mode);
+
+        if (firstIsRST && !secondIsRST) {
+            // First is RST, second is serial (e.g., "599 3")
+            serial = second;
+        } else if (!firstIsRST && secondIsRST) {
+            // Second is RST, first is serial (e.g., "4 59")
+            serial = first;
+        } else if (firstIsRST && secondIsRST) {
+            // Both could be RST - assume first is RST, second is serial
+            serial = second;
+        } else {
+            // Neither is valid RST
+            QString expectedFormat = (m_mode == ModeType::CW || m_mode == ModeType::CWR) ?
+                "3 digits (e.g., 599, 579)" : "2-3 digits (e.g., 59, 599)";
+            errorMsg = QString("Invalid RST format. Expected %1 (Pattern: [1-5][1-9][1-9]?)")
+                .arg(expectedFormat);
             return false;
         }
-        serial = parts[1];
+
+        // Validate serial is provided
+        if (serial.isEmpty()) {
+            errorMsg = "Serial number required";
+            return false;
+        }
     } else {
         // Too many fields
         errorMsg = "Exchange must be: Serial (e.g., '001') or RST + Serial (e.g., '599 001')";
@@ -160,9 +193,30 @@ QMap<QString, QString> CQWPXContest::parseReceivedExchange(const QString& exchan
         result["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
         result["Serial"] = parts[0];
     } else if (parts.size() >= 2) {
-        // Full exchange: RST + Serial
-        result["RST"] = parts[0];
-        result["Serial"] = parts[1];
+        // Two fields: detect which is RST and which is Serial (order-agnostic)
+        QString first = parts[0];
+        QString second = parts[1];
+
+        bool firstIsRST = isValidRST(first, m_mode);
+        bool secondIsRST = isValidRST(second, m_mode);
+
+        if (firstIsRST && !secondIsRST) {
+            // First is RST, second is serial (e.g., "599 3")
+            result["RST"] = first;
+            result["Serial"] = second;
+        } else if (!firstIsRST && secondIsRST) {
+            // Second is RST, first is serial (e.g., "4 59")
+            result["RST"] = second;
+            result["Serial"] = first;
+        } else if (firstIsRST && secondIsRST) {
+            // Both could be RST - assume first is RST, second is serial
+            result["RST"] = first;
+            result["Serial"] = second;
+        } else {
+            // Neither is valid RST - use defaults
+            result["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
+            result["Serial"] = first;  // Assume first is serial
+        }
     }
 
     return result;

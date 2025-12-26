@@ -34,6 +34,7 @@
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QMessageBox>
+#include "../utils/MessageBox.h"
 #include <QCloseEvent>
 #include <QApplication>
 #include <QSettings>
@@ -1391,8 +1392,27 @@ void MainWindow::onLogQSO() {
         LOG_WARN("MainWindow", QString("Country lookup failed for callsign: %1").arg(callsign));
     }
 
+    // Calculate QSO points via contest scoring
+    if (m_activeContest) {
+        StationInfo myStation;
+        myStation.callsign = AppSettings::instance().getMyCallsign();
+        myStation.continent = AppSettings::instance().getMyContinent();
+        myStation.cqZone = AppSettings::instance().getMyCQZone();
+
+        // Lookup my country from callsign via cty.dat
+        CountryData myCountryData = m_countryFile.lookup(myStation.callsign);
+        if (myCountryData.isValid()) {
+            myStation.country = myCountryData.name;
+        }
+
+        qso.qsoPoints = m_activeContest->calculateQSOPoints(qso, myStation);
+
+        LOG_DEBUG("MainWindow", QString("QSO points calculated: %1").arg(qso.qsoPoints));
+    } else {
+        qso.qsoPoints = 1;  // Default 1 point if no contest
+    }
+
     // TODO: Check for dupe
-    // TODO: Calculate points via contest
     // TODO: Check for new multipliers
 
     // Add to table model (UI)
@@ -1410,6 +1430,11 @@ void MainWindow::onLogQSO() {
             // Continue anyway - QSO is in table model
         } else {
             LOG_DEBUG("MainWindow", QString("QSO saved to database with ID: %1").arg(qso.id));
+
+            // Update the table model with the QSO now that it has a database ID
+            // This allows Edit QSO to work properly (needs valid ID)
+            int lastRow = m_qsoTableModel->count() - 1;
+            m_qsoTableModel->updateQSO(lastRow, qso);
 
             // Save exchange to memory for future auto-population
             if (m_activeContest && !qso.exchangeReceived.isEmpty()) {
@@ -1557,7 +1582,7 @@ void MainWindow::onEditQSO(const QModelIndex& index) {
     // Get the QSO at the selected row
     QSO qso = m_qsoTableModel->getQSO(row);
     if (qso.id < 0) {
-        QMessageBox::warning(this, "Error", "Cannot edit QSO: Invalid QSO ID");
+        MessageBox::warning(this, "Error", "Cannot edit QSO: Invalid QSO ID");
         return;
     }
 
