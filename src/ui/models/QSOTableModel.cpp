@@ -85,12 +85,13 @@ QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
             // QSO points
             return qso.qsoPoints > 0 ? QString::number(qso.qsoPoints) : QString();
         case ColM:
-            // Markers (will be populated when we implement multiplier logic)
-            // x = new mult on this band, z = new mult all-time
-            return QString();  // TODO: implement markers
+            // Multiplier type indicators (TR4W style)
+            // x = DXCC country, d = section/state, z = zone, p = prefix
+            // Combined in order: x, d, z, p (e.g., "xz" for CQ WW)
+            return getMultiplierIndicators(qso);
         case ColMult:
-            // $ indicator for multipliers
-            return qso.isMultiplier ? "$" : QString();
+            // $ indicator (Search & Pounce - not implemented yet)
+            return QString();  // TODO: implement S&P indicator
         case ColFreq:
             // Frequency in kHz with 1 decimal
             return formatFrequency(qso.frequency);
@@ -310,6 +311,43 @@ void QSOTableModel::onThemeChanged() {
         QModelIndex bottomRight = index(m_qsos.size() - 1, columnCount() - 1);
         emit dataChanged(topLeft, bottomRight, {Qt::ForegroundRole, Qt::BackgroundRole});
     }
+}
+
+QString QSOTableModel::getMultiplierIndicators(const QSO& qso) const {
+    if (!qso.isMultiplier || qso.multipliers.isEmpty()) {
+        return QString();
+    }
+
+    QString indicators;
+
+    // Parse multiplier types from QStringList (format: "Type:Value")
+    for (const QString& mult : qso.multipliers) {
+        QStringList parts = mult.split(':');
+        if (parts.size() != 2) continue;
+
+        QString type = parts[0];
+
+        // Convert to TR4W-style lowercase indicators
+        // Order: x, d, z, p
+        if (type == "Country" && !indicators.contains('x')) {
+            indicators += 'x';
+        } else if ((type == "Section" || type == "State") && !indicators.contains('d')) {
+            indicators += 'd';
+        } else if ((type == "CQZone" || type == "ITUZone") && !indicators.contains('z')) {
+            indicators += 'z';
+        } else if (type == "Prefix" && !indicators.contains('p')) {
+            indicators += 'p';
+        }
+    }
+
+    // Ensure correct order: x, d, z, p
+    QString ordered;
+    if (indicators.contains('x')) ordered += 'x';
+    if (indicators.contains('d')) ordered += 'd';
+    if (indicators.contains('z')) ordered += 'z';
+    if (indicators.contains('p')) ordered += 'p';
+
+    return ordered;
 }
 
 } // namespace TR4QT

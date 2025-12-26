@@ -54,6 +54,11 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , m_radio(new RadioController(this))
     , m_radioConnected(false)
+    , m_radioAutoReconnect(false)
+    , m_radioReconnectTimer(new QTimer(this))
+    , m_radioReconnectAttempts(0)
+    , m_radioFlashTimer(new QTimer(this))
+    , m_radioFlashState(false)
     , m_dxClusterWindow(nullptr)
     , m_bandMapWindow(nullptr)
     , m_radioControlWindow(nullptr)
@@ -112,6 +117,33 @@ MainWindow::MainWindow(QWidget* parent)
             this, &MainWindow::onRadioError);
     connect(m_radio, &RadioController::radioModelChanged,
             this, &MainWindow::onRadioModelChanged);
+
+    // Setup radio reconnection timer (10 seconds between attempts)
+    m_radioReconnectTimer->setSingleShot(true);
+    m_radioReconnectTimer->setInterval(10000);  // 10 seconds
+    connect(m_radioReconnectTimer, &QTimer::timeout, this, [this]() {
+        if (m_radioAutoReconnect && m_radioReconnectAttempts < MAX_RADIO_RECONNECT_ATTEMPTS) {
+            m_radioReconnectAttempts++;
+            m_statusLabel->setText(QString("Reconnecting to radio (attempt %1 of %2)...")
+                .arg(m_radioReconnectAttempts).arg(MAX_RADIO_RECONNECT_ATTEMPTS));
+            LOG_DEBUG("MainWindow", QString("Auto-reconnect: Attempt %1 of %2")
+                .arg(m_radioReconnectAttempts).arg(MAX_RADIO_RECONNECT_ATTEMPTS));
+            m_radio->connectToRadio(m_lastRadioConfig);
+        } else if (m_radioReconnectAttempts >= MAX_RADIO_RECONNECT_ATTEMPTS) {
+            m_radioAutoReconnect = false;
+            m_statusLabel->setText(QString("Failed to reconnect to radio after %1 attempts")
+                .arg(MAX_RADIO_RECONNECT_ATTEMPTS));
+            LOG_WARN("MainWindow", QString("Auto-reconnect failed after %1 attempts")
+                .arg(MAX_RADIO_RECONNECT_ATTEMPTS));
+        }
+    });
+
+    // Setup radio status flash timer (500ms flash rate)
+    m_radioFlashTimer->setInterval(500);  // Flash every 500ms
+    connect(m_radioFlashTimer, &QTimer::timeout, this, [this]() {
+        m_radioFlashState = !m_radioFlashState;
+        updateRadioStatusFlash();
+    });
 
     // Try auto-connect if enabled and config exists
     AppSettings& settings = AppSettings::instance();
@@ -453,36 +485,35 @@ void MainWindow::createCentralWidget() {
     // Set column widths and resize modes for proper scaling
     QHeaderView* header = m_qsoTableView->horizontalHeader();
 
-    // Fixed-width columns (small data)
-    header->setSectionResizeMode(QSOTableModel::ColM, QHeaderView::Fixed);
-    header->setSectionResizeMode(QSOTableModel::ColExch2, QHeaderView::Fixed);
-    header->setSectionResizeMode(QSOTableModel::ColPts, QHeaderView::Fixed);
-    header->setSectionResizeMode(QSOTableModel::ColExch1, QHeaderView::Fixed);
-    header->setSectionResizeMode(QSOTableModel::ColMult, QHeaderView::Fixed);
+    // Make all columns user-resizable (except last which stretches)
+    for (int i = 0; i < QSOTableModel::ColCount - 1; ++i) {
+        header->setSectionResizeMode(i, QHeaderView::Interactive);
+    }
 
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColM, 30);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColExch2, 30);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColPts, 40);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColExch1, 40);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColMult, 30);
-
-    // Interactive columns (medium data, user can resize)
-    header->setSectionResizeMode(QSOTableModel::ColBand, QHeaderView::Interactive);
-    header->setSectionResizeMode(QSOTableModel::ColDate, QHeaderView::Interactive);
-    header->setSectionResizeMode(QSOTableModel::ColUTC, QHeaderView::Interactive);
-    header->setSectionResizeMode(QSOTableModel::ColQSOs, QHeaderView::Interactive);
-    header->setSectionResizeMode(QSOTableModel::ColCallsign, QHeaderView::Interactive);
-    header->setSectionResizeMode(QSOTableModel::ColFreq, QHeaderView::Interactive);
-
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColBand, 60);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColDate, 80);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColUTC, 50);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColQSOs, 50);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColCallsign, 100);
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColFreq, 80);
-
-    // Op column stretches to fill remaining space (last column with stretchLastSection=true)
+    // Op column stretches to fill remaining space (last column)
     header->setSectionResizeMode(QSOTableModel::ColOp, QHeaderView::Stretch);
+
+    // Initially resize all columns to contents to trim whitespace
+    m_qsoTableView->resizeColumnsToContents();
+
+    // Set reasonable minimum widths for readability
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColBand, qMax(60, m_qsoTableView->columnWidth(QSOTableModel::ColBand)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColDate, qMax(80, m_qsoTableView->columnWidth(QSOTableModel::ColDate)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColUTC, qMax(50, m_qsoTableView->columnWidth(QSOTableModel::ColUTC)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColQSOs, qMax(50, m_qsoTableView->columnWidth(QSOTableModel::ColQSOs)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColCallsign, qMax(100, m_qsoTableView->columnWidth(QSOTableModel::ColCallsign)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColExch1, qMax(40, m_qsoTableView->columnWidth(QSOTableModel::ColExch1)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColExch2, qMax(40, m_qsoTableView->columnWidth(QSOTableModel::ColExch2)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColPts, qMax(40, m_qsoTableView->columnWidth(QSOTableModel::ColPts)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColM, qMax(30, m_qsoTableView->columnWidth(QSOTableModel::ColM)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColMult, qMax(30, m_qsoTableView->columnWidth(QSOTableModel::ColMult)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColFreq, qMax(80, m_qsoTableView->columnWidth(QSOTableModel::ColFreq)));
+
+    // Connect signal to save column widths when user resizes
+    connect(header, &QHeaderView::sectionResized, this, &MainWindow::onQSOTableColumnResized);
+
+    // Load saved column widths (must be done after initial sizing)
+    loadQSOTableColumnWidths();
 
     // Connect double-click to edit QSO
     connect(m_qsoTableView, &QTableView::doubleClicked, this, &MainWindow::onEditQSO);
@@ -910,6 +941,51 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
 }
 
 bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
+    // Intercept PgUp/PgDn globally for CW speed control
+    if (event->type() == QEvent::KeyPress) {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+
+        // PgUp: Increase CW speed
+        if (keyEvent->key() == Qt::Key_PageUp) {
+            int increment = AppSettings::instance().getMorseWPMIncrement();
+            int currentWpm = AppSettings::instance().getMorseWPM();
+            int newWpm = qMin(currentWpm + increment, 60);  // Max 60 WPM
+
+            AppSettings::instance().setMorseWPM(newWpm);
+            m_radioWpmLabel->setText(QString("%1 WPM").arg(newWpm));
+
+            // Send speed change to radio if connected and in CW mode
+            if (m_radioConnected && m_radio &&
+                (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR)) {
+                m_radio->setCWSpeed(newWpm);
+            }
+
+            m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
+            LOG_DEBUG("MainWindow", QString("WPM increased to %1 (PgUp)").arg(newWpm));
+            return true;  // Event handled, don't propagate
+        }
+
+        // PgDown: Decrease CW speed
+        if (keyEvent->key() == Qt::Key_PageDown) {
+            int increment = AppSettings::instance().getMorseWPMIncrement();
+            int currentWpm = AppSettings::instance().getMorseWPM();
+            int newWpm = qMax(currentWpm - increment, 5);  // Min 5 WPM
+
+            AppSettings::instance().setMorseWPM(newWpm);
+            m_radioWpmLabel->setText(QString("%1 WPM").arg(newWpm));
+
+            // Send speed change to radio if connected and in CW mode
+            if (m_radioConnected && m_radio &&
+                (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR)) {
+                m_radio->setCWSpeed(newWpm);
+            }
+
+            m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
+            LOG_DEBUG("MainWindow", QString("WPM decreased to %1 (PgDn)").arg(newWpm));
+            return true;  // Event handled, don't propagate
+        }
+    }
+
     // Catch WindowActivate events on any of our windows
     if (event->type() == QEvent::WindowActivate) {
         // Check if the activated window belongs to our application
@@ -1028,6 +1104,12 @@ void MainWindow::onRadioConnect() {
 
     RadioConfig config = settings.loadRadioConfig();
 
+    // Enable auto-reconnect when user initiates connection
+    m_radioAutoReconnect = true;
+    m_radioReconnectTimer->stop();  // Stop any pending reconnect attempt
+    m_radioReconnectAttempts = 0;   // Reset retry counter
+    m_lastRadioConfig = config;  // Save config for reconnection attempts
+
     m_statusLabel->setText(QString("Connecting to radio: Model %1, Port %2...")
                               .arg(config.hamlibModelId)
                               .arg(config.port));
@@ -1039,6 +1121,10 @@ void MainWindow::onRadioConnect() {
 }
 
 void MainWindow::onRadioDisconnect() {
+    // Disable auto-reconnect when user manually disconnects
+    m_radioAutoReconnect = false;
+    m_radioReconnectTimer->stop();
+
     m_statusLabel->setText("Disconnecting from radio...");
     m_radio->disconnectFromRadio();
 }
@@ -1393,12 +1479,24 @@ void MainWindow::onRadioConnected(bool connected) {
     if (connected) {
         m_statusLabel->setText("Connected to radio (waiting for state...)");
 
+        // Stop reconnect timer on successful connection
+        m_radioReconnectTimer->stop();
+        m_radioReconnectAttempts = 0;  // Reset retry counter on success
+
+        // Stop flashing indicator
+        m_radioFlashTimer->stop();
+        m_radioFlashState = false;
+        updateRadioStatusFlash();  // Update to normal color
+
         // Enable band buttons when radio connected
         if (m_bandSummaryGrid) {
             m_bandSummaryGrid->setEnabled(true);
         }
     } else {
         m_statusLabel->setText("Radio disconnected");
+
+        // Start flashing red indicator
+        m_radioFlashTimer->start();
 
         // Clear radio control display when disconnected
         if (m_radioControlWindow) {
@@ -1408,6 +1506,13 @@ void MainWindow::onRadioConnected(bool connected) {
         // Disable band buttons when radio disconnected
         if (m_bandSummaryGrid) {
             m_bandSummaryGrid->setEnabled(false);
+        }
+
+        // Start auto-reconnect timer if enabled
+        if (m_radioAutoReconnect) {
+            LOG_DEBUG("MainWindow", "Radio disconnected - will attempt reconnect in 10 seconds");
+            m_statusLabel->setText("Radio disconnected - will retry in 10 seconds...");
+            m_radioReconnectTimer->start();
         }
     }
 }
@@ -1658,7 +1763,14 @@ void MainWindow::onLogQSO() {
             if (!multValue.isEmpty()) {
                 // This is a new multiplier!
                 qso.isMultiplier = true;
-                multiplierValues.append(multValue);
+                // Store as "Type:Value" for display (e.g., "Prefix:W1", "CQZone:5")
+                QString typeStr = multDef.type == MultiplierType::Country ? "Country" :
+                                 multDef.type == MultiplierType::CQZone ? "CQZone" :
+                                 multDef.type == MultiplierType::ITUZone ? "ITUZone" :
+                                 multDef.type == MultiplierType::State ? "State" :
+                                 multDef.type == MultiplierType::Section ? "Section" :
+                                 multDef.type == MultiplierType::Prefix ? "Prefix" : "Custom";
+                multiplierValues.append(QString("%1:%2").arg(typeStr, multValue));
             }
         }
     }
@@ -2257,7 +2369,14 @@ void MainWindow::onRescoreContest() {
             if (!multValue.isEmpty()) {
                 // This is a new multiplier!
                 qso.isMultiplier = true;
-                multiplierValues.append(multValue);
+                // Store as "Type:Value" for display (e.g., "Prefix:W1", "CQZone:5")
+                QString typeStr = multDef.type == MultiplierType::Country ? "Country" :
+                                 multDef.type == MultiplierType::CQZone ? "CQZone" :
+                                 multDef.type == MultiplierType::ITUZone ? "ITUZone" :
+                                 multDef.type == MultiplierType::State ? "State" :
+                                 multDef.type == MultiplierType::Section ? "Section" :
+                                 multDef.type == MultiplierType::Prefix ? "Prefix" : "Custom";
+                multiplierValues.append(QString("%1:%2").arg(typeStr, multValue));
                 workedMults[multDef.type].append(multValue);
                 multsMarked++;
             } else {
@@ -3801,6 +3920,81 @@ BandType MainWindow::getPreviousBand(BandType currentBand) const {
     }
 
     return contestBands[currentIndex - 1];
+}
+
+void MainWindow::saveQSOTableColumnWidths() {
+    if (!m_qsoTableView) {
+        return;
+    }
+
+    QList<int> widths;
+    for (int i = 0; i < QSOTableModel::ColCount; ++i) {
+        widths.append(m_qsoTableView->columnWidth(i));
+    }
+
+    AppSettings::instance().saveQSOTableColumnWidths(widths);
+}
+
+void MainWindow::loadQSOTableColumnWidths() {
+    if (!m_qsoTableView) {
+        return;
+    }
+
+    QList<int> widths = AppSettings::instance().loadQSOTableColumnWidths();
+    if (widths.isEmpty() || widths.size() != QSOTableModel::ColCount) {
+        return;  // No saved widths or wrong number of columns
+    }
+
+    // Temporarily disconnect the resize signal to avoid saving during restore
+    QHeaderView* header = m_qsoTableView->horizontalHeader();
+    disconnect(header, &QHeaderView::sectionResized, this, &MainWindow::onQSOTableColumnResized);
+
+    // Restore column widths (except last column which stretches)
+    for (int i = 0; i < QSOTableModel::ColCount - 1; ++i) {
+        if (widths[i] > 0) {
+            m_qsoTableView->setColumnWidth(i, widths[i]);
+        }
+    }
+
+    // Reconnect the resize signal
+    connect(header, &QHeaderView::sectionResized, this, &MainWindow::onQSOTableColumnResized);
+}
+
+void MainWindow::onQSOTableColumnResized(int logicalIndex, int oldSize, int newSize) {
+    Q_UNUSED(oldSize);
+    Q_UNUSED(newSize);
+    Q_UNUSED(logicalIndex);
+
+    // Save all column widths when any column is resized
+    saveQSOTableColumnWidths();
+}
+
+void MainWindow::updateRadioStatusFlash() {
+    if (!m_radioFreqBandLabel) {
+        return;
+    }
+
+    ThemeManager& theme = ThemeManager::instance();
+
+    if (m_radioConnected) {
+        // Connected - use normal theme colors
+        QString normalStyle = QString("QLabel { background-color: %1; padding: 5px; border: 1px solid %2; border-radius: 3px; }")
+            .arg(theme.color(ColorRole::TextDisplayBackground).name())
+            .arg(theme.color(ColorRole::BorderColor).name());
+        m_radioFreqBandLabel->setStyleSheet(normalStyle);
+    } else {
+        // Disconnected - flash between red and normal
+        if (m_radioFlashState) {
+            // Red flash
+            QString flashStyle = QString("QLabel { background-color: #ff0000; color: #ffffff; padding: 5px; border: 2px solid #aa0000; border-radius: 3px; font-weight: bold; }");
+            m_radioFreqBandLabel->setStyleSheet(flashStyle);
+        } else {
+            // Normal (but still show disconnected state)
+            QString normalStyle = QString("QLabel { background-color: %1; padding: 5px; border: 1px solid #aa0000; border-radius: 3px; }")
+                .arg(theme.color(ColorRole::TextDisplayBackground).name());
+            m_radioFreqBandLabel->setStyleSheet(normalStyle);
+        }
+    }
 }
 
 } // namespace TR4QT

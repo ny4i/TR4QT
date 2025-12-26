@@ -92,6 +92,10 @@ private:
     // State
     bool m_isFrozen;
     QStringList m_recentServers;
+    bool m_autoReconnect;
+    QTimer* m_reconnectTimer;
+    int m_reconnectAttempts;
+    static constexpr int MAX_RECONNECT_ATTEMPTS = 10;
 };
 
 } // namespace TR4QT

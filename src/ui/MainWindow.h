@@ -153,6 +153,10 @@ private:
     void saveSettings();
     void applyFontSettings();
     void applyTheme();
+    void saveQSOTableColumnWidths();
+    void loadQSOTableColumnWidths();
+    void onQSOTableColumnResized(int logicalIndex, int oldSize, int newSize);
+    void updateRadioStatusFlash();
     void loadUdpBroadcastSettings();
     void loadBackupSettings();
     void updateConnectionStatus(bool connected);
@@ -217,6 +221,13 @@ private:
     RadioController* m_radio;
     RadioState m_currentState;
     bool m_radioConnected;
+    bool m_radioAutoReconnect;
+    QTimer* m_radioReconnectTimer;
+    RadioConfig m_lastRadioConfig;  // Store config for reconnection attempts
+    int m_radioReconnectAttempts;
+    static constexpr int MAX_RADIO_RECONNECT_ATTEMPTS = 10;
+    QTimer* m_radioFlashTimer;      // Timer for flashing red indicator
+    bool m_radioFlashState;          // Current flash state (on/off)
 
     // Menus
     QAction* m_connectAction;
