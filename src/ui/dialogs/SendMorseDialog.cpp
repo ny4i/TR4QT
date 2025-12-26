@@ -3,6 +3,7 @@
 #include "../../utils/AppSettings.h"
 #include "../../logging/Logger.h"
 #include "../../logging/LogMacros.h"
+#include "../../cw/CWSenderFactory.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
@@ -28,12 +29,22 @@ const char* SendMorseDialog::DEFAULT_MACRO_TEXTS[MACRO_COUNT] = {
 SendMorseDialog::SendMorseDialog(RadioController* radio, QWidget* parent)
     : QDialog(parent)
     , m_radio(radio)
+    , m_cwSender(nullptr)
     , m_isSending(false)
-    , m_transmissionTimer(new QTimer(this))
 {
     m_macroButtons.resize(MACRO_COUNT);
-    m_transmissionTimer->setSingleShot(true);
-    connect(m_transmissionTimer, &QTimer::timeout, this, &SendMorseDialog::onTransmissionComplete);
+
+    // Create CW sender using factory
+    m_cwSender = CWSenderFactory::create(CWSenderFactory::Backend::Hamlib, radio, this);
+    if (m_cwSender) {
+        connect(m_cwSender, &CWSender::stateChanged, this, &SendMorseDialog::onCWSenderStateChanged);
+        connect(m_cwSender, &CWSender::transmissionComplete, this, &SendMorseDialog::onTransmissionComplete);
+        connect(m_cwSender, &CWSender::transmissionStopped, this, &SendMorseDialog::onTransmissionComplete);
+        connect(m_cwSender, &CWSender::error, this, &SendMorseDialog::onCWSenderError);
+        connect(m_cwSender, &CWSender::wpmChanged, this, [this](int wpm) {
+            m_wpmLabel->setText(QString("Speed: %1 WPM").arg(wpm));
+        });
+    }
 
     setupUI();
     loadMacroSettings();
@@ -63,8 +74,10 @@ void SendMorseDialog::keyPressEvent(QKeyEvent* event) {
         AppSettings::instance().setMorseWPM(newWpm);
         m_wpmLabel->setText(QString("Speed: %1 WPM").arg(newWpm));
 
-        // Send speed change to radio if connected
-        if (m_radio && m_radio->isConnected()) {
+        // Update CW sender (will also update radio)
+        if (m_cwSender) {
+            m_cwSender->setWpm(newWpm);
+        } else if (m_radio && m_radio->isConnected()) {
             m_radio->setCWSpeed(newWpm);
         }
 
@@ -83,8 +96,10 @@ void SendMorseDialog::keyPressEvent(QKeyEvent* event) {
         AppSettings::instance().setMorseWPM(newWpm);
         m_wpmLabel->setText(QString("Speed: %1 WPM").arg(newWpm));
 
-        // Send speed change to radio if connected
-        if (m_radio && m_radio->isConnected()) {
+        // Update CW sender (will also update radio)
+        if (m_cwSender) {
+            m_cwSender->setWpm(newWpm);
+        } else if (m_radio && m_radio->isConnected()) {
             m_radio->setCWSpeed(newWpm);
         }
 
@@ -192,7 +207,9 @@ bool SendMorseDialog::eventFilter(QObject* obj, QEvent* event) {
             AppSettings::instance().setMorseWPM(newWpm);
             m_wpmLabel->setText(QString("Speed: %1 WPM").arg(newWpm));
 
-            if (m_radio && m_radio->isConnected()) {
+            if (m_cwSender) {
+                m_cwSender->setWpm(newWpm);
+            } else if (m_radio && m_radio->isConnected()) {
                 m_radio->setCWSpeed(newWpm);
             }
 
@@ -210,7 +227,9 @@ bool SendMorseDialog::eventFilter(QObject* obj, QEvent* event) {
             AppSettings::instance().setMorseWPM(newWpm);
             m_wpmLabel->setText(QString("Speed: %1 WPM").arg(newWpm));
 
-            if (m_radio && m_radio->isConnected()) {
+            if (m_cwSender) {
+                m_cwSender->setWpm(newWpm);
+            } else if (m_radio && m_radio->isConnected()) {
                 m_radio->setCWSpeed(newWpm);
             }
 
@@ -321,6 +340,24 @@ void SendMorseDialog::onSendClicked() {
 }
 
 void SendMorseDialog::sendMorse(const QString& text) {
+    // Use CWSender if available
+    if (m_cwSender) {
+        if (!m_cwSender->isAvailable()) {
+            m_statusLabel->setText("Error: Radio not connected");
+            m_statusLabel->setStyleSheet("QLabel { color: red; }");
+            return;
+        }
+
+        // Set WPM from settings
+        int wpm = AppSettings::instance().getMorseWPM();
+        m_cwSender->setWpm(wpm);
+
+        // UI updates will be handled by onCWSenderStateChanged
+        m_cwSender->send(text);
+        return;
+    }
+
+    // Fallback to direct radio control (should not normally reach here)
     if (!m_radio) {
         m_statusLabel->setText("Error: No radio connected");
         m_statusLabel->setStyleSheet("QLabel { color: red; }");
@@ -333,11 +370,8 @@ void SendMorseDialog::sendMorse(const QString& text) {
         return;
     }
 
-    // Set morse speed from settings
     int wpm = AppSettings::instance().getMorseWPM();
     m_radio->setCWSpeed(wpm);
-
-    // Send the morse code
     LOG_INFO("SendMorseDialog", QString("Sending morse: '%1' at %2 WPM").arg(text).arg(wpm));
 
     m_statusLabel->setText(QString("Sending: %1 (ESC to stop)").arg(text));
@@ -346,16 +380,11 @@ void SendMorseDialog::sendMorse(const QString& text) {
     m_abortButton->setEnabled(true);
     m_isSending = true;
 
-    // Disable all macro buttons while sending
     for (QPushButton* btn : m_macroButtons) {
         if (btn) btn->setEnabled(false);
     }
 
     m_radio->sendCW(text);
-
-    // Estimate transmission time and set timer (wpm already set above)
-    int transmitTimeMs = estimateTransmissionTimeMs(text, wpm);
-    m_transmissionTimer->start(transmitTimeMs);
 }
 
 int SendMorseDialog::estimateTransmissionTimeMs(const QString& text, int wpm) const {
@@ -396,9 +425,13 @@ void SendMorseDialog::onTransmissionComplete() {
 }
 
 void SendMorseDialog::onAbortClicked() {
-    // Stop the transmission timer
-    m_transmissionTimer->stop();
+    // Use CWSender if available
+    if (m_cwSender) {
+        m_cwSender->stop();
+        return;
+    }
 
+    // Fallback to direct radio control
     if (m_radio) {
         m_radio->stopCW();
     }
@@ -415,6 +448,51 @@ void SendMorseDialog::onAbortClicked() {
     for (QPushButton* btn : m_macroButtons) {
         if (btn) btn->setEnabled(true);
     }
+}
+
+void SendMorseDialog::onCWSenderStateChanged(CWSender::State state) {
+    switch (state) {
+        case CWSender::State::Idle:
+            m_sendButton->setEnabled(true);
+            m_abortButton->setEnabled(false);
+            m_isSending = false;
+            for (QPushButton* btn : m_macroButtons) {
+                if (btn) btn->setEnabled(true);
+            }
+            break;
+
+        case CWSender::State::Sending:
+            m_statusLabel->setText("Sending CW... (ESC to stop)");
+            m_statusLabel->setStyleSheet("QLabel { color: blue; }");
+            m_sendButton->setEnabled(false);
+            m_abortButton->setEnabled(true);
+            m_isSending = true;
+            for (QPushButton* btn : m_macroButtons) {
+                if (btn) btn->setEnabled(false);
+            }
+            break;
+
+        case CWSender::State::Stopping:
+            m_statusLabel->setText("Stopping CW...");
+            m_statusLabel->setStyleSheet("QLabel { color: orange; }");
+            break;
+
+        case CWSender::State::Error:
+            m_statusLabel->setStyleSheet("QLabel { color: red; }");
+            m_sendButton->setEnabled(true);
+            m_abortButton->setEnabled(false);
+            m_isSending = false;
+            for (QPushButton* btn : m_macroButtons) {
+                if (btn) btn->setEnabled(true);
+            }
+            break;
+    }
+}
+
+void SendMorseDialog::onCWSenderError(const QString& error) {
+    m_statusLabel->setText(QString("Error: %1").arg(error));
+    m_statusLabel->setStyleSheet("QLabel { color: red; }");
+    LOG_ERROR("SendMorseDialog", QString("CW error: %1").arg(error));
 }
 
 } // namespace TR4QT

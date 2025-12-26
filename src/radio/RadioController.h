@@ -36,6 +36,7 @@ public slots:
     void setCWSpeed(int wpm);
     int getCWSpeed() const;
     void stopCW();
+    bool waitForMorseComplete();
 
 signals:
     // Status signals (emitted from worker thread, safe to connect to UI)
