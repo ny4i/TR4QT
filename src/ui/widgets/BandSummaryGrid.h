@@ -31,7 +31,14 @@ public:
     void setQSOCount(BandType band, int count);
     void setMultCount(BandType band, int count);
     void setZoneCount(BandType band, int count);
-    void setTotalPoints(int points);
+    void setPointsCount(BandType band, int points);  // Points per band
+
+    // Update "All" column totals
+    void setAllQSOs(int count);
+    void setAllMults(int count);
+    void setAllZones(int count);
+    void setTotalPoints(int points);  // Sets both All column and total display
+
     void setBothNeeded(const QString& bands);
 
     // Clear all counts
@@ -62,11 +69,13 @@ private:
     QMap<BandType, QLabel*> m_qsoLabels;
     QMap<BandType, QLabel*> m_multLabels;
     QMap<BandType, QLabel*> m_zoneLabels;
+    QMap<BandType, QLabel*> m_pointsLabels;  // Points per band
     QMap<BandType, QLabel*> m_bandHeaders;  // Clickable band headers
 
     QLabel* m_qsoAllLabel;
     QLabel* m_multAllLabel;
     QLabel* m_zoneAllLabel;
+    QLabel* m_pointsAllLabel;  // Total points across all bands
 };
 
 } // namespace TR4QT

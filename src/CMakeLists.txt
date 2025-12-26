@@ -158,6 +158,7 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::Sql
     Qt6::Network
     Qt6::PrintSupport
+    Qt6::Concurrent
 )
 
 # Link Hamlib (will be used when we add radio support)

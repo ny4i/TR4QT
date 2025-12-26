@@ -4,6 +4,7 @@
 #include <QString>
 #include <QDateTime>
 #include <QMetaType>
+#include <QUuid>
 #include "../core/Types.h"
 #include <hamlib/rig.h>
 
@@ -18,6 +19,7 @@ namespace TR4QT {
 struct QSO {
     // Database ID
     int id{-1};                 // -1 = not yet saved to database
+    QString guid;               // Globally Unique Identifier (UUID)
 
     // QSO timing
     QDateTime timestamp;        // When contact was made (UTC)

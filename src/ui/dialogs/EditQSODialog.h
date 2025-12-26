@@ -51,6 +51,7 @@ private:
     ContestBase* m_contest;
 
     // Basic fields
+    QLineEdit* m_guidEdit;            // Read-only GUID
     QDateTimeEdit* m_timestampEdit;
     QLineEdit* m_callsignEdit;
     QLineEdit* m_frequencyEdit;

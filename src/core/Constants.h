@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.70.1";  // Fix operator field not loading from database
+constexpr const char* APP_VERSION = "2.75.0";  // Add GUID to UDP ContactInfo broadcast
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

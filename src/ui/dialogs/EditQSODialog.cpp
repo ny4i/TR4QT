@@ -29,29 +29,35 @@ void EditQSODialog::setupUI() {
     QGroupBox* basicGroup = new QGroupBox("Basic Information", this);
     QGridLayout* basicLayout = new QGridLayout(basicGroup);
 
-    basicLayout->addWidget(new QLabel("Timestamp (UTC):"), 0, 0);
+    basicLayout->addWidget(new QLabel("GUID:"), 0, 0);
+    m_guidEdit = new QLineEdit(this);
+    m_guidEdit->setReadOnly(true);
+    m_guidEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+    basicLayout->addWidget(m_guidEdit, 0, 1);
+
+    basicLayout->addWidget(new QLabel("Timestamp (UTC):"), 1, 0);
     m_timestampEdit = new QDateTimeEdit(this);
     m_timestampEdit->setDisplayFormat("yyyy-MM-dd HH:mm:ss");
     m_timestampEdit->setCalendarPopup(true);
-    basicLayout->addWidget(m_timestampEdit, 0, 1);
+    basicLayout->addWidget(m_timestampEdit, 1, 1);
 
-    basicLayout->addWidget(new QLabel("Callsign:"), 1, 0);
+    basicLayout->addWidget(new QLabel("Callsign:"), 2, 0);
     m_callsignEdit = new QLineEdit(this);
-    basicLayout->addWidget(m_callsignEdit, 1, 1);
+    basicLayout->addWidget(m_callsignEdit, 2, 1);
 
-    basicLayout->addWidget(new QLabel("Frequency (Hz):"), 2, 0);
+    basicLayout->addWidget(new QLabel("Frequency (Hz):"), 3, 0);
     m_frequencyEdit = new QLineEdit(this);
-    basicLayout->addWidget(m_frequencyEdit, 2, 1);
+    basicLayout->addWidget(m_frequencyEdit, 3, 1);
 
-    basicLayout->addWidget(new QLabel("Mode:"), 3, 0);
+    basicLayout->addWidget(new QLabel("Mode:"), 4, 0);
     m_modeCombo = new QComboBox(this);
     populateModeCombo();
-    basicLayout->addWidget(m_modeCombo, 3, 1);
+    basicLayout->addWidget(m_modeCombo, 4, 1);
 
-    basicLayout->addWidget(new QLabel("Band:"), 4, 0);
+    basicLayout->addWidget(new QLabel("Band:"), 5, 0);
     m_bandCombo = new QComboBox(this);
     populateBandCombo();
-    basicLayout->addWidget(m_bandCombo, 4, 1);
+    basicLayout->addWidget(m_bandCombo, 5, 1);
 
     mainLayout->addWidget(basicGroup);
 
@@ -198,6 +204,7 @@ void EditQSODialog::populateBandCombo() {
 
 void EditQSODialog::loadQSOData() {
     // Basic fields
+    m_guidEdit->setText(m_qso.guid);
     m_timestampEdit->setDateTime(m_qso.timestamp);
     m_callsignEdit->setText(m_qso.callsign);
     // Format frequency as integer (never use scientific notation)

@@ -102,6 +102,12 @@ private:
      */
     QString loadSchemaSql();
 
+    /**
+     * Migrate database schema to current version
+     * Handles adding new columns and tables to existing databases
+     */
+    bool migrateSchema();
+
     QSqlDatabase m_db;
     QString m_lastError;
     int m_lastInsertId{-1};
