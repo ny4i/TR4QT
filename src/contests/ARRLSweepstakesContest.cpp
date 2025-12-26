@@ -55,6 +55,10 @@ QString ARRLSweepstakesContest::getContestName() const {
     return (m_mode == ModeType::CW) ? "ARRL Sweepstakes - CW" : "ARRL Sweepstakes - SSB";
 }
 
+QString ARRLSweepstakesContest::getADIFContestId() const {
+    return (m_mode == ModeType::CW) ? ADIF_CONTEST_ID_CW : ADIF_CONTEST_ID_SSB;
+}
+
 // ===== Exchange Configuration =====
 
 QList<ExchangeField> ARRLSweepstakesContest::getReceivedExchangeFields() const {

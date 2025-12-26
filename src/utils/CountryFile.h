@@ -66,6 +66,10 @@ public:
     // Returns -1 if not a US call or unable to determine
     static int getUSCallAreaZone(const QString& callsign);
 
+    // Map CTY.DAT country name to ADIF DXCC Entity Code
+    // Returns 0 if country not found in mapping
+    static int getDXCCEntityCode(const QString& countryName);
+
 private:
     // Parse a single country entry (can span multiple lines)
     bool parseCountryEntry(const QString& mainLine, const QStringList& aliasLines);

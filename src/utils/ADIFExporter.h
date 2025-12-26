@@ -4,6 +4,7 @@
 #include <QString>
 #include <QList>
 #include "../models/QSO.h"
+#include "../contests/ContestBase.h"
 
 namespace TR4QT {
 
@@ -29,25 +30,25 @@ public:
      *
      * @param qsos List of QSOs to export
      * @param filePath Path to output file (typically .adi or .adif extension)
-     * @param contestName Optional contest name for CONTEST_ID field
+     * @param contest Contest instance (for official ADIF CONTEST_ID)
      * @param operatorCall Optional operator callsign for OPERATOR field
      * @return true if export succeeded, false on error
      */
     bool exportToFile(const QList<QSO>& qsos,
                      const QString& filePath,
-                     const QString& contestName = QString(),
+                     ContestBase* contest = nullptr,
                      const QString& operatorCall = QString());
 
     /**
      * Generate ADIF text from QSO list
      *
      * @param qsos List of QSOs to export
-     * @param contestName Optional contest name
+     * @param contest Contest instance (for official ADIF CONTEST_ID)
      * @param operatorCall Optional operator callsign
      * @return ADIF-formatted text
      */
     QString generateADIF(const QList<QSO>& qsos,
-                        const QString& contestName = QString(),
+                        ContestBase* contest = nullptr,
                         const QString& operatorCall = QString());
 
     /**
@@ -64,9 +65,10 @@ private:
      * Format a single QSO as ADIF record
      *
      * @param qso QSO to format
+     * @param contestId Official ADIF contest ID (e.g., "CQ-WW-CW")
      * @return ADIF-formatted record
      */
-    QString formatQSO(const QSO& qso);
+    QString formatQSO(const QSO& qso, const QString& contestId = QString());
 
     /**
      * Format ADIF field with proper encoding

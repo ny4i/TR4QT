@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.75.0";  // Add GUID to UDP ContactInfo broadcast
+constexpr const char* APP_VERSION = "2.77.0";  // Fix ADIF CONTEST_ID to use official spec names per QSO record
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

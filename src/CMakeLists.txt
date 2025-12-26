@@ -48,6 +48,7 @@ set(SOURCES
     ui/dialogs/ContestChooserDialog.cpp
     ui/dialogs/BackupRestoreDialog.cpp
     ui/dialogs/EditQSODialog.cpp
+    ui/dialogs/ExportPreviewDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
     ui/widgets/RadioControlWidget.cpp
@@ -112,6 +113,7 @@ set(HEADERS
     ui/dialogs/ContestChooserDialog.h
     ui/dialogs/BackupRestoreDialog.h
     ui/dialogs/EditQSODialog.h
+    ui/dialogs/ExportPreviewDialog.h
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
     ui/widgets/RadioControlWidget.h

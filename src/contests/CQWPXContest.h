@@ -51,6 +51,7 @@ public:
     QString getContestId() const override;
     QString getContestName() const override;
     ModeType getContestMode() const override { return m_mode; }
+    QString getADIFContestId() const override;
 
     // ===== Exchange Configuration =====
     QList<ExchangeField> getReceivedExchangeFields() const override;

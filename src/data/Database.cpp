@@ -306,6 +306,31 @@ bool Database::migrateSchema() {
         }
     }
 
+    // Migration 2: Add dxcc_entity_code column to qsos table (v2.77.0)
+    query.exec("PRAGMA table_info(qsos)");
+    bool hasDxccEntityCodeColumn = false;
+    while (query.next()) {
+        QString columnName = query.value(1).toString();
+        if (columnName == "dxcc_entity_code") {
+            hasDxccEntityCodeColumn = true;
+            break;
+        }
+    }
+
+    if (!hasDxccEntityCodeColumn) {
+        LOG_INFO("Database", "Migrating schema: Adding dxcc_entity_code column to qsos table");
+
+        // Add dxcc_entity_code column
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN dxcc_entity_code INTEGER")) {
+            m_lastError = QString("Failed to add dxcc_entity_code column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+
+        LOG_INFO("Database", "dxcc_entity_code column added successfully");
+        LOG_INFO("Database", "Note: DXCC entity codes will be populated from CTY.DAT on next QSO lookup");
+    }
+
     LOG_DEBUG("Database", "Schema migration complete");
     return true;
 }

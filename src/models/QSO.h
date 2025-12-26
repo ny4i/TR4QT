@@ -41,6 +41,7 @@ struct QSO {
     // DXCC/Geographic info (from cty.dat lookup)
     QString dxccEntity;         // Country name (e.g., "United States")
     QString dxccPrefix;         // Primary prefix (e.g., "K")
+    int dxccEntityCode{0};      // ADIF DXCC Entity Code (e.g., 291 for USA)
     int cqZone{0};              // CQ Zone (1-40)
     int ituZone{0};             // ITU Zone
     QString continent;          // Continent code (NA, SA, EU, AF, AS, OC)

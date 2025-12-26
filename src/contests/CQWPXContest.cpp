@@ -50,6 +50,10 @@ QString CQWPXContest::getContestName() const {
     return (m_mode == ModeType::CW) ? "CQ WPX Contest - CW" : "CQ WPX Contest - SSB";
 }
 
+QString CQWPXContest::getADIFContestId() const {
+    return (m_mode == ModeType::CW) ? ADIF_CONTEST_ID_CW : ADIF_CONTEST_ID_SSB;
+}
+
 QList<ExchangeField> CQWPXContest::getReceivedExchangeFields() const {
     QList<ExchangeField> fields;
 
