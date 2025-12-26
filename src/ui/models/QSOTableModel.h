@@ -91,6 +91,7 @@ private:
     QString formatFrequency(freq_t freq) const;
     QString getExchangeFieldHeader(int fieldIndex) const;
     QString getExchangeFieldValue(const QSO& qso, int fieldIndex) const;
+    QString getMultiplierIndicators(const QSO& qso) const;
 };
 
 } // namespace TR4QT

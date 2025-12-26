@@ -644,6 +644,27 @@ int AppSettings::getLogMaxBackupFiles() const {
     return m_settings.value("Logging/maxBackupFiles", 5).toInt();
 }
 
+void AppSettings::saveQSOTableColumnWidths(const QList<int>& widths) {
+    QStringList widthStrings;
+    for (int width : widths) {
+        widthStrings.append(QString::number(width));
+    }
+    m_settings.setValue("UI/qsoTableColumnWidths", widthStrings.join(","));
+    m_settings.sync();
+}
+
+QList<int> AppSettings::loadQSOTableColumnWidths() const {
+    QList<int> widths;
+    QString widthString = m_settings.value("UI/qsoTableColumnWidths", "").toString();
+    if (!widthString.isEmpty()) {
+        QStringList widthStrings = widthString.split(",");
+        for (const QString& w : widthStrings) {
+            widths.append(w.toInt());
+        }
+    }
+    return widths;
+}
+
 void AppSettings::setLastContestPath(const QString& path) {
     m_settings.setValue("Contest/lastContestPath", path);
     m_settings.sync();

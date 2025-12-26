@@ -219,6 +219,10 @@ public:
     void setLogMaxBackupFiles(int count);
     int getLogMaxBackupFiles() const;
 
+    // QSO table column widths
+    void saveQSOTableColumnWidths(const QList<int>& widths);
+    QList<int> loadQSOTableColumnWidths() const;
+
 private:
     AppSettings();
     ~AppSettings() = default;

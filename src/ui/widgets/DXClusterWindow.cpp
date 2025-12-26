@@ -22,6 +22,9 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
     , m_telnetThread(new TelnetThread(this))
     , m_telnetClient(nullptr)
     , m_isFrozen(false)
+    , m_autoReconnect(false)
+    , m_reconnectTimer(new QTimer(this))
+    , m_reconnectAttempts(0)
 {
     setupUI();
     loadSettings();
@@ -51,6 +54,26 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
                 this, &DXClusterWindow::onTelnetSpotReceived,
                 Qt::QueuedConnection);
     }
+
+    // Setup reconnection timer (10 seconds between attempts)
+    m_reconnectTimer->setSingleShot(true);
+    m_reconnectTimer->setInterval(10000);  // 10 seconds
+    connect(m_reconnectTimer, &QTimer::timeout, this, [this]() {
+        if (m_autoReconnect && m_reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            m_reconnectAttempts++;
+            appendText(QString("Reconnect attempt %1 of %2...")
+                .arg(m_reconnectAttempts).arg(MAX_RECONNECT_ATTEMPTS), Qt::darkYellow);
+            LOG_DEBUG("DXClusterWindow", QString("Auto-reconnect: Attempt %1 of %2")
+                .arg(m_reconnectAttempts).arg(MAX_RECONNECT_ATTEMPTS));
+            onConnectClicked();
+        } else if (m_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            m_autoReconnect = false;
+            appendText(QString("Failed to reconnect after %1 attempts. Please reconnect manually.")
+                .arg(MAX_RECONNECT_ATTEMPTS), Qt::red);
+            LOG_WARN("DXClusterWindow", QString("Auto-reconnect failed after %1 attempts")
+                .arg(MAX_RECONNECT_ATTEMPTS));
+        }
+    });
 
     // Connect to theme changes
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
@@ -241,6 +264,11 @@ void DXClusterWindow::onConnectClicked() {
         return;
     }
 
+    // Enable auto-reconnect when user initiates connection
+    m_autoReconnect = true;
+    m_reconnectTimer->stop();  // Stop any pending reconnect attempt
+    m_reconnectAttempts = 0;   // Reset retry counter
+
     QString serverString = m_serverCombo->currentText().trimmed();
     if (serverString.isEmpty()) {
         QMessageBox::warning(this, "DX Cluster",
@@ -311,6 +339,10 @@ void DXClusterWindow::onDisconnectClicked() {
         return;
     }
 
+    // Disable auto-reconnect when user manually disconnects
+    m_autoReconnect = false;
+    m_reconnectTimer->stop();
+
     QMetaObject::invokeMethod(m_telnetClient, "disconnectFromServer",
                              Qt::QueuedConnection);
 }
@@ -377,11 +409,22 @@ void DXClusterWindow::onSendClicked() {
 void DXClusterWindow::onTelnetConnected() {
     updateConnectionStatus(true);
     appendText("Connected!", Qt::darkGreen);
+
+    // Stop reconnect timer on successful connection
+    m_reconnectTimer->stop();
+    m_reconnectAttempts = 0;  // Reset retry counter on success
 }
 
 void DXClusterWindow::onTelnetDisconnected() {
     updateConnectionStatus(false);
     appendText("Disconnected.", Qt::darkRed);
+
+    // Start auto-reconnect timer if enabled
+    if (m_autoReconnect) {
+        LOG_DEBUG("DXClusterWindow", "Disconnected - will attempt reconnect in 10 seconds");
+        appendText("Will attempt to reconnect in 10 seconds...", Qt::darkYellow);
+        m_reconnectTimer->start();
+    }
 }
 
 void DXClusterWindow::onTelnetError(const QString& error) {
