@@ -10,7 +10,7 @@ set(SOURCES
     utils/CountryFile.cpp
     utils/CountryFileDownloader.cpp
     utils/DXClusterListDownloader.cpp
-    utils/MessageBox.cpp
+    utils/SelectableMessageBox.cpp
     utils/GeographicUtils.cpp
     utils/LOTWUserDownloader.cpp
     utils/RadioEnumerator.cpp
@@ -54,6 +54,7 @@ set(SOURCES
     ui/dialogs/EditQSODialog.cpp
     ui/dialogs/ExportPreviewDialog.cpp
     ui/dialogs/SendMorseDialog.cpp
+    ui/dialogs/MacroEditDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
     ui/widgets/RadioControlWidget.cpp
@@ -74,7 +75,7 @@ set(HEADERS
     utils/CountryFile.h
     utils/CountryFileDownloader.h
     utils/DXClusterListDownloader.h
-    utils/MessageBox.h
+    utils/SelectableMessageBox.h
     utils/GeographicUtils.h
     utils/LOTWUserDownloader.h
     utils/RadioEnumerator.h
@@ -124,6 +125,7 @@ set(HEADERS
     ui/dialogs/EditQSODialog.h
     ui/dialogs/ExportPreviewDialog.h
     ui/dialogs/SendMorseDialog.h
+    ui/dialogs/MacroEditDialog.h
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
     ui/widgets/RadioControlWidget.h

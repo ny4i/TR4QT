@@ -47,6 +47,12 @@ public:
     void setMorseWPMIncrement(int increment);
     int getMorseWPMIncrement() const;  // Default: 3 WPM
 
+    // CW Macro settings (12 macro buttons)
+    void setMacroLabel(int index, const QString& label);
+    QString getMacroLabel(int index) const;
+    void setMacroCWText(int index, const QString& text);
+    QString getMacroCWText(int index) const;
+
     // Station information
     void setMyCallsign(const QString& callsign);
     QString getMyCallsign() const;
