@@ -243,6 +243,12 @@ void BandMapWidget::calculateColumnLayout() {
 void BandMapWidget::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
 
+    // Keep horizontal scrollbar visible if it should be shown
+    // This prevents Qt from hiding it between layout updates
+    if (horizontalScrollBar()->maximum() > 0) {
+        horizontalScrollBar()->show();
+    }
+
     QPainter painter(viewport());
     painter.fillRect(viewport()->rect(), Qt::white);
 
@@ -429,6 +435,9 @@ void BandMapWidget::focusOutEvent(QFocusEvent* event) {
 void BandMapWidget::showEvent(QShowEvent* event) {
     QAbstractScrollArea::showEvent(event);
 
+    LOG_DEBUG("BandMapWidget", QString("showEvent() - viewport size: %1x%2")
+        .arg(viewport()->width()).arg(viewport()->height()));
+
     // Recalculate layout and scrollbars when widget is shown
     // This fixes the issue where scrollbars don't appear on startup
     // when spots are loaded from database before widget is properly sized
@@ -473,6 +482,11 @@ bool BandMapWidget::event(QEvent* event) {
 
 void BandMapWidget::resizeEvent(QResizeEvent* event) {
     QAbstractScrollArea::resizeEvent(event);
+
+    LOG_DEBUG("BandMapWidget", QString("resizeEvent() - viewport size: %1x%2 -> %3x%4")
+        .arg(event->oldSize().width()).arg(event->oldSize().height())
+        .arg(viewport()->width()).arg(viewport()->height()));
+
     updateScrollBars();
     viewport()->update();
 }
@@ -668,19 +682,17 @@ QString BandMapWidget::formatFrequency(freq_t freq) const {
     double freqMhz = freq / 1000000.0;
     QString result = QString("%1").arg(freqMhz, 7, 'f', 3);
 
-    // Debug: log first few conversions to verify format
-    static int debugCount = 0;
-    if (debugCount < 5) {
-        LOG_DEBUG("BandMapWidget", QString("formatFrequency: %1 Hz -> %2 MHz").arg(freq).arg(result));
-        debugCount++;
-    }
-
     return result;
 }
 
 void BandMapWidget::updateScrollBars() {
     // Column-first layout: Calculate scrollbar ranges for both directions
     // This function now does ALL layout calculations to avoid circular dependencies
+
+    LOG_DEBUG("BandMapWidget", QString("updateScrollBars() called - widget size: %1x%2, viewport size: %3x%4, hScrollBar visible: %5")
+        .arg(width()).arg(height())
+        .arg(viewport()->width()).arg(viewport()->height())
+        .arg(horizontalScrollBar()->isVisible()));
 
     int lineHeight = rowHeight();
     QFontMetrics fm(QFont("Monospace", 9));
@@ -728,13 +740,21 @@ void BandMapWidget::updateScrollBars() {
 
     // Horizontal scrollbar: Needed when columns extend beyond viewport width
     horizontalScrollBar()->setPageStep(viewportWidth);
+    horizontalScrollBar()->setSingleStep(m_columnWidth);  // Scroll by one column
     int hScrollRange = qMax(0, totalWidth - viewportWidth);
     horizontalScrollBar()->setRange(0, hScrollRange);
 
-    LOG_TRACE("BandMapWidget", QString("Scrollbar update: spots=%1, columns=%2, rowsPerCol=%3, spotInTallest=%4, tallestHeight=%5, availHeight=%6, vRange=%7, totalWidth=%8, viewportWidth=%9, hRange=%10, needsHScroll=%11")
-        .arg(m_displaySpots.size()).arg(m_columnCount).arg(rowsPerColumn).arg(spotsInTallestColumn)
-        .arg(tallestColumnHeight).arg(availableHeight).arg(vScrollRange)
-        .arg(totalWidth).arg(viewportWidth).arg(hScrollRange).arg(needsHScrollBar));
+    // Explicitly show scrollbar if range > 0 (Qt's AsNeeded policy is unreliable here)
+    if (hScrollRange > 0) {
+        horizontalScrollBar()->show();
+    } else {
+        horizontalScrollBar()->hide();
+    }
+
+    LOG_DEBUG("BandMapWidget", QString("Scrollbar update: spots=%1, columns=%2, totalWidth=%3, viewportWidth=%4, hRange=%5, hScrollBar visible=%6")
+        .arg(m_displaySpots.size()).arg(m_columnCount)
+        .arg(totalWidth).arg(viewportWidth).arg(hScrollRange)
+        .arg(horizontalScrollBar()->isVisible()));
 }
 
 void BandMapWidget::scrollContentsBy(int dx, int dy) {
@@ -846,6 +866,9 @@ void BandMapWidget::removeExpiredSpots() {
 void BandMapWidget::rebuildDisplayList() {
     m_displaySpots.clear();
 
+    LOG_DEBUG("BandMapWidget", QString("rebuildDisplayList() called: m_allSpots=%1, m_showAllBands=%2, m_currentFrequency=%3")
+        .arg(m_allSpots.size()).arg(m_showAllBands).arg(m_currentFrequency));
+
     // Get expiry threshold
     AppSettings& settings = AppSettings::instance();
     int expirySeconds = settings.getSpotExpirySeconds();
@@ -878,6 +901,9 @@ void BandMapWidget::rebuildDisplayList() {
 
     sortSpots();
 
+    LOG_DEBUG("BandMapWidget", QString("rebuildDisplayList() filtered: m_displaySpots=%1 (from %2 total spots)")
+        .arg(m_displaySpots.size()).arg(m_allSpots.size()));
+
     // Restore selection by callsign (keeps same spot selected after sort/filter)
     if (!m_selectedCallsign.isEmpty()) {
         m_selectedIndex = -1;  // Clear index
@@ -894,7 +920,7 @@ void BandMapWidget::rebuildDisplayList() {
     }
 
     updateScrollBars();
-    viewport()->update();
+    update();  // Update entire widget to preserve scrollbar state
 }
 
 BandMapWidget::SpotAge BandMapWidget::getSpotAge(const Spot& spot) const {
