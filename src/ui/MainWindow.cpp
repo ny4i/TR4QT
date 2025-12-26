@@ -36,7 +36,7 @@
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QMessageBox>
-#include "../utils/MessageBox.h"
+#include "../utils/SelectableMessageBox.h"
 #include <QCloseEvent>
 #include <QApplication>
 #include <QSettings>
@@ -47,6 +47,7 @@
 #include <QTextEdit>
 #include <QtConcurrent/QtConcurrent>
 #include <QThread>
+#include <QTimeZone>
 
 namespace TR4QT {
 
@@ -1017,37 +1018,36 @@ void MainWindow::raiseAllWindows() {
 
     m_inRaiseAllWindows = true;
 
-    // Raise main window
+    // Raise main window - use raise() only, not activateWindow() to avoid event loops
     raise();
-    activateWindow();
 
     // Raise all child windows that are visible
+    // Only call raise(), not activateWindow(), to prevent WindowActivate event loops on Windows
     if (m_dxClusterWindow && m_dxClusterWindow->isVisible()) {
         m_dxClusterWindow->raise();
-        m_dxClusterWindow->activateWindow();
     }
 
     if (m_bandMapWindow && m_bandMapWindow->isVisible()) {
         m_bandMapWindow->raise();
-        m_bandMapWindow->activateWindow();
     }
 
     if (m_radioControlWindow && m_radioControlWindow->isVisible()) {
         m_radioControlWindow->raise();
-        m_radioControlWindow->activateWindow();
     }
 
     if (m_multiplierWindow && m_multiplierWindow->isVisible()) {
         m_multiplierWindow->raise();
-        m_multiplierWindow->activateWindow();
     }
 
     if (m_statisticsWindow && m_statisticsWindow->isVisible()) {
         m_statisticsWindow->raise();
-        m_statisticsWindow->activateWindow();
     }
 
-    m_inRaiseAllWindows = false;
+    // Use a timer to reset the flag after queued events are processed
+    // This prevents re-entry from WindowActivate events triggered by raise()
+    QTimer::singleShot(100, this, [this]() {
+        m_inRaiseAllWindows = false;
+    });
 }
 
 void MainWindow::setStatusMessage(const QString& message) {
@@ -2031,7 +2031,7 @@ void MainWindow::onEditQSO(const QModelIndex& index) {
     // Get the QSO at the selected row
     QSO qso = m_qsoTableModel->getQSO(row);
     if (qso.id < 0) {
-        MessageBox::warning(this, "Error", "Cannot edit QSO: Invalid QSO ID");
+        SelectableMessageBox::warning(this, "Error", "Cannot edit QSO: Invalid QSO ID");
         return;
     }
 
@@ -2689,7 +2689,7 @@ void MainWindow::updateTimeDisplay() {
 
     // Calculate QSOs this hour
     QDateTime now = QDateTime::currentDateTimeUtc();
-    QDateTime hourStart = QDateTime(now.date(), QTime(now.time().hour(), 0), QTimeZone::UTC);
+    QDateTime hourStart = QDateTime(now.date(), QTime(now.time().hour(), 0), QTimeZone::utc());
 
     m_qsosThisHour = 0;
     for (int i = 0; i < m_qsoTableModel->count(); ++i) {

@@ -76,6 +76,9 @@ add_tr4qt_test(test_arrlsection
 add_tr4qt_test(test_countryfile
     test_countryfile.cpp
     ../src/utils/CountryFile.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/data/Database.cpp
     ../src/core/Types.cpp
     ../src/logging/Logger.cpp
     ../src/logging/LogLevel.cpp
@@ -115,6 +118,9 @@ add_tr4qt_test(test_geographicutils
     test_geographicutils.cpp
     ../src/utils/GeographicUtils.cpp
     ../src/utils/CountryFile.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/data/Database.cpp
     ../src/core/Types.cpp
     ../src/logging/Logger.cpp
     ../src/logging/LogLevel.cpp

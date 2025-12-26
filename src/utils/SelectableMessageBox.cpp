@@ -1,10 +1,10 @@
-#include "MessageBox.h"
+#include "SelectableMessageBox.h"
 #include "../logging/LogMacros.h"
 #include <QLabel>
 
 namespace TR4QT {
 
-QMessageBox::StandardButton MessageBox::warning(
+QMessageBox::StandardButton SelectableMessageBox::warning(
     QWidget* parent,
     const QString& title,
     const QString& text,
@@ -14,7 +14,7 @@ QMessageBox::StandardButton MessageBox::warning(
     return showMessageBox(QMessageBox::Warning, parent, title, text, buttons, defaultButton);
 }
 
-QMessageBox::StandardButton MessageBox::critical(
+QMessageBox::StandardButton SelectableMessageBox::critical(
     QWidget* parent,
     const QString& title,
     const QString& text,
@@ -24,7 +24,7 @@ QMessageBox::StandardButton MessageBox::critical(
     return showMessageBox(QMessageBox::Critical, parent, title, text, buttons, defaultButton);
 }
 
-QMessageBox::StandardButton MessageBox::information(
+QMessageBox::StandardButton SelectableMessageBox::information(
     QWidget* parent,
     const QString& title,
     const QString& text,
@@ -34,7 +34,7 @@ QMessageBox::StandardButton MessageBox::information(
     return showMessageBox(QMessageBox::Information, parent, title, text, buttons, defaultButton);
 }
 
-QMessageBox::StandardButton MessageBox::question(
+QMessageBox::StandardButton SelectableMessageBox::question(
     QWidget* parent,
     const QString& title,
     const QString& text,
@@ -44,7 +44,7 @@ QMessageBox::StandardButton MessageBox::question(
     return showMessageBox(QMessageBox::Question, parent, title, text, buttons, defaultButton);
 }
 
-QMessageBox::StandardButton MessageBox::showMessageBox(
+QMessageBox::StandardButton SelectableMessageBox::showMessageBox(
     QMessageBox::Icon icon,
     QWidget* parent,
     const QString& title,

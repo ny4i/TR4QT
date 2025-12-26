@@ -108,6 +108,24 @@ int AppSettings::getMorseWPMIncrement() const {
     return m_settings.value("Morse/wpmIncrement", 3).toInt();  // Default: 3 WPM
 }
 
+void AppSettings::setMacroLabel(int index, const QString& label) {
+    m_settings.setValue(QString("Morse/macro%1_label").arg(index), label);
+    m_settings.sync();
+}
+
+QString AppSettings::getMacroLabel(int index) const {
+    return m_settings.value(QString("Morse/macro%1_label").arg(index), "").toString();
+}
+
+void AppSettings::setMacroCWText(int index, const QString& text) {
+    m_settings.setValue(QString("Morse/macro%1_text").arg(index), text);
+    m_settings.sync();
+}
+
+QString AppSettings::getMacroCWText(int index) const {
+    return m_settings.value(QString("Morse/macro%1_text").arg(index), "").toString();
+}
+
 void AppSettings::setMyCallsign(const QString& callsign) {
     m_settings.setValue("Station/callsign", callsign.toUpper());
     m_settings.sync();
