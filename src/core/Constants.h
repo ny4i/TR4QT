@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.87.6";  // Add 4th decimal place to bandmap frequency display
+constexpr const char* APP_VERSION = "2.87.7";  // Remove scrollbar debug logging
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
