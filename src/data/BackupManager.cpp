@@ -380,7 +380,7 @@ QDateTime BackupManager::parseBackupTimestamp(const QString& fileName) {
         return QDateTime();
     }
 
-    return QDateTime(date, time, QTimeZone::UTC);
+    return QDateTime(date, time, QTimeZone::utc());
 }
 
 } // namespace TR4QT
