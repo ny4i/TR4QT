@@ -108,15 +108,6 @@ int AppSettings::getMorseWPMIncrement() const {
     return m_settings.value("Morse/wpmIncrement", 3).toInt();  // Default: 3 WPM
 }
 
-void AppSettings::setAutoSendCW(bool enabled) {
-    m_settings.setValue("Morse/autoSendCW", enabled);
-    m_settings.sync();
-}
-
-bool AppSettings::getAutoSendCW() const {
-    return m_settings.value("Morse/autoSendCW", true).toBool();  // Default: true (enabled)
-}
-
 void AppSettings::setMyCallsign(const QString& callsign) {
     m_settings.setValue("Station/callsign", callsign.toUpper());
     m_settings.sync();

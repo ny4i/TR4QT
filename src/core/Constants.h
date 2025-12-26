@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.83.6";  // Fix WPM display state to follow Auto Send CW action
+constexpr const char* APP_VERSION = "2.83.7";  // Remove unused Auto Send CW settings methods
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
