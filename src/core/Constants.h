@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.87.5";  // Fix bandmap scrollbar flickering with paintEvent guard
+constexpr const char* APP_VERSION = "2.87.6";  // Add 4th decimal place to bandmap frequency display
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -677,10 +677,10 @@ int BandMapWidget::rowHeight() const {
 QString BandMapWidget::formatFrequency(freq_t freq) const {
     // Convert Hz to MHz with 3 decimal places (like TR4W)
     // Examples: 7.051, 14.074, 28.200
-    // Max frequency: 435.000 MHz = 7 chars
-    // Format with fixed width (right-aligned, 7 chars) for consistent column
+    // Max frequency: 435.0000 MHz = 8 chars
+    // Format with fixed width (right-aligned, 8 chars) for consistent column
     double freqMhz = freq / 1000000.0;
-    QString result = QString("%1").arg(freqMhz, 7, 'f', 3);
+    QString result = QString("%1").arg(freqMhz, 8, 'f', 4);
 
     return result;
 }
