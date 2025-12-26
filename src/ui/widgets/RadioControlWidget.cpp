@@ -429,7 +429,7 @@ void RadioControlWidget::updateSMeter(int signalStrength) {
     // Update custom S-meter widget with signal strength in dBm
     m_sMeter->setValue(signalStrength);
 
-    LOG_DEBUG("RadioControlWidget", QString("S-meter update: %1 dBm = %2")
+    LOG_TRACE("RadioControlWidget", QString("S-meter update: %1 dBm = %2")
         .arg(signalStrength).arg(SMeterWidget::dbmToSMeter(signalStrength)));
 }
 
