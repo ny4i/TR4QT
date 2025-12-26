@@ -245,8 +245,8 @@ void BandMapWidget::calculateColumnLayout() {
     const int FOOTER_HEIGHT = fm.height() + 10;
     int availableHeight = viewport()->height() - FOOTER_HEIGHT;
 
-    // Account for horizontal scrollbar if visible
-    if (horizontalScrollBar()->isVisible()) {
+    // Account for horizontal scrollbar if needed (use range, not isVisible)
+    if (horizontalScrollBar()->maximum() > 0) {
         availableHeight -= horizontalScrollBar()->height();
     }
 
@@ -282,8 +282,8 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
     const int FOOTER_HEIGHT = fm.height() + 10;
     int availableHeight = viewportHeight - FOOTER_HEIGHT;
 
-    // Account for horizontal scrollbar if visible
-    if (horizontalScrollBar()->isVisible()) {
+    // Account for horizontal scrollbar if needed (use range, not isVisible)
+    if (horizontalScrollBar()->maximum() > 0) {
         availableHeight -= horizontalScrollBar()->height();
     }
     int rowsPerColumn = availableHeight / lineHeight;
@@ -387,8 +387,9 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
     }
 
     // Calculate status line Y position, accounting for horizontal scrollbar
+    // Use scrollbar's range instead of isVisible() for more reliable positioning
     int statusY = viewportHeight - fm.height() - 5;
-    if (horizontalScrollBar()->isVisible()) {
+    if (horizontalScrollBar()->maximum() > 0) {
         statusY -= horizontalScrollBar()->height();
     }
 
@@ -507,8 +508,8 @@ void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
     const int FOOTER_HEIGHT = fm.height() + 10;
     int statusBarY = viewport()->height() - FOOTER_HEIGHT;
 
-    // Account for horizontal scrollbar if visible
-    if (horizontalScrollBar()->isVisible()) {
+    // Account for horizontal scrollbar if needed (use range, not isVisible)
+    if (horizontalScrollBar()->maximum() > 0) {
         statusBarY -= horizontalScrollBar()->height();
     }
 
@@ -647,8 +648,8 @@ int BandMapWidget::findSpotAtPosition(const QPoint& pos) {
     const int FOOTER_HEIGHT = fm.height() + 10;
     int availableHeight = viewport()->height() - FOOTER_HEIGHT;
 
-    // Account for horizontal scrollbar if visible
-    if (horizontalScrollBar()->isVisible()) {
+    // Account for horizontal scrollbar if needed (use range, not isVisible)
+    if (horizontalScrollBar()->maximum() > 0) {
         availableHeight -= horizontalScrollBar()->height();
     }
 
