@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.87.7";  // Remove scrollbar debug logging
+constexpr const char* APP_VERSION = "2.88.0";  // Add 5 new contests: ARRL RTTY, NAQP, ARRL DX
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
