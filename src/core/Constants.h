@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.87.1";  // Add flashing red indicator when radio disconnected
+constexpr const char* APP_VERSION = "2.87.2";  // Fix bandmap horizontal scrollbar visibility
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

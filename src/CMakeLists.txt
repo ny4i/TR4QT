@@ -181,3 +181,10 @@ target_link_libraries(tr4qt PRIVATE
 target_include_directories(tr4qt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+# Suppress deprecation warnings for third-party qcustomplot.cpp
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+    set_source_files_properties(ui/plots/qcustomplot.cpp PROPERTIES
+        COMPILE_FLAGS "-Wno-deprecated-declarations"
+    )
+endif()
