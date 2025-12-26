@@ -121,3 +121,31 @@ add_tr4qt_test(test_geographicutils
     ../src/logging/LogFormatter.cpp
     ../src/logging/FileAppender.cpp
 )
+
+# Phase 4 tests - exchange parser and contest validation
+add_tr4qt_test(test_winterfieldday
+    test_winterfieldday.cpp
+    ../src/contests/WinterFieldDayContest.cpp
+    ../src/contests/ContestRegistry.cpp
+    ../src/exchanges/SmartExchangeParser.cpp
+    ../src/utils/ArrlSectionHelper.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
+add_tr4qt_test(test_smartexchangeparser
+    test_smartexchangeparser.cpp
+    ../src/exchanges/SmartExchangeParser.cpp
+    ../src/contests/WinterFieldDayContest.cpp
+    ../src/contests/ARRLSweepstakesContest.cpp
+    ../src/contests/ContestRegistry.cpp
+    ../src/utils/ArrlSectionHelper.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
