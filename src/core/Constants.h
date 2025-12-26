@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.84.0";  // Calculate final score using contest formula (QSO points × multipliers)
+constexpr const char* APP_VERSION = "2.84.1";  // Fix multiplier tracking for AllBands vs PerBand scope
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

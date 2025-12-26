@@ -1931,9 +1931,13 @@ void MainWindow::updateScoreDisplay() {
     QMap<BandType, int> qsosPerBand;
     QMap<BandType, int> pointsPerBand;
 
-    // Track multipliers according to contest rules
+    // Track multipliers for SCORING (respects AllBands vs PerBand scope)
     // Key: MultiplierType, Value: map of (band or "ALL") -> set of unique mult values
-    QMap<MultiplierType, QMap<QString, QSet<QString>>> multipliersTracked;
+    QMap<MultiplierType, QMap<QString, QSet<QString>>> multipliersForScoring;
+
+    // Track multipliers for DISPLAY (always per-band, regardless of scope)
+    // This lets us show which bands produced which mults
+    QMap<MultiplierType, QMap<BandType, QSet<QString>>> multipliersPerBandDisplay;
 
     // Also track zones separately for display (legacy display column)
     QMap<BandType, QSet<int>> zonesPerBand;
@@ -1970,12 +1974,14 @@ void MainWindow::updateScoreDisplay() {
                     qso, multDef.type, QStringList());  // Empty list - we just want the value
 
                 if (!multValue.isEmpty()) {
-                    // Determine key: per-band uses band name, all-bands uses "ALL"
-                    QString key = (multDef.scope == MultiplierScope::PerBand)
+                    // For scoring: use scope-appropriate key
+                    QString scoringKey = (multDef.scope == MultiplierScope::PerBand)
                         ? bandToString(qso.band)
                         : "ALL";
+                    multipliersForScoring[multDef.type][scoringKey].insert(multValue);
 
-                    multipliersTracked[multDef.type][key].insert(multValue);
+                    // For display: always track per-band
+                    multipliersPerBandDisplay[multDef.type][qso.band].insert(multValue);
                 }
             }
         }
@@ -1986,18 +1992,19 @@ void MainWindow::updateScoreDisplay() {
         }
     }
 
-    // Calculate total multiplier counts per type
+    // Calculate total multiplier counts per type FOR SCORING
     QMap<MultiplierType, int> multiplierCounts;
-    for (auto it = multipliersTracked.begin(); it != multipliersTracked.end(); ++it) {
+    for (auto it = multipliersForScoring.begin(); it != multipliersForScoring.end(); ++it) {
         MultiplierType type = it.key();
-        int count = 0;
 
-        // Sum unique mults across all bands/scopes
+        // For PerBand scope: count unique mults across all bands
+        // For AllBands scope: count unique mults once
+        QSet<QString> uniqueMults;
         for (const QSet<QString>& mults : it.value()) {
-            count += mults.size();
+            uniqueMults.unite(mults);  // Union all unique mults
         }
 
-        multiplierCounts[type] = count;
+        multiplierCounts[type] = uniqueMults.size();
     }
 
     // Update band summary grid with calculated values
@@ -2013,10 +2020,10 @@ void MainWindow::updateScoreDisplay() {
         int qsos = qsosPerBand.value(band, 0);
         int points = pointsPerBand.value(band, 0);
 
-        // Count unique mults per band (sum across all mult types for this band)
+        // Count unique mults worked on this band (sum across all mult types)
         int multsThisBand = 0;
-        for (auto it = multipliersTracked.begin(); it != multipliersTracked.end(); ++it) {
-            multsThisBand += it.value().value(bandToString(band)).size();
+        for (auto it = multipliersPerBandDisplay.begin(); it != multipliersPerBandDisplay.end(); ++it) {
+            multsThisBand += it.value().value(band).size();
         }
 
         int zones = zonesPerBand.value(band).size();
