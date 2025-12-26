@@ -114,8 +114,17 @@ bool CQWWContest::validateReceivedExchange(const QString& exchange, QString& err
     QString zoneStr;
     if (parts.size() == 1) {
         // Only zone provided - RST will be auto-filled
+        // But reject if it looks like RST (59x pattern) to avoid ambiguity
+        QString field = parts[0];
+        bool ok;
+        int val = field.toInt(&ok);
+        if (ok && ((field.length() == 2 && val >= 11 && val <= 59) ||
+                   (field.length() == 3 && val >= 111 && val <= 599))) {
+            errorMsg = "Ambiguous input - looks like RST. Please enter: RST + Zone (e.g., '599 14')";
+            return false;
+        }
         zoneStr = parts[0];
-    } else if (parts.size() >= 2) {
+    } else if (parts.size() == 2) {
         // RST + Zone provided - validate RST
         QString rst = parts[0];
         if (m_mode == ModeType::CW) {
@@ -130,6 +139,10 @@ bool CQWWContest::validateReceivedExchange(const QString& exchange, QString& err
             }
         }
         zoneStr = parts[1];
+    } else {
+        // Too many fields
+        errorMsg = "Exchange must be: Zone (e.g., '14') or RST + Zone (e.g., '599 14')";
+        return false;
     }
 
     // Validate Zone (1-40)
@@ -149,9 +162,22 @@ QMap<QString, QString> CQWWContest::parseReceivedExchange(const QString& exchang
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     if (parts.size() == 1) {
-        // Only zone provided - auto-fill RST based on mode
-        parsed["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
-        parsed["Zone"] = parts[0];
+        QString field = parts[0];
+        bool ok;
+        int val = field.toInt(&ok);
+
+        // Check if it looks like RST (59x pattern)
+        bool looksLikeRST = ok && ((field.length() == 2 && val >= 11 && val <= 59) ||
+                                   (field.length() == 3 && val >= 111 && val <= 599));
+
+        if (looksLikeRST) {
+            // Treat as RST only, no zone (incomplete exchange)
+            parsed["RST"] = field;
+        } else {
+            // Treat as zone, auto-fill RST
+            parsed["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
+            parsed["Zone"] = field;
+        }
     } else if (parts.size() >= 2) {
         // Full exchange: RST + Zone
         parsed["RST"] = parts[0];
@@ -166,10 +192,16 @@ int CQWWContest::calculateQSOPoints(
     const StationInfo& myStation) const
 {
     // CQWW Scoring rules (from cqww.com official rules):
-    // - Different continents: 3 points
-    // - Same continent, different countries: 1 point
-    // - Same continent, different countries (North America): 2 points
-    // - Same country: 0 points (but counts for zone/country multiplier)
+    // CW Mode:
+    //   - Different continents: 3 points
+    //   - Same continent, different countries (North America): 2 points
+    //   - Same continent, different countries (other): 1 point
+    //   - Same country: 0 points
+    // SSB Mode:
+    //   - Different continents: 2 points
+    //   - Same continent, different countries (North America): 2 points
+    //   - Same continent, different countries (other): 1 point
+    //   - Same country: 0 points
 
     const QString& theirCountry = qso.dxccEntity;
     const QString& theirContinent = qso.continent;
@@ -179,9 +211,9 @@ int CQWWContest::calculateQSOPoints(
         return 0;
     }
 
-    // Different continent: 3 points (both CW and SSB)
+    // Different continent: 3 points (CW) or 2 points (SSB)
     if (myStation.continent != theirContinent) {
-        return 3;
+        return (m_mode == ModeType::CW) ? 3 : 2;
     }
 
     // Same continent, different country

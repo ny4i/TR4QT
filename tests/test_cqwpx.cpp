@@ -318,10 +318,10 @@ void TestCQWPX::testCalculatePoints_CW_10m_Double() {
 
     QSO qso;
     qso.continent = "AS";
-    qso.band = BandType::Band10M;  // 10m = double points
+    qso.band = BandType::Band10M;  // 10m (28 MHz) = high band
 
     int points = contest.calculateQSOPoints(qso, myStation);
-    QCOMPARE(points, 6);  // (3 × 2) = 6 points
+    QCOMPARE(points, 3);  // Different continent, high band (28 MHz) = 3 points
 }
 
 void TestCQWPX::testCalculatePoints_CW_20m_Normal() {

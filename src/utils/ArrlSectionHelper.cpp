@@ -368,7 +368,6 @@ static const QHash<QString, QString> texasCounties = {
     {"ORANGE", "STX"},
     {"PANOLA", "STX"},
     {"POLK", "STX"},
-    {"RAINS", "STX"},
     {"REFUGIO", "STX"},
     {"ROBERTSON", "STX"},
     {"RUSK", "STX"},

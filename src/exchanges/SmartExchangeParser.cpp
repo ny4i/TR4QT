@@ -57,9 +57,8 @@ SmartExchangeParser::TokenType SmartExchangeParser::classifyToken(const QString&
     token.toInt(&isNumeric);
     if (isNumeric) {
         // Could be RST, serial, check, or zone
-        if (looksLikeRST(token)) {
-            return TokenType::RST;
-        }
+        // Don't classify as RST here - let the context-aware matching decide
+        // If contest expects RST, it will be matched; otherwise treated as serial
         return TokenType::Numeric;
     }
 
@@ -108,9 +107,9 @@ QMap<QString, QString> SmartExchangeParser::matchTokensToFields(
         const Token& token = unmatchedTokens[i];
         bool matched = false;
 
-        // Check for RST
+        // Check for RST (only if contest expects it)
         if (fieldMap.contains("RST") && !result.contains("RST")) {
-            if (token.type == TokenType::RST) {
+            if (token.type == TokenType::Numeric && looksLikeRST(token.value)) {
                 result["RST"] = token.value;
                 unmatchedTokens.removeAt(i);
                 matched = true;
