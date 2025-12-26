@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.78.0";  // Complete DXCC entity mapping in global database
+constexpr const char* APP_VERSION = "2.79.0";  // Exchange memory improvements, log clear fixes, backup option
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

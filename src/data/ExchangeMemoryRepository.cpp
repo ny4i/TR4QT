@@ -171,6 +171,36 @@ int ExchangeMemoryRepository::deleteOlderThan(int days) {
     return 0;
 }
 
+int ExchangeMemoryRepository::clearForContest(const QString& contestType) {
+    Database& db = Database::instance();
+
+    QString sql;
+    QVariantList values;
+
+    if (contestType.isEmpty()) {
+        // Clear all exchange memory
+        sql = "DELETE FROM exchange_memory";
+    } else {
+        // Clear for specific contest
+        sql = "DELETE FROM exchange_memory WHERE contest_type = ?";
+        values = {contestType};
+    }
+
+    QSqlQuery query = db.execute(sql, values);
+
+    if (!query.isActive()) {
+        m_lastError = db.lastError();
+        LOG_WARN("ExchangeMemoryRepository",
+                 QString("Failed to clear exchange memory: %1").arg(m_lastError));
+        return -1;
+    }
+
+    LOG_INFO("ExchangeMemoryRepository",
+             QString("Cleared exchange memory for contest: %1")
+             .arg(contestType.isEmpty() ? "ALL" : contestType));
+    return 0;
+}
+
 int ExchangeMemoryRepository::count() const {
     Database& db = Database::instance();
 

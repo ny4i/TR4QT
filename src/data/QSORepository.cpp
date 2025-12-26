@@ -229,6 +229,61 @@ bool QSORepository::deleteQSO(int qsoId, bool hardDelete) {
     return true;
 }
 
+bool QSORepository::deleteAllQSOs(int contestId) {
+    Database& db = Database::instance();
+
+    // Get initial count for verification
+    int initialCount = getQSOCount(contestId, true);
+
+    // Begin transaction
+    if (!db.beginTransaction()) {
+        m_lastError = "Failed to begin transaction for deleting all QSOs";
+        LOG_ERROR("QSORepository", m_lastError);
+        return false;
+    }
+
+    // Delete all multipliers for this contest
+    QString deleteMults = "DELETE FROM multipliers WHERE contest_id = ?";
+    QSqlQuery multsQuery = db.execute(deleteMults, {contestId});
+    if (!multsQuery.isActive()) {
+        m_lastError = db.lastError();
+        LOG_ERROR("QSORepository", QString("Failed to delete multipliers: %1").arg(m_lastError));
+        db.rollbackTransaction();
+        return false;
+    }
+
+    // Delete all QSOs for this contest
+    QString deleteQSOs = "DELETE FROM qsos WHERE contest_id = ?";
+    QSqlQuery qsosQuery = db.execute(deleteQSOs, {contestId});
+    if (!qsosQuery.isActive()) {
+        m_lastError = db.lastError();
+        LOG_ERROR("QSORepository", QString("Failed to delete QSOs: %1").arg(m_lastError));
+        db.rollbackTransaction();
+        return false;
+    }
+
+    // Commit transaction
+    if (!db.commitTransaction()) {
+        m_lastError = "Failed to commit transaction for deleting all QSOs";
+        LOG_ERROR("QSORepository", m_lastError);
+        return false;
+    }
+
+    // Tier 1 Integrity Check: Verify all QSOs are deleted
+    int finalCount = getQSOCount(contestId, true);
+    if (finalCount != 0) {
+        m_lastError = QString("Delete verification failed - %1 QSOs still exist after deleteAllQSOs")
+            .arg(finalCount);
+        LOG_ERROR("QSORepository", QString("INTEGRITY ERROR: Contest id=%1 has %2 QSOs after deleteAllQSOs (started with %3)")
+            .arg(contestId).arg(finalCount).arg(initialCount));
+        return false;
+    }
+
+    LOG_INFO("QSORepository", QString("Deleted all %1 QSOs and multipliers for contest %2")
+        .arg(initialCount).arg(contestId));
+    return true;
+}
+
 QSO QSORepository::findById(int qsoId) const {
     Database& db = Database::instance();
 
