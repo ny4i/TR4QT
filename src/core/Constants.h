@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.79.2";  // ADIF compliance fix - remove OPERATOR from header
+constexpr const char* APP_VERSION = "2.80.0";  // Numeric frequency entry shortcut
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -122,6 +122,13 @@ BandType stringToBand(const QString& str);
 ModeType stringToMode(const QString& str);
 QString continentToString(Continent cont);
 
+/**
+ * Get the base frequency (band edge) for a band in kHz
+ * Used for relative frequency entry (e.g., "300" on 15m -> 21300 kHz)
+ * Returns 0 if band is None or unknown
+ */
+unsigned long bandToBaseFrequency(BandType band);
+
 } // namespace TR4QT
 
 #endif // TYPES_H

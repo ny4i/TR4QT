@@ -90,4 +90,25 @@ QString continentToString(Continent cont) {
     }
 }
 
+unsigned long bandToBaseFrequency(BandType band) {
+    // Returns base frequency in kHz (band edge for CW portion)
+    switch (band) {
+        case BandType::Band160M: return 1800;
+        case BandType::Band80M:  return 3500;
+        case BandType::Band60M:  return 5330;
+        case BandType::Band40M:  return 7000;
+        case BandType::Band30M:  return 10100;
+        case BandType::Band20M:  return 14000;
+        case BandType::Band17M:  return 18068;
+        case BandType::Band15M:  return 21000;
+        case BandType::Band12M:  return 24890;
+        case BandType::Band10M:  return 28000;
+        case BandType::Band6M:   return 50000;
+        case BandType::Band4M:   return 70000;
+        case BandType::Band2M:   return 144000;
+        case BandType::Band70CM: return 420000;
+        default: return 0;
+    }
+}
+
 } // namespace TR4QT
