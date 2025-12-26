@@ -32,10 +32,13 @@ set(SOURCES
     data/DXCCRepository.cpp
     exchanges/InitialExchangeManager.cpp
     exchanges/SmartExchangeParser.cpp
+    contests/ARRLDXContest.cpp
+    contests/ARRLRTTYRoundupContest.cpp
     contests/ARRLSweepstakesContest.cpp
     contests/ContestRegistry.cpp
     contests/CQWWContest.cpp
     contests/CQWPXContest.cpp
+    contests/NAQPContest.cpp
     contests/WinterFieldDayContest.cpp
     logging/LogLevel.cpp
     logging/LogFormatter.cpp
@@ -94,12 +97,15 @@ set(HEADERS
     data/DXCCRepository.h
     exchanges/InitialExchangeManager.h
     exchanges/SmartExchangeParser.h
+    contests/ARRLDXContest.h
+    contests/ARRLRTTYRoundupContest.h
     contests/ARRLSweepstakesContest.h
     contests/ContestBase.h
     contests/ContestMetadata.h
     contests/ContestRegistry.h
     contests/CQWWContest.h
     contests/CQWPXContest.h
+    contests/NAQPContest.h
     contests/WinterFieldDayContest.h
     logging/LogLevel.h
     logging/LogFormatter.h
