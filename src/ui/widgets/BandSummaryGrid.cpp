@@ -58,7 +58,7 @@ void BandSummaryGrid::setupUI() {
     qsoLabel->setMinimumWidth(70);
     m_gridLayout->addWidget(qsoLabel, 1, 0);
 
-    QLabel* multLabel = new QLabel("DX Mults", this);
+    QLabel* multLabel = new QLabel("Mults", this);
     multLabel->setFont(headerFont);
     multLabel->setMinimumWidth(70);
     m_gridLayout->addWidget(multLabel, 2, 0);

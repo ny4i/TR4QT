@@ -239,6 +239,18 @@ void MainWindow::createMenuBar() {
     m_disconnectAction->setEnabled(false);
     connect(m_disconnectAction, &QAction::triggered, this, &MainWindow::onRadioDisconnect);
 
+    radioMenu->addSeparator();
+
+    m_autoSendCWAction = radioMenu->addAction("&Auto Send CW");
+    m_autoSendCWAction->setCheckable(true);
+    m_autoSendCWAction->setChecked(AppSettings::instance().getAutoSendCW());
+    m_autoSendCWAction->setStatusTip("Automatically send callsign via CW when Enter is pressed in CW mode");
+    connect(m_autoSendCWAction, &QAction::toggled, this, [this](bool checked) {
+        AppSettings::instance().setAutoSendCW(checked);
+        LOG_DEBUG("MainWindow", QString("Auto Send CW %1").arg(checked ? "enabled" : "disabled"));
+        updateRadioStatusGrid();  // Update WPM display
+    });
+
     // Edit menu (CTRL- shortcuts matching TR4W)
     QMenu* editMenu = menuBar->addMenu("&Edit");
 
@@ -1823,9 +1835,10 @@ void MainWindow::onCallsignEnterPressed() {
     // Auto-populate exchange based on callsign
     autoPopulateExchange(callsign);
 
-    // Auto-send callsign via CW when in CW mode
+    // Auto-send callsign via CW when in CW mode (if enabled)
     bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
-    if (isCWMode && m_radioConnected && m_radio) {
+    bool autoSendEnabled = AppSettings::instance().getAutoSendCW();
+    if (isCWMode && m_radioConnected && m_radio && autoSendEnabled) {
         // Set CW speed from settings
         int wpm = AppSettings::instance().getMorseWPM();
         m_radio->setCWSpeed(wpm);
@@ -2411,11 +2424,12 @@ void MainWindow::updateRadioStatusGrid() {
         m_radioFreqLabel->setText("0.000 MHz");
     }
 
-    // Update WPM label (only enabled in CW mode)
+    // Update WPM label (only enabled in CW mode AND when auto-send is enabled)
     bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
+    bool autoSendEnabled = AppSettings::instance().getAutoSendCW();
     int wpm = AppSettings::instance().getMorseWPM();
     m_radioWpmLabel->setText(QString("%1 WPM").arg(wpm));
-    m_radioWpmLabel->setEnabled(isCWMode);  // Gray out when not in CW mode
+    m_radioWpmLabel->setEnabled(isCWMode && autoSendEnabled);  // Gray out when not in CW mode or auto-send disabled
 
     // Update date/time (current local time)
     QDateTime now = QDateTime::currentDateTime();

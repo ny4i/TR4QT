@@ -17,7 +17,7 @@ namespace TR4QT {
  * Layout:
  *         160   80    40    20    15    10    All       [Total Points]
  * QSOs     12   34    48    37    12    42    139
- * DX Mults  8   11    34    35     9    34    112
+ * Mults     8   11    34    35     9    34    112
  * Zones     5    7    11    13     6    18     48       Both: [needed bands]
  */
 class BandSummaryGrid : public QWidget {
