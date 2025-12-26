@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.67.0";  // Add comprehensive test coverage for exchange parsers
+constexpr const char* APP_VERSION = "2.68.0";  // Fix exchange validation, CQWW/CQWPX scoring rules
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

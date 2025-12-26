@@ -297,9 +297,18 @@ void TestSmartExchangeParser::testClassDetection_InvalidFormats() {
 
     QMap<QString, QString> result;
 
-    // 100 should not be detected as a class (>99)
+    // 100 transmitters exceeds limit - parser extracts it, validation rejects it
     result = SmartExchangeParser::parse("WMA 100O", fields, &contest);
-    QVERIFY(!result.contains("Class") || result["Class"] != "100O");
+    // Parser should extract both fields (permissive parsing)
+    QVERIFY(result.contains("Class"));
+    QVERIFY(result.contains("Section"));
+    QCOMPARE(result["Class"], QString("100O"));
+    QCOMPARE(result["Section"], QString("WMA"));
+
+    // But validation should reject it
+    QString errorMsg;
+    QVERIFY(!contest.validateReceivedExchange("WMA 100O", errorMsg));
+    QVERIFY(errorMsg.contains("Invalid class"));
 }
 
 // ===== Precedence Detection Tests =====
@@ -371,11 +380,11 @@ void TestSmartExchangeParser::testSerialDetection_Ambiguous() {
     ARRLSweepstakesContest contest(ModeType::CW);
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
-    // "599" could be RST or serial - should be detected as RST
+    // "599" looks like RST but Sweepstakes doesn't use RST in exchange
+    // So it should be treated as a serial number
     QMap<QString, QString> result = SmartExchangeParser::parse("A 95 WMA 599", fields, &contest);
     QVERIFY(result.contains("Serial"));
-    // Serial should not be 599 (that's an RST pattern)
-    QVERIFY(result["Serial"] != "599");
+    QCOMPARE(result["Serial"], QString("599"));  // Should be treated as serial
 }
 
 // ===== Edge Cases =====

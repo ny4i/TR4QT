@@ -116,8 +116,17 @@ bool CQWPXContest::validateReceivedExchange(const QString& exchange, QString& er
     QString serial;
     if (parts.size() == 1) {
         // Only serial provided - RST will be auto-filled
+        // But reject if it looks like RST (59x pattern) to avoid ambiguity
+        QString field = parts[0];
+        bool ok;
+        int val = field.toInt(&ok);
+        if (ok && ((field.length() == 2 && val >= 11 && val <= 59) ||
+                   (field.length() == 3 && val >= 111 && val <= 599))) {
+            errorMsg = "Ambiguous input - looks like RST. Please enter: RST + Serial (e.g., '599 001')";
+            return false;
+        }
         serial = parts[0];
-    } else if (parts.size() >= 2) {
+    } else if (parts.size() == 2) {
         // RST + Serial provided - validate RST
         QString rst = parts[0];
         if (rst.length() < 2 || rst.length() > 3) {
@@ -125,6 +134,10 @@ bool CQWPXContest::validateReceivedExchange(const QString& exchange, QString& er
             return false;
         }
         serial = parts[1];
+    } else {
+        // Too many fields
+        errorMsg = "Exchange must be: Serial (e.g., '001') or RST + Serial (e.g., '599 001')";
+        return false;
     }
 
     // Validate serial number (1-9999)
@@ -165,7 +178,8 @@ int CQWPXContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStatio
     // Same Continent, Different Countries:
     //   - 28/21/14 MHz: 1 point
     //   - 7/3.5/1.8 MHz: 2 points
-    //   - North America exception: doubled (2 and 4 points)
+    //   - North America exception: For NA stations, contacts within NA are doubled
+    //     (2 points on high bands, 4 points on low bands)
     //
     // Same Country: 1 point (all bands)
 
@@ -180,20 +194,32 @@ int CQWPXContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStatio
     int points = 0;
 
     // Same country: 1 point (all bands)
-    if (myStation.country == theirCountry) {
+    // Only check country match if both countries are set (not empty)
+    if (!myStation.country.isEmpty() && !theirCountry.isEmpty() &&
+        myStation.country == theirCountry) {
         points = 1;
     }
     // Different continent
     else if (myStation.continent != theirContinent) {
-        points = isLowBand ? 6 : 3;
+        if (m_mode == ModeType::CW) {
+            points = isLowBand ? 6 : 3;
+        } else {
+            // SSB/Phone: 2/3 of CW points
+            points = isLowBand ? 4 : 2;
+        }
     }
     // Same continent, different country
     else {
-        points = isLowBand ? 2 : 1;
+        if (m_mode == ModeType::CW) {
+            points = isLowBand ? 2 : 1;
+        } else {
+            // SSB/Phone: 2/3 of CW points (rounded down)
+            points = isLowBand ? 1 : 1;  // Both become 1 for SSB
+        }
 
-        // North America exception: double points
+        // North America exception: double points for contacts within NA
         if (myStation.continent == "NA") {
-            points *= 2;  // 4 points (low bands) or 2 points (high bands)
+            points *= 2;
         }
     }
 
