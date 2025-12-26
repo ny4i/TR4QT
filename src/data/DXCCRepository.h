@@ -11,11 +11,19 @@ class GlobalDatabase;
 /**
  * Repository for DXCC entity data
  * Manages the dxcc_entities table in the global database
+ *
+ * Singleton class that caches all DXCC entities in memory for fast lookups.
  */
 class DXCCRepository {
 public:
-    DXCCRepository();
-    ~DXCCRepository() = default;
+    /**
+     * Get singleton instance
+     */
+    static DXCCRepository& instance();
+
+    // Prevent copying
+    DXCCRepository(const DXCCRepository&) = delete;
+    DXCCRepository& operator=(const DXCCRepository&) = delete;
 
     /**
      * Get DXCC entity code for a given entity name
@@ -44,6 +52,9 @@ public:
     bool isPopulated() const;
 
 private:
+    DXCCRepository();
+    ~DXCCRepository() = default;
+
     GlobalDatabase& m_db;
 
     // Cache of entity name -> code mappings for fast lookups
