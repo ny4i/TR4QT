@@ -13,6 +13,7 @@
 #include "../utils/CountryFile.h"
 #include "models/QSOTableModel.h"
 #include "widgets/BandSummaryGrid.h"
+#include "widgets/NeedsDisplayWidget.h"
 #include "dialogs/ContestChooserDialog.h"
 #include "../contests/ContestBase.h"
 #include "../contests/CQWWContest.h"
@@ -181,6 +182,11 @@ private:
     // Duplicate checking
     bool checkForDuplicate(const QString& callsign, BandType band, ModeType mode, QString& dupeInfo) const;
 
+    // Band needs tracking
+    QList<BandType> getWorkedBandsForCallsign(const QString& callsign) const;
+    QList<BandType> getWorkedBandsForMultiplier(const QString& multValue, MultiplierType type) const;
+    QString getMultiplierValueForCallsign(const QString& callsign) const;
+
     // Data integrity helpers
     bool quickIntegrityCheck();         // Quick count-based check
     QString fullIntegrityCheck();       // Detailed check with report
@@ -192,6 +198,9 @@ private:
 
     // Band summary grid (top)
     BandSummaryGrid* m_bandSummaryGrid;
+
+    // Needs display widget (upper right)
+    NeedsDisplayWidget* m_needsDisplayWidget;
 
     // Logging UI
     QLineEdit* m_callsignEntry;

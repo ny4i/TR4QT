@@ -64,6 +64,7 @@ set(SOURCES
     ui/widgets/MultiplierWidget.cpp
     ui/widgets/DXClusterWindow.cpp
     ui/widgets/StatisticsWindow.cpp
+    ui/widgets/NeedsDisplayWidget.cpp
     ui/plots/qcustomplot.cpp
 )
 
@@ -138,6 +139,7 @@ set(HEADERS
     ui/widgets/MultiplierWidget.h
     ui/widgets/DXClusterWindow.h
     ui/widgets/StatisticsWindow.h
+    ui/widgets/NeedsDisplayWidget.h
     ui/plots/qcustomplot.h
 )
 
