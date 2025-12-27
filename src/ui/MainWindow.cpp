@@ -3109,29 +3109,16 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         LOG_DEBUG("MainWindow", QString("Created new contest with DB ID: %1").arg(m_currentContestDbId));
     }
 
-    // Create appropriate contest instance based on type
-    if (contestInfo.contestType == "CQWW_CW") {
-        m_activeContest = new CQWWContest(ModeType::CW);
-    } else if (contestInfo.contestType == "CQWW_SSB") {
-        m_activeContest = new CQWWContest(ModeType::USB);
-    } else if (contestInfo.contestType == "CQWPX_CW") {
-        m_activeContest = new CQWPXContest(ModeType::CW);
-    } else if (contestInfo.contestType == "CQWPX_SSB") {
-        m_activeContest = new CQWPXContest(ModeType::USB);
-    } else if (contestInfo.contestType == "WFD") {
-        m_activeContest = new WinterFieldDayContest();
-    } else if (contestInfo.contestType == "ARRL_FD") {
-        m_activeContest = new ARRLFieldDayContest();
-    } else if (contestInfo.contestType == "ARRL_SS_CW") {
-        m_activeContest = new ARRLSweepstakesContest(ModeType::CW);
-    } else if (contestInfo.contestType == "ARRL_SS_SSB") {
-        m_activeContest = new ARRLSweepstakesContest(ModeType::USB);
-    } else if (contestInfo.contestType == "IARU_HF_CW") {
-        m_activeContest = new IARUHFContest(ModeType::CW);
-    } else if (contestInfo.contestType == "IARU_HF_SSB") {
-        m_activeContest = new IARUHFContest(ModeType::USB);
-    } else {
-        LOG_WARN("MainWindow", QString("Unknown contest type: %1").arg(contestInfo.contestType));
+    // Create contest instance using factory pattern
+    // The contest mode is embedded in the contest type ID (e.g., "CQWW_CW", "CQWW_SSB")
+    // For mixed-mode contests, ModeType::None is used
+    ModeType contestMode = ModeType::None;  // Default for mixed-mode contests
+
+    // Try to create contest from registry
+    m_activeContest = ContestRegistry::instance().createContest(contestInfo.contestType, contestMode);
+
+    if (!m_activeContest) {
+        LOG_WARN("MainWindow", QString("Failed to create contest: %1").arg(contestInfo.contestType));
         return;
     }
 
