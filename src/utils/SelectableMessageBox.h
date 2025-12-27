@@ -83,6 +83,11 @@ private:
         const QString& text,
         QMessageBox::StandardButtons buttons,
         QMessageBox::StandardButton defaultButton);
+
+    /**
+     * Convert StandardButton to string for logging
+     */
+    static QString buttonToString(QMessageBox::StandardButton button);
 };
 
 } // namespace TR4QT

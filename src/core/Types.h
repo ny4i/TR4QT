@@ -90,20 +90,6 @@ enum class DuplicateCheckingRule {
     AllBand         // Same call is a dupe across all bands/modes (once-per-contest)
 };
 
-// Contest types
-enum class ContestType {
-    None,
-    CQWW_CW,
-    CQWW_SSB,
-    CQWPX_CW,
-    CQWPX_SSB,
-    WinterFieldDay,
-    // More contests can be added later
-    ARRL_DX_CW,
-    ARRL_DX_SSB,
-    IARU_HF
-};
-
 // Continent codes
 enum class Continent {
     None,

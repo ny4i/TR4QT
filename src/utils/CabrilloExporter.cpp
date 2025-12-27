@@ -219,30 +219,14 @@ QString CabrilloExporter::getContestName(ContestBase* contest) {
         return "UNKNOWN";
     }
 
-    QString name = contest->getContestName();
-
-    // Map our contest names to standard Cabrillo contest names
-    if (name.contains("CQ WW", Qt::CaseInsensitive)) {
-        if (name.contains("SSB", Qt::CaseInsensitive)) {
-            return "CQ-WW-SSB";
-        } else if (name.contains("CW", Qt::CaseInsensitive)) {
-            return "CQ-WW-CW";
-        }
-        return "CQ-WW";
-    } else if (name.contains("CQ WPX", Qt::CaseInsensitive)) {
-        if (name.contains("SSB", Qt::CaseInsensitive)) {
-            return "CQ-WPX-SSB";
-        } else if (name.contains("CW", Qt::CaseInsensitive)) {
-            return "CQ-WPX-CW";
-        }
-        return "CQ-WPX";
-    } else if (name.contains("Winter Field Day", Qt::CaseInsensitive) ||
-               name.contains("WFD", Qt::CaseInsensitive)) {
-        return "WINTER-FIELD-DAY";
+    // Use the official ADIF Contest-ID, which matches Cabrillo CONTEST field format
+    QString adifId = contest->getADIFContestId();
+    if (!adifId.isEmpty()) {
+        return adifId;
     }
 
-    // Default: use contest name as-is, replacing spaces with hyphens
-    return name.replace(' ', '-').toUpper();
+    // Fallback: use contest name, replacing spaces with hyphens
+    return contest->getContestName().replace(' ', '-').toUpper();
 }
 
 QString CabrilloExporter::getCabrilloMode(ModeType mode) {

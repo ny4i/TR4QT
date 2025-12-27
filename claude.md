@@ -131,6 +131,42 @@ if (m_hasActiveContest) {
 }
 ```
 
+### Dialog Messages
+**CRITICAL**: ALL dialog messages MUST go through DialogHelper. Never use QMessageBox directly.
+
+This ensures:
+- All dialogs are automatically logged (message + user response)
+- Text is selectable/copyable by default for error messages
+- Consistent user experience across the application
+- Easier debugging via log analysis
+
+Use DialogHelper for all user-facing dialogs:
+```cpp
+// Question dialog
+QMessageBox::StandardButton reply = DialogHelper::question(
+    this,
+    "Confirm Action",
+    "Are you sure you want to proceed?"
+);
+
+// Information
+DialogHelper::information(this, "Success", "Operation completed successfully.");
+
+// Warning
+DialogHelper::warning(this, "Warning", "This action cannot be undone.");
+
+// Critical error
+DialogHelper::critical(this, "Error", QString("Failed: %1").arg(errorMessage));
+```
+
+**NEVER** use QMessageBox::question/information/warning/critical directly. Always use DialogHelper.
+
+Files:
+- `/src/utils/DialogHelper.h` - Dialog wrapper with logging
+- `/src/utils/DialogHelper.cpp` - Implementation
+
+**This pattern applies to all projects**: If one dialog is logged, ALL dialogs must be logged via a common helper class.
+
 ## Architecture Notes
 
 ### Contest System

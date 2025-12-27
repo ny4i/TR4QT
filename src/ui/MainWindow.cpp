@@ -15,6 +15,7 @@
 #include "../core/Constants.h"
 #include "../logging/LogMacros.h"
 #include "../utils/ThemeManager.h"
+#include "../utils/DialogHelper.h"
 #include "../utils/ADIFExporter.h"
 #include "../utils/CabrilloExporter.h"
 #include "../utils/CountryFileDownloader.h"
@@ -850,7 +851,7 @@ void MainWindow::saveSettings() {
 void MainWindow::closeEvent(QCloseEvent* event) {
     // Ask for confirmation before closing
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::question(this, "Confirm Exit",
+    reply = DialogHelper::question(this, "Confirm Exit",
                                   "Are you sure you want to exit TR4QT?",
                                   QMessageBox::Yes | QMessageBox::No);
 
@@ -1090,7 +1091,7 @@ void MainWindow::onRadioConfigure() {
 
         // If currently connected, ask to reconnect
         if (m_radioConnected) {
-            QMessageBox::StandardButton reply = QMessageBox::question(
+            QMessageBox::StandardButton reply = DialogHelper::question(
                 this, "Reconnect Radio?",
                 "Radio configuration changed. Reconnect with new settings?",
                 QMessageBox::Yes | QMessageBox::No);
@@ -1107,7 +1108,7 @@ void MainWindow::onRadioConnect() {
     AppSettings& settings = AppSettings::instance();
 
     if (!settings.hasRadioConfig()) {
-        QMessageBox::warning(this, "No Configuration",
+        DialogHelper::warning(this, "No Configuration",
                            "Please configure your radio first (Radio → Configure).");
         onRadioConfigure();
         return;
@@ -1239,7 +1240,7 @@ void MainWindow::onPreferences() {
 
         // Only ask to reconnect if radio settings actually changed
         if (radioSettingsChanged && m_radioConnected) {
-            QMessageBox::StandardButton reply = QMessageBox::question(
+            QMessageBox::StandardButton reply = DialogHelper::question(
                 this, "Reconnect Radio?",
                 "Radio settings have changed. Reconnect to apply new settings?",
                 QMessageBox::Yes | QMessageBox::No);
@@ -1262,7 +1263,7 @@ void MainWindow::onExportADIF() {
     }
 
     if (qsos.isEmpty()) {
-        QMessageBox::information(this, "Export ADIF", "No QSOs to export.");
+        DialogHelper::information(this, "Export ADIF", "No QSOs to export.");
         return;
     }
 
@@ -1297,14 +1298,14 @@ void MainWindow::onExportADIF() {
 void MainWindow::onExportCabrillo() {
     // Check if we have QSOs to export
     if (m_qsoTableModel->count() == 0) {
-        QMessageBox::information(this, "Export Cabrillo", "No QSOs to export.");
+        DialogHelper::information(this, "Export Cabrillo", "No QSOs to export.");
         return;
     }
 
     // Tier 4: Run integrity check before export
     if (m_hasActiveContest) {
         if (!quickIntegrityCheck()) {
-            QMessageBox::StandardButton reply = QMessageBox::warning(
+            QMessageBox::StandardButton reply = DialogHelper::warning(
                 this,
                 "Data Integrity Warning",
                 "Log integrity check failed!\n\n"
@@ -1324,7 +1325,7 @@ void MainWindow::onExportCabrillo() {
 
     // Warn if no contest is active
     if (!m_hasActiveContest || !m_activeContest) {
-        QMessageBox::StandardButton reply = QMessageBox::question(
+        QMessageBox::StandardButton reply = DialogHelper::question(
             this, "Export Cabrillo",
             "No active contest selected. Export anyway with generic formatting?",
             QMessageBox::Yes | QMessageBox::No,
@@ -1342,7 +1343,7 @@ void MainWindow::onExportCabrillo() {
     }
 
     if (qsos.isEmpty()) {
-        QMessageBox::information(this, "Export Cabrillo", "No QSOs to export.");
+        DialogHelper::information(this, "Export Cabrillo", "No QSOs to export.");
         return;
     }
 
@@ -1410,12 +1411,12 @@ void MainWindow::onExportCabrillo() {
 
 void MainWindow::onClearLog() {
     if (m_qsoTableModel->count() == 0) {
-        QMessageBox::information(this, "Clear Log", "Log is already empty.");
+        DialogHelper::information(this, "Clear Log", "Log is already empty.");
         return;
     }
 
     // Ask if user wants to create a backup first
-    QMessageBox::StandardButton backupReply = QMessageBox::question(
+    QMessageBox::StandardButton backupReply = DialogHelper::question(
         this, "Create Backup?",
         QString("Would you like to create a backup before clearing %1 QSOs?\n\n"
                 "The backup will be saved as an archived copy for safety.")
@@ -1434,7 +1435,7 @@ void MainWindow::onClearLog() {
         QString backupDir = QDir::homePath() + "/.tr4qt/backups";
 
         if (!backupMgr.createBackup(m_currentContest.databasePath, backupDir, backupPath)) {
-            QMessageBox::StandardButton continueReply = QMessageBox::warning(
+            QMessageBox::StandardButton continueReply = DialogHelper::warning(
                 this, "Backup Failed",
                 QString("Failed to create backup: %1\n\nDo you still want to clear the log?")
                     .arg(backupMgr.lastError()),
@@ -1451,7 +1452,7 @@ void MainWindow::onClearLog() {
     }
 
     // Confirm clear
-    QMessageBox::StandardButton reply = QMessageBox::question(
+    QMessageBox::StandardButton reply = DialogHelper::question(
         this, "Clear Log",
         QString("Are you sure you want to clear all %1 QSOs from the log?\n\nThis action cannot be undone.")
             .arg(m_qsoTableModel->count()),
@@ -1462,7 +1463,7 @@ void MainWindow::onClearLog() {
         // Clear QSOs and multipliers from database
         QSORepository repo;
         if (!repo.deleteAllQSOs(m_currentContestDbId)) {
-            QMessageBox::critical(this, "Error",
+            DialogHelper::critical(this, "Error",
                 QString("Failed to clear log from database: %1").arg(repo.lastError()));
             return;
         }
@@ -2123,7 +2124,7 @@ void MainWindow::onEditQSO(const QModelIndex& index) {
                 .arg(editedQSO.id)
                 .arg(editedQSO.callsign));
         } else {
-            QMessageBox::warning(this, "Error",
+            DialogHelper::warning(this, "Error",
                 QString("Failed to update QSO: %1").arg(repo.lastError()));
         }
     }
@@ -2364,7 +2365,7 @@ void MainWindow::handleIntegrityMismatch(int memoryCount, int dbCount) {
         .arg(memoryCount)
         .arg(dbCount);
 
-    QMessageBox::StandardButton reply = QMessageBox::warning(
+    QMessageBox::StandardButton reply = DialogHelper::warning(
         this,
         "Data Integrity Warning",
         message,
@@ -2381,7 +2382,7 @@ void MainWindow::handleIntegrityMismatch(int memoryCount, int dbCount) {
 // Rescore entire contest (recalculate QSO points and multiplier flags)
 void MainWindow::onRescoreContest() {
     if (!m_hasActiveContest || !m_activeContest || !m_qsoTableModel) {
-        QMessageBox::information(this, "Rescore Contest",
+        DialogHelper::information(this, "Rescore Contest",
             "No active contest to rescore.");
         return;
     }
@@ -2395,15 +2396,10 @@ void MainWindow::onRescoreContest() {
                 "- Validating scoring calculations\n\n"
                 "Continue?").arg(m_qsoTableModel->count());
 
-    LOG_INFO("MainWindow", QString("DIALOG: Rescore Contest - %1").arg(dialogMessage));
-
-    QMessageBox::StandardButton reply = QMessageBox::question(this,
+    QMessageBox::StandardButton reply = DialogHelper::question(this,
         "Rescore Contest",
         dialogMessage,
         QMessageBox::Yes | QMessageBox::No);
-
-    QString replyStr = (reply == QMessageBox::Yes) ? "Yes" : "No";
-    LOG_INFO("MainWindow", QString("DIALOG RESPONSE: Rescore Contest - User clicked: %1").arg(replyStr));
 
     if (reply != QMessageBox::Yes) {
         return;
@@ -2576,11 +2572,7 @@ void MainWindow::onRescoreContest() {
                 "Score display has been refreshed.")
             .arg(qsosUpdated).arg(multsMarked).arg(dupesFound);
 
-    LOG_INFO("MainWindow", QString("DIALOG: Rescore Complete - %1").arg(resultsMessage));
-
-    QMessageBox::information(this, "Rescore Complete", resultsMessage);
-
-    LOG_INFO("MainWindow", "DIALOG RESPONSE: Rescore Complete - User clicked: OK");
+    DialogHelper::information(this, "Rescore Complete", resultsMessage);
 
     m_statusLabel->setText(QString("Rescore complete: %1 QSOs updated, %2 mults marked, %3 dupes found")
         .arg(qsosUpdated).arg(multsMarked).arg(dupesFound));
@@ -2589,7 +2581,7 @@ void MainWindow::onRescoreContest() {
 // Tier 3: Full detailed integrity check
 void MainWindow::onFullIntegrityCheck() {
     if (!m_hasActiveContest || !m_qsoTableModel) {
-        QMessageBox::information(this, "Integrity Check",
+        DialogHelper::information(this, "Integrity Check",
             "No active contest to validate.");
         return;
     }
@@ -3112,7 +3104,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     // Open database
     Database& db = Database::instance();
     if (!db.open(contestInfo.databasePath)) {
-        QMessageBox::critical(this, "Database Error",
+        DialogHelper::critical(this, "Database Error",
                             QString("Failed to open database:\n%1").arg(db.lastError()));
         return;
     }
@@ -3187,7 +3179,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
              1, now.toSecsSinceEpoch()});
 
         if (!query.isActive()) {
-            QMessageBox::critical(this, "Database Error",
+            DialogHelper::critical(this, "Database Error",
                                 QString("Failed to create contest record:\n%1").arg(db.lastError()));
             return;
         }
@@ -3596,14 +3588,14 @@ void MainWindow::onShowStatistics() {
 // Window menu placeholder implementations
 void MainWindow::onSwapMultView() {
     LOG_DEBUG("MainWindow", "Swap Mult View (Alt+G) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Swap Mult View feature will be implemented in a future version.\n\n"
                            "This will toggle between different multiplier display modes.");
 }
 
 void MainWindow::onMissingMultsReport() {
     LOG_DEBUG("MainWindow", "Missing Mults Report (Ctrl+O) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Missing Mults Report will be implemented in a future version.\n\n"
                            "This will show a report of multipliers still needed.");
 }
@@ -3611,28 +3603,28 @@ void MainWindow::onMissingMultsReport() {
 // Edit menu placeholder implementations
 void MainWindow::onViewEditLog() {
     LOG_DEBUG("MainWindow", "View/Edit Log (Ctrl+L) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "View/Edit Log will be implemented in a future version.\n\n"
                            "This will show all logged QSOs in a table for viewing and editing.");
 }
 
 void MainWindow::onClearDupes() {
     LOG_DEBUG("MainWindow", "Clear Dupes (Ctrl+K) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Clear Dupes will be implemented in a future version.\n\n"
                            "This will remove duplicate QSOs from the log.");
 }
 
 void MainWindow::onNote() {
     LOG_DEBUG("MainWindow", "Note (Ctrl+N) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Note feature will be implemented in a future version.\n\n"
                            "This will allow adding notes to the log.");
 }
 
 void MainWindow::onRecallLast() {
     LOG_DEBUG("MainWindow", "Recall Last Entry (Ctrl+R) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Recall Last Entry will be implemented in a future version.\n\n"
                            "This will recall the last deleted log entry.");
 }
@@ -3640,14 +3632,14 @@ void MainWindow::onRecallLast() {
 // Tools menu placeholder implementations
 void MainWindow::onWKMode() {
     LOG_DEBUG("MainWindow", "WK Mode (Alt+A) - Re-initialize WinKeyer - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "WinKeyer re-initialization will be implemented in a future version.\n\n"
                            "This will re-initialize the WinKeyer for CW keying.");
 }
 
 void MainWindow::onSendMorse() {
     if (!m_radioConnected) {
-        QMessageBox::warning(this, "Radio Not Connected",
+        DialogHelper::warning(this, "Radio Not Connected",
             "Radio must be connected to send morse code.\n\n"
             "Please connect to your radio first.");
         return;
@@ -3659,7 +3651,7 @@ void MainWindow::onSendMorse() {
 
 void MainWindow::onBackupLog() {
     if (!m_hasActiveContest) {
-        QMessageBox::warning(this, "No Active Contest",
+        DialogHelper::warning(this, "No Active Contest",
             "No contest is currently active. Please open or create a contest first.");
         return;
     }
@@ -3714,7 +3706,7 @@ void MainWindow::onDownloadCTY(bool headless) {
 
                     if (!headless) {
                         // Ask user if they want to reload the country file
-                        QMessageBox::StandardButton reply = QMessageBox::question(
+                        QMessageBox::StandardButton reply = DialogHelper::question(
                             this,
                             "Download Complete",
                             "Country file downloaded successfully!\n\n"
@@ -3729,11 +3721,11 @@ void MainWindow::onDownloadCTY(bool headless) {
                                 m_countryFile.setVersion(version);
                                 LOG_DEBUG("MainWindow", QString("Country file reloaded successfully. Version: %1")
                                     .arg(m_countryFile.getVersion()));
-                                QMessageBox::information(this, "Success",
+                                DialogHelper::information(this, "Success",
                                     QString("Country file reloaded successfully!\n\n"
                                            "Version: %1").arg(m_countryFile.getVersion()));
                             } else {
-                                QMessageBox::warning(this, "Reload Failed",
+                                DialogHelper::warning(this, "Reload Failed",
                                     "Failed to reload the country file.\n\n"
                                     "Please restart the application.");
                             }
@@ -3750,7 +3742,7 @@ void MainWindow::onDownloadCTY(bool headless) {
                     }
                 } else {
                     if (!headless) {
-                        QMessageBox::critical(this, "Download Failed",
+                        DialogHelper::critical(this, "Download Failed",
                             "Failed to download country file.\n\n"
                             "Please check your internet connection and try again.");
                     } else {
@@ -3826,13 +3818,13 @@ void MainWindow::onDownloadLOTW(bool headless) {
                     settings.setLotwLastUpdateTime(QDateTime::currentDateTime());
 
                     if (!headless) {
-                        QMessageBox::information(this, "Download Complete",
+                        DialogHelper::information(this, "Download Complete",
                             QString("LOTW user list downloaded successfully!\n\n"
                                    "%1 users imported.").arg(userCount));
                     }
                 } else {
                     if (!headless) {
-                        QMessageBox::critical(this, "Download Failed",
+                        DialogHelper::critical(this, "Download Failed",
                             QString("Failed to download LOTW user list.\n\n%1\n\n"
                                    "Please check your internet connection and try again.").arg(error));
                     } else {
@@ -3864,14 +3856,14 @@ void MainWindow::onDownloadLOTW(bool headless) {
 
 void MainWindow::onSetDateTime() {
     LOG_DEBUG("MainWindow", "Set System Date/Time (Alt+T) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Set System Date/Time will be implemented in a future version.\n\n"
                            "This will allow setting the system date and time.");
 }
 
 void MainWindow::onInitialize() {
     LOG_DEBUG("MainWindow", "Initialize (Alt+W) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Initialize will be implemented in a future version.\n\n"
                            "This will initialize/reset contest parameters.");
 }
@@ -3879,77 +3871,77 @@ void MainWindow::onInitialize() {
 // Operating menu placeholder implementations
 void MainWindow::onAutoCQ() {
     LOG_DEBUG("MainWindow", "Auto CQ (Alt+Q) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Auto CQ will be implemented in a future version.\n\n"
                            "This will enable automatic CQ sending.");
 }
 
 void MainWindow::onAutoCQResume() {
     LOG_DEBUG("MainWindow", "Auto CQ Resume (Alt+C) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Auto CQ Resume will be implemented in a future version.\n\n"
                            "This will resume automatic CQ after an interruption.");
 }
 
 void MainWindow::onKillCW() {
     LOG_DEBUG("MainWindow", "Kill CW (Alt+K) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Kill CW will be implemented in a future version.\n\n"
                            "This will immediately stop CW transmission.");
 }
 
 void MainWindow::onDupeCheck() {
     LOG_DEBUG("MainWindow", "Dupe Check (Alt+D) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Dupe Check will be implemented in a future version.\n\n"
                            "This will check if the entered callsign is a duplicate.");
 }
 
 void MainWindow::onSearchLog() {
     LOG_DEBUG("MainWindow", "Search Log (Alt+L) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Search Log will be implemented in a future version.\n\n"
                            "This will search the log for a specific callsign.");
 }
 
 void MainWindow::onDeleteLastQSO() {
     LOG_DEBUG("MainWindow", "Delete Last QSO (Alt+Y) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Delete Last QSO will be implemented in a future version.\n\n"
                            "This will delete the most recent QSO from the log.");
 }
 
 void MainWindow::onIncNumber() {
     LOG_DEBUG("MainWindow", "Inc Number (Alt+I) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Inc Number will be implemented in a future version.\n\n"
                            "This will increment the serial number.");
 }
 
 void MainWindow::onInitialExchange() {
     LOG_DEBUG("MainWindow", "Initial Exchange (Alt+Z) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Initial Exchange will be implemented in a future version.\n\n"
                            "This will set/reset the initial exchange information.");
 }
 
 void MainWindow::onCWSpeed() {
     LOG_DEBUG("MainWindow", "CW Speed (Alt+S) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "CW Speed will be implemented in a future version.\n\n"
                            "This will adjust the CW sending speed.");
 }
 
 void MainWindow::onToggleSidetone() {
     LOG_DEBUG("MainWindow", "Toggle Sidetone (Alt+=) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Toggle Sidetone will be implemented in a future version.\n\n"
                            "This will turn CW sidetone on/off.");
 }
 
 void MainWindow::onToggleAutosend() {
     LOG_DEBUG("MainWindow", "Toggle Autosend (Alt+-) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Toggle Autosend will be implemented in a future version.\n\n"
                            "This will enable/disable automatic sending.");
 }
@@ -3957,14 +3949,14 @@ void MainWindow::onToggleAutosend() {
 // Band menu placeholder implementations
 void MainWindow::onToggleRigs() {
     LOG_DEBUG("MainWindow", "Toggle Rigs (Alt+R) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Toggle Rigs will be implemented in a future version.\n\n"
                            "This will switch between radios in SO2R mode.");
 }
 
 void MainWindow::onEditSO2R() {
     LOG_DEBUG("MainWindow", "Edit SO2R (Alt+E) - Not yet implemented");
-    QMessageBox::information(this, "Not Implemented",
+    DialogHelper::information(this, "Not Implemented",
                            "Edit SO2R will be implemented in a future version.\n\n"
                            "This will configure SO2R (two-radio) settings.");
 }
