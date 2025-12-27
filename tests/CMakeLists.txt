@@ -180,3 +180,19 @@ add_tr4qt_test(test_score_performance
     test_score_performance.cpp
     ../src/core/Types.cpp
 )
+
+# Load performance tests - QSO database stress testing
+add_tr4qt_test(test_qso_load_performance
+    test_qso_load_performance.cpp
+    ../src/data/QSORepository.cpp
+    ../src/data/Database.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+# Set longer timeout for load tests (5 minutes)
+set_tests_properties(test_qso_load_performance PROPERTIES TIMEOUT 300)
+# This test uses Qt Concurrent for multi-threading
+target_link_libraries(test_qso_load_performance PRIVATE Qt6::Concurrent)
