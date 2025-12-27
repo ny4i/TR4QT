@@ -10,7 +10,6 @@
 #include <QJsonArray>
 #include <QDateTime>
 #include <QTcpServer>
-#include <QHttpHeaders>
 
 namespace TR4QT {
 
@@ -74,15 +73,8 @@ bool WebServer::start(quint16 port, const QHostAddress& address) {
     }
 
     // Bind HTTP server to TCP server
-    if (!m_server->bind(m_tcpServer)) {
-        QString error = QString("Failed to bind HTTP server to TCP server");
-        LOG_ERROR("WebServer", error);
-        emit errorOccurred(error);
-        m_tcpServer->close();
-        delete m_tcpServer;
-        m_tcpServer = nullptr;
-        return false;
-    }
+    // Note: bind() returns void on Windows Qt 6.7.2, bool on macOS - API inconsistency!
+    m_server->bind(m_tcpServer);
 
     m_port = port;
     m_address = address;
@@ -128,12 +120,12 @@ void WebServer::setContestName(const QString& contestName) {
 // HTTP Route Handlers
 
 QHttpServerResponse WebServer::handleRoot() {
-    // Redirect to dashboard
-    QHttpServerResponse response(QHttpServerResponder::StatusCode::MovedPermanently);
-    QHttpHeaders headers;
-    headers.append("Location", "/dashboard");
-    response.setHeaders(headers);
-    return response;
+    // HTML meta refresh redirect (works across all Qt versions and platforms)
+    // Note: Qt HttpServer header APIs are inconsistent between versions
+    // (setHeader doesn't exist in 6.9+, setHeaders(QHttpHeaders) only in 6.8+,
+    //  bind() returns void on Windows 6.7 but bool on macOS)
+    QString html = "<html><head><meta http-equiv=\"refresh\" content=\"0;url=/dashboard\"></head></html>";
+    return QHttpServerResponse("text/html", html.toUtf8());
 }
 
 QHttpServerResponse WebServer::handleApiStatus() {
