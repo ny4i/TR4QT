@@ -2982,32 +2982,52 @@ void MainWindow::reopenLastContest() {
     contestInfo.databasePath = lastContestPath;
     contestInfo.isExisting = true;
 
-    // Determine contest type from contest_id (strip date suffix)
-    // contest_id format: "CQWW_CW_2025_12_25" → contestType: "CQWW_CW"
+    // Determine contest type from contest_id by intelligently parsing
+    // Format: "CONTESTTYPE_MODE_YYYY_MM_DD" or just "CONTESTTYPE"
+    // Examples:
+    //   "CQWW_CW_2025_12_25" → type: "CQWW", mode: "CW"
+    //   "CQWPX_SSB_2025_12_25" → type: "CQWPX", mode: "SSB"
+    //   "IARU_HF_CW_2025_07_12" → type: "IARU_HF_CW", mode: "CW"
     QString contestId = contestInfo.contestId;
-    if (contestId.contains("CQWW_CW")) {
-        contestInfo.contestType = "CQWW_CW";
-    } else if (contestId.contains("CQWW_SSB")) {
-        contestInfo.contestType = "CQWW_SSB";
-    } else if (contestId.contains("CQWPX_CW")) {
-        contestInfo.contestType = "CQWPX_CW";
-    } else if (contestId.contains("CQWPX_SSB")) {
-        contestInfo.contestType = "CQWPX_SSB";
-    } else if (contestId.contains("WFD")) {
-        contestInfo.contestType = "WFD";
-    } else {
-        LOG_WARN("MainWindow", QString("Could not determine contest type from ID: %1").arg(contestId));
-        contestInfo.contestType = contestId;  // Fallback to full ID
-    }
 
-    // Determine mode from contest type
-    if (contestInfo.contestType.contains("CW")) {
+    // Split by underscores
+    QStringList parts = contestId.split('_');
+
+    // Determine mode by looking for _CW or _SSB in the ID
+    if (contestId.contains("_CW")) {
         contestInfo.mode = "CW";
-    } else if (contestInfo.contestType.contains("SSB")) {
+    } else if (contestId.contains("_SSB")) {
         contestInfo.mode = "SSB";
     } else {
         contestInfo.mode = "Mixed";
     }
+
+    // Strip date suffix (last 3 parts if they look like YYYY_MM_DD)
+    // Check if last 3 parts are numeric
+    if (parts.size() >= 3) {
+        bool ok1, ok2, ok3;
+        int year = parts[parts.size() - 3].toInt(&ok1);
+        int month = parts[parts.size() - 2].toInt(&ok2);
+        int day = parts[parts.size() - 1].toInt(&ok3);
+
+        if (ok1 && ok2 && ok3 && year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            // Remove date suffix
+            parts.removeLast();
+            parts.removeLast();
+            parts.removeLast();
+        }
+    }
+
+    // Strip mode suffix (_CW or _SSB) if present
+    if (!parts.isEmpty() && (parts.last() == "CW" || parts.last() == "SSB")) {
+        parts.removeLast();
+    }
+
+    // Rejoin remaining parts to get contest type
+    contestInfo.contestType = parts.join('_');
+
+    LOG_DEBUG("MainWindow", QString("Parsed contest ID '%1' → type: '%2', mode: '%3'")
+        .arg(contestId, contestInfo.contestType, contestInfo.mode));
 
     // Close database - activateContest will reopen it
     db.close();
@@ -3119,9 +3139,15 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     }
 
     // Create contest instance using factory pattern
-    // The contest mode is embedded in the contest type ID (e.g., "CQWW_CW", "CQWW_SSB")
-    // For mixed-mode contests, ModeType::None is used
+    // Determine mode from contestInfo.mode string
     ModeType contestMode = ModeType::None;  // Default for mixed-mode contests
+    if (contestInfo.mode == "CW") {
+        contestMode = ModeType::CW;
+    } else if (contestInfo.mode == "SSB") {
+        contestMode = ModeType::USB;  // SSB mode is represented as USB
+    } else {
+        contestMode = ModeType::None;  // Mixed mode
+    }
 
     // Try to create contest from registry
     m_activeContest = ContestRegistry::instance().createContest(contestInfo.contestType, contestMode);
