@@ -11,6 +11,11 @@ class QTcpServer;
 
 namespace TR4QT {
 
+// Forward declarations
+class QSOTableModel;
+class RadioController;
+class AppSettings;
+
 /**
  * WebServer - HTTP server for contest information display
  *
@@ -36,7 +41,9 @@ class WebServer : public QObject {
     Q_OBJECT
 
 public:
-    explicit WebServer(QObject* parent = nullptr);
+    explicit WebServer(QSOTableModel* qsoModel,
+                      RadioController* radioController,
+                      QObject* parent = nullptr);
     ~WebServer() override;
 
     // Server control
@@ -51,19 +58,8 @@ public:
     QHostAddress address() const { return m_address; }
     QString url() const;
 
-    // Data updates (called from MainWindow)
-    void setContestInfo(const QString& contestName, const QString& myCall);
-    void setOperator(const QString& operatorCall);
-    void setRadioState(const RadioState& state);
-    void addRecentQSO(const QSO& qso);
-    void setScore(int qsos, int points, int multipliers);
-
-    // Per-band score data (for detail view)
-    void setBandQSOCount(BandType band, int count);
-    void setBandMultCount(BandType band, int count);
-    void setBandZoneCount(BandType band, int count);
-    void setBandPoints(BandType band, int points);
-    void clearBandData();
+    // Contest state (set when contest changes)
+    void setContestName(const QString& contestName);
 
 signals:
     void serverStarted(const QString& url);
@@ -89,21 +85,12 @@ private:
     quint16 m_port{14140};  // Default: 14140 (ham radio frequency joke: 14.140 MHz)
     QHostAddress m_address{QHostAddress::LocalHost};
 
-    // Contest data (cached for serving)
-    QString m_contestName;
-    QString m_myCall;
-    QString m_operatorCall;
-    RadioState m_radioState;
-    QList<QSO> m_recentQSOs;  // Last 10 QSOs
-    int m_qsoCount{0};
-    int m_totalPoints{0};
-    int m_multiplierCount{0};
+    // Data sources (not owned - pull model)
+    QSOTableModel* m_qsoModel;
+    RadioController* m_radioController;
 
-    // Per-band data (for detail view)
-    QMap<BandType, int> m_bandQSOs;
-    QMap<BandType, int> m_bandMults;
-    QMap<BandType, int> m_bandZones;
-    QMap<BandType, int> m_bandPoints;
+    // Contest state (minimal - only what can't be pulled)
+    QString m_contestName;
 
     static constexpr int MAX_RECENT_QSOS = 10;
 };

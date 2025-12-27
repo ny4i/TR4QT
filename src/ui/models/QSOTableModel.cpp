@@ -5,6 +5,7 @@
 #include <QFont>
 #include <QColor>
 #include <QLocale>
+#include <QMutexLocker>
 
 namespace TR4QT {
 
@@ -17,6 +18,7 @@ QSOTableModel::QSOTableModel(QObject* parent)
 }
 
 int QSOTableModel::rowCount(const QModelIndex& parent) const {
+    QMutexLocker locker(&m_mutex);
     if (parent.isValid()) {
         return 0;
     }
@@ -24,6 +26,7 @@ int QSOTableModel::rowCount(const QModelIndex& parent) const {
 }
 
 int QSOTableModel::columnCount(const QModelIndex& parent) const {
+    QMutexLocker locker(&m_mutex);
     if (parent.isValid()) {
         return 0;
     }
@@ -35,6 +38,7 @@ int QSOTableModel::columnCount(const QModelIndex& parent) const {
 }
 
 QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
+    QMutexLocker locker(&m_mutex);
     if (!index.isValid() || index.row() >= m_qsos.size()) {
         return QVariant();
     }
@@ -136,6 +140,7 @@ QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
 }
 
 QVariant QSOTableModel::headerData(int section, Qt::Orientation orientation, int role) const {
+    QMutexLocker locker(&m_mutex);
     if (role != Qt::DisplayRole) {
         return QVariant();
     }
@@ -177,18 +182,22 @@ QVariant QSOTableModel::headerData(int section, Qt::Orientation orientation, int
 }
 
 void QSOTableModel::setQSOs(const QList<QSO>& qsos) {
+    QMutexLocker locker(&m_mutex);
     beginResetModel();
     m_qsos = qsos;
     endResetModel();
 }
 
 void QSOTableModel::addQSO(const QSO& qso) {
-    beginInsertRows(QModelIndex(), m_qsos.size(), m_qsos.size());
+    QMutexLocker locker(&m_mutex);
+    int row = m_qsos.size();
+    beginInsertRows(QModelIndex(), row, row);
     m_qsos.append(qso);
     endInsertRows();
 }
 
 void QSOTableModel::updateQSO(int row, const QSO& qso) {
+    QMutexLocker locker(&m_mutex);
     if (row < 0 || row >= m_qsos.size()) {
         return;
     }
@@ -198,6 +207,7 @@ void QSOTableModel::updateQSO(int row, const QSO& qso) {
 }
 
 void QSOTableModel::removeQSO(int row) {
+    QMutexLocker locker(&m_mutex);
     if (row < 0 || row >= m_qsos.size()) {
         return;
     }
@@ -208,12 +218,14 @@ void QSOTableModel::removeQSO(int row) {
 }
 
 void QSOTableModel::clear() {
+    QMutexLocker locker(&m_mutex);
     beginResetModel();
     m_qsos.clear();
     endResetModel();
 }
 
 QSO QSOTableModel::getQSO(int row) const {
+    QMutexLocker locker(&m_mutex);
     if (row < 0 || row >= m_qsos.size()) {
         return QSO();
     }
@@ -229,6 +241,7 @@ QString QSOTableModel::formatFrequency(freq_t freq) const {
 }
 
 void QSOTableModel::setTableColumns(const QList<TableColumn>& columns) {
+    QMutexLocker locker(&m_mutex);
     // Set the table column definitions from the contest
     m_tableColumns = columns;
     m_visibleExchangeColumns = qMin(columns.size(), MAX_EXCHANGE_COLUMNS);
@@ -306,6 +319,7 @@ QString QSOTableModel::getExchangeFieldValue(const QSO& qso, int fieldIndex) con
 }
 
 void QSOTableModel::onThemeChanged() {
+    QMutexLocker locker(&m_mutex);
     // Refresh all cells when theme changes
     if (!m_qsos.isEmpty()) {
         QModelIndex topLeft = index(0, 0);

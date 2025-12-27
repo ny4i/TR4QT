@@ -3,6 +3,7 @@
 
 #include <QAbstractTableModel>
 #include <QList>
+#include <QRecursiveMutex>
 #include "../../models/QSO.h"
 #include "../../contests/ContestBase.h"
 
@@ -22,6 +23,11 @@ namespace TR4QT {
  * Supports color coding:
  * - Dupes shown in red
  * - New multipliers shown in green/bold
+ *
+ * Thread Safety:
+ * - All public methods are thread-safe (protected by QMutex)
+ * - Safe to access from WebServer HTTP handlers or other threads
+ * - Authoritative data source for QSO list
  *
  * Usage:
  *   QSOTableModel* model = new QSOTableModel(this);
@@ -87,6 +93,7 @@ private:
     QList<QSO> m_qsos;
     QList<TableColumn> m_tableColumns;      // Contest table column definitions
     int m_visibleExchangeColumns{2};        // Number of exchange columns to show (1-5)
+    mutable QRecursiveMutex m_mutex;        // Thread-safe access (recursive for Qt callbacks)
 
     QString formatFrequency(freq_t freq) const;
     QString getExchangeFieldHeader(int fieldIndex) const;
