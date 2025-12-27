@@ -2387,16 +2387,23 @@ void MainWindow::onRescoreContest() {
     }
 
     // Confirm with user
-    QMessageBox::StandardButton reply = QMessageBox::question(this,
-        "Rescore Contest",
-        QString("This will recalculate QSO points, multiplier flags, and duplicate status for all %1 QSOs in the contest log.\n\n"
+    QString dialogMessage = QString("This will recalculate QSO points, multiplier flags, and duplicate status for all %1 QSOs in the contest log.\n\n"
                 "This is useful for:\n"
                 "- Detecting and marking duplicates (set to 0 points)\n"
                 "- Updating old logs to new scoring rules\n"
                 "- Fixing multiplier flags on pre-v2.85.0 QSOs\n"
                 "- Validating scoring calculations\n\n"
-                "Continue?").arg(m_qsoTableModel->count()),
+                "Continue?").arg(m_qsoTableModel->count());
+
+    LOG_INFO("MainWindow", QString("DIALOG: Rescore Contest - %1").arg(dialogMessage));
+
+    QMessageBox::StandardButton reply = QMessageBox::question(this,
+        "Rescore Contest",
+        dialogMessage,
         QMessageBox::Yes | QMessageBox::No);
+
+    QString replyStr = (reply == QMessageBox::Yes) ? "Yes" : "No";
+    LOG_INFO("MainWindow", QString("DIALOG RESPONSE: Rescore Contest - User clicked: %1").arg(replyStr));
 
     if (reply != QMessageBox::Yes) {
         return;
@@ -2562,13 +2569,18 @@ void MainWindow::onRescoreContest() {
     updateScoreDisplay();
 
     // Show results
-    QMessageBox::information(this, "Rescore Complete",
-        QString("Contest rescored successfully!\n\n"
+    QString resultsMessage = QString("Contest rescored successfully!\n\n"
                 "QSOs updated: %1\n"
                 "Multipliers marked: %2\n"
                 "Duplicates found: %3\n\n"
                 "Score display has been refreshed.")
-            .arg(qsosUpdated).arg(multsMarked).arg(dupesFound));
+            .arg(qsosUpdated).arg(multsMarked).arg(dupesFound);
+
+    LOG_INFO("MainWindow", QString("DIALOG: Rescore Complete - %1").arg(resultsMessage));
+
+    QMessageBox::information(this, "Rescore Complete", resultsMessage);
+
+    LOG_INFO("MainWindow", "DIALOG RESPONSE: Rescore Complete - User clicked: OK");
 
     m_statusLabel->setText(QString("Rescore complete: %1 QSOs updated, %2 mults marked, %3 dupes found")
         .arg(qsosUpdated).arg(multsMarked).arg(dupesFound));
