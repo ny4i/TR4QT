@@ -109,12 +109,13 @@ add_tr4qt_test(test_cqwpx
 )
 
 # Phase 3 tests - infrastructure
-# Skip theme manager test on Windows (fails in CI environment)
-if(NOT WIN32)
-    add_tr4qt_test(test_thememanager
-        test_thememanager.cpp
-        ../src/utils/ThemeManager.cpp
-    )
+add_tr4qt_test(test_thememanager
+    test_thememanager.cpp
+    ../src/utils/ThemeManager.cpp
+)
+# Skip on Windows (fails in CI environment)
+if(WIN32)
+    set_tests_properties(test_thememanager PROPERTIES DISABLED TRUE)
 endif()
 
 add_tr4qt_test(test_geographicutils
@@ -160,18 +161,19 @@ add_tr4qt_test(test_smartexchangeparser
 )
 
 # Phase 5 tests - database persistence
-# Skip QSO persistence test on Windows (database schema issues in CI environment)
-if(NOT WIN32)
-    add_tr4qt_test(test_qso_persistence
-        test_qso_persistence.cpp
-        ../src/data/QSORepository.cpp
-        ../src/data/Database.cpp
-        ../src/core/Types.cpp
-        ../src/logging/Logger.cpp
-        ../src/logging/LogLevel.cpp
-        ../src/logging/LogFormatter.cpp
-        ../src/logging/FileAppender.cpp
-    )
+add_tr4qt_test(test_qso_persistence
+    test_qso_persistence.cpp
+    ../src/data/QSORepository.cpp
+    ../src/data/Database.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+# Skip on Windows (database schema issues in CI environment)
+if(WIN32)
+    set_tests_properties(test_qso_persistence PROPERTIES DISABLED TRUE)
 endif()
 
 # Performance tests
