@@ -32,6 +32,7 @@ class RadioControlWidget;
 class MultiplierWidget;
 class StatisticsWindow;
 class UdpBroadcastManager;
+class WebServer;
 
 /**
  * Main application window
@@ -81,6 +82,7 @@ private slots:
     void onWKMode();                // TODO: Implement WinKeyer re-initialization
     void onSendMorse();             // Send morse code dialog
     void onBackupLog();             // TODO: Implement backup log
+    void onToggleWebServer();       // Start/stop web server
     void onDownloadCTY(bool headless = false);   // Download CTY.dat (headless=true for testing)
     void onDownloadLOTW(bool headless = false);  // Download LOTW user list (headless=true for testing)
     void onSetDateTime();           // TODO: Implement set system date/time
@@ -239,6 +241,7 @@ private:
     QAction* m_connectAction;
     QAction* m_disconnectAction;
     QAction* m_autoSendCWAction;
+    QAction* m_webServerAction;
 
     // Window widgets
     DXClusterWindow* m_dxClusterWindow;
@@ -268,6 +271,9 @@ private:
 
     // UDP Broadcast manager
     UdpBroadcastManager* m_udpBroadcastManager;
+
+    // Web server for remote contest viewing
+    WebServer* m_webServer;
 
     // Guard flag to prevent infinite recursion in raiseAllWindows
     bool m_inRaiseAllWindows;

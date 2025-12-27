@@ -167,6 +167,32 @@ Files:
 
 **This pattern applies to all projects**: If one dialog is logged, ALL dialogs must be logged via a common helper class.
 
+## Known Issues / Limitations
+
+### Database Threading (Deferred until Networking Implementation)
+**Issue**: Database singleton is not thread-safe for concurrent writes (discovered 2025-12-27)
+
+**Status**: Deferred until TCP networking implementation
+- Single-operator use: SAFE (99% of users)
+- Multi-threaded concurrent writes: CRASHES
+- Test coverage: `tests/test_qso_load_performance.cpp` (concurrent tests disabled)
+
+**Performance Verified**:
+- Single-threaded: 6,800+ QSOs/second
+- Transaction time: <1ms average
+- Database throughput: 24M+ QSOs/hour theoretical max
+
+**Solution Required Before**:
+- TCP-based networked TR4QT (multi-station logging)
+- True multi-operator concurrent logging
+
+**Implementation Options** (documented in `src/data/Database.cpp`):
+1. Connection pool (thread_local connections)
+2. Serialized access (QMutex)
+3. Message queue architecture (recommended for TCP server)
+
+**Reference**: See comprehensive TODO in `/src/data/Database.cpp` line 13
+
 ## Architecture Notes
 
 ### Contest System

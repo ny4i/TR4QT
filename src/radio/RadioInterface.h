@@ -83,6 +83,8 @@ public:
     virtual int getXIT(VFO vfo = VFO::VFO_A) const = 0;
     virtual bool clearRIT(VFO vfo = VFO::VFO_A) = 0;
     virtual bool clearXIT(VFO vfo = VFO::VFO_A) = 0;
+    virtual bool enableRIT(bool enable, VFO vfo = VFO::VFO_A) = 0;
+    virtual bool enableXIT(bool enable, VFO vfo = VFO::VFO_A) = 0;
 
     // Split operation
     virtual bool setSplit(bool enable, VFO txVfo = VFO::VFO_B) = 0;

@@ -23,6 +23,7 @@ set(SOURCES
     network/ContactInfo.cpp
     network/UdpBroadcaster.cpp
     network/UdpBroadcastManager.cpp
+    network/WebServer.cpp
     data/Database.cpp
     data/GlobalDatabase.cpp
     data/QSORepository.cpp
@@ -95,6 +96,7 @@ set(HEADERS
     network/ContactInfo.h
     network/UdpBroadcaster.h
     network/UdpBroadcastManager.h
+    network/WebServer.h
     data/Database.h
     data/GlobalDatabase.h
     data/QSORepository.h
@@ -184,6 +186,7 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::Widgets
     Qt6::Sql
     Qt6::Network
+    Qt6::HttpServer
     Qt6::PrintSupport
     Qt6::Concurrent
 )

@@ -721,4 +721,33 @@ QString AppSettings::getLastContestPath() const {
     return m_settings.value("Contest/lastContestPath", "").toString();
 }
 
+// Web server settings
+
+void AppSettings::setWebServerAutoStart(bool autoStart) {
+    m_settings.setValue("WebServer/autoStart", autoStart);
+    m_settings.sync();
+}
+
+bool AppSettings::getWebServerAutoStart() const {
+    return m_settings.value("WebServer/autoStart", false).toBool();  // Default: disabled
+}
+
+void AppSettings::setWebServerPort(quint16 port) {
+    m_settings.setValue("WebServer/port", port);
+    m_settings.sync();
+}
+
+quint16 AppSettings::getWebServerPort() const {
+    return m_settings.value("WebServer/port", 14140).toUInt();  // Default: 14140
+}
+
+void AppSettings::setWebServerAddress(const QString& address) {
+    m_settings.setValue("WebServer/address", address);
+    m_settings.sync();
+}
+
+QString AppSettings::getWebServerAddress() const {
+    return m_settings.value("WebServer/address", "127.0.0.1").toString();  // Default: localhost
+}
+
 } // namespace TR4QT
