@@ -36,6 +36,7 @@ jobs:
         target: desktop
         arch: win64_mingw
         tools: 'tools_mingw1310'
+        modules: 'qthttpserver'
         cache: true
 
     - name: Download Hamlib
