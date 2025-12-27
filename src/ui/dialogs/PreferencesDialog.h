@@ -147,6 +147,11 @@ private:
     QSpinBox* m_gridFontSizeSpin;
     QSpinBox* m_miscDisplayFontSizeSpin;
     QComboBox* m_themeCombo;
+
+    // Band Needs Display widgets
+    QPushButton* m_workedColorButton;
+    QPushButton* m_neededColorButton;
+    QCheckBox* m_vhfBandsEnabledCheck;
     QPushButton* m_customizeColorsButton;
     QCheckBox* m_useMetricDistanceCheck;
 
