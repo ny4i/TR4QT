@@ -1,0 +1,124 @@
+#ifndef ARRLFIELDDAYCONTEST_H
+#define ARRLFIELDDAYCONTEST_H
+
+#include "ContestBase.h"
+
+namespace TR4QT {
+
+struct ContestMetadata;
+
+/**
+ * ARRL Field Day Contest
+ *
+ * Exchange: Class + Section
+ *   - Class: Number of transmitters + Category (e.g., "1A", "3B", "5F")
+ *     * Number: 1-32 (transmitters operating simultaneously)
+ *     * Category: A (portable, 3+ people), B (portable, 1-2 people),
+ *                 C (mobile), D (home, battery), E (home, commercial power),
+ *                 F (EOC)
+ *   - Section: ARRL or RAC section (e.g., "EMA", "CT", "GTA")
+ *   - DX sends: Class + "DX" (e.g., "2A DX")
+ *
+ * Modes: Mixed (CW, Digital, Phone)
+ *
+ * Multipliers: None (uses power multiplier and bonus points instead)
+ *
+ * Scoring:
+ *   - CW/Digital: 2 points per QSO
+ *   - Phone: 1 point per QSO
+ *   - Final Score: (QSO points × Power multiplier) + Bonus points
+ *
+ * Power Multipliers:
+ *   - 5: QRP (≤5W) on alternative power
+ *   - 2: Low power (≤100W) on battery OR QRP on generator
+ *   - 1: Standard power (≤500W for A/B/C, ≤100W for D/E/F)
+ *
+ * Bonus Points (examples):
+ *   - 100% Emergency Power: 100 pts per transmitter (max 2000)
+ *   - Media publicity: 100 pts
+ *   - Public location: 100 pts
+ *   - Information booth: 100 pts
+ *   - Many others (see official rules)
+ *
+ * Note: Field Day doesn't use traditional multipliers. The power multiplier
+ * applies to ALL QSO points, and bonus points are added afterward.
+ *
+ * Contest website: https://www.arrl.org/field-day
+ */
+class ARRLFieldDayContest : public ContestBase {
+public:
+    ARRLFieldDayContest();
+    ~ARRLFieldDayContest() override = default;
+
+    // ===== Contest Identifiers =====
+    static constexpr int WA7BNM_ID = 60;  // ARRL Field Day
+    static inline const QString CABRILLO_NAME = "ARRL-FIELD-DAY";
+    static inline const QString ADIF_CONTEST_ID = "ARRL-FIELD-DAY";
+
+    // ===== Factory Methods =====
+    static ContestMetadata getMetadata();
+    static ContestBase* create(ModeType mode);
+
+    // ===== Contest Identity =====
+    QString getContestId() const override;
+    QString getContestName() const override;
+    ModeType getContestMode() const override { return ModeType::None; }  // Mixed
+    QString getADIFContestId() const override;
+
+    // ===== Exchange Configuration =====
+    QList<ExchangeField> getReceivedExchangeFields() const override;
+    QList<ExchangeField> getSentExchangeFields() const override;
+    QList<TableColumn> getTableColumns() const override;
+    QString formatSentExchange(int serialNumber, const QString& rst = "599") const override;
+    bool validateReceivedExchange(const QString& exchange, QString& errorMsg) const override;
+    QMap<QString, QString> parseReceivedExchange(const QString& exchange) const override;
+
+    // ===== Scoring =====
+    int calculateQSOPoints(
+        const QSO& qso,
+        const StationInfo& myStation) const override;
+
+    int calculateTotalScore(
+        int totalQSOPoints,
+        const QMap<MultiplierType, int>& multiplierCounts) const override;
+
+    // ===== Multipliers =====
+    QList<MultiplierDefinition> getMultiplierTypes() const override;
+
+    QString getMultiplierValue(
+        const QSO& qso,
+        MultiplierType multType,
+        const QStringList& alreadyWorkedValues) const override;
+
+    // Field Day doesn't use multipliers in traditional sense
+    bool usesMultipliers() const override { return false; }
+
+    // ===== Special Rules =====
+    bool usesSerialNumbers() const override { return false; }
+
+    DuplicateCheckingRule getDuplicateCheckingRule() const override {
+        return DuplicateCheckingRule::PerBandMode;
+    }
+
+    QMap<QString, QString> getCabrilloHeaders() const override;
+
+    // ===== Field Day-Specific Methods =====
+    /**
+     * Validate class format (e.g., "1A", "3B", "5F")
+     */
+    static bool isValidClass(const QString& classStr);
+
+    /**
+     * Validate section (ARRL or RAC section abbreviation)
+     */
+    static bool isValidSection(const QString& section);
+
+    /**
+     * Get list of valid ARRL/RAC sections
+     */
+    static QStringList getValidSections();
+};
+
+} // namespace TR4QT
+
+#endif // ARRLFIELDDAYCONTEST_H

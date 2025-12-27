@@ -42,6 +42,8 @@ set(SOURCES
     contests/CQWPXContest.cpp
     contests/NAQPContest.cpp
     contests/WinterFieldDayContest.cpp
+    contests/ARRLFieldDayContest.cpp
+    contests/IARUHFContest.cpp
     logging/LogLevel.cpp
     logging/LogFormatter.cpp
     logging/FileAppender.cpp
@@ -114,6 +116,8 @@ set(HEADERS
     contests/CQWPXContest.h
     contests/NAQPContest.h
     contests/WinterFieldDayContest.h
+    contests/ARRLFieldDayContest.h
+    contests/IARUHFContest.h
     logging/LogLevel.h
     logging/LogFormatter.h
     logging/FileAppender.h
