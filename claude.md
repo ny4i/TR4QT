@@ -87,6 +87,92 @@ Changes:
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ```
 
+## Pre-Release Checklist
+
+**CRITICAL**: Before creating any release tag, ALWAYS run through this checklist!
+
+Release tags trigger GitHub Actions builds for all platforms. A failed build wastes time and creates confusion.
+
+### 1. Verify Qt Module Dependencies Match
+Compare CMakeLists.txt with Windows CI configuration:
+
+```bash
+# Check what Qt components TR4QT requires
+grep -A 10 "find_package(Qt6 REQUIRED COMPONENTS" CMakeLists.txt
+
+# Check what Windows CI installs
+grep -A 5 "modules:" .github/workflows/build.yml
+```
+
+**Rule**: Every Qt component in CMakeLists.txt (except base modules) must be listed in the Windows CI `modules:` line.
+
+**Base modules** (always installed, don't need to be listed):
+- Core, Gui, Widgets, Network, Sql, PrintSupport, Concurrent, Test, OpenGL, Xml
+
+**Additional modules** (must be explicitly listed):
+- HttpServer (currently required by TR4QT)
+- WebSockets, WebView, Multimedia, Charts, 3D, etc. (add if needed)
+
+**macOS note**: `brew install qt@6` includes all modules, so macOS builds won't catch this issue.
+
+### 2. Verify Last CI Build Passed
+```bash
+gh run list --limit 3
+```
+
+Both macOS and Windows builds must show ✓ success. If either failed, fix the issue before tagging.
+
+### 3. Version Already Bumped
+Confirm Constants.h has been updated in the latest commit:
+```bash
+grep APP_VERSION src/core/Constants.h
+git log -1 --oneline
+```
+
+Version in Constants.h should match the commit message.
+
+### 4. Build and Test Locally
+```bash
+cmake --build build
+cd build && ctest --output-on-failure
+```
+
+All tests should pass. If any fail, investigate before releasing.
+
+### 5. Check for Uncommitted Changes
+```bash
+git status
+```
+
+Should show "nothing to commit, working tree clean".
+
+### 6. Create Release Tag (Only After Above Checks Pass)
+```bash
+# Lightweight tag (testing)
+git tag v2.95.0
+git push origin v2.95.0
+
+# Annotated tag (official releases)
+git tag -a v2.95.0 -m "Release v2.95.0 - WebServer pull model refactoring"
+git push origin v2.95.0
+```
+
+### 7. Monitor GitHub Actions
+```bash
+gh run watch
+```
+
+Watch the triggered build. Both platforms must succeed for a valid release.
+
+### Common Issues Caught By This Checklist:
+- ✅ Missing Qt modules in Windows CI (e.g., HttpServer)
+- ✅ Version mismatch between code and tag
+- ✅ Tests failing on specific platforms
+- ✅ Build errors from uncommitted changes
+- ✅ CI configuration drift from CMakeLists.txt
+
+**Remember**: Release tags are permanent in the git history. It's better to spend 2 minutes verifying than to create a broken release tag!
+
 ## Common Patterns
 
 ### Radio State
