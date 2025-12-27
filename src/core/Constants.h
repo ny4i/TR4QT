@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.92.0";  // DialogHelper for all dialogs, scalability fixes
+constexpr const char* APP_VERSION = "2.93.0";  // CRITICAL: Database error handling with emergency ADIF fallback
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
