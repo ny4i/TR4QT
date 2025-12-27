@@ -1,4 +1,7 @@
 #include "WebServer.h"
+#include "../ui/models/QSOTableModel.h"
+#include "../radio/RadioController.h"
+#include "../utils/AppSettings.h"
 #include "../logging/LogMacros.h"
 #include "../core/Types.h"
 #include "../core/Constants.h"
@@ -11,9 +14,13 @@
 
 namespace TR4QT {
 
-WebServer::WebServer(QObject* parent)
+WebServer::WebServer(QSOTableModel* qsoModel,
+                     RadioController* radioController,
+                     QObject* parent)
     : QObject(parent)
     , m_server(new QHttpServer(this))
+    , m_qsoModel(qsoModel)
+    , m_radioController(radioController)
 {
     // Setup HTTP routes
 
@@ -114,55 +121,8 @@ QString WebServer::url() const {
     return QString("http://%1:%2").arg(host).arg(m_port);
 }
 
-void WebServer::setContestInfo(const QString& contestName, const QString& myCall) {
+void WebServer::setContestName(const QString& contestName) {
     m_contestName = contestName;
-    m_myCall = myCall;
-}
-
-void WebServer::setOperator(const QString& operatorCall) {
-    m_operatorCall = operatorCall;
-}
-
-void WebServer::setRadioState(const RadioState& state) {
-    m_radioState = state;
-}
-
-void WebServer::addRecentQSO(const QSO& qso) {
-    m_recentQSOs.prepend(qso);  // Add to front (most recent)
-
-    // Keep only last N QSOs
-    while (m_recentQSOs.size() > MAX_RECENT_QSOS) {
-        m_recentQSOs.removeLast();
-    }
-}
-
-void WebServer::setScore(int qsos, int points, int multipliers) {
-    m_qsoCount = qsos;
-    m_totalPoints = points;
-    m_multiplierCount = multipliers;
-}
-
-void WebServer::setBandQSOCount(BandType band, int count) {
-    m_bandQSOs[band] = count;
-}
-
-void WebServer::setBandMultCount(BandType band, int count) {
-    m_bandMults[band] = count;
-}
-
-void WebServer::setBandZoneCount(BandType band, int count) {
-    m_bandZones[band] = count;
-}
-
-void WebServer::setBandPoints(BandType band, int points) {
-    m_bandPoints[band] = points;
-}
-
-void WebServer::clearBandData() {
-    m_bandQSOs.clear();
-    m_bandMults.clear();
-    m_bandZones.clear();
-    m_bandPoints.clear();
 }
 
 // HTTP Route Handlers
@@ -177,13 +137,31 @@ QHttpServerResponse WebServer::handleRoot() {
 }
 
 QHttpServerResponse WebServer::handleApiStatus() {
+    // Pull fresh data from sources
+    AppSettings& settings = AppSettings::instance();
+    QString myCall = settings.getMyCallsign();
+    QString currentOperator = settings.getCurrentOperator();
+
+    // Calculate score from QSO model
+    int qsoCount = m_qsoModel->count();
+    int totalPoints = 0;
+    int totalMults = 0;
+
+    for (int row = 0; row < qsoCount; ++row) {
+        QSO qso = m_qsoModel->getQSO(row);
+        totalPoints += qso.qsoPoints;
+        if (qso.isMultiplier) {
+            totalMults++;
+        }
+    }
+
     QJsonObject json;
     json["contest"] = m_contestName;
-    json["myCall"] = m_myCall;
-    json["operator"] = m_operatorCall.isEmpty() ? m_myCall : m_operatorCall;
-    json["qsos"] = m_qsoCount;
-    json["points"] = m_totalPoints;
-    json["multipliers"] = m_multiplierCount;
+    json["myCall"] = myCall;
+    json["operator"] = currentOperator.isEmpty() ? myCall : currentOperator;
+    json["qsos"] = qsoCount;
+    json["points"] = totalPoints;
+    json["multipliers"] = totalMults;
     json["timestamp"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
 
     QJsonDocument doc(json);
@@ -193,7 +171,12 @@ QHttpServerResponse WebServer::handleApiStatus() {
 QHttpServerResponse WebServer::handleApiQsos() {
     QJsonArray qsos;
 
-    for (const QSO& qso : m_recentQSOs) {
+    // Pull recent QSOs from model (last 10)
+    int qsoCount = m_qsoModel->count();
+    int startIdx = qMax(0, qsoCount - MAX_RECENT_QSOS);
+
+    for (int row = startIdx; row < qsoCount; ++row) {
+        QSO qso = m_qsoModel->getQSO(row);
         qsos.append(qsoToJson(qso));
     }
 
@@ -206,18 +189,33 @@ QHttpServerResponse WebServer::handleApiQsos() {
 }
 
 QHttpServerResponse WebServer::handleApiRadio() {
-    QJsonObject json = radioStateToJson(m_radioState);
+    // Pull radio state from RadioController
+    RadioState radioState = m_radioController->getCurrentState();
+    QJsonObject json = radioStateToJson(radioState);
 
     QJsonDocument doc(json);
     return QHttpServerResponse("application/json", doc.toJson());
 }
 
 QHttpServerResponse WebServer::handleApiScore() {
+    // Calculate score from QSO model
+    int qsoCount = m_qsoModel->count();
+    int totalPoints = 0;
+    int totalMults = 0;
+
+    for (int row = 0; row < qsoCount; ++row) {
+        QSO qso = m_qsoModel->getQSO(row);
+        totalPoints += qso.qsoPoints;
+        if (qso.isMultiplier) {
+            totalMults++;
+        }
+    }
+
     QJsonObject json;
-    json["qsos"] = m_qsoCount;
-    json["points"] = m_totalPoints;
-    json["multipliers"] = m_multiplierCount;
-    json["score"] = m_totalPoints * m_multiplierCount;  // Simple calculation
+    json["qsos"] = qsoCount;
+    json["points"] = totalPoints;
+    json["multipliers"] = totalMults;
+    json["score"] = totalPoints * totalMults;
     json["lastUpdate"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
 
     QJsonDocument doc(json);
@@ -700,30 +698,68 @@ QString WebServer::generateDashboardHtml() {
 </html>
 )HTML";
 
-    // Format frequency (Hz to MHz)
-    QString freqStr = m_radioState.frequencyA > 0
-        ? QString::number(m_radioState.frequencyA / 1000000.0, 'f', 3) + " MHz"
+    // Pull fresh data from sources
+    AppSettings& settings = AppSettings::instance();
+    QString myCall = settings.getMyCallsign();
+    QString currentOperator = settings.getCurrentOperator();
+    QString operatorDisplay = (currentOperator != myCall) ? currentOperator : myCall;
+
+    // Pull radio state
+    RadioState radioState = m_radioController->getCurrentState();
+    QString freqStr = radioState.frequencyA > 0
+        ? QString::number(radioState.frequencyA / 1000000.0, 'f', 3) + " MHz"
         : "N/A";
+    QString bandStr = bandToString(radioState.bandA);
+    QString modeStr = modeToString(radioState.modeA);
 
-    // Format band
-    QString bandStr = bandToString(m_radioState.bandA);
+    // Pull QSO count from model (thread-safe)
+    int qsoCount = m_qsoModel->count();
 
-    // Format mode
-    QString modeStr = modeToString(m_radioState.modeA);
+    // Calculate scores and band data from QSOs
+    int totalQSOPoints = 0;
+    int totalMultQSOs = 0;
+    QMap<BandType, int> bandQSOs;
+    QMap<BandType, int> bandMults;
+    QMap<BandType, int> bandZones;
+    QMap<BandType, int> bandPoints;
 
-    // Calculate score
-    int score = m_totalPoints * m_multiplierCount;
+    // Iterate through all QSOs to calculate scores
+    for (int row = 0; row < qsoCount; ++row) {
+        QSO qso = m_qsoModel->getQSO(row);
+        if (qso.band == BandType::None) continue;
+
+        // Count per band
+        bandQSOs[qso.band]++;
+        bandPoints[qso.band] += qso.qsoPoints;
+        totalQSOPoints += qso.qsoPoints;
+
+        // Count mults
+        if (qso.isMultiplier) {
+            bandMults[qso.band]++;
+            totalMultQSOs++;
+        }
+
+        // Count zones
+        if (qso.cqZone > 0) {
+            bandZones[qso.band] = qMax(bandZones.value(qso.band, 0), 1);  // Simplified
+        }
+    }
+
+    // Calculate final score (points × mults)
+    int score = totalQSOPoints * totalMultQSOs;
     QString scoreStr = QString::number(score);
 
-    // Format recent QSOs
+    // Format recent QSOs (last 10)
     QString qsoListHtml;
-    for (const QSO& qso : m_recentQSOs) {
+    int startIdx = qMax(0, qsoCount - MAX_RECENT_QSOS);
+    for (int row = startIdx; row < qsoCount; ++row) {
+        QSO qso = m_qsoModel->getQSO(row);
         QString timeStr = qso.timestamp.toString("HH:mm:ss");
         QString bandQso = bandToString(qso.band);
         QString freqQso = qso.frequency > 0
             ? QString::number(qso.frequency / 1000000.0, 'f', 3)
             : "N/A";
-        QString operatorQso = qso.operatorCall.isEmpty() ? m_myCall : qso.operatorCall;
+        QString operatorQso = qso.operatorCall.isEmpty() ? myCall : qso.operatorCall;
 
         qsoListHtml += QString(R"(<div class="qso-item">
                     <div class="qso-time">%1</div>
@@ -774,58 +810,57 @@ QString WebServer::generateDashboardHtml() {
 
     // QSOs row
     bandTableHtml += "<tr><td class=\"row-label\">QSOs</td>";
-    int totalQSOs = 0;
+    int bandQSOTotal = 0;
     for (BandType band : bands) {
-        int count = m_bandQSOs.value(band, 0);
-        totalQSOs += count;
+        int count = bandQSOs.value(band, 0);
+        bandQSOTotal += count;
         bandTableHtml += QString("<td>%1</td>").arg(count);
     }
-    bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(totalQSOs);
+    bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(bandQSOTotal);
 
     // Mults row
     bandTableHtml += "<tr><td class=\"row-label\">Mults</td>";
-    int totalMults = 0;
+    int bandMultTotal = 0;
     for (BandType band : bands) {
-        int count = m_bandMults.value(band, 0);
-        totalMults += count;
+        int count = bandMults.value(band, 0);
+        bandMultTotal += count;
         bandTableHtml += QString("<td>%1</td>").arg(count);
     }
-    bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(totalMults);
+    bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(bandMultTotal);
 
     // Zones row
     bandTableHtml += "<tr><td class=\"row-label\">Zones</td>";
-    int totalZones = 0;
+    int bandZoneTotal = 0;
     for (BandType band : bands) {
-        int count = m_bandZones.value(band, 0);
-        totalZones += count;
+        int count = bandZones.value(band, 0);
+        bandZoneTotal += count;
         bandTableHtml += QString("<td>%1</td>").arg(count);
     }
-    bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(totalZones);
+    bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(bandZoneTotal);
 
     // Points row
     bandTableHtml += "<tr><td class=\"row-label\">Points</td>";
-    int totalBandPoints = 0;
+    int bandPointTotal = 0;
     for (BandType band : bands) {
-        int points = m_bandPoints.value(band, 0);
-        totalBandPoints += points;
+        int points = bandPoints.value(band, 0);
+        bandPointTotal += points;
         bandTableHtml += QString("<td>%1</td>").arg(points);
     }
-    bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(totalBandPoints);
+    bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(bandPointTotal);
 
     bandTableHtml += "</tbody></table>";
 
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
-    QString operatorDisplay = m_operatorCall.isEmpty() ? m_myCall : m_operatorCall;
 
     return html
         .arg(m_contestName)                          // %1 title
         .arg(m_contestName)                          // %2 contest name header
-        .arg(m_myCall)                               // %3 callsign
+        .arg(myCall)                                 // %3 callsign
         .arg(operatorDisplay)                        // %4 operator
         .arg(scoreStr)                               // %5 score big
-        .arg(m_qsoCount)                             // %6 QSO count
-        .arg(m_totalPoints)                          // %7 points
-        .arg(m_multiplierCount)                      // %8 multipliers
+        .arg(qsoCount)                               // %6 QSO count
+        .arg(totalQSOPoints)                         // %7 points
+        .arg(totalMultQSOs)                          // %8 multipliers
         .arg(freqStr)                                // %9 frequency
         .arg(bandStr)                                // %10 band
         .arg(modeStr)                                // %11 mode

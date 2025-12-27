@@ -76,8 +76,9 @@ MainWindow::MainWindow(QWidget* parent)
     , m_activeContest(nullptr)
     , m_currentContestDbId(-1)
     , m_nextSerialNumber(1)
+    , m_qsoTableModel(new QSOTableModel(this))
     , m_udpBroadcastManager(new UdpBroadcastManager(this))
-    , m_webServer(new WebServer(this))
+    , m_webServer(new WebServer(m_qsoTableModel, m_radio, this))
     , m_inRaiseAllWindows(false)
     , m_initialExchangePopulated(false)
 {
@@ -107,11 +108,7 @@ MainWindow::MainWindow(QWidget* parent)
     QString currentOperator = webSettings.getCurrentOperator();
     QString stationCall = webSettings.getMyCallsign();
 
-    // Only set operator if user has explicitly set it (different from station callsign)
-    // Otherwise leave m_operatorCall empty so dashboard falls back to m_myCall
-    if (currentOperator != stationCall) {
-        m_webServer->setOperator(currentOperator);
-    }
+    // WebServer now pulls operator from AppSettings - no need to push
 
     // Auto-start web server if enabled
     if (webSettings.getWebServerAutoStart()) {
@@ -522,7 +519,7 @@ void MainWindow::createCentralWidget() {
     mainLayout->addLayout(topLayout);
 
     // Middle: QSO table (takes most space)
-    m_qsoTableModel = new QSOTableModel(this);
+    // m_qsoTableModel already initialized in initializer list
     m_qsoTableView = new QTableView(this);
     m_qsoTableView->setModel(m_qsoTableModel);
     m_qsoTableView->setAlternatingRowColors(true);
@@ -1571,8 +1568,7 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
     QString stationCall = AppSettings::instance().getMyCallsign();
     m_udpBroadcastManager->onRadioStateChanged(state, stationCall);
 
-    // Update web server with radio state
-    m_webServer->setRadioState(state);
+    // WebServer now pulls radio state from RadioController - no need to push
 
     // Log radio model if it changed
     static QString lastModel;
@@ -1655,7 +1651,7 @@ void MainWindow::onLogQSO() {
             if (!newOperator.isEmpty()) {
                 settings.setCurrentOperator(newOperator);
                 m_operatorLabel->setText(newOperator);  // Update operator display
-                m_webServer->setOperator(newOperator);  // Update web server
+                // WebServer pulls operator from AppSettings - no need to push
                 m_statusLabel->setText(QString("Operator changed to: %1").arg(newOperator));
                 LOG_INFO("MainWindow", QString("Operator changed to: %1").arg(newOperator));
             } else {
@@ -2002,8 +1998,7 @@ void MainWindow::onLogQSO() {
     QString contestName = m_hasActiveContest ? m_currentContest.contestName : "Unknown";
     m_udpBroadcastManager->onQSOLogged(qso, stationCall, contestName);
 
-    // Update web server with new QSO
-    m_webServer->addRecentQSO(qso);
+    // WebServer pulls QSOs from QSOTableModel - no need to push
 
     // Update last QSO time for time since last QSO calculation
     m_lastQSOTime = qso.timestamp;
@@ -2369,8 +2364,7 @@ void MainWindow::updateScoreDisplay() {
     int totalMults = 0;
     int totalZones = 0;
 
-    // Clear web server band data before updating
-    m_webServer->clearBandData();
+    // WebServer calculates band data from QSOTableModel - no need to push
 
     for (BandType band : bands) {
         int qsos = qsosPerBand.value(band, 0);
@@ -2383,11 +2377,7 @@ void MainWindow::updateScoreDisplay() {
         m_bandSummaryGrid->setMultCount(band, mults);
         m_bandSummaryGrid->setZoneCount(band, zones);
 
-        // Update web server with per-band data for detail view
-        m_webServer->setBandQSOCount(band, qsos);
-        m_webServer->setBandPoints(band, points);
-        m_webServer->setBandMultCount(band, mults);
-        m_webServer->setBandZoneCount(band, zones);
+        // WebServer calculates band data from QSOTableModel - no need to push
 
         totalMults += mults;
         totalZones += zones;
@@ -2409,8 +2399,7 @@ void MainWindow::updateScoreDisplay() {
     // Update status bar
     m_statusLabel->setText(QString("%1 QSOs, %2 Points").arg(totalQSOs).arg(finalScore));
 
-    // Update web server with score
-    m_webServer->setScore(totalQSOs, totalQSOPoints, totalMults);
+    // WebServer calculates score from QSOTableModel - no need to push
 }
 
 void MainWindow::recalculateAllPoints() {
@@ -3308,11 +3297,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         // Update band summary grid with loaded QSOs
         updateScoreDisplay();
 
-        // Populate web server with last 10 QSOs
-        int startIdx = qMax(0, existingQSOs.size() - 10);
-        for (int i = startIdx; i < existingQSOs.size(); ++i) {
-            m_webServer->addRecentQSO(existingQSOs[i]);
-        }
+        // WebServer pulls recent QSOs from QSOTableModel - no need to push
 
         // Scroll to bottom to show latest QSO and ensure scroll bars are visible
         if (!existingQSOs.isEmpty()) {
@@ -3374,9 +3359,8 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     m_currentContest = contestInfo;
     m_hasActiveContest = true;
 
-    // Update web server with contest info
-    QString myCall = AppSettings::instance().getMyCallsign();
-    m_webServer->setContestInfo(contestInfo.contestName, myCall);
+    // Update web server with contest name (myCall is pulled from AppSettings)
+    m_webServer->setContestName(contestInfo.contestName);
 
     // Save as last opened contest for auto-reopen on next startup
     AppSettings::instance().setLastContestPath(contestInfo.databasePath);

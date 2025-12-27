@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.94.0";  // Web dashboard: band detail view, operator fix, layout improvements
+constexpr const char* APP_VERSION = "2.95.0";  // WebServer pull model refactoring, QSOTableModel thread-safe (QRecursiveMutex), fixed startup deadlock
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
