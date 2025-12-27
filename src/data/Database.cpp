@@ -57,6 +57,15 @@ bool Database::open(const QString& dbPath) {
     QSqlQuery query(m_db);
     query.exec("PRAGMA foreign_keys = ON");
 
+    // Enable WAL mode for better concurrency and performance
+    // WAL allows multiple readers while writing, and is faster for most workloads
+    if (!query.exec("PRAGMA journal_mode = WAL")) {
+        LOG_WARN("Database", QString("Failed to enable WAL mode: %1").arg(query.lastError().text()));
+        // Not fatal - continue with default journaling
+    } else {
+        LOG_DEBUG("Database", "WAL mode enabled for improved performance");
+    }
+
     // Initialize schema if new database
     if (isNewDatabase) {
         if (!initSchema()) {
