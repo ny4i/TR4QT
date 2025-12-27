@@ -25,6 +25,13 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         return false;
     }
 
+    // Begin transaction for atomic save
+    if (!db.beginTransaction()) {
+        m_lastError = "Failed to begin transaction: " + db.lastError();
+        LOG_ERROR("QSORepository", QString("Failed to begin transaction for QSO save: %1").arg(db.lastError()));
+        return false;
+    }
+
     // Generate GUID if not already set
     if (qso.guid.isEmpty()) {
         qso.guid = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -91,6 +98,8 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
 
     if (!query.isActive()) {
         m_lastError = db.lastError();
+        db.rollbackTransaction();
+        LOG_ERROR("QSORepository", QString("Failed to insert QSO, rolled back: %1").arg(db.lastError()));
         return false;
     }
 
@@ -103,6 +112,15 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         m_lastError = "Save verification failed - QSO not found in database after insert";
         LOG_ERROR("QSORepository", QString("INTEGRITY ERROR: Failed to verify saved QSO id=%1 callsign=%2")
             .arg(qso.id).arg(qso.callsign));
+        db.rollbackTransaction();
+        return false;
+    }
+
+    // Commit transaction - QSO successfully saved and verified
+    if (!db.commitTransaction()) {
+        m_lastError = "Failed to commit transaction: " + db.lastError();
+        LOG_ERROR("QSORepository", QString("Failed to commit QSO transaction: %1").arg(db.lastError()));
+        db.rollbackTransaction();
         return false;
     }
 
@@ -116,6 +134,13 @@ bool QSORepository::updateQSO(const QSO& qso) {
     }
 
     Database& db = Database::instance();
+
+    // Begin transaction for atomic update
+    if (!db.beginTransaction()) {
+        m_lastError = "Failed to begin transaction: " + db.lastError();
+        LOG_ERROR("QSORepository", QString("Failed to begin transaction for QSO update: %1").arg(db.lastError()));
+        return false;
+    }
 
     QString modeStr = modeToString(qso.mode);
     QString bandStr = bandToString(qso.band);
@@ -169,6 +194,8 @@ bool QSORepository::updateQSO(const QSO& qso) {
 
     if (!query.isActive()) {
         m_lastError = db.lastError();
+        db.rollbackTransaction();
+        LOG_ERROR("QSORepository", QString("Failed to update QSO, rolled back: %1").arg(db.lastError()));
         return false;
     }
 
@@ -178,12 +205,21 @@ bool QSORepository::updateQSO(const QSO& qso) {
         m_lastError = "Update verification failed - QSO not found after update";
         LOG_ERROR("QSORepository", QString("INTEGRITY ERROR: QSO id=%1 disappeared after update")
             .arg(qso.id));
+        db.rollbackTransaction();
         return false;
     }
     // Quick check: verify a key field was updated
     if (verification.callsign != qso.callsign || verification.qsoPoints != qso.qsoPoints) {
         LOG_WARN("QSORepository", QString("Update verification: field mismatch for QSO id=%1")
             .arg(qso.id));
+    }
+
+    // Commit transaction - QSO successfully updated and verified
+    if (!db.commitTransaction()) {
+        m_lastError = "Failed to commit transaction: " + db.lastError();
+        LOG_ERROR("QSORepository", QString("Failed to commit QSO update transaction: %1").arg(db.lastError()));
+        db.rollbackTransaction();
+        return false;
     }
 
     return true;
