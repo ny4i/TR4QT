@@ -26,6 +26,9 @@
 #include "../data/BackupManager.h"
 #include "../data/ExchangeMemoryRepository.h"
 #include <QFile>
+#include <QFileInfo>
+#include <QDir>
+#include <QTextStream>
 #include <QFileDialog>
 #include <QProgressDialog>
 #include <QMenuBar>
@@ -1819,11 +1822,110 @@ void MainWindow::onLogQSO() {
     // Save to database if contest is active
     if (m_hasActiveContest) {
         QSORepository repo;
-        if (!repo.saveQSO(qso, m_currentContestDbId)) {
-            LOG_WARN("MainWindow", QString("Failed to save QSO to database: %1").arg(repo.lastError()));
-            m_statusLabel->setText("Warning: QSO logged but not saved to database");
-            // Continue anyway - QSO is in table model
-        } else {
+        bool saved = false;
+        bool savedToDatabase = false;
+        int retryCount = 0;
+
+        while (!saved && retryCount < 3) {
+            if (repo.saveQSO(qso, m_currentContestDbId)) {
+                saved = true;
+                savedToDatabase = true;
+                break;
+            }
+
+            // Database save failed
+            QString errorMsg = repo.lastError();
+            LOG_ERROR("MainWindow", QString("DATABASE SAVE FAILED (attempt %1): %2").arg(retryCount + 1).arg(errorMsg));
+            QApplication::beep();
+
+            // CRITICAL: Data reliability is paramount - QSO must be persisted to disk
+            // Show modal dialog with options to ensure QSO is saved
+            QMessageBox msgBox(this);
+            msgBox.setIcon(QMessageBox::Critical);
+            msgBox.setWindowTitle("Database Save Failed");
+            msgBox.setText(QString("Failed to save QSO to database:\n\n%1: %2\n\nThe QSO is currently only in memory and will be LOST if TR4QT crashes.")
+                          .arg(qso.callsign)
+                          .arg(errorMsg));
+            msgBox.setInformativeText("Choose how to proceed:");
+
+            QPushButton* retryBtn = msgBox.addButton("Retry Database", QMessageBox::ActionRole);
+            QPushButton* emergencyBtn = msgBox.addButton("Save to Emergency File", QMessageBox::ActionRole);
+            QPushButton* stopBtn = msgBox.addButton("Stop Contesting", QMessageBox::DestructiveRole);
+            msgBox.setDefaultButton(retryBtn);
+
+            msgBox.exec();
+            QAbstractButton* clicked = msgBox.clickedButton();
+
+            if (clicked == retryBtn) {
+                LOG_INFO("MainWindow", "User chose to retry database save");
+                retryCount++;
+                continue;  // Retry the database save
+            }
+            else if (clicked == emergencyBtn) {
+                // Write QSO to emergency ADIF file immediately
+                QString emergencyPath = QDir(QDir::homePath()).filePath(QString("%1/emergency_log.adi").arg(CONFIG_DIR));
+                QDir().mkpath(QFileInfo(emergencyPath).dir().path());
+
+                QFile emergencyFile(emergencyPath);
+                bool fileExists = emergencyFile.exists();
+
+                if (emergencyFile.open(QIODevice::Append | QIODevice::Text)) {
+                    QTextStream out(&emergencyFile);
+
+                    // Write ADIF header if new file
+                    if (!fileExists) {
+                        out << "TR4QT Emergency Log - QSOs that could not be saved to database\n";
+                        out << "<ADIF_VER:5>3.1.4\n";
+                        out << "<PROGRAMID:5>TR4QT\n";
+                        out << "<PROGRAMVERSION:" << QString::number(QString(APP_VERSION).length()) << ">" << APP_VERSION << "\n";
+                        out << "<EOH>\n\n";
+                    }
+
+                    // Write QSO record
+                    out << "<CALL:" << qso.callsign.length() << ">" << qso.callsign << " ";
+                    out << "<QSO_DATE:8>" << qso.timestamp.toString("yyyyMMdd") << " ";
+                    out << "<TIME_ON:6>" << qso.timestamp.toString("HHmmss") << " ";
+                    out << "<BAND:" << bandToString(qso.band).length() << ">" << bandToString(qso.band) << " ";
+                    out << "<MODE:" << modeToString(qso.mode).length() << ">" << modeToString(qso.mode) << " ";
+                    out << "<RST_SENT:" << qso.rstSent.length() << ">" << qso.rstSent << " ";
+                    out << "<RST_RCVD:" << qso.rstReceived.length() << ">" << qso.rstReceived << " ";
+                    if (!qso.exchangeSent.isEmpty()) {
+                        out << "<STX_STRING:" << qso.exchangeSent.length() << ">" << qso.exchangeSent << " ";
+                    }
+                    if (!qso.exchangeReceived.isEmpty()) {
+                        out << "<SRX_STRING:" << qso.exchangeReceived.length() << ">" << qso.exchangeReceived << " ";
+                    }
+                    out << "<EOR>\n";
+
+                    emergencyFile.close();
+
+                    LOG_INFO("MainWindow", QString("QSO saved to emergency file: %1").arg(emergencyPath));
+
+                    DialogHelper::information(this, "QSO Saved to Emergency File",
+                                            QString("QSO saved to emergency file:\n%1\n\nYou can import this file later using File → Import ADIF")
+                                            .arg(emergencyPath));
+
+                    saved = true;  // Consider it saved (to disk, not database)
+                    break;
+                } else {
+                    LOG_ERROR("MainWindow", QString("Failed to open emergency file: %1").arg(emergencyPath));
+                    DialogHelper::critical(this, "Emergency Save Failed",
+                                          "Could not save QSO to emergency file either!\n\nThe QSO is only in memory and will be lost if TR4QT crashes.");
+                    // Fall through to stop contesting
+                    saved = true;  // Exit loop
+                    break;
+                }
+            }
+            else if (clicked == stopBtn) {
+                LOG_WARN("MainWindow", "User chose to stop contesting due to database error");
+                DialogHelper::critical(this, "Contesting Stopped",
+                                      "Database is not working. Please fix the issue before continuing.\n\nThe QSO is in memory only - it will be lost if TR4QT crashes.");
+                saved = true;  // Exit loop
+                break;
+            }
+        }
+
+        if (savedToDatabase) {  // Successfully saved to database
             LOG_DEBUG("MainWindow", QString("QSO saved to database with ID: %1").arg(qso.id));
 
             // Update the table model with the QSO now that it has a database ID
