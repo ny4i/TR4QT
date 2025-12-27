@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.91.1";  // Fix duplicate QSO handling - set isDupe, 0 points, show "D"
+constexpr const char* APP_VERSION = "2.91.2";  // Fix contest reopening and window title display
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
