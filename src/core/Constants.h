@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.91.0";  // Add band needs display widget (TR4W-style)
+constexpr const char* APP_VERSION = "2.91.1";  // Fix duplicate QSO handling - set isDupe, 0 points, show "D"
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

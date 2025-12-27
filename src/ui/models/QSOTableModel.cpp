@@ -86,6 +86,7 @@ QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
             return qso.qsoPoints > 0 ? QString::number(qso.qsoPoints) : QString();
         case ColM:
             // Multiplier type indicators (TR4W style)
+            // D = Duplicate QSO
             // x = DXCC country, d = section/state, z = zone, p = prefix
             // Combined in order: x, d, z, p (e.g., "xz" for CQ WW)
             return getMultiplierIndicators(qso);
@@ -314,6 +315,11 @@ void QSOTableModel::onThemeChanged() {
 }
 
 QString QSOTableModel::getMultiplierIndicators(const QSO& qso) const {
+    // Show "D" for duplicate QSOs
+    if (qso.isDupe) {
+        return "D";
+    }
+
     if (!qso.isMultiplier || qso.multipliers.isEmpty()) {
         return QString();
     }
