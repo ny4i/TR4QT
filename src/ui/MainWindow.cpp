@@ -465,12 +465,23 @@ void MainWindow::createCentralWidget() {
     mainLayout->setSpacing(4);
     mainLayout->setContentsMargins(4, 4, 4, 4);
 
-    // Top: Band summary grid
+    // Top: Band summary grid and needs display (horizontal layout)
+    QHBoxLayout* topLayout = new QHBoxLayout();
+    topLayout->setSpacing(4);
+
+    // Left: Band summary grid (takes 75% of width)
     m_bandSummaryGrid = new BandSummaryGrid(this);
     m_bandSummaryGrid->setEnabled(true);  // Always enabled for manual band selection
     connect(m_bandSummaryGrid, &BandSummaryGrid::bandClicked,
             this, &MainWindow::onBandClicked);
-    mainLayout->addWidget(m_bandSummaryGrid);
+    topLayout->addWidget(m_bandSummaryGrid, 3);  // Stretch factor 3
+
+    // Right: Needs display widget (takes 25% of width)
+    m_needsDisplayWidget = new NeedsDisplayWidget(this);
+    m_needsDisplayWidget->setMinimumWidth(200);
+    topLayout->addWidget(m_needsDisplayWidget, 1);  // Stretch factor 1
+
+    mainLayout->addLayout(topLayout);
 
     // Middle: QSO table (takes most space)
     m_qsoTableModel = new QSOTableModel(this);
@@ -1857,7 +1868,32 @@ void MainWindow::onLogQSO() {
 }
 
 void MainWindow::onCallsignChanged(const QString& callsign) {
-    Q_UNUSED(callsign);
+    // Update needs display as user types
+    if (callsign.length() < 2 || !m_activeContest) {
+        m_needsDisplayWidget->clear();
+        return;
+    }
+
+    // Get worked bands for this callsign
+    QList<BandType> workedBands = getWorkedBandsForCallsign(callsign);
+
+    // Get multiplier value and worked mult bands
+    QString multValue = getMultiplierValueForCallsign(callsign);
+    QList<BandType> workedMultBands;
+
+    if (!multValue.isEmpty()) {
+        // Get the primary multiplier type
+        QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
+        if (!multDefs.isEmpty()) {
+            MultiplierType primaryMultType = multDefs.first().type;
+            workedMultBands = getWorkedBandsForMultiplier(multValue, primaryMultType);
+        }
+    }
+
+    // Update the needs display widget
+    m_needsDisplayWidget->updateForCallsign(
+        callsign, m_activeContest, workedBands, workedMultBands);
+
     // Exchange auto-population now happens on Enter key press, not while typing
     // Duplicate checking happens on Enter key press
 }
@@ -3225,6 +3261,90 @@ bool MainWindow::checkForDuplicate(const QString& callsign, BandType band, ModeT
     }
 
     return false;
+}
+
+// Band needs tracking methods
+
+QList<BandType> MainWindow::getWorkedBandsForCallsign(const QString& callsign) const {
+    QList<BandType> workedBands;
+
+    if (callsign.isEmpty()) {
+        return workedBands;
+    }
+
+    // Search through all QSOs in the table model for this callsign
+    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
+        QSO qso = m_qsoTableModel->getQSO(row);
+        if (qso.callsign.compare(callsign, Qt::CaseInsensitive) == 0) {
+            if (!workedBands.contains(qso.band)) {
+                workedBands.append(qso.band);
+            }
+        }
+    }
+
+    return workedBands;
+}
+
+QList<BandType> MainWindow::getWorkedBandsForMultiplier(const QString& multValue,
+                                                        MultiplierType type) const {
+    QList<BandType> workedBands;
+
+    if (!m_activeContest || multValue.isEmpty()) {
+        return workedBands;
+    }
+
+    // Search through all QSOs and find which bands have this multiplier
+    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
+        QSO qso = m_qsoTableModel->getQSO(row);
+
+        // Get the multiplier value for this QSO
+        QString qsoMultValue = m_activeContest->getMultiplierValue(
+            qso, type, QStringList());
+
+        if (qsoMultValue.compare(multValue, Qt::CaseInsensitive) == 0) {
+            if (!workedBands.contains(qso.band)) {
+                workedBands.append(qso.band);
+            }
+        }
+    }
+
+    return workedBands;
+}
+
+QString MainWindow::getMultiplierValueForCallsign(const QString& callsign) const {
+    if (!m_activeContest || callsign.isEmpty()) {
+        return QString();
+    }
+
+    // Use country file to lookup the callsign
+    CountryData countryData = m_countryFile.lookup(callsign);
+    if (!countryData.isValid()) {
+        return QString();
+    }
+
+    // Get the contest's primary multiplier type
+    QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
+    if (multDefs.isEmpty()) {
+        return QString();
+    }
+
+    // For now, use the first multiplier type
+    // Most contests have Country or Zone as primary multiplier
+    MultiplierType primaryMultType = multDefs.first().type;
+
+    // Build a temporary QSO just to get the multiplier value
+    QSO tempQso;
+    tempQso.callsign = callsign;
+    tempQso.dxccEntity = countryData.name;
+    tempQso.cqZone = countryData.cqZone;
+    tempQso.ituZone = countryData.ituZone;
+    tempQso.continent = continentToString(countryData.continent);
+
+    // Get the multiplier value
+    QString multValue = m_activeContest->getMultiplierValue(
+        tempQso, primaryMultType, QStringList());
+
+    return multValue;
 }
 
 // Window menu slot implementations
