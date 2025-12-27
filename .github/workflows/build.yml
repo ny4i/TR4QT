@@ -36,7 +36,7 @@ jobs:
         target: desktop
         arch: win64_mingw
         tools: 'tools_mingw1310'
-        modules: 'qthttpserver'
+        modules: 'qthttpserver'  # Additional modules beyond base Qt (sync with CMakeLists.txt COMPONENTS)
         cache: true
 
     - name: Download Hamlib
