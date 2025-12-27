@@ -2389,8 +2389,9 @@ void MainWindow::onRescoreContest() {
     // Confirm with user
     QMessageBox::StandardButton reply = QMessageBox::question(this,
         "Rescore Contest",
-        QString("This will recalculate QSO points and multiplier flags for all %1 QSOs in the contest log.\n\n"
+        QString("This will recalculate QSO points, multiplier flags, and duplicate status for all %1 QSOs in the contest log.\n\n"
                 "This is useful for:\n"
+                "- Detecting and marking duplicates (set to 0 points)\n"
                 "- Updating old logs to new scoring rules\n"
                 "- Fixing multiplier flags on pre-v2.85.0 QSOs\n"
                 "- Validating scoring calculations\n\n"
@@ -2418,17 +2419,63 @@ void MainWindow::onRescoreContest() {
     QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
     int qsosUpdated = 0;
     int multsMarked = 0;
+    int dupesFound = 0;
 
     // Track worked multipliers as we go through QSOs in chronological order
     QMap<MultiplierType, QStringList> workedMults;
+
+    // Track worked QSOs for duplicate detection
+    // Key format depends on DuplicateCheckingRule:
+    // - PerBandMode: "CALL_BAND_MODE"
+    // - AllBandMode: "CALL_MODE"
+    // - PerBand: "CALL_BAND"
+    // - AllBand: "CALL"
+    QSet<QString> workedQSOs;
+    DuplicateCheckingRule dupeRule = m_activeContest->getDuplicateCheckingRule();
 
     // Iterate through all QSOs in chronological order
     for (int row = 0; row < m_qsoTableModel->count(); ++row) {
         QSO qso = m_qsoTableModel->getQSO(row);
 
+        // Check for duplicate based on contest rules
+        QString dupeKey;
+        switch (dupeRule) {
+            case DuplicateCheckingRule::PerBandMode:
+                dupeKey = QString("%1_%2_%3")
+                    .arg(qso.callsign)
+                    .arg(bandToString(qso.band))
+                    .arg(modeToString(qso.mode));
+                break;
+            case DuplicateCheckingRule::AllBandMode:
+                dupeKey = QString("%1_%2")
+                    .arg(qso.callsign)
+                    .arg(modeToString(qso.mode));
+                break;
+            case DuplicateCheckingRule::PerBand:
+                dupeKey = QString("%1_%2")
+                    .arg(qso.callsign)
+                    .arg(bandToString(qso.band));
+                break;
+            case DuplicateCheckingRule::AllBand:
+                dupeKey = qso.callsign;
+                break;
+        }
+
+        // Check if this is a duplicate
+        bool isDupe = workedQSOs.contains(dupeKey);
+        qso.isDupe = isDupe;
+
         // Recalculate QSO points
         int oldPoints = qso.qsoPoints;
-        qso.qsoPoints = m_activeContest->calculateQSOPoints(qso, myStation);
+        if (isDupe) {
+            // Duplicates always get 0 points
+            qso.qsoPoints = 0;
+            dupesFound++;
+        } else {
+            qso.qsoPoints = m_activeContest->calculateQSOPoints(qso, myStation);
+            // Add to worked set (only if not a dupe)
+            workedQSOs.insert(dupeKey);
+        }
 
         // Check for multipliers
         qso.isMultiplier = false;
@@ -2518,12 +2565,13 @@ void MainWindow::onRescoreContest() {
     QMessageBox::information(this, "Rescore Complete",
         QString("Contest rescored successfully!\n\n"
                 "QSOs updated: %1\n"
-                "Multipliers marked: %2\n\n"
+                "Multipliers marked: %2\n"
+                "Duplicates found: %3\n\n"
                 "Score display has been refreshed.")
-            .arg(qsosUpdated).arg(multsMarked));
+            .arg(qsosUpdated).arg(multsMarked).arg(dupesFound));
 
-    m_statusLabel->setText(QString("Rescore complete: %1 QSOs updated, %2 mults marked")
-        .arg(qsosUpdated).arg(multsMarked));
+    m_statusLabel->setText(QString("Rescore complete: %1 QSOs updated, %2 mults marked, %3 dupes found")
+        .arg(qsosUpdated).arg(multsMarked).arg(dupesFound));
 }
 
 // Tier 3: Full detailed integrity check
