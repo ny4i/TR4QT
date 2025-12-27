@@ -1753,15 +1753,23 @@ void MainWindow::onLogQSO() {
         QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
 
         // Get list of already worked multipliers from all existing QSOs
+        // IMPORTANT: Respect MultiplierScope when building this list
         QMap<MultiplierType, QStringList> workedMults;
         for (int row = 0; row < m_qsoTableModel->count(); ++row) {
             QSO existingQSO = m_qsoTableModel->getQSO(row);
 
             for (const MultiplierDefinition& multDef : multDefs) {
-                QString multValue = m_activeContest->getMultiplierValue(
-                    existingQSO, multDef.type, QStringList());
-                if (!multValue.isEmpty()) {
-                    workedMults[multDef.type].append(multValue);
+                // For PerBand multipliers, only include mults from the SAME band
+                // For AllBands multipliers, include all mults regardless of band
+                bool includeMult = (multDef.scope == MultiplierScope::AllBands) ||
+                                   (multDef.scope == MultiplierScope::PerBand && existingQSO.band == qso.band);
+
+                if (includeMult) {
+                    QString multValue = m_activeContest->getMultiplierValue(
+                        existingQSO, multDef.type, QStringList());
+                    if (!multValue.isEmpty()) {
+                        workedMults[multDef.type].append(multValue);
+                    }
                 }
             }
         }
@@ -2418,8 +2426,25 @@ void MainWindow::onRescoreContest() {
         QStringList multiplierValues;
 
         for (const MultiplierDefinition& multDef : multDefs) {
+            // For PerBand multipliers, build a band-specific list of worked mults
+            // For AllBands multipliers, use the global list
+            QStringList relevantWorked;
+            if (multDef.scope == MultiplierScope::PerBand) {
+                // Only include mults from this specific band
+                QString bandPrefix = bandToString(qso.band) + ":";
+                for (const QString& worked : workedMults[multDef.type]) {
+                    if (worked.startsWith(bandPrefix)) {
+                        // Extract the value part after "BAND:"
+                        relevantWorked.append(worked.mid(bandPrefix.length()));
+                    }
+                }
+            } else {
+                // AllBands: use all worked mults
+                relevantWorked = workedMults[multDef.type];
+            }
+
             QString multValue = m_activeContest->getMultiplierValue(
-                qso, multDef.type, workedMults[multDef.type]);
+                qso, multDef.type, relevantWorked);
 
             if (!multValue.isEmpty()) {
                 // This is a new multiplier!
@@ -2432,14 +2457,26 @@ void MainWindow::onRescoreContest() {
                                  multDef.type == MultiplierType::Section ? "Section" :
                                  multDef.type == MultiplierType::Prefix ? "Prefix" : "Custom";
                 multiplierValues.append(QString("%1:%2").arg(typeStr, multValue));
-                workedMults[multDef.type].append(multValue);
+
+                // Add to worked list (with band prefix for PerBand mults)
+                if (multDef.scope == MultiplierScope::PerBand) {
+                    workedMults[multDef.type].append(bandToString(qso.band) + ":" + multValue);
+                } else {
+                    workedMults[multDef.type].append(multValue);
+                }
                 multsMarked++;
             } else {
                 // Not a new mult, but still track it as worked
                 QString existingValue = m_activeContest->getMultiplierValue(
                     qso, multDef.type, QStringList());
-                if (!existingValue.isEmpty() && !workedMults[multDef.type].contains(existingValue)) {
-                    workedMults[multDef.type].append(existingValue);
+                if (!existingValue.isEmpty()) {
+                    // Add to worked list if not already there (with band prefix for PerBand)
+                    QString trackValue = (multDef.scope == MultiplierScope::PerBand) ?
+                                        bandToString(qso.band) + ":" + existingValue :
+                                        existingValue;
+                    if (!workedMults[multDef.type].contains(trackValue)) {
+                        workedMults[multDef.type].append(trackValue);
+                    }
                 }
             }
         }
