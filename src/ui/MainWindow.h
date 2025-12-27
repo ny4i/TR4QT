@@ -19,7 +19,9 @@
 #include "../contests/CQWWContest.h"
 #include "../contests/CQWPXContest.h"
 #include "../contests/WinterFieldDayContest.h"
+#include "../contests/ARRLFieldDayContest.h"
 #include "../contests/ARRLSweepstakesContest.h"
+#include "../contests/IARUHFContest.h"
 #include "../exchanges/InitialExchangeManager.h"
 
 class QMenuBar;
