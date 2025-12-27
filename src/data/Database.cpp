@@ -10,6 +10,63 @@
 
 namespace TR4QT {
 
+// TODO: THREADING ISSUE - Fix before implementing networked TR4QT (TCP-based multi-operator)
+//
+// ISSUE DISCOVERED: 2025-12-27 via test_qso_load_performance (concurrent access tests)
+//
+// PROBLEM:
+//   The current Database singleton pattern is NOT thread-safe for concurrent writes.
+//   Multiple threads calling saveQSO() simultaneously will:
+//   1. Call beginTransaction() on the same QSqlDatabase instance
+//   2. Cause "cannot start a transaction within a transaction" errors
+//   3. Result in memory corruption in SQLite (SIGBUS crash at sqlite3DbMallocRawNNTyped)
+//   4. Crash address 0x0000004e49474542 ("BEGIN" string corruption)
+//
+// CURRENT BEHAVIOR:
+//   - Single-threaded performance: EXCELLENT (6,800+ QSOs/second, <1ms avg transaction time)
+//   - Multi-threaded access: CRASHES (see tests/test_qso_load_performance.cpp concurrent tests)
+//   - Single-operator use: SAFE (99% of users, no threading)
+//   - Networked/multi-op: UNSAFE (will crash on concurrent QSO logging)
+//
+// SOLUTIONS (choose one when implementing TCP networking):
+//
+//   Option 1: CONNECTION POOL (Recommended for networked TR4QT)
+//     - Create QSqlDatabase connection per thread
+//     - Use thread_local or QThreadStorage<QSqlDatabase>
+//     - Each thread gets its own connection to same database file
+//     - WAL mode allows concurrent writes from multiple connections
+//     - Example: thread_local QSqlDatabase getThreadConnection() { ... }
+//
+//   Option 2: SERIALIZED ACCESS (Simpler, lower performance)
+//     - Add QMutex to Database class
+//     - Lock mutex before all database operations
+//     - Serialize all access (single writer at a time)
+//     - Easier to implement but limits concurrency
+//
+//   Option 3: MESSAGE QUEUE (Best for networked architecture)
+//     - Create dedicated database writer thread
+//     - Other threads queue QSO save requests
+//     - Writer thread processes queue sequentially
+//     - Clean separation, no lock contention
+//     - Best for TCP server receiving QSOs from network
+//
+// RECOMMENDATION:
+//   For TCP-based networked TR4QT, use Option 3 (message queue):
+//   - TCP server thread receives QSOs from remote stations
+//   - Queues them to database writer thread
+//   - Writer thread batches writes for efficiency
+//   - UI thread reads via separate connection
+//   - Clean, scalable architecture
+//
+// TEST COVERAGE:
+//   tests/test_qso_load_performance.cpp has concurrent access tests
+//   Currently disabled due to crash, re-enable after fix to verify
+//
+// REFERENCES:
+//   - SQLite threading: https://www.sqlite.org/threadsafe.html
+//   - Qt SQL threading: https://doc.qt.io/qt-6/threads-modules.html#threads-and-the-sql-module
+//   - Load test crash report: Incident 1B246FB5-29BB-4A8E-A6B1-34A0DACDB488 (2025-12-27)
+
 Database& Database::instance() {
     static Database instance;
     return instance;
