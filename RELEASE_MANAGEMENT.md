@@ -371,6 +371,44 @@ git push origin v2.91.0
 - Not a problem: App will run on macOS 11.0+ (Big Sur through Sequoia)
 - Ensures backward compatibility with older macOS versions
 
+### macOS says DMG is "damaged" or "can't be opened"
+
+**Why this happens:**
+- TR4QT isn't code-signed (requires $99/year Apple Developer account)
+- macOS Gatekeeper blocks unsigned apps as a security measure
+- The DMG is **not actually damaged** - it's safe to use
+
+**Solution 1: Remove quarantine flag (Recommended)**
+```bash
+# After downloading the DMG
+xattr -cr ~/Downloads/TR4QT-v2.91.0-macOS.dmg
+
+# Then open normally
+open ~/Downloads/TR4QT-v2.91.0-macOS.dmg
+```
+
+**Solution 2: Right-click override**
+1. Right-click (or Control+click) on the DMG file
+2. Select "Open" from the menu
+3. Click "Open" in the security dialog
+4. macOS will allow it (first time only)
+
+**Solution 3: System Settings**
+1. Try to open the DMG (will fail with "damaged" message)
+2. Go to **System Settings** → **Privacy & Security**
+3. Find message: "tr4qt.dmg was blocked from use"
+4. Click **"Open Anyway"**
+
+**If already copied to Applications:**
+```bash
+# Remove quarantine from the app itself
+xattr -cr /Applications/tr4qt.app
+```
+
+**For release notes:** Include these instructions when publishing releases so users know what to do.
+
+**Long-term solution:** Code signing requires Apple Developer membership ($99/year) but eliminates this issue entirely.
+
 ---
 
 ## Quick Reference
