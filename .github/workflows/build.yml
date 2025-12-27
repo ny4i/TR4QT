@@ -3,7 +3,11 @@ name: Build TR4QT
 on:
   push:
     branches: [ master, main, develop ]
-    tags: [ 'v*' ]
+    tags:
+      - 'v*'       # Release tags: v2.90.1
+      - 'v*-beta*' # Beta releases: v2.91.0-beta1
+      - 'v*-rc*'   # Release candidates: v2.91.0-rc1
+      - 'test-*'   # Test builds: test-needs-widget
   pull_request:
     branches: [ master, main ]
   workflow_dispatch:
@@ -164,7 +168,42 @@ jobs:
         files: |
           artifacts/TR4QT-${{ github.ref_name }}-Windows.zip
           artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
-        draft: true
+        draft: ${{ !contains(github.ref_name, '-rc') }}
+        prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Upload test artifacts for test-* tags (no release created)
+  test-artifacts:
+    name: Upload Test Artifacts
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/test-')
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Display structure
+      run: ls -R artifacts
+
+    - name: Create Windows ZIP
+      run: |
+        cd artifacts/TR4QT-Windows
+        zip -r ../TR4QT-${{ github.ref_name }}-Windows.zip .
+
+    - name: Rename macOS DMG
+      run: |
+        mv artifacts/TR4QT-macOS/tr4qt.dmg artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
+
+    - name: Upload combined test artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-build-${{ github.ref_name }}
+        path: |
+          artifacts/TR4QT-${{ github.ref_name }}-Windows.zip
+          artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
+        retention-days: 30
