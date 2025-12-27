@@ -1723,6 +1723,11 @@ void MainWindow::onLogQSO() {
         LOG_WARN("MainWindow", QString("Country lookup failed for callsign: %1").arg(callsign));
     }
 
+    // Check for duplicate QSO (BEFORE calculating points)
+    QString dupeInfo;
+    bool isDuplicate = checkForDuplicate(callsign, qso.band, qso.mode, dupeInfo);
+    qso.isDupe = isDuplicate;
+
     // Calculate QSO points via contest scoring
     if (m_activeContest) {
         StationInfo myStation;
@@ -1743,7 +1748,11 @@ void MainWindow::onLogQSO() {
         qso.qsoPoints = 1;  // Default 1 point if no contest
     }
 
-    // TODO: Check for dupe
+    // Duplicates get 0 points
+    if (qso.isDupe) {
+        qso.qsoPoints = 0;
+        LOG_INFO("MainWindow", QString("Duplicate QSO detected: %1 - %2").arg(callsign, dupeInfo));
+    }
 
     // Check for new multipliers
     qso.isMultiplier = false;
