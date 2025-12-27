@@ -3136,6 +3136,11 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     // Save as last opened contest for auto-reopen on next startup
     AppSettings::instance().setLastContestPath(contestInfo.databasePath);
 
+    // Update UI based on contest capabilities
+    if (m_bandSummaryGrid) {
+        m_bandSummaryGrid->setMultipliersEnabled(m_activeContest->usesMultipliers());
+    }
+
     // Update window title to include contest name
     setWindowTitle(QString("%1 v%2 - %3")
                       .arg(APP_NAME)

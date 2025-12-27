@@ -86,14 +86,23 @@ void NeedsDisplayWidget::updateForCallsign(const QString& callsign,
 
     // Update headers
     m_qsoNeedsHeaderLabel->setText(QString("QSO needs for %1:").arg(callsign));
-    m_multNeedsHeaderLabel->setText(QString("Mult needs for %1:").arg(callsign));
 
-    // Generate colored band lists
+    // Generate colored band list for QSOs
     QString qsoBandsHtml = generateBandListHtml(allBands, workedBands);
-    QString multBandsHtml = generateBandListHtml(allBands, workedMultBands);
-
     m_qsoNeedsBandsLabel->setText(qsoBandsHtml);
-    m_multNeedsBandsLabel->setText(multBandsHtml);
+
+    // Only show multiplier needs if contest uses multipliers
+    if (contest->usesMultipliers()) {
+        m_multNeedsHeaderLabel->setText(QString("Mult needs for %1:").arg(callsign));
+        QString multBandsHtml = generateBandListHtml(allBands, workedMultBands);
+        m_multNeedsBandsLabel->setText(multBandsHtml);
+        m_multNeedsHeaderLabel->show();
+        m_multNeedsBandsLabel->show();
+    } else {
+        // Hide multiplier row for contests that don't use multipliers
+        m_multNeedsHeaderLabel->hide();
+        m_multNeedsBandsLabel->hide();
+    }
 
     // Show the widget
     show();
@@ -105,6 +114,10 @@ void NeedsDisplayWidget::clear()
     m_qsoNeedsBandsLabel->setText("");
     m_multNeedsHeaderLabel->setText("Mult needs:");
     m_multNeedsBandsLabel->setText("");
+
+    // Make sure mult labels are visible (may have been hidden for non-mult contests)
+    m_multNeedsHeaderLabel->show();
+    m_multNeedsBandsLabel->show();
 }
 
 void NeedsDisplayWidget::setFontSize(int pointSize)
