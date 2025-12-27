@@ -48,6 +48,9 @@ public:
     // Font size
     void setFontSize(int pointSize);
 
+    // Enable/disable multiplier row (gray out for contests that don't use mults)
+    void setMultipliersEnabled(bool enabled);
+
 signals:
     /**
      * Emitted when user clicks on a band header to change bands

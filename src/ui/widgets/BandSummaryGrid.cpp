@@ -305,4 +305,25 @@ void BandSummaryGrid::applyTheme() {
     }
 }
 
+void BandSummaryGrid::setMultipliersEnabled(bool enabled) {
+    // Gray out multiplier row for contests that don't use multipliers
+    QString style = enabled ? "" : "color: #808080;";  // Gray text when disabled
+
+    // Update all mult labels with gray style
+    for (auto it = m_multLabels.begin(); it != m_multLabels.end(); ++it) {
+        it.value()->setStyleSheet(style);
+        if (!enabled) {
+            it.value()->setText("-");  // Show dash instead of 0
+        }
+    }
+
+    // Update "All" mult label
+    if (m_multAllLabel) {
+        m_multAllLabel->setStyleSheet(style);
+        if (!enabled) {
+            m_multAllLabel->setText("-");
+        }
+    }
+}
+
 } // namespace TR4QT

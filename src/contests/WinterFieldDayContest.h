@@ -80,6 +80,9 @@ public:
         MultiplierType multType,
         const QStringList& alreadyWorkedValues) const override;
 
+    // Winter Field Day tracks multipliers but doesn't use them in scoring
+    bool usesMultipliers() const override { return false; }
+
     // ===== Special Rules =====
     bool usesSerialNumbers() const override { return false; }
 

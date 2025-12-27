@@ -184,6 +184,18 @@ public:
     virtual QList<MultiplierDefinition> getMultiplierTypes() const = 0;
 
     /**
+     * Check if this contest uses multipliers in scoring calculation
+     * Most contests multiply QSO points by multiplier count.
+     * Some contests (like Winter Field Day) only track multipliers but don't
+     * use them in score calculation.
+     *
+     * @return true if multipliers affect scoring (default), false if only tracked
+     */
+    virtual bool usesMultipliers() const {
+        return true;  // Default: most contests use multipliers
+    }
+
+    /**
      * Determine if this QSO provides a new multiplier
      *
      * @param qso The QSO to check
