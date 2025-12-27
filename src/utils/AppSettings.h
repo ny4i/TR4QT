@@ -190,6 +190,16 @@ public:
     void setMiscDisplayFontSize(int size);
     int getMiscDisplayFontSize() const;
 
+    // Band Needs Display settings
+    void setNeedsDisplayWorkedColor(const QString& color);
+    QString getNeedsDisplayWorkedColor() const;  // Default: #808080 (gray)
+
+    void setNeedsDisplayNeededColor(const QString& color);
+    QString getNeedsDisplayNeededColor() const;  // Default: #ffaa00 (orange)
+
+    void setVHFBandsEnabled(bool enabled);
+    bool getVHFBandsEnabled() const;  // Default: false (HF only)
+
     // UDP Broadcast settings
     void setUDPBroadcastEnabled(bool enabled);
     bool getUDPBroadcastEnabled() const;

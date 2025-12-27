@@ -6,7 +6,7 @@ namespace TR4QT {
 
 NeedsDisplayWidget::NeedsDisplayWidget(QWidget* parent)
     : QWidget(parent)
-    , m_fontSize(10)
+    , m_fontSize(14)  // Larger font for better visibility
 {
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setSpacing(2);
@@ -45,11 +45,14 @@ NeedsDisplayWidget::NeedsDisplayWidget(QWidget* parent)
     // Initially clear
     clear();
 
-    // Border styling (like TR4W's grouped display)
+    // Box-style border (left and bottom lines for emphasis)
     setStyleSheet("NeedsDisplayWidget { "
-                  "border: 1px solid #808080; "
-                  "background-color: #f0f0f0; "
-                  "border-radius: 3px; "
+                  "border-left: 2px solid #404040; "
+                  "border-bottom: 2px solid #404040; "
+                  "border-top: 1px solid #808080; "
+                  "border-right: 1px solid #808080; "
+                  "background-color: #f5f5f5; "
+                  "padding: 5px; "
                   "}");
 }
 
@@ -64,8 +67,7 @@ void NeedsDisplayWidget::updateForCallsign(const QString& callsign,
     }
 
     // Get valid bands for this contest
-    // TODO: Add getValidBands() to ContestBase interface
-    // For now, use standard HF bands (160m through 10m)
+    // Standard HF bands (160m through 10m)
     QList<BandType> allBands = {
         BandType::Band160M,
         BandType::Band80M,
@@ -74,6 +76,13 @@ void NeedsDisplayWidget::updateForCallsign(const QString& callsign,
         BandType::Band15M,
         BandType::Band10M
     };
+
+    // Add VHF bands if enabled in settings
+    AppSettings& settings = AppSettings::instance();
+    if (settings.getVHFBandsEnabled()) {
+        allBands.append(BandType::Band6M);
+        allBands.append(BandType::Band2M);
+    }
 
     // Update headers
     m_qsoNeedsHeaderLabel->setText(QString("QSO needs for %1:").arg(callsign));
@@ -111,6 +120,11 @@ void NeedsDisplayWidget::setFontSize(int pointSize)
 QString NeedsDisplayWidget::generateBandListHtml(const QList<BandType>& allBands,
                                                  const QList<BandType>& workedBands)
 {
+    // Get color settings
+    AppSettings& settings = AppSettings::instance();
+    QString workedColor = settings.getNeedsDisplayWorkedColor();
+    QString neededColor = settings.getNeedsDisplayNeededColor();
+
     QString html;
 
     for (BandType band : allBands) {
@@ -120,13 +134,14 @@ QString NeedsDisplayWidget::generateBandListHtml(const QList<BandType>& allBands
         bool worked = workedBands.contains(band);
 
         if (worked) {
-            // Already worked - gray it out
-            html += QString("<span style='color: #808080;'>%1</span> ").arg(bandName);
+            // Already worked - use configured worked color
+            html += QString("<span style='color: %1;'>%2</span> ")
+                   .arg(workedColor, bandName);
         } else {
-            // Still needed - highlight in orange/yellow (TR4W style)
-            html += QString("<span style='color: #000000; background-color: #ffaa00; "
-                          "padding: 2px 4px; font-weight: bold;'>%1</span> ")
-                   .arg(bandName);
+            // Still needed - highlight with configured needed color
+            html += QString("<span style='color: #000000; background-color: %1; "
+                          "padding: 2px 4px; font-weight: bold;'>%2</span> ")
+                   .arg(neededColor, bandName);
         }
     }
 

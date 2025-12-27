@@ -523,6 +523,35 @@ int AppSettings::getMiscDisplayFontSize() const {
     return m_settings.value("Appearance/miscDisplayFontSize", 9).toInt();
 }
 
+// Band Needs Display settings
+
+void AppSettings::setNeedsDisplayWorkedColor(const QString& color) {
+    m_settings.setValue("Appearance/needsDisplayWorkedColor", color);
+    m_settings.sync();
+}
+
+QString AppSettings::getNeedsDisplayWorkedColor() const {
+    return m_settings.value("Appearance/needsDisplayWorkedColor", "#808080").toString();
+}
+
+void AppSettings::setNeedsDisplayNeededColor(const QString& color) {
+    m_settings.setValue("Appearance/needsDisplayNeededColor", color);
+    m_settings.sync();
+}
+
+QString AppSettings::getNeedsDisplayNeededColor() const {
+    return m_settings.value("Appearance/needsDisplayNeededColor", "#ffaa00").toString();
+}
+
+void AppSettings::setVHFBandsEnabled(bool enabled) {
+    m_settings.setValue("Appearance/vhfBandsEnabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getVHFBandsEnabled() const {
+    return m_settings.value("Appearance/vhfBandsEnabled", false).toBool();
+}
+
 // UDP Broadcast settings
 
 void AppSettings::setUDPBroadcastEnabled(bool enabled) {

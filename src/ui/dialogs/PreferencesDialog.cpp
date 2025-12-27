@@ -595,6 +595,53 @@ QWidget* PreferencesDialog::createAppearanceTab() {
     bandMapLayout->addWidget(m_useMetricDistanceCheck);
 
     layout->addWidget(bandMapGroup);
+
+    // Band Needs Display group
+    QGroupBox* needsGroup = new QGroupBox("Band Needs Display", this);
+    QFormLayout* needsLayout = new QFormLayout(needsGroup);
+
+    // Worked band color
+    QHBoxLayout* workedColorLayout = new QHBoxLayout();
+    m_workedColorButton = new QPushButton(this);
+    m_workedColorButton->setFixedSize(80, 25);
+    m_workedColorButton->setToolTip("Click to change color for bands already worked");
+    connect(m_workedColorButton, &QPushButton::clicked, this, [this]() {
+        QColor current = QColor(AppSettings::instance().getNeedsDisplayWorkedColor());
+        QColor color = QColorDialog::getColor(current, this, "Select Worked Band Color");
+        if (color.isValid()) {
+            m_workedColorButton->setStyleSheet(
+                QString("background-color: %1;").arg(color.name()));
+            AppSettings::instance().setNeedsDisplayWorkedColor(color.name());
+        }
+    });
+    workedColorLayout->addWidget(m_workedColorButton);
+    workedColorLayout->addStretch();
+    needsLayout->addRow("Worked Band Color:", workedColorLayout);
+
+    // Needed band color
+    QHBoxLayout* neededColorLayout = new QHBoxLayout();
+    m_neededColorButton = new QPushButton(this);
+    m_neededColorButton->setFixedSize(80, 25);
+    m_neededColorButton->setToolTip("Click to change color for bands still needed");
+    connect(m_neededColorButton, &QPushButton::clicked, this, [this]() {
+        QColor current = QColor(AppSettings::instance().getNeedsDisplayNeededColor());
+        QColor color = QColorDialog::getColor(current, this, "Select Needed Band Color");
+        if (color.isValid()) {
+            m_neededColorButton->setStyleSheet(
+                QString("background-color: %1;").arg(color.name()));
+            AppSettings::instance().setNeedsDisplayNeededColor(color.name());
+        }
+    });
+    neededColorLayout->addWidget(m_neededColorButton);
+    neededColorLayout->addStretch();
+    needsLayout->addRow("Needed Band Color:", neededColorLayout);
+
+    // VHF bands enabled checkbox
+    m_vhfBandsEnabledCheck = new QCheckBox("Enable VHF bands (6M, 2M)", this);
+    m_vhfBandsEnabledCheck->setToolTip("Show 6M and 2M bands in needs display (for VHF contests)");
+    needsLayout->addRow("VHF Bands:", m_vhfBandsEnabledCheck);
+
+    layout->addWidget(needsGroup);
     layout->addStretch();
 
     return appearanceTab;
@@ -917,6 +964,13 @@ void PreferencesDialog::loadSettings() {
     m_miscDisplayFontSizeSpin->setValue(settings.getMiscDisplayFontSize());
     m_useMetricDistanceCheck->setChecked(settings.getUseMetricDistance());
 
+    // Band Needs Display settings
+    QString workedColor = settings.getNeedsDisplayWorkedColor();
+    m_workedColorButton->setStyleSheet(QString("background-color: %1;").arg(workedColor));
+    QString neededColor = settings.getNeedsDisplayNeededColor();
+    m_neededColorButton->setStyleSheet(QString("background-color: %1;").arg(neededColor));
+    m_vhfBandsEnabledCheck->setChecked(settings.getVHFBandsEnabled());
+
     // Load current theme
     ThemeManager& theme = ThemeManager::instance();
     ThemeType currentTheme = theme.currentTheme();
@@ -1033,6 +1087,10 @@ void PreferencesDialog::saveSettings() {
     settings.setGridFontSize(m_gridFontSizeSpin->value());
     settings.setMiscDisplayFontSize(m_miscDisplayFontSizeSpin->value());
     settings.setUseMetricDistance(m_useMetricDistanceCheck->isChecked());
+
+    // Band Needs Display
+    settings.setVHFBandsEnabled(m_vhfBandsEnabledCheck->isChecked());
+    // Colors are saved immediately in button click handlers
 
     // Save theme
     ThemeManager& theme = ThemeManager::instance();
