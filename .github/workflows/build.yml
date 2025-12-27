@@ -142,12 +142,20 @@ jobs:
         for lib in tr4qt.app/Contents/Frameworks/libhamlib.*.dylib; do
           if [ -f "$lib" ]; then
             chmod +w "$lib"
+            # Remove existing signature (invalidated by install_name_tool)
+            codesign --remove-signature "$lib" || true
+            # Modify install name
             install_name_tool -id "@rpath/$(basename $lib)" "$lib"
+            # Re-sign with ad-hoc signature (no certificate required)
+            codesign -s - "$lib"
           fi
         done
 
         # Update executable to look for Hamlib in @rpath
         install_name_tool -add_rpath "@executable_path/../Frameworks" tr4qt.app/Contents/MacOS/tr4qt || true
+
+        # Re-sign the main executable after modification
+        codesign -s - tr4qt.app/Contents/MacOS/tr4qt
 
         # Create DMG
         $(brew --prefix qt@6)/bin/macdeployqt tr4qt.app -dmg
