@@ -16,12 +16,7 @@
 #include "widgets/NeedsDisplayWidget.h"
 #include "dialogs/ContestChooserDialog.h"
 #include "../contests/ContestBase.h"
-#include "../contests/CQWWContest.h"
-#include "../contests/CQWPXContest.h"
-#include "../contests/WinterFieldDayContest.h"
-#include "../contests/ARRLFieldDayContest.h"
-#include "../contests/ARRLSweepstakesContest.h"
-#include "../contests/IARUHFContest.h"
+#include "../contests/ContestRegistry.h"
 #include "../exchanges/InitialExchangeManager.h"
 
 class QMenuBar;
