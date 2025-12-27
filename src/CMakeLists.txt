@@ -9,6 +9,7 @@ set(SOURCES
     utils/CabrilloExporter.cpp
     utils/CountryFile.cpp
     utils/CountryFileDownloader.cpp
+    utils/DialogHelper.cpp
     utils/DXClusterListDownloader.cpp
     utils/SelectableMessageBox.cpp
     utils/GeographicUtils.cpp
@@ -79,6 +80,7 @@ set(HEADERS
     utils/CabrilloExporter.h
     utils/CountryFile.h
     utils/CountryFileDownloader.h
+    utils/DialogHelper.h
     utils/DXClusterListDownloader.h
     utils/SelectableMessageBox.h
     utils/GeographicUtils.h

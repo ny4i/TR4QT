@@ -1,87 +1,97 @@
-#include "SelectableMessageBox.h"
+#include "DialogHelper.h"
 #include "../logging/LogMacros.h"
 #include <QLabel>
 
 namespace TR4QT {
 
-QMessageBox::StandardButton SelectableMessageBox::warning(
+QMessageBox::StandardButton DialogHelper::question(
     QWidget* parent,
     const QString& title,
     const QString& text,
     QMessageBox::StandardButtons buttons,
     QMessageBox::StandardButton defaultButton)
 {
-    return showMessageBox(QMessageBox::Warning, parent, title, text, buttons, defaultButton);
+    return showMessageBox(
+        QMessageBox::Question, parent, title, text, buttons, defaultButton, true);
 }
 
-QMessageBox::StandardButton SelectableMessageBox::critical(
+void DialogHelper::information(
+    QWidget* parent,
+    const QString& title,
+    const QString& text)
+{
+    showMessageBox(
+        QMessageBox::Information, parent, title, text, QMessageBox::Ok, QMessageBox::NoButton, true);
+}
+
+QMessageBox::StandardButton DialogHelper::warning(
     QWidget* parent,
     const QString& title,
     const QString& text,
     QMessageBox::StandardButtons buttons,
     QMessageBox::StandardButton defaultButton)
 {
-    return showMessageBox(QMessageBox::Critical, parent, title, text, buttons, defaultButton);
+    return showMessageBox(
+        QMessageBox::Warning, parent, title, text, buttons, defaultButton, true);
 }
 
-QMessageBox::StandardButton SelectableMessageBox::information(
+void DialogHelper::critical(
     QWidget* parent,
     const QString& title,
-    const QString& text,
-    QMessageBox::StandardButtons buttons,
-    QMessageBox::StandardButton defaultButton)
+    const QString& text)
 {
-    return showMessageBox(QMessageBox::Information, parent, title, text, buttons, defaultButton);
+    showMessageBox(
+        QMessageBox::Critical, parent, title, text, QMessageBox::Ok, QMessageBox::NoButton, true);
 }
 
-QMessageBox::StandardButton SelectableMessageBox::question(
-    QWidget* parent,
-    const QString& title,
-    const QString& text,
-    QMessageBox::StandardButtons buttons,
-    QMessageBox::StandardButton defaultButton)
-{
-    return showMessageBox(QMessageBox::Question, parent, title, text, buttons, defaultButton);
-}
-
-QMessageBox::StandardButton SelectableMessageBox::showMessageBox(
+QMessageBox::StandardButton DialogHelper::showMessageBox(
     QMessageBox::Icon icon,
     QWidget* parent,
     const QString& title,
     const QString& text,
     QMessageBox::StandardButtons buttons,
-    QMessageBox::StandardButton defaultButton)
+    QMessageBox::StandardButton defaultButton,
+    bool textSelectable)
 {
     // Log the message to help with debugging
-    QString logMessage = QString("[%1] %2").arg(title).arg(text);
+    QString iconType;
+    switch (icon) {
+        case QMessageBox::Critical:   iconType = "Critical"; break;
+        case QMessageBox::Warning:    iconType = "Warning"; break;
+        case QMessageBox::Information: iconType = "Information"; break;
+        case QMessageBox::Question:   iconType = "Question"; break;
+        default:                      iconType = "Dialog"; break;
+    }
+
+    QString logMessage = QString("[%1] %2 - %3").arg(iconType, title, text);
 
     switch (icon) {
         case QMessageBox::Critical:
-            LOG_ERROR("MessageBox", logMessage);
+            LOG_ERROR("DialogHelper", logMessage);
             break;
         case QMessageBox::Warning:
-            LOG_WARN("MessageBox", logMessage);
+            LOG_WARN("DialogHelper", logMessage);
             break;
         case QMessageBox::Information:
-            LOG_INFO("MessageBox", logMessage);
-            break;
         case QMessageBox::Question:
-            LOG_INFO("MessageBox", logMessage);
+            LOG_INFO("DialogHelper", logMessage);
             break;
         default:
-            LOG_DEBUG("MessageBox", logMessage);
+            LOG_DEBUG("DialogHelper", logMessage);
             break;
     }
 
+    // Create and configure the message box
     QMessageBox msgBox(icon, title, text, buttons, parent);
 
-    // Make the text selectable/copyable
-    // This allows users to select text with mouse and copy with Ctrl+C (Cmd+C on macOS)
-    msgBox.setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+    // Make the text selectable/copyable (default behavior)
+    if (textSelectable) {
+        msgBox.setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 
-    // Also make the informative text selectable if present
-    if (QLabel* label = msgBox.findChild<QLabel*>("qt_msgbox_informativelabel")) {
-        label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+        // Also make the informative text selectable if present
+        if (QLabel* label = msgBox.findChild<QLabel*>("qt_msgbox_informativelabel")) {
+            label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+        }
     }
 
     if (defaultButton != QMessageBox::NoButton) {
@@ -92,28 +102,28 @@ QMessageBox::StandardButton SelectableMessageBox::showMessageBox(
 
     // Log the user's response
     QString buttonName = buttonToString(result);
-    QString responseLog = QString("[%1] User clicked: %2").arg(title, buttonName);
+    QString responseLog = QString("[%1] %2 - User clicked: %3").arg(iconType, title, buttonName);
 
     switch (icon) {
         case QMessageBox::Critical:
-            LOG_ERROR("MessageBox", responseLog);
+            LOG_ERROR("DialogHelper", responseLog);
             break;
         case QMessageBox::Warning:
-            LOG_WARN("MessageBox", responseLog);
+            LOG_WARN("DialogHelper", responseLog);
             break;
         case QMessageBox::Information:
         case QMessageBox::Question:
-            LOG_INFO("MessageBox", responseLog);
+            LOG_INFO("DialogHelper", responseLog);
             break;
         default:
-            LOG_DEBUG("MessageBox", responseLog);
+            LOG_DEBUG("DialogHelper", responseLog);
             break;
     }
 
     return result;
 }
 
-QString SelectableMessageBox::buttonToString(QMessageBox::StandardButton button)
+QString DialogHelper::buttonToString(QMessageBox::StandardButton button)
 {
     switch (button) {
         case QMessageBox::Ok:       return "OK";

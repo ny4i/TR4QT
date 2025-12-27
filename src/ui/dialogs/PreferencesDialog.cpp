@@ -8,6 +8,7 @@
 #include "../../logging/LogLevel.h"
 #include "../../logging/LogMacros.h"
 #include "../../core/Constants.h"
+#include "../../contests/ContestRegistry.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -814,11 +815,29 @@ QWidget* PreferencesDialog::createContestTab() {
     QGroupBox* contestGroup = new QGroupBox("Contest Settings", this);
     QFormLayout* formLayout = new QFormLayout(contestGroup);
 
-    // Default contest
+    // Default contest - populate dynamically from ContestRegistry
     m_defaultContestCombo = new QComboBox(this);
-    m_defaultContestCombo->addItems({"CQ WW DX (CW)", "CQ WW DX (SSB)",
-                                      "CQ WPX (CW)", "CQ WPX (SSB)",
-                                      "Winter Field Day"});
+
+    // Get all available contests from the registry
+    ContestRegistry& registry = ContestRegistry::instance();
+    QList<ContestMetadata> contests = registry.availableContests();
+
+    // Build display list with mode-specific entries
+    for (const ContestMetadata& metadata : contests) {
+        if (metadata.hasSeparateContests) {
+            // Separate entries for each mode (e.g., "CQ WW DX (CW)", "CQ WW DX (SSB)")
+            for (ModeType mode : metadata.supportedModes) {
+                QString modeSuffix = (mode == ModeType::CW) ? " (CW)" :
+                                    (mode == ModeType::USB || mode == ModeType::LSB) ? " (SSB)" :
+                                    (mode == ModeType::RTTY) ? " (RTTY)" : "";
+                m_defaultContestCombo->addItem(metadata.displayName + modeSuffix);
+            }
+        } else {
+            // Single entry for mixed-mode contest
+            m_defaultContestCombo->addItem(metadata.displayName);
+        }
+    }
+
     m_defaultContestCombo->setToolTip("Default contest type for new logs");
     formLayout->addRow("Default Contest:", m_defaultContestCombo);
 
