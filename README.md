@@ -1,5 +1,10 @@
 # TR4QT - Amateur Radio Contest Logger
 
+> **⚠️ DEVELOPMENT VERSION - NOT READY FOR CONTEST USE**
+> This software is under active development and should **NOT** be used for actual contests.
+> Features are incomplete, bugs are expected, and data loss may occur.
+> Wait for an official stable release before using in production.
+
 Cross-platform Qt/C++ port of TR4W (Delphi contest logger) with centralized radio control via hamlib.
 
 ## Features (Phase 1 - In Progress)
