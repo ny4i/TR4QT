@@ -1,4 +1,5 @@
 #include "RadioControlWidget.h"
+#include "../../radio/RadioController.h"
 #include "../../utils/ThemeManager.h"
 #include "../../utils/AppSettings.h"
 #include "../../logging/LogMacros.h"
@@ -8,6 +9,8 @@
 #include <QFont>
 #include <QFrame>
 #include <QEvent>
+#include <QMenu>
+#include <QMouseEvent>
 
 namespace TR4QT {
 
@@ -96,6 +99,9 @@ void RadioControlWidget::setupUI() {
     m_modeLabel->setFont(modeFont);
     m_modeLabel->setAlignment(Qt::AlignCenter);
     m_modeLabel->setStyleSheet("QLabel { background-color: lightgray; padding: 5px; border-radius: 3px; }");
+    m_modeLabel->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_modeLabel->setCursor(Qt::PointingHandCursor);  // Show clickable cursor
+    connect(m_modeLabel, &QLabel::customContextMenuRequested, this, &RadioControlWidget::onModeContextMenu);
     mainLayout->addWidget(m_modeLabel);
 
     // WPM display (for CW mode)
@@ -332,6 +338,69 @@ void RadioControlWidget::clearDisplay() {
 void RadioControlWidget::setRadioNumber(int number) {
     m_radioNumber = number;
     m_titleLabel->setText(QString("Radio %1").arg(number));
+}
+
+void RadioControlWidget::setRadioController(RadioController* controller) {
+    m_radioController = controller;
+}
+
+void RadioControlWidget::onModeContextMenu(const QPoint& pos) {
+    // Don't show menu if radio not connected or no radio controller set
+    if (!m_radioController || !m_radioController->isConnected()) {
+        LOG_DEBUG("RadioControlWidget", "Mode context menu suppressed - radio not connected");
+        return;
+    }
+
+    // Get supported modes from radio
+    QList<ModeType> supportedModes = m_radioController->getSupportedModes();
+
+    if (supportedModes.isEmpty()) {
+        LOG_DEBUG("RadioControlWidget", "No supported modes found for radio");
+        return;
+    }
+
+    // Create context menu
+    QMenu menu(this);
+    menu.setTitle("Select Mode");
+
+    // Add menu items for each supported mode
+    for (const ModeType& mode : supportedModes) {
+        QString modeName;
+        switch (mode) {
+            case ModeType::CW:     modeName = "CW"; break;
+            case ModeType::CWR:    modeName = "CW-R"; break;
+            case ModeType::USB:    modeName = "USB"; break;
+            case ModeType::LSB:    modeName = "LSB"; break;
+            case ModeType::FM:     modeName = "FM"; break;
+            case ModeType::AM:     modeName = "AM"; break;
+            case ModeType::RTTY:   modeName = "RTTY"; break;
+            case ModeType::RTTYR:  modeName = "RTTY-R"; break;
+            case ModeType::DATA:   modeName = "DATA"; break;
+            case ModeType::DATAR:  modeName = "DATA-R"; break;
+            case ModeType::PSK:    modeName = "PSK"; break;
+            case ModeType::PSKR:   modeName = "PSK-R"; break;
+            case ModeType::FT8:    modeName = "FT8"; break;
+            case ModeType::FT4:    modeName = "FT4"; break;
+            default: continue;  // Skip unknown modes
+        }
+
+        // Check if this is the current mode
+        bool isCurrent = (mode == m_currentState.modeA);
+
+        QAction* action = menu.addAction(modeName);
+        action->setCheckable(true);
+        action->setChecked(isCurrent);
+        action->setData(static_cast<int>(mode));  // Store mode as action data
+
+        // Connect action to emit signal
+        connect(action, &QAction::triggered, this, [this, mode]() {
+            LOG_INFO("RadioControlWidget", QString("Mode change requested: %1").arg(static_cast<int>(mode)));
+            emit modeChangeRequested(mode);
+        });
+    }
+
+    // Show menu at cursor position (relative to mode label)
+    menu.exec(m_modeLabel->mapToGlobal(pos));
 }
 
 bool RadioControlWidget::eventFilter(QObject* obj, QEvent* event) {

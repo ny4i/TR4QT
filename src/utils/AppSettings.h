@@ -239,6 +239,16 @@ public:
     void saveQSOTableColumnWidths(const QList<int>& widths);
     QList<int> loadQSOTableColumnWidths() const;
 
+    // Web server settings
+    void setWebServerAutoStart(bool autoStart);
+    bool getWebServerAutoStart() const;
+
+    void setWebServerPort(quint16 port);
+    quint16 getWebServerPort() const;  // Default: 14140
+
+    void setWebServerAddress(const QString& address);
+    QString getWebServerAddress() const;  // Default: "127.0.0.1" (localhost)
+
 private:
     AppSettings();
     ~AppSettings() = default;

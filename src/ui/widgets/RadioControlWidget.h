@@ -10,6 +10,9 @@
 
 namespace TR4QT {
 
+// Forward declarations
+class RadioController;
+
 /**
  * Radio control widget - displays VFO frequencies and controls
  *
@@ -43,6 +46,11 @@ public:
      */
     void setRadioNumber(int number);
 
+    /**
+     * Set radio controller reference (for mode menu)
+     */
+    void setRadioController(RadioController* controller);
+
 signals:
     /**
      * User toggled RIT
@@ -59,10 +67,16 @@ signals:
      */
     void splitToggled(bool enabled);
 
+    /**
+     * User requested mode change (from right-click menu)
+     */
+    void modeChangeRequested(ModeType mode);
+
 private slots:
     void onRitClicked();
     void onXitClicked();
     void onSplitClicked();
+    void onModeContextMenu(const QPoint& pos);
 
 protected:
     bool eventFilter(QObject* obj, QEvent* event) override;
@@ -103,6 +117,7 @@ private:
 
     int m_radioNumber;
     RadioState m_currentState;
+    RadioController* m_radioController{nullptr};  // Reference to radio controller (for mode menu)
 };
 
 } // namespace TR4QT

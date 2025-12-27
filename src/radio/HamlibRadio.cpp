@@ -382,6 +382,38 @@ bool HamlibRadio::clearXIT(VFO vfo) {
     return setXIT(0, vfo);
 }
 
+bool HamlibRadio::enableRIT(bool enable, VFO vfo) {
+    QMutexLocker locker(&m_rigMutex);
+    if (!checkRigPointer("enableRIT")) return false;
+
+    vfo_t hamlib_vfo = toHamlibVFO(vfo);
+    int retcode = rig_set_func(m_rig, hamlib_vfo, RIG_FUNC_RIT, enable ? 1 : 0);
+
+    if (retcode == RIG_OK) {
+        LOG_INFO("HamlibRadio", QString("RIT %1").arg(enable ? "enabled" : "disabled"));
+        return true;
+    }
+
+    logHamlibError("rig_set_func(RIG_FUNC_RIT)", retcode);
+    return false;
+}
+
+bool HamlibRadio::enableXIT(bool enable, VFO vfo) {
+    QMutexLocker locker(&m_rigMutex);
+    if (!checkRigPointer("enableXIT")) return false;
+
+    vfo_t hamlib_vfo = toHamlibVFO(vfo);
+    int retcode = rig_set_func(m_rig, hamlib_vfo, RIG_FUNC_XIT, enable ? 1 : 0);
+
+    if (retcode == RIG_OK) {
+        LOG_INFO("HamlibRadio", QString("XIT %1").arg(enable ? "enabled" : "disabled"));
+        return true;
+    }
+
+    logHamlibError("rig_set_func(RIG_FUNC_XIT)", retcode);
+    return false;
+}
+
 bool HamlibRadio::setSplit(bool enable, VFO txVfo) {
     QMutexLocker locker(&m_rigMutex);
     if (!checkRigPointer("setSplit")) return false;
@@ -503,6 +535,51 @@ QString HamlibRadio::getRadioVersion() const {
     if (!m_rig) return "";
 
     return QString::fromStdString(m_rig->caps->version);
+}
+
+QList<ModeType> HamlibRadio::getSupportedModes() const {
+    QMutexLocker locker(&m_rigMutex);
+    QList<ModeType> modes;
+
+    if (!m_rig || !m_rig->caps) {
+        LOG_DEBUG("HamlibRadio", "getSupportedModes: No rig or caps");
+        return modes;
+    }
+
+    // Hamlib stores modes in the rx_range_list array as bitmasks
+    // We need to OR together all the modes from all frequency ranges
+    rmode_t supported = 0;
+
+    // rx_range_list1 is for VFO A (rx_range_list2 is for VFO B)
+    const struct freq_range_list *range_list = m_rig->caps->rx_range_list1;
+
+    if (!range_list) {
+        LOG_DEBUG("HamlibRadio", "getSupportedModes: No rx_range_list1");
+        return modes;
+    }
+
+    // Iterate through all frequency ranges and collect all supported modes
+    for (int i = 0; i < HAMLIB_FRQRANGESIZ && range_list[i].startf != 0; i++) {
+        supported |= range_list[i].modes;
+    }
+
+    LOG_DEBUG("HamlibRadio", QString("getSupportedModes: supported bitmask = 0x%1").arg(supported, 0, 16));
+
+    // Check each mode we support and add if the radio supports it
+    if (supported & RIG_MODE_CW)      modes.append(ModeType::CW);
+    if (supported & RIG_MODE_CWR)     modes.append(ModeType::CWR);
+    if (supported & RIG_MODE_USB)     modes.append(ModeType::USB);
+    if (supported & RIG_MODE_LSB)     modes.append(ModeType::LSB);
+    if (supported & RIG_MODE_FM)      modes.append(ModeType::FM);
+    if (supported & RIG_MODE_AM)      modes.append(ModeType::AM);
+    if (supported & RIG_MODE_RTTY)    modes.append(ModeType::RTTY);
+    if (supported & RIG_MODE_RTTYR)   modes.append(ModeType::RTTYR);
+    if (supported & RIG_MODE_PKTUSB)  modes.append(ModeType::DATA);
+    if (supported & RIG_MODE_PKTLSB)  modes.append(ModeType::DATAR);
+
+    LOG_DEBUG("HamlibRadio", QString("getSupportedModes: returning %1 modes").arg(modes.size()));
+
+    return modes;
 }
 
 void HamlibRadio::pollRadio() {

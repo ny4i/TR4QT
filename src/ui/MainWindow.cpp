@@ -12,6 +12,7 @@
 #include "widgets/MultiplierWidget.h"
 #include "widgets/StatisticsWindow.h"
 #include "../network/UdpBroadcastManager.h"
+#include "../network/WebServer.h"
 #include "../core/Constants.h"
 #include "../logging/LogMacros.h"
 #include "../utils/ThemeManager.h"
@@ -76,6 +77,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_currentContestDbId(-1)
     , m_nextSerialNumber(1)
     , m_udpBroadcastManager(new UdpBroadcastManager(this))
+    , m_webServer(new WebServer(this))
     , m_inRaiseAllWindows(false)
     , m_initialExchangePopulated(false)
 {
@@ -99,6 +101,33 @@ MainWindow::MainWindow(QWidget* parent)
 
     // Reopen last contest if available
     reopenLastContest();
+
+    // Initialize web server with current operator (only if explicitly set)
+    AppSettings& webSettings = AppSettings::instance();
+    QString currentOperator = webSettings.getCurrentOperator();
+    QString stationCall = webSettings.getMyCallsign();
+
+    // Only set operator if user has explicitly set it (different from station callsign)
+    // Otherwise leave m_operatorCall empty so dashboard falls back to m_myCall
+    if (currentOperator != stationCall) {
+        m_webServer->setOperator(currentOperator);
+    }
+
+    // Auto-start web server if enabled
+    if (webSettings.getWebServerAutoStart()) {
+        quint16 port = webSettings.getWebServerPort();
+        QString addressStr = webSettings.getWebServerAddress();
+        QHostAddress address(addressStr);
+
+        if (m_webServer->start(port, address)) {
+            m_webServerAction->setText("Stop Web Server");
+            LOG_INFO("MainWindow", QString("Web server auto-started: %1").arg(m_webServer->url()));
+        } else {
+            // Auto-start failed - just log error, don't show dialog
+            LOG_ERROR("MainWindow", QString("Web server auto-start failed on %1:%2 (port may be in use)")
+                .arg(addressStr).arg(port));
+        }
+    }
 
     // Install event filter to raise all windows when any window is activated
     qApp->installEventFilter(this);
@@ -344,6 +373,11 @@ void MainWindow::createMenuBar() {
     QAction* integrityCheckAction = toolsMenu->addAction("Validate Log Integrity");
     integrityCheckAction->setShortcut(QKeySequence("Alt+I"));
     connect(integrityCheckAction, &QAction::triggered, this, &MainWindow::onFullIntegrityCheck);
+
+    toolsMenu->addSeparator();
+
+    m_webServerAction = toolsMenu->addAction("Start Web Server");
+    connect(m_webServerAction, &QAction::triggered, this, &MainWindow::onToggleWebServer);
 
     toolsMenu->addSeparator();
 
@@ -1537,6 +1571,9 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
     QString stationCall = AppSettings::instance().getMyCallsign();
     m_udpBroadcastManager->onRadioStateChanged(state, stationCall);
 
+    // Update web server with radio state
+    m_webServer->setRadioState(state);
+
     // Log radio model if it changed
     static QString lastModel;
     if (!state.radioModel.isEmpty() && state.radioModel != lastModel) {
@@ -1618,6 +1655,7 @@ void MainWindow::onLogQSO() {
             if (!newOperator.isEmpty()) {
                 settings.setCurrentOperator(newOperator);
                 m_operatorLabel->setText(newOperator);  // Update operator display
+                m_webServer->setOperator(newOperator);  // Update web server
                 m_statusLabel->setText(QString("Operator changed to: %1").arg(newOperator));
                 LOG_INFO("MainWindow", QString("Operator changed to: %1").arg(newOperator));
             } else {
@@ -1963,6 +2001,9 @@ void MainWindow::onLogQSO() {
     QString stationCall = AppSettings::instance().getMyCallsign();
     QString contestName = m_hasActiveContest ? m_currentContest.contestName : "Unknown";
     m_udpBroadcastManager->onQSOLogged(qso, stationCall, contestName);
+
+    // Update web server with new QSO
+    m_webServer->addRecentQSO(qso);
 
     // Update last QSO time for time since last QSO calculation
     m_lastQSOTime = qso.timestamp;
@@ -2328,6 +2369,9 @@ void MainWindow::updateScoreDisplay() {
     int totalMults = 0;
     int totalZones = 0;
 
+    // Clear web server band data before updating
+    m_webServer->clearBandData();
+
     for (BandType band : bands) {
         int qsos = qsosPerBand.value(band, 0);
         int points = pointsPerBand.value(band, 0);
@@ -2338,6 +2382,12 @@ void MainWindow::updateScoreDisplay() {
         m_bandSummaryGrid->setPointsCount(band, points);
         m_bandSummaryGrid->setMultCount(band, mults);
         m_bandSummaryGrid->setZoneCount(band, zones);
+
+        // Update web server with per-band data for detail view
+        m_webServer->setBandQSOCount(band, qsos);
+        m_webServer->setBandPoints(band, points);
+        m_webServer->setBandMultCount(band, mults);
+        m_webServer->setBandZoneCount(band, zones);
 
         totalMults += mults;
         totalZones += zones;
@@ -2358,6 +2408,9 @@ void MainWindow::updateScoreDisplay() {
 
     // Update status bar
     m_statusLabel->setText(QString("%1 QSOs, %2 Points").arg(totalQSOs).arg(finalScore));
+
+    // Update web server with score
+    m_webServer->setScore(totalQSOs, totalQSOPoints, totalMults);
 }
 
 void MainWindow::recalculateAllPoints() {
@@ -3255,6 +3308,12 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         // Update band summary grid with loaded QSOs
         updateScoreDisplay();
 
+        // Populate web server with last 10 QSOs
+        int startIdx = qMax(0, existingQSOs.size() - 10);
+        for (int i = startIdx; i < existingQSOs.size(); ++i) {
+            m_webServer->addRecentQSO(existingQSOs[i]);
+        }
+
         // Scroll to bottom to show latest QSO and ensure scroll bars are visible
         if (!existingQSOs.isEmpty()) {
             m_qsoTableView->scrollToBottom();
@@ -3314,6 +3373,10 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     // Store contest info
     m_currentContest = contestInfo;
     m_hasActiveContest = true;
+
+    // Update web server with contest info
+    QString myCall = AppSettings::instance().getMyCallsign();
+    m_webServer->setContestInfo(contestInfo.contestName, myCall);
 
     // Save as last opened contest for auto-reopen on next startup
     AppSettings::instance().setLastContestPath(contestInfo.databasePath);
@@ -3653,6 +3716,35 @@ void MainWindow::onShowRadioControl() {
         m_radioControlWindow->setWindowFlags(Qt::Window);
         m_radioControlWindow->setAttribute(Qt::WA_DeleteOnClose, false);
 
+        // Set radio controller reference for mode menu
+        m_radioControlWindow->setRadioController(m_radio);
+
+        // Connect mode change requests
+        connect(m_radioControlWindow, &RadioControlWidget::modeChangeRequested,
+                this, [this](ModeType mode) {
+                    LOG_INFO("MainWindow", QString("Mode change requested from radio control: %1").arg(static_cast<int>(mode)));
+                    m_radio->setMode(mode, VFO::VFO_A);
+                });
+
+        // Connect RIT/XIT/SPLIT toggle requests
+        connect(m_radioControlWindow, &RadioControlWidget::ritToggled,
+                this, [this](bool enabled) {
+                    LOG_INFO("MainWindow", QString("RIT toggle requested: %1").arg(enabled ? "ON" : "OFF"));
+                    m_radio->enableRIT(enabled, VFO::VFO_A);
+                });
+
+        connect(m_radioControlWindow, &RadioControlWidget::xitToggled,
+                this, [this](bool enabled) {
+                    LOG_INFO("MainWindow", QString("XIT toggle requested: %1").arg(enabled ? "ON" : "OFF"));
+                    m_radio->enableXIT(enabled, VFO::VFO_A);
+                });
+
+        connect(m_radioControlWindow, &RadioControlWidget::splitToggled,
+                this, [this](bool enabled) {
+                    LOG_INFO("MainWindow", QString("SPLIT toggle requested: %1").arg(enabled ? "ON" : "OFF"));
+                    m_radio->setSplit(enabled, VFO::VFO_B);
+                });
+
         // Update with current radio state
         if (m_radioConnected) {
             m_radioControlWindow->updateRadioState(m_currentState);
@@ -3760,6 +3852,46 @@ void MainWindow::onBackupLog() {
 
     BackupRestoreDialog dialog(m_currentContest, this);
     dialog.exec();
+}
+
+void MainWindow::onToggleWebServer() {
+    if (m_webServer->isRunning()) {
+        // Stop the server
+        m_webServer->stop();
+        m_webServerAction->setText("Start Web Server");
+        m_statusLabel->setText("Web server stopped");
+        LOG_INFO("MainWindow", "Web server stopped by user");
+    } else {
+        // Start the server with settings
+        AppSettings& settings = AppSettings::instance();
+        quint16 port = settings.getWebServerPort();
+        QString addressStr = settings.getWebServerAddress();
+        QHostAddress address(addressStr);
+
+        if (m_webServer->start(port, address)) {
+            m_webServerAction->setText("Stop Web Server");
+            QString url = m_webServer->url();
+            m_statusLabel->setText(QString("Web server started: %1").arg(url));
+            LOG_INFO("MainWindow", QString("Web server started: %1").arg(url));
+
+            // Show info dialog with URL
+            DialogHelper::information(this, "Web Server Started",
+                QString("Web server is now running at:\n\n%1\n\n"
+                        "Access the dashboard from any browser on this computer.\n\n"
+                        "To access from other devices, change the binding address in Preferences.")
+                    .arg(url));
+        } else {
+            // Manual start failed - show error dialog
+            m_statusLabel->setText("Failed to start web server");
+            LOG_ERROR("MainWindow", QString("Failed to start web server on %1:%2").arg(addressStr).arg(port));
+
+            DialogHelper::warning(this, "Web Server Start Failed",
+                QString("Failed to start web server on %1:%2\n\n"
+                        "Port may already be in use by another instance of TR4QT or another application.\n\n"
+                        "Please check if TR4QT is already running, or try a different port in Preferences.")
+                    .arg(addressStr).arg(port));
+        }
+    }
 }
 
 void MainWindow::onDownloadCTY(bool headless) {

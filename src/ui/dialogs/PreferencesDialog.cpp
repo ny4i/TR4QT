@@ -67,6 +67,8 @@ void PreferencesDialog::setupUI() {
     m_tabWidget->addTab(createBackupTab(), "Backup");
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Contest tab ***");
     m_tabWidget->addTab(createContestTab(), "Contest");
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Web Server tab ***");
+    m_tabWidget->addTab(createWebServerTab(), "Web Server");
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Advanced tab ***");
     m_tabWidget->addTab(createAdvancedTab(), "Advanced");
 
@@ -854,6 +856,46 @@ QWidget* PreferencesDialog::createContestTab() {
     return contestTab;
 }
 
+QWidget* PreferencesDialog::createWebServerTab() {
+    QWidget* webServerTab = new QWidget(this);
+    QVBoxLayout* layout = new QVBoxLayout(webServerTab);
+
+    QGroupBox* webServerGroup = new QGroupBox("Web Server Settings", this);
+    QFormLayout* formLayout = new QFormLayout(webServerGroup);
+
+    // Auto-start checkbox
+    m_webServerAutoStartCheck = new QCheckBox(this);
+    m_webServerAutoStartCheck->setToolTip("Automatically start web server when TR4QT launches");
+    formLayout->addRow("Auto-start on Launch:", m_webServerAutoStartCheck);
+
+    // Port spin box
+    m_webServerPortSpin = new QSpinBox(this);
+    m_webServerPortSpin->setRange(1024, 65535);
+    m_webServerPortSpin->setValue(14140);
+    m_webServerPortSpin->setToolTip("TCP port for web server (default: 14140)");
+    formLayout->addRow("Port:", m_webServerPortSpin);
+
+    // Address line edit
+    m_webServerAddressEdit = new QLineEdit(this);
+    m_webServerAddressEdit->setPlaceholderText("127.0.0.1");
+    m_webServerAddressEdit->setToolTip("IP address to bind to (127.0.0.1 = localhost only, 0.0.0.0 = all interfaces)");
+    formLayout->addRow("Bind Address:", m_webServerAddressEdit);
+
+    // Help text
+    QLabel* helpLabel = new QLabel(
+        "The web server provides a dashboard for viewing contest status from a web browser.\n\n"
+        "• Localhost only (127.0.0.1): Accessible only from this computer\n"
+        "• All interfaces (0.0.0.0): Accessible from other devices on your network", this);
+    helpLabel->setWordWrap(true);
+    helpLabel->setStyleSheet("QLabel { color: gray; font-size: 9pt; margin-top: 10px; }");
+    formLayout->addRow(helpLabel);
+
+    layout->addWidget(webServerGroup);
+    layout->addStretch();
+
+    return webServerTab;
+}
+
 QWidget* PreferencesDialog::createAdvancedTab() {
     QWidget* advancedTab = new QWidget(this);
     QVBoxLayout* layout = new QVBoxLayout(advancedTab);
@@ -1019,6 +1061,11 @@ void PreferencesDialog::loadSettings() {
 
     // Contest tab - will need to add getters to AppSettings
 
+    // Web Server tab
+    m_webServerAutoStartCheck->setChecked(settings.getWebServerAutoStart());
+    m_webServerPortSpin->setValue(settings.getWebServerPort());
+    m_webServerAddressEdit->setText(settings.getWebServerAddress());
+
     // Advanced tab
     m_countryFilePathEdit->setText(settings.getCountryFilePath());
 }
@@ -1143,6 +1190,11 @@ void PreferencesDialog::saveSettings() {
     settings.setMaxBackups(m_maxBackupsSpin->value());
 
     // Contest tab - will add setters to AppSettings
+
+    // Web Server tab
+    settings.setWebServerAutoStart(m_webServerAutoStartCheck->isChecked());
+    settings.setWebServerPort(static_cast<quint16>(m_webServerPortSpin->value()));
+    settings.setWebServerAddress(m_webServerAddressEdit->text());
 
     // Advanced tab
     settings.setCountryFilePath(m_countryFilePathEdit->text());

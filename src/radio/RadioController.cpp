@@ -96,6 +96,18 @@ QString RadioController::getRadioModel() const {
     return m_radioModel;
 }
 
+QList<ModeType> RadioController::getSupportedModes() const {
+    // Call into worker thread to get supported modes
+    QList<ModeType> modes;
+    if (m_radio) {
+        // Use blocking queued connection to safely call across threads
+        QMetaObject::invokeMethod(m_radio, "getSupportedModes",
+                                 Qt::BlockingQueuedConnection,
+                                 Q_RETURN_ARG(QList<ModeType>, modes));
+    }
+    return modes;
+}
+
 void RadioController::connectToRadio(const RadioConfig& config) {
     LOG_DEBUG("RadioController", QString("connectToRadio called with model %1 port %2").arg(config.hamlibModelId).arg(config.port));
 
@@ -171,6 +183,24 @@ bool RadioController::waitForMorseComplete() {
         result = m_radio->waitForMorseComplete();
     }, Qt::BlockingQueuedConnection);
     return result;
+}
+
+void RadioController::enableRIT(bool enable, VFO vfo) {
+    QMetaObject::invokeMethod(m_radio, [this, enable, vfo]() {
+        m_radio->enableRIT(enable, vfo);
+    }, Qt::QueuedConnection);
+}
+
+void RadioController::enableXIT(bool enable, VFO vfo) {
+    QMetaObject::invokeMethod(m_radio, [this, enable, vfo]() {
+        m_radio->enableXIT(enable, vfo);
+    }, Qt::QueuedConnection);
+}
+
+void RadioController::setSplit(bool enable, VFO txVfo) {
+    QMetaObject::invokeMethod(m_radio, [this, enable, txVfo]() {
+        m_radio->setSplit(enable, txVfo);
+    }, Qt::QueuedConnection);
 }
 
 } // namespace TR4QT

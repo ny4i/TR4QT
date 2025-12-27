@@ -24,6 +24,7 @@ public:
     bool isConnected() const;
     RadioState getCurrentState() const;
     QString getRadioModel() const;
+    QList<ModeType> getSupportedModes() const;
 
 public slots:
     // Commands (executed in worker thread)
@@ -37,6 +38,9 @@ public slots:
     int getCWSpeed() const;
     void stopCW();
     bool waitForMorseComplete();
+    void enableRIT(bool enable, VFO vfo = VFO::VFO_A);
+    void enableXIT(bool enable, VFO vfo = VFO::VFO_A);
+    void setSplit(bool enable, VFO txVfo = VFO::VFO_B);
 
 signals:
     // Status signals (emitted from worker thread, safe to connect to UI)

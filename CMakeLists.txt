@@ -25,6 +25,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Widgets
     Sql
     Network
+    HttpServer
     PrintSupport
     Concurrent
     Test

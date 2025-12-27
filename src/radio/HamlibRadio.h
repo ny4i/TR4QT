@@ -54,6 +54,8 @@ public:
     int getXIT(VFO vfo = VFO::VFO_A) const override;
     bool clearRIT(VFO vfo = VFO::VFO_A) override;
     bool clearXIT(VFO vfo = VFO::VFO_A) override;
+    bool enableRIT(bool enable, VFO vfo = VFO::VFO_A) override;
+    bool enableXIT(bool enable, VFO vfo = VFO::VFO_A) override;
 
     // Split operation
     bool setSplit(bool enable, VFO txVfo = VFO::VFO_B) override;
@@ -73,6 +75,7 @@ public:
     // Radio information
     QString getRadioModel() const;
     QString getRadioVersion() const;
+    Q_INVOKABLE QList<ModeType> getSupportedModes() const;
 
 private slots:
     void pollRadio();

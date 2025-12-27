@@ -85,6 +85,7 @@ private:
     QWidget* createLoggingTab();
     QWidget* createBackupTab();
     QWidget* createContestTab();
+    QWidget* createWebServerTab();
     QWidget* createAdvancedTab();
 
     // Helper methods
@@ -170,6 +171,11 @@ private:
     QPushButton* m_browseBackupDirButton;
     QSpinBox* m_maxBackupsSpin;
     QLabel* m_backupInfoLabel;
+
+    // Web Server tab widgets
+    QCheckBox* m_webServerAutoStartCheck;
+    QSpinBox* m_webServerPortSpin;
+    QLineEdit* m_webServerAddressEdit;
 
     // Contest tab widgets
     QComboBox* m_defaultContestCombo;
