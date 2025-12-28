@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.95.8";  // Fixed libdbus library path to use @rpath
+constexpr const char* APP_VERSION = "2.95.9";  // Fixed QtDBus dependency reference to use @rpath
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
