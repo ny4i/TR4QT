@@ -74,6 +74,8 @@ private:
     QHttpServerResponse handleApiRadio();
     QHttpServerResponse handleApiScore();
     QHttpServerResponse handleDashboard();
+    QHttpServerResponse handleFavicon();
+    QHttpServerResponse handleAppleTouchIcon();
 
     // Helper methods
     QString generateDashboardHtml();

@@ -10,6 +10,7 @@
 #include <QJsonArray>
 #include <QDateTime>
 #include <QTcpServer>
+#include <QFile>
 
 namespace TR4QT {
 
@@ -48,6 +49,15 @@ WebServer::WebServer(QSOTableModel* qsoModel,
     // HTML dashboard
     m_server->route("/dashboard", [this]() {
         return handleDashboard();
+    });
+
+    // Favicon routes
+    m_server->route("/favicon.ico", [this]() {
+        return handleFavicon();
+    });
+
+    m_server->route("/apple-touch-icon.png", [this]() {
+        return handleAppleTouchIcon();
     });
 }
 
@@ -228,6 +238,8 @@ QString WebServer::generateDashboardHtml() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>%1 - TR4QT Contest Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="256x256" href="/apple-touch-icon.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -516,6 +528,8 @@ QString WebServer::generateDashboardHtml() {
         let refreshInterval = 60; // Default 60 seconds
         let remainingSeconds = refreshInterval;
         let timerId = null;
+        let isServerDown = false;
+        let reconnectAttempts = 0;
 
         function startCountdown() {
             if (timerId) clearInterval(timerId);
@@ -527,9 +541,45 @@ QString WebServer::generateDashboardHtml() {
                 updateCountdown();
 
                 if (remainingSeconds <= 0) {
-                    location.reload();
+                    checkServerAndReload();
                 }
             }, 1000);
+        }
+
+        async function checkServerAndReload() {
+            try {
+                const response = await fetch('/api/status', {
+                    method: 'GET',
+                    cache: 'no-cache'
+                });
+
+                if (response.ok) {
+                    // Server is up - reload page
+                    isServerDown = false;
+                    reconnectAttempts = 0;
+                    location.reload();
+                } else {
+                    throw new Error('Server returned error');
+                }
+            } catch (error) {
+                // Server is down or unreachable
+                if (!isServerDown) {
+                    isServerDown = true;
+                    showReconnectingMessage();
+                }
+                reconnectAttempts++;
+
+                // Retry every 5 seconds when server is down
+                remainingSeconds = 5;
+                startCountdown();
+            }
+        }
+
+        function showReconnectingMessage() {
+            const countdownEl = document.getElementById('countdown');
+            if (countdownEl) {
+                countdownEl.parentElement.innerHTML = '<div style="color: #ff6b6b; font-weight: bold;">Server connection lost. Reconnecting...</div>';
+            }
         }
 
         function updateCountdown() {
@@ -605,7 +655,7 @@ QString WebServer::generateDashboardHtml() {
         <div class="grid">
             <div class="card">
                 <h2>
-                    <span>📊 Score Summary</span>
+                    <span>Score Summary</span>
                     <label>
                         <input type="checkbox" id="detail-toggle" onchange="toggleScoreDetail()">
                         Show Detail
@@ -650,7 +700,7 @@ QString WebServer::generateDashboardHtml() {
 
         <div class="radio-status">
             <div class="radio-status-item">
-                <span class="radio-status-label">📻 Frequency</span>
+                <span class="radio-status-label">Radio Frequency</span>
                 <span class="radio-status-value">%9</span>
             </div>
             <div class="radio-status-item">
@@ -890,6 +940,30 @@ QJsonObject WebServer::qsoToJson(const QSO& qso) {
     json["exchangeReceived"] = qso.exchangeReceived;
     json["points"] = qso.qsoPoints;
     return json;
+}
+
+QHttpServerResponse WebServer::handleFavicon() {
+    // Serve the .ico file from resources
+    QFile iconFile(":/icons/tr4qt.ico");
+    if (!iconFile.open(QIODevice::ReadOnly)) {
+        LOG_WARN("WebServer", "Failed to open favicon.ico from resources");
+        return QHttpServerResponse(QHttpServerResponse::StatusCode::NotFound);
+    }
+
+    QByteArray iconData = iconFile.readAll();
+    return QHttpServerResponse("image/x-icon", iconData);
+}
+
+QHttpServerResponse WebServer::handleAppleTouchIcon() {
+    // Serve the 256x256 PNG for Apple devices (they prefer 180x180 but 256 is close enough)
+    QFile iconFile(":/icons/icon_256x256.png");
+    if (!iconFile.open(QIODevice::ReadOnly)) {
+        LOG_WARN("WebServer", "Failed to open apple-touch-icon.png from resources");
+        return QHttpServerResponse(QHttpServerResponse::StatusCode::NotFound);
+    }
+
+    QByteArray iconData = iconFile.readAll();
+    return QHttpServerResponse("image/png", iconData);
 }
 
 } // namespace TR4QT
