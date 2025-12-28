@@ -43,6 +43,13 @@ enum class ModeType {
     DATAR     // Data reverse
 };
 
+// Mode groups for contest scoring and statistics
+enum class ModeGroup {
+    Phone,    // SSB, FM, AM
+    CW,       // CW, CWR
+    Digital   // RTTY, PSK, FT8, FT4, DATA
+};
+
 // VFO selection
 enum class VFO {
     VFO_A,
@@ -104,6 +111,8 @@ enum class Continent {
 // Helper functions
 QString bandToString(BandType band);
 QString modeToString(ModeType mode);
+QString modeGroupToString(ModeGroup group);
+ModeGroup modeTypeToModeGroup(ModeType mode);
 BandType stringToBand(const QString& str);
 ModeType stringToMode(const QString& str);
 QString continentToString(Continent cont);

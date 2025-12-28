@@ -93,6 +93,9 @@ public:
     // Field Day doesn't use multipliers in traditional sense
     bool usesMultipliers() const override { return false; }
 
+    // Field Day tracks QSOs separately by mode group (Phone/CW/Digital)
+    bool usesModeGroupBreakdown() const override { return true; }
+
     // ===== Special Rules =====
     bool usesSerialNumbers() const override { return false; }
 

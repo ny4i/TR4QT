@@ -83,6 +83,9 @@ public:
     // Winter Field Day tracks multipliers but doesn't use them in scoring
     bool usesMultipliers() const override { return false; }
 
+    // Winter Field Day tracks QSOs separately by mode group (Phone/CW/Digital)
+    bool usesModeGroupBreakdown() const override { return true; }
+
     // ===== Special Rules =====
     bool usesSerialNumbers() const override { return false; }
 

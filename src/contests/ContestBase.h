@@ -196,6 +196,29 @@ public:
     }
 
     /**
+     * Get list of mode groups supported by this contest
+     * For single-mode contests, return only one group.
+     * For mixed-mode contests like Field Day, return all three.
+     *
+     * @return List of supported mode groups
+     */
+    virtual QList<ModeGroup> getSupportedModeGroups() const {
+        // Default: all mode groups supported
+        return {ModeGroup::Phone, ModeGroup::CW, ModeGroup::Digital};
+    }
+
+    /**
+     * Check if this contest should show mode group breakdown in statistics
+     * Field Day shows separate rows for Phone/CW/Digital QSOs.
+     * Single-mode contests show just "QSOs" row.
+     *
+     * @return true if mode groups should be shown separately
+     */
+    virtual bool usesModeGroupBreakdown() const {
+        return false;  // Default: single QSO row
+    }
+
+    /**
      * Determine if this QSO provides a new multiplier
      *
      * @param qso The QSO to check

@@ -42,6 +42,42 @@ QString modeToString(ModeType mode) {
     }
 }
 
+QString modeGroupToString(ModeGroup group) {
+    switch (group) {
+        case ModeGroup::Phone:   return "Phone";
+        case ModeGroup::CW:      return "CW";
+        case ModeGroup::Digital: return "Digital";
+        default: return "Unknown";
+    }
+}
+
+ModeGroup modeTypeToModeGroup(ModeType mode) {
+    switch (mode) {
+        case ModeType::CW:
+        case ModeType::CWR:
+            return ModeGroup::CW;
+
+        case ModeType::LSB:
+        case ModeType::USB:
+        case ModeType::FM:
+        case ModeType::AM:
+            return ModeGroup::Phone;
+
+        case ModeType::RTTY:
+        case ModeType::RTTYR:
+        case ModeType::PSK:
+        case ModeType::PSKR:
+        case ModeType::FT8:
+        case ModeType::FT4:
+        case ModeType::DATA:
+        case ModeType::DATAR:
+            return ModeGroup::Digital;
+
+        default:
+            return ModeGroup::Phone;  // Default to phone
+    }
+}
+
 BandType stringToBand(const QString& str) {
     if (str == "160M") return BandType::Band160M;
     if (str == "80M")  return BandType::Band80M;
