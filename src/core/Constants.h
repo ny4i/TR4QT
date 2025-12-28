@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.99.1";  // Fix Windows deployment - include MinGW runtime DLLs
+constexpr const char* APP_VERSION = "2.99.2";  // Fix Qt6 compatibility - use stateChanged instead of checkStateChanged
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

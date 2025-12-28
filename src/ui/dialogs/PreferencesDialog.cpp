@@ -218,13 +218,13 @@ QWidget* PreferencesDialog::createRadioTab() {
     m_showAlphaRadiosCheck->setChecked(false);
     m_showUntestedRadiosCheck->setChecked(false);
 
-    connect(m_showStableRadiosCheck, &QCheckBox::checkStateChanged,
+    connect(m_showStableRadiosCheck, &QCheckBox::stateChanged,
             this, &PreferencesDialog::onRadioStatusFilterChanged);
-    connect(m_showBetaRadiosCheck, &QCheckBox::checkStateChanged,
+    connect(m_showBetaRadiosCheck, &QCheckBox::stateChanged,
             this, &PreferencesDialog::onRadioStatusFilterChanged);
-    connect(m_showAlphaRadiosCheck, &QCheckBox::checkStateChanged,
+    connect(m_showAlphaRadiosCheck, &QCheckBox::stateChanged,
             this, &PreferencesDialog::onRadioStatusFilterChanged);
-    connect(m_showUntestedRadiosCheck, &QCheckBox::checkStateChanged,
+    connect(m_showUntestedRadiosCheck, &QCheckBox::stateChanged,
             this, &PreferencesDialog::onRadioStatusFilterChanged);
 
     QHBoxLayout* filterLayout = new QHBoxLayout();
