@@ -60,6 +60,8 @@ public:
 
     // Contest state (set when contest changes)
     void setContestName(const QString& contestName);
+    void setUsesZoneMultipliers(bool usesZones);
+    void setUsesModeGroupBreakdown(bool usesModeGroups);
 
 signals:
     void serverStarted(const QString& url);
@@ -97,6 +99,8 @@ private:
 
     // Contest state (minimal - only what can't be pulled)
     QString m_contestName;
+    bool m_usesZoneMultipliers{true};  // Default: show zones
+    bool m_usesModeGroupBreakdown{false};  // Default: single QSOs row
 
     static constexpr int MAX_RECENT_QSOS = 10;
 };

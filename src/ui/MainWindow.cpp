@@ -3437,10 +3437,16 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
                 break;
             }
         }
+        bool usesModeGroups = m_activeContest->usesModeGroupBreakdown();
+
         m_bandSummaryGrid->configureForContest(
-            m_activeContest->usesModeGroupBreakdown(),
+            usesModeGroups,
             usesZones
         );
+
+        // Update web server with contest settings
+        m_webServer->setUsesZoneMultipliers(usesZones);
+        m_webServer->setUsesModeGroupBreakdown(usesModeGroups);
     }
 
     // Update window title to include contest name

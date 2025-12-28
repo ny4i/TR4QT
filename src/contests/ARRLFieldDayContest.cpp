@@ -210,25 +210,10 @@ int ARRLFieldDayContest::calculateTotalScore(
 }
 
 QList<MultiplierDefinition> ARRLFieldDayContest::getMultiplierTypes() const {
-    QList<MultiplierDefinition> mults;
-
-    // WFD multiplier rules from WA7BNM:
-    // - Each CQ zone once per band
-    // - Each country once per band
-
-    MultiplierDefinition cqZoneMult;
-    cqZoneMult.type = MultiplierType::CQZone;
-    cqZoneMult.scope = MultiplierScope::PerBand;
-    cqZoneMult.displayName = "CQ Zones";
-    mults.append(cqZoneMult);
-
-    MultiplierDefinition countryMult;
-    countryMult.type = MultiplierType::Country;
-    countryMult.scope = MultiplierScope::PerBand;
-    countryMult.displayName = "Countries";
-    mults.append(countryMult);
-
-    return mults;
+    // ARRL Field Day does not use band-based multipliers
+    // Scoring is based on QSO points + bonus points only
+    // (This was incorrectly copied from WinterFieldDayContest)
+    return QList<MultiplierDefinition>();
 }
 
 QString ARRLFieldDayContest::getMultiplierValue(
@@ -236,31 +221,12 @@ QString ARRLFieldDayContest::getMultiplierValue(
     MultiplierType multType,
     const QStringList& alreadyWorkedValues) const
 {
-    QString multValue;
+    Q_UNUSED(qso);
+    Q_UNUSED(multType);
+    Q_UNUSED(alreadyWorkedValues);
 
-    switch (multType) {
-        case MultiplierType::CQZone:
-            // CQ Zone from QSO
-            if (qso.cqZone > 0) {
-                multValue = QString::number(qso.cqZone);
-            }
-            break;
-
-        case MultiplierType::Country:
-            // Country (DXCC entity)
-            multValue = qso.dxccPrefix;  // Use DXCC prefix as country identifier
-            break;
-
-        default:
-            return QString();  // Not a multiplier for this contest
-    }
-
-    // Check if this multiplier value has already been worked (on this band)
-    if (multValue.isEmpty() || alreadyWorkedValues.contains(multValue)) {
-        return QString();  // Not a new multiplier
-    }
-
-    return multValue;
+    // ARRL Field Day does not use multipliers
+    return QString();
 }
 
 QMap<QString, QString> ARRLFieldDayContest::getCabrilloHeaders() const {

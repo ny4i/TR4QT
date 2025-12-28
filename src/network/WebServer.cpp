@@ -139,6 +139,14 @@ void WebServer::setContestName(const QString& contestName) {
     m_contestName = contestName;
 }
 
+void WebServer::setUsesZoneMultipliers(bool usesZones) {
+    m_usesZoneMultipliers = usesZones;
+}
+
+void WebServer::setUsesModeGroupBreakdown(bool usesModeGroups) {
+    m_usesModeGroupBreakdown = usesModeGroups;
+}
+
 // HTTP Route Handlers
 
 QHttpServerResponse WebServer::handleRoot() {
@@ -816,6 +824,9 @@ QString WebServer::generateDashboardHtml() {
     QMap<BandType, int> bandZones;
     QMap<BandType, int> bandPoints;
 
+    // Mode group tracking (for mixed-mode contests)
+    QMap<ModeGroup, QMap<BandType, int>> modeGroupQSOs;  // [ModeGroup][Band] = count
+
     // Iterate through all QSOs to calculate scores
     for (int row = 0; row < qsoCount; ++row) {
         QSO qso = m_qsoModel->getQSO(row);
@@ -825,6 +836,12 @@ QString WebServer::generateDashboardHtml() {
         bandQSOs[qso.band]++;
         bandPoints[qso.band] += qso.qsoPoints;
         totalQSOPoints += qso.qsoPoints;
+
+        // Count per mode group and band (for mixed-mode breakdown)
+        if (m_usesModeGroupBreakdown) {
+            ModeGroup group = modeTypeToModeGroup(qso.mode);
+            modeGroupQSOs[group][qso.band]++;
+        }
 
         // Count mults
         if (qso.isMultiplier) {
@@ -901,15 +918,34 @@ QString WebServer::generateDashboardHtml() {
         BandType::Band20M, BandType::Band15M, BandType::Band10M
     };
 
-    // QSOs row
-    bandTableHtml += "<tr><td class=\"row-label\">QSOs</td>";
-    int bandQSOTotal = 0;
-    for (BandType band : bands) {
-        int count = bandQSOs.value(band, 0);
-        bandQSOTotal += count;
-        bandTableHtml += QString("<td>%1</td>").arg(count);
+    // QSOs row(s) - either mode group breakdown or single row
+    if (m_usesModeGroupBreakdown) {
+        // Mixed-mode: Show Phone, CW, Digital rows
+        QList<ModeGroup> modeGroups = {ModeGroup::Phone, ModeGroup::CW, ModeGroup::Digital};
+
+        for (ModeGroup group : modeGroups) {
+            bandTableHtml += QString("<tr><td class=\"row-label\">%1</td>")
+                .arg(modeGroupToString(group));
+
+            int modeGroupTotal = 0;
+            for (BandType band : bands) {
+                int count = modeGroupQSOs.value(group).value(band, 0);
+                modeGroupTotal += count;
+                bandTableHtml += QString("<td>%1</td>").arg(count);
+            }
+            bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(modeGroupTotal);
+        }
+    } else {
+        // Single-mode: Show just QSOs row
+        bandTableHtml += "<tr><td class=\"row-label\">QSOs</td>";
+        int bandQSOTotal = 0;
+        for (BandType band : bands) {
+            int count = bandQSOs.value(band, 0);
+            bandQSOTotal += count;
+            bandTableHtml += QString("<td>%1</td>").arg(count);
+        }
+        bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(bandQSOTotal);
     }
-    bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(bandQSOTotal);
 
     // Mults row
     bandTableHtml += "<tr><td class=\"row-label\">Mults</td>";
@@ -921,15 +957,17 @@ QString WebServer::generateDashboardHtml() {
     }
     bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(bandMultTotal);
 
-    // Zones row
-    bandTableHtml += "<tr><td class=\"row-label\">Zones</td>";
-    int bandZoneTotal = 0;
-    for (BandType band : bands) {
-        int count = bandZones.value(band, 0);
-        bandZoneTotal += count;
-        bandTableHtml += QString("<td>%1</td>").arg(count);
+    // Zones row (only if contest uses zone multipliers)
+    if (m_usesZoneMultipliers) {
+        bandTableHtml += "<tr><td class=\"row-label\">Zones</td>";
+        int bandZoneTotal = 0;
+        for (BandType band : bands) {
+            int count = bandZones.value(band, 0);
+            bandZoneTotal += count;
+            bandTableHtml += QString("<td>%1</td>").arg(count);
+        }
+        bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(bandZoneTotal);
     }
-    bandTableHtml += QString("<td class=\"total-col\">%1</td></tr>").arg(bandZoneTotal);
 
     // Points row
     bandTableHtml += "<tr><td class=\"row-label\">Points</td>";

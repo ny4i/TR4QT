@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.98.1";  // Preserve zoom level on sections map refresh
+constexpr const char* APP_VERSION = "2.98.4";  // Automate macOS app bundling in CMake
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
