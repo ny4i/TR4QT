@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.0.2";  // Fix schema.sql fallback paths for tests
+constexpr const char* APP_VERSION = "3.1.0";  // Cabrillo: Sort operators by QSO count descending
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

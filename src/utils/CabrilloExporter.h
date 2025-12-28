@@ -126,8 +126,11 @@ private:
 
     /**
      * Generate Cabrillo header
+     *
+     * Analyzes QSO list to count QSOs per operator and sorts operators
+     * by descending QSO count for the OPERATORS field.
      */
-    QString generateHeader(ContestBase* contest, int qsoCount);
+    QString generateHeader(ContestBase* contest, const QList<QSO>& qsos);
 
     /**
      * Format a single QSO as Cabrillo line
