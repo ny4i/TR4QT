@@ -17,6 +17,7 @@
 #include <QPushButton>
 #include <QDialogButtonBox>
 #include <QMessageBox>
+#include <QInputDialog>
 #include <QFileDialog>
 #include <QColorDialog>
 #include <QCompleter>
@@ -31,6 +32,7 @@ namespace TR4QT {
 
 PreferencesDialog::PreferencesDialog(QWidget* parent)
     : QDialog(parent)
+    , m_k4Discovery(new K4Discovery(this))
 {
     LOG_DEBUG("PreferencesDialog", "*** PreferencesDialog constructor called ***");
     LOG_DEBUG("PreferencesDialog", "*** Setting window title ***");
@@ -42,6 +44,10 @@ PreferencesDialog::PreferencesDialog(QWidget* parent)
     LOG_DEBUG("PreferencesDialog", "*** loadSettings completed, resizing ***");
     resize(800, 550);  // Wider for sidebar layout
     LOG_DEBUG("PreferencesDialog", QString("*** PreferencesDialog fully initialized with window title: %1").arg(windowTitle()));
+
+    // Connect K4 Discovery signals
+    connect(m_k4Discovery, &K4Discovery::radioFound, this, &PreferencesDialog::onK4RadioFound);
+    connect(m_k4Discovery, &K4Discovery::discoveryFinished, this, &PreferencesDialog::onK4DiscoveryFinished);
 }
 
 void PreferencesDialog::setupUI() {
@@ -283,6 +289,13 @@ QWidget* PreferencesDialog::createRadioTab() {
 
     networkLayout->addRow("IP Address:", m_ipAddressEdit);
     networkLayout->addRow("Port:", m_portSpin);
+
+    // Find K4 Radios button
+    m_findK4Button = new QPushButton("Find K4 Radios on Network", this);
+    m_findK4Button->setToolTip("Broadcast UDP discovery message to find Elecraft K4 radios on the network");
+    connect(m_findK4Button, &QPushButton::clicked, this, &PreferencesDialog::onFindK4Radios);
+    networkLayout->addRow("", m_findK4Button);
+
     layout->addWidget(m_networkGroup);
     m_networkGroup->setVisible(false);
 
@@ -1908,6 +1921,109 @@ void PreferencesDialog::populateRadioList() {
 void PreferencesDialog::onRadioStatusFilterChanged() {
     // Repopulate radio list with new filter settings
     populateRadioList();
+}
+
+void PreferencesDialog::onFindK4Radios() {
+    LOG_INFO("PreferencesDialog", "Starting K4 radio discovery...");
+
+    // Clear previous results
+    m_foundK4Radios.clear();
+
+    // Disable button during discovery
+    m_findK4Button->setEnabled(false);
+    m_findK4Button->setText("Searching...");
+
+    // Start discovery
+    m_k4Discovery->startDiscovery();
+}
+
+void PreferencesDialog::onK4RadioFound(const K4RadioInfo& radio) {
+    LOG_INFO("PreferencesDialog", QString("K4 radio found: %1 at %2")
+        .arg(radio.serialNumber)
+        .arg(radio.ipAddress));
+
+    m_foundK4Radios.append(radio);
+}
+
+void PreferencesDialog::onK4DiscoveryFinished(int count) {
+    LOG_INFO("PreferencesDialog", QString("K4 discovery finished - found %1 radio(s)").arg(count));
+
+    // Re-enable button
+    m_findK4Button->setEnabled(true);
+    m_findK4Button->setText("Find K4 Radios on Network");
+
+    // Display results
+    if (count == 0) {
+        QMessageBox::information(this, "K4 Discovery",
+            "No K4 radios found on the network.\n\n"
+            "Make sure:\n"
+            "• Your K4 is powered on\n"
+            "• Your K4 is connected to the same network\n"
+            "• Your computer's firewall allows UDP port 9100");
+    } else {
+        QString message = QString("Found %1 K4 radio%2:\n\n")
+            .arg(count)
+            .arg(count == 1 ? "" : "s");
+
+        for (const K4RadioInfo& radio : m_foundK4Radios) {
+            message += QString("• Serial Number: %1\n")
+                .arg(radio.serialNumber);
+            message += QString("  IP Address: %1\n")
+                .arg(radio.ipAddress);
+            message += QString("  Hostname: %1\n\n")
+                .arg(radio.hostname());
+        }
+
+        // If network connection is selected, offer to use discovered IP
+        if (m_networkRadio->isChecked()) {
+            if (count == 1) {
+                // Single K4 found - ask if they want to use it
+                message += QString("Use IP address %1?").arg(m_foundK4Radios.first().ipAddress);
+
+                QMessageBox::StandardButton reply = QMessageBox::question(
+                    this,
+                    "K4 Discovery",
+                    message,
+                    QMessageBox::Yes | QMessageBox::No
+                );
+
+                if (reply == QMessageBox::Yes) {
+                    m_ipAddressEdit->setText(m_foundK4Radios.first().ipAddress);
+                    m_portSpin->setValue(4532);  // Default K4 rigctld port
+                }
+            } else {
+                // Multiple K4s found - let user select which one
+                QStringList radioOptions;
+                for (const K4RadioInfo& radio : m_foundK4Radios) {
+                    radioOptions << QString("K4 SN%1 - %2")
+                        .arg(radio.serialNumber.rightJustified(5, '0'))
+                        .arg(radio.ipAddress);
+                }
+
+                bool ok;
+                QString selection = QInputDialog::getItem(
+                    this,
+                    "Select K4 Radio",
+                    message + "\nSelect a K4 radio to use:",
+                    radioOptions,
+                    0,      // default to first item
+                    false,  // not editable
+                    &ok
+                );
+
+                if (ok && !selection.isEmpty()) {
+                    // Find the selected radio and populate IP
+                    int index = radioOptions.indexOf(selection);
+                    if (index >= 0 && index < m_foundK4Radios.count()) {
+                        m_ipAddressEdit->setText(m_foundK4Radios[index].ipAddress);
+                        m_portSpin->setValue(4532);  // Default K4 rigctld port
+                    }
+                }
+            }
+        } else {
+            QMessageBox::information(this, "K4 Discovery", message);
+        }
+    }
 }
 
 } // namespace TR4QT

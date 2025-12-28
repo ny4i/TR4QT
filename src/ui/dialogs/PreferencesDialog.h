@@ -14,6 +14,7 @@
 #include <QLabel>
 #include "../../radio/RadioInterface.h"
 #include "../../utils/DXClusterListDownloader.h"
+#include "../../utils/K4Discovery.h"
 
 namespace TR4QT {
 
@@ -72,6 +73,11 @@ private slots:
 
     // Backup slots
     void onBrowseBackupDirectory();
+
+    // K4 Discovery slots
+    void onFindK4Radios();
+    void onK4RadioFound(const K4RadioInfo& radio);
+    void onK4DiscoveryFinished(int count);
 
 private:
     void setupUI();
@@ -186,6 +192,11 @@ private:
     // Advanced tab widgets
     QLineEdit* m_countryFilePathEdit;
     QCheckBox* m_autoUpdateCountryFileCheck;
+
+    // K4 Discovery
+    K4Discovery* m_k4Discovery;
+    QPushButton* m_findK4Button;
+    QList<K4RadioInfo> m_foundK4Radios;
 
     // Sidebar navigation widgets
     QListWidget* m_categoryList;
