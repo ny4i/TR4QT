@@ -345,9 +345,28 @@ QString GlobalDatabase::loadSchemaSql() {
     // Try to load from embedded resource (production)
     QFile schemaFile(":/data/global_schema.sql");
     if (!schemaFile.exists()) {
-        LOG_DEBUG("GlobalDatabase", "Resource :/data/global_schema.sql not found, trying fallback path");
-        // Fallback to actual file path (development)
-        schemaFile.setFileName("src/data/global_schema.sql");
+        LOG_DEBUG("GlobalDatabase", "Resource :/data/global_schema.sql not found, trying fallback paths");
+        // Fallback to actual file paths (development/testing)
+        // Try multiple paths to handle different working directories
+        QStringList fallbackPaths = {
+            "src/data/global_schema.sql",           // From project root
+            "../src/data/global_schema.sql",        // From build directory
+            "../../src/data/global_schema.sql"      // From nested build directory
+        };
+
+        bool found = false;
+        for (const QString& path : fallbackPaths) {
+            schemaFile.setFileName(path);
+            if (schemaFile.exists()) {
+                LOG_DEBUG("GlobalDatabase", QString("Found global schema at fallback path: %1").arg(path));
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            LOG_WARN("GlobalDatabase", "Global schema file not found in any fallback path");
+        }
     } else {
         LOG_DEBUG("GlobalDatabase", "Found global schema in Qt resources");
     }

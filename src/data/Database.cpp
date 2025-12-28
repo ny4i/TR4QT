@@ -277,9 +277,28 @@ QString Database::loadSchemaSql() {
     // Try to load from embedded resource (production)
     QFile schemaFile(":/data/schema.sql");
     if (!schemaFile.exists()) {
-        LOG_WARN("Database", "Resource :/data/schema.sql not found, trying fallback path");
-        // Fallback to actual file path (development)
-        schemaFile.setFileName("src/data/schema.sql");
+        LOG_WARN("Database", "Resource :/data/schema.sql not found, trying fallback paths");
+        // Fallback to actual file paths (development/testing)
+        // Try multiple paths to handle different working directories
+        QStringList fallbackPaths = {
+            "src/data/schema.sql",           // From project root
+            "../src/data/schema.sql",        // From build directory
+            "../../src/data/schema.sql"      // From nested build directory
+        };
+
+        bool found = false;
+        for (const QString& path : fallbackPaths) {
+            schemaFile.setFileName(path);
+            if (schemaFile.exists()) {
+                LOG_WARN("Database", QString("Found schema at fallback path: %1").arg(path));
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            LOG_WARN("Database", "Schema file not found in any fallback path");
+        }
     } else {
         LOG_WARN("Database", "Found schema in Qt resources");
     }
