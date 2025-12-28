@@ -82,7 +82,11 @@ jobs:
       shell: bash
       run: |
         export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
-        windeployqt build/src/tr4qt.exe --release --no-translations
+        windeployqt build/src/tr4qt.exe --release --no-translations --sql
+
+        # Verify SQL plugin was deployed
+        echo "Checking for SQL plugins..."
+        ls -la build/src/sqldrivers/ || echo "WARNING: sqldrivers directory not found"
 
         # Copy Hamlib DLLs
         echo "Copying Hamlib DLLs..."
