@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.1.0";  // Cabrillo: Sort operators by QSO count descending
+constexpr const char* APP_VERSION = "3.2.0";  // K4 radio network discovery
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
