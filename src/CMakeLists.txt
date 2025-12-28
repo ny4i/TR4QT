@@ -214,7 +214,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "Appl
 endif()
 
 # macOS: Automatically bundle Qt frameworks and fix library paths after build
-if(APPLE)
+# Skip in CI environments - GitHub Actions has its own bundling process
+if(APPLE AND NOT DEFINED ENV{CI})
     add_custom_command(TARGET tr4qt POST_BUILD
         COMMAND ${CMAKE_SOURCE_DIR}/scripts/macos-bundle.sh
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
