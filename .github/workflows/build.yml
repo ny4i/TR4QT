@@ -372,28 +372,52 @@ jobs:
           -w /workspace \
           arm64v8/ubuntu:24.04 \
           bash -c "
-            apt-get update && \
+            set -e
+            echo '==> Explicit Linux ARM64 Deployment (no linuxdeploy)'
+
+            # Install dependencies
+            apt-get update
             DEBIAN_FRONTEND=noninteractive apt-get install -y \
-              build-essential \
-              cmake \
-              libgl1-mesa-dev \
-              libhamlib-dev \
-              qt6-base-dev \
-              qt6-websockets-dev \
-              qt6-httpserver-dev \
-              libqt6sql6-sqlite \
-              libqt6network6 \
-              libfuse2 \
-              wget \
-              file && \
-            cmake -B build \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_INSTALL_PREFIX=/usr && \
-            cmake --build build --config Release -j\$(nproc) && \
-            DESTDIR=/workspace/appdir cmake --install build && \
-            mkdir -p /workspace/appdir/usr/share/applications && \
-            mkdir -p /workspace/appdir/usr/share/icons/hicolor/256x256/apps && \
-            cat > /workspace/appdir/usr/share/applications/tr4qt.desktop <<EOF
+              build-essential cmake libgl1-mesa-dev libhamlib-dev \
+              qt6-base-dev qt6-websockets-dev qt6-httpserver-dev \
+              libqt6sql6-sqlite libqt6network6 libfuse2 wget file patchelf
+
+            # Build
+            echo '==> Building TR4QT...'
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+            cmake --build build --config Release -j\$(nproc)
+
+            # Create AppDir structure
+            echo '==> Creating AppDir structure...'
+            mkdir -p appdir/usr/bin appdir/usr/lib appdir/usr/share/applications
+            mkdir -p appdir/usr/plugins/platforms appdir/usr/plugins/sqldrivers
+
+            # Copy executable
+            cp build/src/tr4qt appdir/usr/bin/
+
+            # Copy Qt libraries explicitly
+            echo '==> Copying Qt libraries...'
+            QT_LIBS=(
+              libQt6Core.so.6 libQt6Gui.so.6 libQt6Widgets.so.6
+              libQt6Network.so.6 libQt6Sql.so.6 libQt6HttpServer.so.6
+              libQt6WebSockets.so.6 libQt6PrintSupport.so.6
+              libQt6Concurrent.so.6 libQt6DBus.so.6
+            )
+            for lib in \${QT_LIBS[@]}; do
+              cp /usr/lib/aarch64-linux-gnu/\$lib appdir/usr/lib/ || echo \"WARNING: \$lib not found\"
+            done
+
+            # Copy Qt plugins
+            echo '==> Copying Qt plugins...'
+            cp /usr/lib/aarch64-linux-gnu/qt6/plugins/platforms/libqxcb.so appdir/usr/plugins/platforms/
+            cp /usr/lib/aarch64-linux-gnu/qt6/plugins/sqldrivers/libqsqlite.so appdir/usr/plugins/sqldrivers/
+
+            # Copy Hamlib and other system libs
+            echo '==> Copying system libraries...'
+            cp /usr/lib/aarch64-linux-gnu/libhamlib.so.4 appdir/usr/lib/ || true
+
+            # Create desktop entry
+            cat > appdir/usr/share/applications/tr4qt.desktop <<'DESKTOP_EOF'
         [Desktop Entry]
         Type=Application
         Name=TR4QT
@@ -401,17 +425,27 @@ jobs:
         Exec=tr4qt
         Icon=tr4qt
         Categories=HamRadio;Network;
-        EOF
-            cd /workspace && \
-            wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-aarch64.AppImage && \
-            wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-aarch64.AppImage && \
-            chmod +x linuxdeploy*.AppImage && \
-            export QMAKE=/usr/lib/aarch64-linux-gnu/qt6/bin/qmake && \
-            export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu:\$LD_LIBRARY_PATH && \
-            ./linuxdeploy-aarch64.AppImage \
-              --appdir appdir \
-              --plugin qt \
-              --output appimage
+        DESKTOP_EOF
+
+            # Create AppRun script
+            cat > appdir/AppRun <<'APPRUN_EOF'
+        #!/bin/bash
+        SELF=\$(readlink -f \"\$0\")
+        HERE=\${SELF%/*}
+        export LD_LIBRARY_PATH=\"\${HERE}/usr/lib:\$LD_LIBRARY_PATH\"
+        export QT_PLUGIN_PATH=\"\${HERE}/usr/plugins\"
+        exec \"\${HERE}/usr/bin/tr4qt\" \"\$@\"
+        APPRUN_EOF
+            chmod +x appdir/AppRun
+
+            # Create AppImage using appimagetool
+            echo '==> Creating AppImage...'
+            wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage
+            chmod +x appimagetool-aarch64.AppImage
+            ARCH=aarch64 ./appimagetool-aarch64.AppImage appdir TR4QT-ARM64.AppImage
+
+            echo '==> Deployment complete'
+            ls -lh TR4QT-ARM64.AppImage
           "
 
     - name: Upload Artifact
