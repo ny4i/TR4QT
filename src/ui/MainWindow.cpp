@@ -3280,6 +3280,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         QSORepository repo;
         QList<QSO> existingQSOs = repo.findByContest(m_currentContestDbId);
         m_qsoTableModel->clear();
+        m_bandSummaryGrid->clearAll();  // Clear band grid when switching contests
         for (QSO& qso : existingQSOs) {
             m_qsoTableModel->addQSO(qso);
         }
@@ -3341,6 +3342,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         m_currentContestDbId = db.lastInsertId();
         m_nextSerialNumber = 1;
         m_qsoTableModel->clear();
+        m_bandSummaryGrid->clearAll();  // Clear band grid for new contest
         LOG_DEBUG("MainWindow", QString("Created new contest with DB ID: %1").arg(m_currentContestDbId));
     }
 
