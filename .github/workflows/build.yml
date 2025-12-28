@@ -358,6 +358,47 @@ jobs:
         hdiutil create -volname "TR4QT" -srcfolder dmg-contents -ov -format UDZO tr4qt.dmg
         rm -rf dmg-contents
 
+    - name: Verify App Bundle Contents
+      working-directory: build/src
+      run: |
+        echo "=== Verifying macOS App Bundle Contents ==="
+
+        # Critical verification: Check for QSQLITE driver
+        echo ""
+        echo "=== CRITICAL: Verifying QSQLITE driver ==="
+        if [ -f "tr4qt.app/Contents/PlugIns/sqldrivers/libqsqlite.dylib" ]; then
+          echo "✓ SUCCESS: libqsqlite.dylib found in app bundle"
+          ls -lh tr4qt.app/Contents/PlugIns/sqldrivers/
+        else
+          echo "✗ ERROR: libqsqlite.dylib NOT found in app bundle!"
+          echo "Expected location: tr4qt.app/Contents/PlugIns/sqldrivers/libqsqlite.dylib"
+          echo "This is a FATAL error - app will not work without SQL driver"
+          exit 1
+        fi
+
+        # Verify other critical components
+        echo ""
+        echo "=== Verifying other critical components ==="
+        echo "Executable:"
+        ls -lh tr4qt.app/Contents/MacOS/tr4qt
+        echo ""
+        echo "Qt Frameworks:"
+        ls -d tr4qt.app/Contents/Frameworks/Qt*.framework 2>/dev/null | head -5
+        echo ""
+        echo "Platform plugins:"
+        ls -lh tr4qt.app/Contents/PlugIns/platforms/ 2>/dev/null || echo "No platform plugins found"
+
+        # Verify no absolute Homebrew paths in libraries
+        echo ""
+        echo "=== Checking for absolute Homebrew paths (should be none) ==="
+        HOMEBREW_PATHS=$(find tr4qt.app/Contents/Frameworks -type f -exec otool -L {} \; 2>/dev/null | grep "/opt/homebrew" | grep -v "@rpath" | wc -l)
+        if [ "$HOMEBREW_PATHS" -eq 0 ]; then
+          echo "✓ SUCCESS: No absolute Homebrew paths found"
+        else
+          echo "⚠ WARNING: Found $HOMEBREW_PATHS absolute Homebrew path references"
+          find tr4qt.app/Contents/Frameworks -type f -exec otool -L {} \; 2>/dev/null | grep "/opt/homebrew" | grep -v "@rpath" | sort -u
+        fi
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
@@ -566,6 +607,41 @@ jobs:
 
             echo '==> Deployment complete'
             ls -lh TR4QT-ARM64.AppImage
+
+            # Verify AppImage contents
+            echo ''
+            echo '==> Verifying AppImage Contents'
+
+            # Extract AppImage to verify contents
+            ./TR4QT-ARM64.AppImage --appimage-extract >/dev/null
+
+            # Critical verification: Check for QSQLITE driver
+            echo ''
+            echo '=== CRITICAL: Verifying QSQLITE driver ==='
+            if [ -f 'squashfs-root/usr/plugins/sqldrivers/libqsqlite.so' ]; then
+              echo '✓ SUCCESS: libqsqlite.so found in AppImage'
+              ls -lh squashfs-root/usr/plugins/sqldrivers/
+            else
+              echo '✗ ERROR: libqsqlite.so NOT found in AppImage!'
+              echo 'Expected location: squashfs-root/usr/plugins/sqldrivers/libqsqlite.so'
+              echo 'This is a FATAL error - AppImage will not work without SQL driver'
+              exit 1
+            fi
+
+            # Verify other critical components
+            echo ''
+            echo '=== Verifying other critical components ==='
+            echo 'Executable:'
+            ls -lh squashfs-root/usr/bin/tr4qt
+            echo ''
+            echo 'Qt Libraries:'
+            ls squashfs-root/usr/lib/libQt6*.so.6 2>/dev/null | head -5
+            echo ''
+            echo 'Platform plugins:'
+            ls -lh squashfs-root/usr/plugins/platforms/ 2>/dev/null || echo 'No platform plugins found'
+
+            # Clean up extracted files
+            rm -rf squashfs-root
           "
 
     - name: Upload Artifact
