@@ -124,8 +124,20 @@ jobs:
         mkdir -p "$DEST/styles"
         cp "$QT_PLUGINS/styles/qwindowsvistastyle.dll" "$DEST/styles/" || echo "WARNING: qwindowsvistastyle.dll not found (optional)"
 
+        # Copy SQL drivers (CRITICAL - required for database access)
+        echo "Copying SQL drivers..."
         mkdir -p "$DEST/sqldrivers"
-        cp "$QT_PLUGINS/sqldrivers/qsqlite.dll" "$DEST/sqldrivers/"
+        echo "DEBUG: QT_PLUGINS=$QT_PLUGINS"
+        echo "DEBUG: Looking for qsqlite.dll in: $QT_PLUGINS/sqldrivers/"
+        ls -la "$QT_PLUGINS/sqldrivers/" || echo "ERROR: sqldrivers directory not found!"
+        if [ -f "$QT_PLUGINS/sqldrivers/qsqlite.dll" ]; then
+          cp "$QT_PLUGINS/sqldrivers/qsqlite.dll" "$DEST/sqldrivers/"
+          echo "SUCCESS: qsqlite.dll copied"
+        else
+          echo "ERROR: qsqlite.dll not found at $QT_PLUGINS/sqldrivers/qsqlite.dll"
+          echo "ERROR: This is a FATAL error - application will not work without SQL driver"
+          exit 1
+        fi
 
         # Copy Hamlib DLLs
         echo "Copying Hamlib DLLs..."
@@ -142,7 +154,12 @@ jobs:
         echo "Qt DLLs:"
         ls -lh "$DEST"/Qt6*.dll | awk '{print "  " $9, $5}'
         echo "SQL Drivers:"
-        ls -lh "$DEST/sqldrivers/"*.dll | awk '{print "  " $9, $5}'
+        if [ -d "$DEST/sqldrivers" ] && ls "$DEST/sqldrivers/"*.dll >/dev/null 2>&1; then
+          ls -lh "$DEST/sqldrivers/"*.dll | awk '{print "  " $9, $5}'
+        else
+          echo "  ERROR: No SQL drivers found!"
+          exit 1
+        fi
         echo "Platforms:"
         ls -lh "$DEST/platforms/"*.dll | awk '{print "  " $9, $5}'
         echo "MinGW Runtime:"
