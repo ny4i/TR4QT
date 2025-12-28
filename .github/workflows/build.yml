@@ -208,6 +208,77 @@ jobs:
         echo "=== Verifying other critical components ==="
         "/c/Program Files/7-Zip/7z.exe" l "$INSTALLER" | grep -E "(tr4qt.exe|Qt6Core.dll|platforms.*qwindows.dll|sqldrivers.*qsqlite.dll)" || true
 
+    - name: Smoke Test Installer
+      shell: bash
+      run: |
+        echo "=== Smoke Testing Windows Installer ==="
+
+        # Find the installer
+        INSTALLER=$(ls build/src/TR4QT-*-Setup.exe | head -1)
+        echo "Testing installer: $INSTALLER"
+
+        # Silent install to test directory
+        TEST_DIR="C:/TR4QT-Test"
+        echo "Installing to: $TEST_DIR"
+        "$INSTALLER" /S /D="$TEST_DIR"
+
+        # Wait for installation to complete
+        sleep 5
+
+        # Verify installation directory exists
+        if [ ! -d "$TEST_DIR" ]; then
+          echo "✗ ERROR: Installation directory not created!"
+          exit 1
+        fi
+
+        # Verify executable exists
+        if [ ! -f "$TEST_DIR/tr4qt.exe" ]; then
+          echo "✗ ERROR: tr4qt.exe not found after installation!"
+          ls -la "$TEST_DIR"
+          exit 1
+        fi
+
+        # Critical: Verify SQL driver was installed
+        echo ""
+        echo "=== Verifying SQL driver in installed app ==="
+        if [ -f "$TEST_DIR/sqldrivers/qsqlite.dll" ]; then
+          echo "✓ SUCCESS: qsqlite.dll found in installed application"
+          ls -lh "$TEST_DIR/sqldrivers/"
+        else
+          echo "✗ ERROR: qsqlite.dll NOT found in installed application!"
+          echo "This means the installer did not include the SQL driver!"
+          ls -la "$TEST_DIR"
+          exit 1
+        fi
+
+        # Try to run the application with --version
+        echo ""
+        echo "=== Testing executable launch ==="
+        # Set Qt plugin path for test
+        export QT_PLUGIN_PATH="$TEST_DIR"
+
+        # Run with --version (should not require display)
+        if "$TEST_DIR/tr4qt.exe" --version 2>&1 | tee test_output.txt; then
+          echo "✓ SUCCESS: Application executed successfully"
+          cat test_output.txt
+        else
+          EXIT_CODE=$?
+          echo "⚠ WARNING: Application exited with code $EXIT_CODE"
+          echo "Output:"
+          cat test_output.txt
+          # Check if it's a database error (the bug we're trying to prevent)
+          if grep -q "QSQLITE.*not available" test_output.txt; then
+            echo "✗ FATAL: Database driver error detected!"
+            exit 1
+          fi
+          # Other errors might be expected in CI (no display, etc.)
+          echo "Continuing despite exit code (may be expected in headless environment)"
+        fi
+
+        # Cleanup
+        rm -rf "$TEST_DIR"
+        echo "✓ Smoke test completed successfully"
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
@@ -398,6 +469,43 @@ jobs:
           echo "⚠ WARNING: Found $HOMEBREW_PATHS absolute Homebrew path references"
           find tr4qt.app/Contents/Frameworks -type f -exec otool -L {} \; 2>/dev/null | grep "/opt/homebrew" | grep -v "@rpath" | sort -u
         fi
+
+    - name: Smoke Test App Bundle
+      working-directory: build/src
+      run: |
+        echo "=== Smoke Testing macOS App Bundle ==="
+
+        # Try to run the application with --version
+        echo ""
+        echo "=== Testing executable launch ==="
+        if ./tr4qt.app/Contents/MacOS/tr4qt --version 2>&1 | tee test_output.txt; then
+          echo "✓ SUCCESS: Application executed successfully"
+          cat test_output.txt
+        else
+          EXIT_CODE=$?
+          echo "⚠ WARNING: Application exited with code $EXIT_CODE"
+          echo "Output:"
+          cat test_output.txt
+
+          # Check for critical errors
+          if grep -q "QSQLITE.*not available" test_output.txt; then
+            echo "✗ FATAL: Database driver error detected!"
+            exit 1
+          elif grep -q "dyld.*Library not loaded" test_output.txt; then
+            echo "✗ FATAL: Missing library dependency detected!"
+            cat test_output.txt
+            exit 1
+          elif grep -q "/opt/homebrew" test_output.txt; then
+            echo "✗ FATAL: Absolute Homebrew path detected in runtime error!"
+            cat test_output.txt
+            exit 1
+          fi
+
+          # Other errors might be expected in CI (no display, etc.)
+          echo "Continuing despite exit code (may be expected in headless environment)"
+        fi
+
+        echo "✓ Smoke test completed successfully"
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
@@ -639,6 +747,37 @@ jobs:
             echo ''
             echo 'Platform plugins:'
             ls -lh squashfs-root/usr/plugins/platforms/ 2>/dev/null || echo 'No platform plugins found'
+
+            # Smoke test: Try to run the application
+            echo ''
+            echo '==> Smoke Testing AppImage'
+            chmod +x ./TR4QT-ARM64.AppImage
+
+            # Try to run with --version
+            if ./TR4QT-ARM64.AppImage --version 2>&1 | tee test_output.txt; then
+              echo '✓ SUCCESS: AppImage executed successfully'
+              cat test_output.txt
+            else
+              EXIT_CODE=\$?
+              echo \"⚠ WARNING: AppImage exited with code \$EXIT_CODE\"
+              echo 'Output:'
+              cat test_output.txt
+
+              # Check for critical errors
+              if grep -q 'QSQLITE.*not available' test_output.txt; then
+                echo '✗ FATAL: Database driver error detected!'
+                exit 1
+              elif grep -q 'error while loading shared libraries' test_output.txt; then
+                echo '✗ FATAL: Missing shared library detected!'
+                cat test_output.txt
+                exit 1
+              fi
+
+              # Other errors might be expected in CI
+              echo 'Continuing despite exit code (may be expected in headless environment)'
+            fi
+
+            echo '✓ Smoke test completed successfully'
 
             # Clean up extracted files
             rm -rf squashfs-root
