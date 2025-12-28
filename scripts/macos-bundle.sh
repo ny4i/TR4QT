@@ -14,13 +14,27 @@ echo "==> App bundle: $APP_BUNDLE"
 echo "==> Step 1: Running macdeployqt..."
 /opt/homebrew/bin/macdeployqt "$APP_BUNDLE" -verbose=1
 
-# Step 2: Copy Hamlib library
-echo "==> Step 2: Copying Hamlib library..."
+# Step 2: Copy missing dependencies
+echo "==> Step 2: Copying missing dependencies..."
+
+# Copy Hamlib library
 if [ -f "$HAMLIB_INSTALL/lib/libhamlib.5.dylib" ]; then
     cp "$HAMLIB_INSTALL/lib/libhamlib.5.dylib" "$APP_BUNDLE/Contents/Frameworks/"
     echo "    Copied libhamlib.5.dylib"
 else
     echo "    Warning: Hamlib library not found at $HAMLIB_INSTALL/lib/libhamlib.5.dylib"
+fi
+
+# Copy QtDBus framework (not bundled by macdeployqt)
+if [ -d "/opt/homebrew/opt/qtbase/lib/QtDBus.framework" ]; then
+    cp -R "/opt/homebrew/opt/qtbase/lib/QtDBus.framework" "$APP_BUNDLE/Contents/Frameworks/"
+    echo "    Copied QtDBus.framework"
+fi
+
+# Copy libdbus (required by QtDBus)
+if [ -f "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" ]; then
+    cp "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" "$APP_BUNDLE/Contents/Frameworks/"
+    echo "    Copied libdbus-1.3.dylib"
 fi
 
 # Step 3: Fix library paths to use @rpath
@@ -63,7 +77,7 @@ fi
 
 cd - > /dev/null
 
-# Step 4: Fix Hamlib library ID
+# Step 4: Fix library IDs
 echo "==> Step 4: Fixing library IDs..."
 if [ -f "$APP_BUNDLE/Contents/Frameworks/libhamlib.5.dylib" ]; then
     install_name_tool -id "@rpath/libhamlib.5.dylib" \
@@ -71,8 +85,42 @@ if [ -f "$APP_BUNDLE/Contents/Frameworks/libhamlib.5.dylib" ]; then
     echo "    Fixed libhamlib.5.dylib ID"
 fi
 
-# Step 5: Sign all libraries and frameworks
-echo "==> Step 5: Code signing..."
+if [ -f "$APP_BUNDLE/Contents/Frameworks/libdbus-1.3.dylib" ]; then
+    install_name_tool -id "@rpath/libdbus-1.3.dylib" \
+        "$APP_BUNDLE/Contents/Frameworks/libdbus-1.3.dylib"
+    echo "    Fixed libdbus-1.3.dylib ID"
+fi
+
+if [ -f "$APP_BUNDLE/Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus" ]; then
+    install_name_tool -id "@rpath/QtDBus.framework/Versions/A/QtDBus" \
+        "$APP_BUNDLE/Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus"
+    # Fix QtDBus dependency on libdbus
+    install_name_tool -change "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" \
+        "@rpath/libdbus-1.3.dylib" \
+        "$APP_BUNDLE/Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus"
+    echo "    Fixed QtDBus.framework ID and dependencies"
+fi
+
+# Step 5: Fix Qt plugin rpaths
+echo "==> Step 5: Fixing Qt plugin rpaths..."
+# Qt plugins need to find frameworks at @loader_path/../../../Frameworks
+# (from Contents/PlugIns/*/plugin.dylib to Contents/Frameworks)
+for plugin in "$APP_BUNDLE/Contents/PlugIns"/*/*.dylib; do
+    if [ -f "$plugin" ]; then
+        # Remove the incorrect rpath if it exists
+        if otool -l "$plugin" | grep -q "@loader_path/../../../../lib"; then
+            install_name_tool -delete_rpath "@loader_path/../../../../lib" "$plugin" 2>/dev/null || true
+        fi
+        # Add the correct rpath if not already present
+        if ! otool -l "$plugin" | grep -q "@loader_path/../../../Frameworks"; then
+            install_name_tool -add_rpath "@loader_path/../../../Frameworks" "$plugin" 2>/dev/null || true
+        fi
+    fi
+done
+echo "    Fixed plugin rpaths"
+
+# Step 6: Sign all libraries and frameworks
+echo "==> Step 6: Code signing..."
 
 # Sign all dylibs
 find "$APP_BUNDLE/Contents/Frameworks" -name "*.dylib" -exec codesign -s - -f {} \; 2>/dev/null
@@ -98,8 +146,8 @@ echo "    Signed executable"
 codesign -s - -f "$APP_BUNDLE"
 echo "    Signed app bundle"
 
-# Step 6: Verify signature
-echo "==> Step 6: Verifying signature..."
+# Step 7: Verify signature
+echo "==> Step 7: Verifying signature..."
 if codesign -vvv "$APP_BUNDLE" 2>&1 | grep -q "valid on disk"; then
     echo "    ✓ App bundle signature is valid"
 else
