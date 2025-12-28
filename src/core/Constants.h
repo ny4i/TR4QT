@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.0.0";  // Explicit deployment: removed windeployqt, macdeployqt, linuxdeploy
+constexpr const char* APP_VERSION = "3.0.1";  // Fix Winter Field Day scoring - geographic not mode-based
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

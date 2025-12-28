@@ -175,25 +175,29 @@ QMap<QString, QString> WinterFieldDayContest::parseReceivedExchange(const QStrin
 }
 
 int WinterFieldDayContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) const {
-    // Winter Field Day scoring rules:
-    // - CW and digital modes: 2 points
-    // - SSB and FM modes: 1 point
+    // Winter Field Day scoring rules (geographic):
+    // - Same country: 0 points (but counts as multiplier)
+    // - Different country, same continent (NA only): 2 points
+    // - Different country, same continent (non-NA): 1 point
+    // - Different continent: 3 points
 
-    // Check if mode is CW
-    if (qso.mode == ModeType::CW || qso.mode == ModeType::CWR) {
-        return 2;
+    // Same country check
+    if (qso.dxccEntity == myStation.country) {
+        return 0;  // Same country: 0 points (but counts as multiplier)
     }
 
-    // Check if mode is digital
-    if (qso.mode == ModeType::RTTY || qso.mode == ModeType::RTTYR ||
-        qso.mode == ModeType::PSK || qso.mode == ModeType::PSKR ||
-        qso.mode == ModeType::FT8 || qso.mode == ModeType::FT4 ||
-        qso.mode == ModeType::DATA || qso.mode == ModeType::DATAR) {
-        return 2;
+    // Different country checks
+    if (qso.continent == myStation.continent) {
+        // Same continent
+        if (myStation.continent == "NA" || qso.continent == "NA") {
+            return 2;  // Different country, same continent (NA): 2 points
+        } else {
+            return 1;  // Different country, same continent (non-NA): 1 point
+        }
     }
 
-    // Phone modes (SSB, FM, AM): 1 point
-    return 1;
+    // Different continent
+    return 3;
 }
 
 int WinterFieldDayContest::calculateTotalScore(
