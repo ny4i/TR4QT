@@ -1,120 +1,152 @@
 #!/bin/bash
-# macOS App Bundle Post-Build Script
+# macOS App Bundle Script - EXPLICIT DEPLOYMENT (no macdeployqt)
 # Bundles Qt frameworks, copies dependencies, and signs the app
 
 set -e  # Exit on error
 
 APP_BUNDLE="./build/src/tr4qt.app"
+FRAMEWORKS="$APP_BUNDLE/Contents/Frameworks"
+PLUGINS="$APP_BUNDLE/Contents/PlugIns"
 HAMLIB_INSTALL="$HOME/projects/Hamlib/hamlib_install"
+QT_PREFIX="/opt/homebrew/opt/qtbase"
+QT_HTTPSERVER="/opt/homebrew/opt/qthttpserver"
+QT_WEBSOCKETS="/opt/homebrew/opt/qtwebsockets"
 
-echo "==> macOS App Bundling Script"
+echo "==> Explicit macOS App Bundling (no macdeployqt)"
 echo "==> App bundle: $APP_BUNDLE"
 
-# Step 1: Run macdeployqt to bundle Qt frameworks
-echo "==> Step 1: Running macdeployqt..."
-/opt/homebrew/bin/macdeployqt "$APP_BUNDLE" -verbose=1
+# Step 1: Copy Qt Frameworks explicitly
+echo "==> Step 1: Copying Qt frameworks..."
+mkdir -p "$FRAMEWORKS"
 
-# Step 2: Copy missing dependencies
-echo "==> Step 2: Copying missing dependencies..."
+# List of Qt frameworks we need
+QT_FRAMEWORKS=(
+    "QtCore"
+    "QtGui"
+    "QtWidgets"
+    "QtNetwork"
+    "QtSql"
+    "QtPrintSupport"
+    "QtConcurrent"
+)
 
-# Copy Hamlib library
+for framework in "${QT_FRAMEWORKS[@]}"; do
+    echo "    Copying $framework.framework..."
+    rm -rf "$FRAMEWORKS/$framework.framework"
+    cp -R "$QT_PREFIX/lib/$framework.framework" "$FRAMEWORKS/"
+    # Keep only the main binary, remove headers/resources we don't need
+    rm -rf "$FRAMEWORKS/$framework.framework/Headers"
+    rm -rf "$FRAMEWORKS/$framework.framework/Versions/A/Headers"
+done
+
+# QtHttpServer (different location)
+echo "    Copying QtHttpServer.framework..."
+rm -rf "$FRAMEWORKS/QtHttpServer.framework"
+cp -R "$QT_HTTPSERVER/lib/QtHttpServer.framework" "$FRAMEWORKS/"
+rm -rf "$FRAMEWORKS/QtHttpServer.framework/Headers"
+rm -rf "$FRAMEWORKS/QtHttpServer.framework/Versions/A/Headers"
+
+# QtWebSockets (different location)
+echo "    Copying QtWebSockets.framework..."
+rm -rf "$FRAMEWORKS/QtWebSockets.framework"
+cp -R "$QT_WEBSOCKETS/lib/QtWebSockets.framework" "$FRAMEWORKS/"
+rm -rf "$FRAMEWORKS/QtWebSockets.framework/Headers"
+rm -rf "$FRAMEWORKS/QtWebSockets.framework/Versions/A/Headers"
+
+# QtDBus (needed by some Qt internals, not bundled by macdeployqt)
+echo "    Copying QtDBus.framework..."
+rm -rf "$FRAMEWORKS/QtDBus.framework"
+cp -R "$QT_PREFIX/lib/QtDBus.framework" "$FRAMEWORKS/"
+rm -rf "$FRAMEWORKS/QtDBus.framework/Headers"
+rm -rf "$FRAMEWORKS/QtDBus.framework/Versions/A/Headers"
+
+# Step 2: Copy Qt Plugins explicitly
+echo "==> Step 2: Copying Qt plugins..."
+
+# Platforms plugin (required)
+mkdir -p "$PLUGINS/platforms"
+echo "    Copying platforms/libqcocoa.dylib..."
+cp "$QT_PREFIX/share/qt/plugins/platforms/libqcocoa.dylib" "$PLUGINS/platforms/"
+
+# Styles plugin
+mkdir -p "$PLUGINS/styles"
+echo "    Copying styles/libqmacstyle.dylib..."
+cp "$QT_PREFIX/share/qt/plugins/styles/libqmacstyle.dylib" "$PLUGINS/styles/"
+
+# SQL drivers plugin (CRITICAL - for database access)
+mkdir -p "$PLUGINS/sqldrivers"
+echo "    Copying sqldrivers/libqsqlite.dylib..."
+cp "$QT_PREFIX/share/qt/plugins/sqldrivers/libqsqlite.dylib" "$PLUGINS/sqldrivers/"
+
+# Step 3: Copy Hamlib library
+echo "==> Step 3: Copying Hamlib library..."
 if [ -f "$HAMLIB_INSTALL/lib/libhamlib.5.dylib" ]; then
-    cp "$HAMLIB_INSTALL/lib/libhamlib.5.dylib" "$APP_BUNDLE/Contents/Frameworks/"
+    cp "$HAMLIB_INSTALL/lib/libhamlib.5.dylib" "$FRAMEWORKS/"
     echo "    Copied libhamlib.5.dylib"
 else
-    echo "    Warning: Hamlib library not found at $HAMLIB_INSTALL/lib/libhamlib.5.dylib"
+    echo "    ERROR: Hamlib library not found at $HAMLIB_INSTALL/lib/libhamlib.5.dylib"
+    exit 1
 fi
 
-# Copy QtDBus framework (not bundled by macdeployqt)
-if [ -d "/opt/homebrew/opt/qtbase/lib/QtDBus.framework" ]; then
-    # Remove existing QtDBus if present to avoid permission errors
-    rm -rf "$APP_BUNDLE/Contents/Frameworks/QtDBus.framework"
-    cp -R "/opt/homebrew/opt/qtbase/lib/QtDBus.framework" "$APP_BUNDLE/Contents/Frameworks/"
-    echo "    Copied QtDBus.framework"
-fi
-
-# Copy libdbus (required by QtDBus)
+# Step 4: Copy libdbus (required by QtDBus)
+echo "==> Step 4: Copying libdbus..."
 if [ -f "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" ]; then
-    # Remove existing libdbus if present to avoid permission errors
-    rm -f "$APP_BUNDLE/Contents/Frameworks/libdbus-1.3.dylib"
-    cp "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" "$APP_BUNDLE/Contents/Frameworks/"
+    cp "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" "$FRAMEWORKS/"
     echo "    Copied libdbus-1.3.dylib"
 fi
 
-# Step 3: Fix library paths to use @rpath
-echo "==> Step 3: Fixing library paths..."
+# Step 5: Fix library paths in executable
+echo "==> Step 5: Fixing executable library paths..."
 cd "$APP_BUNDLE/Contents/MacOS"
 
 # Fix Hamlib path
-if otool -L tr4qt | grep -q "/Users/toms/projects"; then
-    install_name_tool -change "$HAMLIB_INSTALL/lib/libhamlib.5.dylib" \
-        "@rpath/libhamlib.5.dylib" tr4qt
-    echo "    Fixed Hamlib path"
-fi
+install_name_tool -change "$HAMLIB_INSTALL/lib/libhamlib.5.dylib" \
+    "@rpath/libhamlib.5.dylib" tr4qt
 
-# Fix Qt framework paths (only if they're still absolute paths)
-for framework in QtSql QtHttpServer QtPrintSupport QtConcurrent QtWebSockets \
-                 QtNetwork QtWidgets QtGui QtCore; do
-    old_path="/opt/homebrew/opt/qtbase/lib/${framework}.framework/Versions/A/${framework}"
-    if otool -L tr4qt | grep -q "$old_path"; then
-        install_name_tool -change "$old_path" \
-            "@rpath/${framework}.framework/Versions/A/${framework}" tr4qt
-        echo "    Fixed $framework path"
-    fi
+# Fix Qt framework paths
+for framework in QtCore QtGui QtWidgets QtNetwork QtSql QtPrintSupport QtConcurrent; do
+    install_name_tool -change "$QT_PREFIX/lib/${framework}.framework/Versions/A/${framework}" \
+        "@rpath/${framework}.framework/Versions/A/${framework}" tr4qt
 done
 
-# Fix QtHttpServer path (different Homebrew location)
-old_path="/opt/homebrew/opt/qthttpserver/lib/QtHttpServer.framework/Versions/A/QtHttpServer"
-if otool -L tr4qt | grep -q "$old_path"; then
-    install_name_tool -change "$old_path" \
-        "@rpath/QtHttpServer.framework/Versions/A/QtHttpServer" tr4qt
-    echo "    Fixed QtHttpServer path"
-fi
+# Fix QtHttpServer path
+install_name_tool -change "$QT_HTTPSERVER/lib/QtHttpServer.framework/Versions/A/QtHttpServer" \
+    "@rpath/QtHttpServer.framework/Versions/A/QtHttpServer" tr4qt
 
-# Fix QtWebSockets path (different Homebrew location)
-old_path="/opt/homebrew/opt/qtwebsockets/lib/QtWebSockets.framework/Versions/A/QtWebSockets"
-if otool -L tr4qt | grep -q "$old_path"; then
-    install_name_tool -change "$old_path" \
-        "@rpath/QtWebSockets.framework/Versions/A/QtWebSockets" tr4qt
-    echo "    Fixed QtWebSockets path"
-fi
+# Fix QtWebSockets path
+install_name_tool -change "$QT_WEBSOCKETS/lib/QtWebSockets.framework/Versions/A/QtWebSockets" \
+    "@rpath/QtWebSockets.framework/Versions/A/QtWebSockets" tr4qt
 
+echo "    Fixed all executable paths"
 cd - > /dev/null
 
-# Step 4: Fix library IDs
-echo "==> Step 4: Fixing library IDs..."
-if [ -f "$APP_BUNDLE/Contents/Frameworks/libhamlib.5.dylib" ]; then
-    install_name_tool -id "@rpath/libhamlib.5.dylib" \
-        "$APP_BUNDLE/Contents/Frameworks/libhamlib.5.dylib"
-    echo "    Fixed libhamlib.5.dylib ID"
-fi
+# Step 6: Fix library IDs
+echo "==> Step 6: Fixing library IDs..."
 
-if [ -f "$APP_BUNDLE/Contents/Frameworks/libdbus-1.3.dylib" ]; then
+# Fix Hamlib ID
+install_name_tool -id "@rpath/libhamlib.5.dylib" \
+    "$FRAMEWORKS/libhamlib.5.dylib"
+echo "    Fixed libhamlib.5.dylib ID"
+
+# Fix libdbus ID
+if [ -f "$FRAMEWORKS/libdbus-1.3.dylib" ]; then
     install_name_tool -id "@rpath/libdbus-1.3.dylib" \
-        "$APP_BUNDLE/Contents/Frameworks/libdbus-1.3.dylib"
+        "$FRAMEWORKS/libdbus-1.3.dylib"
     echo "    Fixed libdbus-1.3.dylib ID"
 fi
 
-if [ -f "$APP_BUNDLE/Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus" ]; then
-    install_name_tool -id "@rpath/QtDBus.framework/Versions/A/QtDBus" \
-        "$APP_BUNDLE/Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus"
-    # Fix QtDBus dependency on libdbus
-    install_name_tool -change "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" \
-        "@rpath/libdbus-1.3.dylib" \
-        "$APP_BUNDLE/Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus"
-    echo "    Fixed QtDBus.framework ID and dependencies"
-fi
+# Fix QtDBus ID and its dependency on libdbus
+install_name_tool -id "@rpath/QtDBus.framework/Versions/A/QtDBus" \
+    "$FRAMEWORKS/QtDBus.framework/Versions/A/QtDBus"
+install_name_tool -change "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" \
+    "@rpath/libdbus-1.3.dylib" \
+    "$FRAMEWORKS/QtDBus.framework/Versions/A/QtDBus"
+echo "    Fixed QtDBus.framework ID and dependencies"
 
-# Step 5: Fix Qt plugin rpaths
-echo "==> Step 5: Fixing Qt plugin rpaths..."
-# Qt plugins need to find frameworks at @loader_path/../../../Frameworks
-# (from Contents/PlugIns/*/plugin.dylib to Contents/Frameworks)
-for plugin in "$APP_BUNDLE/Contents/PlugIns"/*/*.dylib; do
+# Step 7: Fix Qt plugin rpaths
+echo "==> Step 7: Fixing Qt plugin rpaths..."
+for plugin in "$PLUGINS"/*/*.dylib; do
     if [ -f "$plugin" ]; then
-        # Remove the incorrect rpath if it exists
-        if otool -l "$plugin" | grep -q "@loader_path/../../../../lib"; then
-            install_name_tool -delete_rpath "@loader_path/../../../../lib" "$plugin" 2>/dev/null || true
-        fi
         # Add the correct rpath if not already present
         if ! otool -l "$plugin" | grep -q "@loader_path/../../../Frameworks"; then
             install_name_tool -add_rpath "@loader_path/../../../Frameworks" "$plugin" 2>/dev/null || true
@@ -123,15 +155,23 @@ for plugin in "$APP_BUNDLE/Contents/PlugIns"/*/*.dylib; do
 done
 echo "    Fixed plugin rpaths"
 
-# Step 6: Sign all libraries and frameworks
-echo "==> Step 6: Code signing..."
+# Step 8: Create qt.conf
+echo "==> Step 8: Creating qt.conf..."
+cat > "$APP_BUNDLE/Contents/Resources/qt.conf" <<EOF
+[Paths]
+Plugins = PlugIns
+EOF
+echo "    Created qt.conf"
+
+# Step 9: Sign all libraries and frameworks
+echo "==> Step 9: Code signing..."
 
 # Sign all dylibs
-find "$APP_BUNDLE/Contents/Frameworks" -name "*.dylib" -exec codesign -s - -f {} \; 2>/dev/null
+find "$FRAMEWORKS" -name "*.dylib" -exec codesign -s - -f {} \; 2>/dev/null
 echo "    Signed all dylibs"
 
 # Sign all frameworks
-for framework in "$APP_BUNDLE/Contents/Frameworks"/*.framework; do
+for framework in "$FRAMEWORKS"/*.framework; do
     if [ -d "$framework" ]; then
         codesign -s - -f "$framework" 2>/dev/null
     fi
@@ -139,7 +179,7 @@ done
 echo "    Signed all frameworks"
 
 # Sign all plugins
-find "$APP_BUNDLE/Contents/PlugIns" -name "*.dylib" -exec codesign -s - -f {} \; 2>/dev/null
+find "$PLUGINS" -name "*.dylib" -exec codesign -s - -f {} \; 2>/dev/null
 echo "    Signed all plugins"
 
 # Sign the executable
@@ -150,14 +190,24 @@ echo "    Signed executable"
 codesign -s - -f "$APP_BUNDLE"
 echo "    Signed app bundle"
 
-# Step 7: Verify signature
-echo "==> Step 7: Verifying signature..."
+# Step 10: Verify signature
+echo "==> Step 10: Verifying signature..."
 if codesign -vvv "$APP_BUNDLE" 2>&1 | grep -q "valid on disk"; then
     echo "    ✓ App bundle signature is valid"
 else
     echo "    ✗ Warning: App bundle signature verification failed"
 fi
 
+# Step 11: Verification
+echo "==> Step 11: Deployment verification..."
+echo "Qt Frameworks:"
+ls -lh "$FRAMEWORKS"/*.framework | awk '{print "  " $9}'
+echo "Qt Plugins:"
+find "$PLUGINS" -name "*.dylib" | sed 's|.*/|  |'
+echo "Other Libraries:"
+ls -lh "$FRAMEWORKS"/*.dylib | awk '{print "  " $9}'
+
+echo ""
 echo "==> Done! App bundle is ready at: $APP_BUNDLE"
 echo ""
 echo "To run the app:"

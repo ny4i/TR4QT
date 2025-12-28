@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.0.0";  // Remove windeployqt, explicit deterministic deployment
+constexpr const char* APP_VERSION = "3.0.0";  // Explicit deployment: removed windeployqt, macdeployqt, linuxdeploy
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
