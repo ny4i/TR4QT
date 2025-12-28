@@ -10,6 +10,9 @@ namespace TR4QT {
 BandSummaryGrid::BandSummaryGrid(QWidget* parent)
     : QWidget(parent)
 {
+    // Ensure widget fills its background (prevents transparent/black rendering)
+    setAutoFillBackground(true);
+
     setupUI();
 
     // Connect to theme changes

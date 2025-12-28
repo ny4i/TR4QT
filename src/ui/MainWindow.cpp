@@ -176,6 +176,9 @@ MainWindow::MainWindow(QWidget* parent)
         updateRadioStatusFlash();
     });
 
+    // Initialize radio status display (date/time, band/mode/freq defaults)
+    updateRadioStatusGrid();
+
     // Try auto-connect if enabled and config exists
     AppSettings& settings = AppSettings::instance();
     if (settings.hasRadioConfig()) {

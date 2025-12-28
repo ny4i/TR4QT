@@ -8,6 +8,9 @@ NeedsDisplayWidget::NeedsDisplayWidget(QWidget* parent)
     : QWidget(parent)
     , m_fontSize(14)  // Larger font for better visibility
 {
+    // Ensure widget fills its background (prevents transparent/black rendering)
+    setAutoFillBackground(true);
+
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setSpacing(2);
     layout->setContentsMargins(10, 5, 10, 5);
