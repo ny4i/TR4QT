@@ -4,6 +4,8 @@
 #include <memory>
 #include <QString>
 
+class QObject;  // Forward declaration
+
 namespace TR4QT {
 
 class CWSender;
