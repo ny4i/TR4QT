@@ -176,6 +176,38 @@ jobs:
         cd installer
         makensis tr4qt.nsi
 
+    - name: Verify Installer Contents
+      shell: bash
+      run: |
+        echo "=== Verifying Installer Contents ==="
+
+        # Find the installer file
+        INSTALLER=$(ls build/src/TR4QT-*-Setup.exe | head -1)
+        echo "Checking installer: $INSTALLER"
+
+        # Install 7-Zip if not already available
+        choco install 7zip -y
+
+        # List installer contents
+        echo "Full installer contents:"
+        "/c/Program Files/7-Zip/7z.exe" l "$INSTALLER"
+
+        # Critical verification: Check for QSQLITE driver
+        echo ""
+        echo "=== CRITICAL: Verifying QSQLITE driver ==="
+        if "/c/Program Files/7-Zip/7z.exe" l "$INSTALLER" | grep -q "sqldrivers.*qsqlite.dll"; then
+          echo "✓ SUCCESS: qsqlite.dll found in installer"
+        else
+          echo "✗ ERROR: qsqlite.dll NOT found in installer!"
+          echo "This is a FATAL error - installer will not work without SQL driver"
+          exit 1
+        fi
+
+        # Verify other critical components
+        echo ""
+        echo "=== Verifying other critical components ==="
+        "/c/Program Files/7-Zip/7z.exe" l "$INSTALLER" | grep -E "(tr4qt.exe|Qt6Core.dll|platforms.*qwindows.dll|sqldrivers.*qsqlite.dll)" || true
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
