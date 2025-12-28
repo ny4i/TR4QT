@@ -107,16 +107,25 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        brew install qt@6 hamlib
+        brew install qt@6 libusb
         echo "Qt6_DIR=$(brew --prefix qt@6)/lib/cmake/Qt6" >> $GITHUB_ENV
-        echo "HAMLIB_ROOT=$(brew --prefix hamlib)" >> $GITHUB_ENV
+
+    - name: Build Hamlib from source (unsigned)
+      run: |
+        curl -L -o hamlib.tar.gz "https://github.com/Hamlib/Hamlib/releases/download/${{ env.HAMLIB_VERSION }}/hamlib-${{ env.HAMLIB_VERSION }}.tar.gz"
+        tar -xzf hamlib.tar.gz
+        cd hamlib-${{ env.HAMLIB_VERSION }}
+        ./configure --prefix=$HOME/hamlib-unsigned --disable-static
+        make -j$(sysctl -n hw.ncpu)
+        make install
+        echo "HAMLIB_ROOT=$HOME/hamlib-unsigned" >> $GITHUB_ENV
 
     - name: Configure CMake
       run: |
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_PREFIX_PATH="$(brew --prefix qt@6)" \
-          -DHAMLIB_ROOT="$(brew --prefix hamlib)"
+          -DHAMLIB_ROOT="$HOME/hamlib-unsigned"
 
     - name: Build
       run: cmake --build build --config Release -j$(sysctl -n hw.ncpu)
@@ -131,21 +140,14 @@ jobs:
       run: |
         cd build/src
 
-        # Pre-copy Hamlib and remove Homebrew signature BEFORE macdeployqt
-        # This allows macdeployqt to process it with install_name_tool
+        # Copy unsigned Hamlib dylib into the app bundle
         mkdir -p tr4qt.app/Contents/Frameworks
-        cp $(brew --prefix hamlib)/lib/libhamlib.*.dylib tr4qt.app/Contents/Frameworks/ || true
-        for lib in tr4qt.app/Contents/Frameworks/libhamlib.*.dylib; do
-          if [ -f "$lib" ]; then
-            chmod +w "$lib"
-            codesign --remove-signature "$lib" || true
-          fi
-        done
+        cp $HOME/hamlib-unsigned/lib/libhamlib.*.dylib tr4qt.app/Contents/Frameworks/ || true
 
-        # Now run macdeployqt - it will discover and process Hamlib successfully
+        # Bundle Qt frameworks and plugins with macdeployqt
         $(brew --prefix qt@6)/bin/macdeployqt tr4qt.app -verbose=2
 
-        # Fix Hamlib library paths to use @rpath (macdeployqt doesn't know about Hamlib)
+        # Fix Hamlib library paths to use @rpath
         for lib in tr4qt.app/Contents/Frameworks/libhamlib.*.dylib; do
           if [ -f "$lib" ]; then
             install_name_tool -id "@rpath/$(basename $lib)" "$lib"
@@ -155,7 +157,7 @@ jobs:
         # Update executable to look for Hamlib in @rpath
         install_name_tool -add_rpath "@executable_path/../Frameworks" tr4qt.app/Contents/MacOS/tr4qt || true
 
-        # Sign everything with ad-hoc signatures AFTER all modifications
+        # Sign everything with ad-hoc signatures
         for lib in tr4qt.app/Contents/Frameworks/libhamlib.*.dylib; do
           if [ -f "$lib" ]; then
             codesign -s - "$lib"
