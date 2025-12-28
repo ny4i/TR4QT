@@ -212,3 +212,13 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "Appl
         COMPILE_FLAGS "-Wno-deprecated-declarations"
     )
 endif()
+
+# macOS: Automatically bundle Qt frameworks and fix library paths after build
+if(APPLE)
+    add_custom_command(TARGET tr4qt POST_BUILD
+        COMMAND ${CMAKE_SOURCE_DIR}/scripts/macos-bundle.sh
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Running macOS app bundling script..."
+        VERBATIM
+    )
+endif()
