@@ -734,6 +734,7 @@ QString WebServer::generateDashboardHtml() {
             <div class="refresh-card">
                 <h2>🔄 Auto Refresh</h2>
                 <button onclick="refreshNow()">&#8635; Refresh Now</button>
+                <button onclick="window.location.href='/map'" style="margin-top: 10px;">&#127758; Sections Map</button>
                 <div>
                     <label>Interval (seconds):</label>
                     <input type="number" id="refresh-interval" min="5" max="600" step="5" onchange="updateInterval()">
