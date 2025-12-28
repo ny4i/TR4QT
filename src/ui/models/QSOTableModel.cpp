@@ -300,6 +300,13 @@ QString QSOTableModel::getExchangeFieldValue(const QSO& qso, int fieldIndex) con
             } else {
                 return qso.parsedExchange.value("Section", QString());
             }
+        } else if (fieldName == "Class") {
+            // Try contest class field first, then parsed exchange
+            if (!qso.contestClass.isEmpty()) {
+                return qso.contestClass;
+            } else {
+                return qso.parsedExchange.value("Class", QString());
+            }
         } else {
             // Default: look up in parsed exchange map
             return qso.parsedExchange.value(fieldName, QString());

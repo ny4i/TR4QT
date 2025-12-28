@@ -1025,6 +1025,7 @@ QString WebServer::generateSectionsMapHtml() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ARRL Sections Map - %1</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="256x256" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }

@@ -397,6 +397,31 @@ bool Database::migrateSchema() {
         LOG_INFO("Database", "Note: DXCC entity codes will be populated from CTY.DAT on next QSO lookup");
     }
 
+    // Migration 3: Add contest_class column to qsos table (v2.96.1)
+    query.exec("PRAGMA table_info(qsos)");
+    bool hasContestClassColumn = false;
+    while (query.next()) {
+        QString columnName = query.value(1).toString();
+        if (columnName == "contest_class") {
+            hasContestClassColumn = true;
+            break;
+        }
+    }
+
+    if (!hasContestClassColumn) {
+        LOG_INFO("Database", "Migrating schema: Adding contest_class column to qsos table");
+
+        // Add contest_class column
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN contest_class TEXT")) {
+            m_lastError = QString("Failed to add contest_class column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+
+        LOG_INFO("Database", "contest_class column added successfully");
+        LOG_INFO("Database", "Note: Contest class will be populated for new QSOs from exchange data");
+    }
+
     LOG_DEBUG("Database", "Schema migration complete");
     return true;
 }

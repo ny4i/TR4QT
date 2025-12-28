@@ -121,6 +121,14 @@ void EditQSODialog::setupUI() {
     m_countyEdit = new QLineEdit(this);
     geoLayout->addWidget(m_countyEdit, 3, 1);
 
+    geoLayout->addWidget(new QLabel("ARRL Section:"), 3, 2);
+    m_arrlSectionEdit = new QLineEdit(this);
+    geoLayout->addWidget(m_arrlSectionEdit, 3, 3);
+
+    geoLayout->addWidget(new QLabel("Contest Class:"), 4, 0);
+    m_contestClassEdit = new QLineEdit(this);
+    geoLayout->addWidget(m_contestClassEdit, 4, 1);
+
     mainLayout->addWidget(geoGroup);
 
     // Scoring and Metadata Group
@@ -236,6 +244,8 @@ void EditQSODialog::loadQSOData() {
     m_continentEdit->setText(m_qso.continent);
     m_stateEdit->setText(m_qso.state);
     m_countyEdit->setText(m_qso.county);
+    m_arrlSectionEdit->setText(m_qso.arrlSection);
+    m_contestClassEdit->setText(m_qso.contestClass);
 
     // Scoring fields (read-only)
     m_qsoPointsSpinBox->setValue(m_qso.qsoPoints);
@@ -269,6 +279,8 @@ QSO EditQSODialog::getEditedQSO() const {
     editedQSO.continent = m_continentEdit->text();
     editedQSO.state = m_stateEdit->text();
     editedQSO.county = m_countyEdit->text();
+    editedQSO.arrlSection = m_arrlSectionEdit->text();
+    editedQSO.contestClass = m_contestClassEdit->text();
 
     // Scoring fields are read-only, don't update
 

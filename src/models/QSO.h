@@ -48,6 +48,7 @@ struct QSO {
     QString state;              // US state or Canadian province (if applicable)
     QString county;             // US county (for ARRL section mapping)
     QString arrlSection;        // ARRL/RAC section (WMA, NFL, SCV, AB, etc.)
+    QString contestClass;       // Contest class (e.g., "2A" for Field Day, "M" for multi-op)
 
     // Contest-specific parsed fields (from exchangeReceived)
     // Populated by contest's parseReceivedExchange() method
