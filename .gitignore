@@ -31,4 +31,6 @@ qrc_*.cpp
 # Local data
 *.db
 *.log
+*.adif
+*.adi
 cty.dat
