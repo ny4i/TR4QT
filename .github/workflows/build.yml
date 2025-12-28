@@ -184,6 +184,7 @@ jobs:
           build/src/tr4qt.exe
           build/src/*.dll
           build/src/platforms/
+          build/src/sqldrivers/
           build/src/imageformats/
           build/src/styles/
           build/src/tls/
