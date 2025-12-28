@@ -295,6 +295,7 @@ jobs:
 
     - name: Notify Slack - Windows Complete
       if: always()
+      shell: bash
       run: |
         if [ "${{ job.status }}" == "success" ]; then
           STATUS="✅ SUCCESS"
