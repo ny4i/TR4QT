@@ -170,12 +170,28 @@ jobs:
         install_name_tool -add_rpath "@executable_path/../Frameworks" tr4qt.app/Contents/MacOS/tr4qt || true
 
         # Sign everything with ad-hoc signatures
-        for lib in tr4qt.app/Contents/Frameworks/libhamlib.*.dylib; do
+        # Sign all dylibs in Frameworks
+        for lib in tr4qt.app/Contents/Frameworks/*.dylib; do
           if [ -f "$lib" ]; then
-            codesign -s - "$lib"
+            codesign -s - -f "$lib"
           fi
         done
-        codesign -s - --deep tr4qt.app
+
+        # Sign all Qt frameworks
+        for framework in tr4qt.app/Contents/Frameworks/*.framework; do
+          if [ -d "$framework" ]; then
+            codesign -s - -f "$framework"
+          fi
+        done
+
+        # Sign all plugins
+        find tr4qt.app/Contents/PlugIns -name "*.dylib" -exec codesign -s - -f {} \;
+
+        # Sign the executable
+        codesign -s - -f tr4qt.app/Contents/MacOS/tr4qt
+
+        # Sign the entire app bundle
+        codesign -s - -f tr4qt.app
 
         # Create DMG
         $(brew --prefix qt@6)/bin/macdeployqt tr4qt.app -dmg
