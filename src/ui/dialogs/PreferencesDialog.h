@@ -2,7 +2,7 @@
 #define PREFERENCESDIALOG_H
 
 #include <QDialog>
-#include <QTabWidget>
+#include <QStackedWidget>
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QComboBox>
@@ -18,13 +18,15 @@
 namespace TR4QT {
 
 /**
- * Preferences dialog with tabbed interface
+ * Preferences dialog with sidebar navigation interface
  * Consolidates all application settings in one place:
  * - Station information (callsign, zone, grid, etc.)
  * - Radio configuration (model, port, auto-connect)
  * - Appearance settings (font sizes, colors)
  * - Contest preferences
  * - Advanced settings
+ *
+ * Uses QListWidget sidebar + QStackedWidget for better scalability
  */
 class PreferencesDialog : public QDialog {
     Q_OBJECT
@@ -185,7 +187,9 @@ private:
     QLineEdit* m_countryFilePathEdit;
     QCheckBox* m_autoUpdateCountryFileCheck;
 
-    QTabWidget* m_tabWidget;
+    // Sidebar navigation widgets
+    QListWidget* m_categoryList;
+    QStackedWidget* m_settingsStack;
 };
 
 } // namespace TR4QT

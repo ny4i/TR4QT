@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.98.5";  // Skip auto-bundling in CI environments
+constexpr const char* APP_VERSION = "2.99.0";  // Sidebar navigation for preferences dialog
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
