@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDateTime>
+#include <algorithm>  // for std::sort
 
 namespace TR4QT {
 
@@ -74,16 +75,8 @@ QString CabrilloExporter::generateCabrillo(const QList<QSO>& qsos, ContestBase* 
     QString result;
     QTextStream stream(&result);
 
-    // Count non-dupe QSOs
-    int qsoCount = 0;
-    for (const QSO& qso : qsos) {
-        if (!qso.isDupe) {
-            qsoCount++;
-        }
-    }
-
-    // Write header
-    stream << generateHeader(contest, qsoCount);
+    // Write header (analyzes QSOs for operator counts)
+    stream << generateHeader(contest, qsos);
 
     // Write QSO lines
     int serialNumber = 1;
@@ -99,9 +92,25 @@ QString CabrilloExporter::generateCabrillo(const QList<QSO>& qsos, ContestBase* 
     return result;
 }
 
-QString CabrilloExporter::generateHeader(ContestBase* contest, int qsoCount) {
+QString CabrilloExporter::generateHeader(ContestBase* contest, const QList<QSO>& qsos) {
     QString header;
     QTextStream stream(&header);
+
+    // Count non-dupe QSOs and QSOs per operator
+    int qsoCount = 0;
+    QMap<QString, int> operatorCounts;
+
+    for (const QSO& qso : qsos) {
+        if (!qso.isDupe) {
+            qsoCount++;
+
+            // Track QSOs per operator
+            QString op = qso.operatorCall.isEmpty() ? m_callsign : qso.operatorCall;
+            if (!op.isEmpty()) {
+                operatorCounts[op]++;
+            }
+        }
+    }
 
     stream << "START-OF-LOG: 3.0\n";
     stream << "CREATED-BY: " << APP_NAME << " v" << APP_VERSION << "\n";
@@ -153,9 +162,30 @@ QString CabrilloExporter::generateHeader(ContestBase* contest, int qsoCount) {
 
     // Score and operators
     stream << "CLAIMED-SCORE: " << m_claimedScore << "\n";
-    if (!m_operators.isEmpty()) {
-        stream << "OPERATORS: " << m_operators << "\n";
+
+    // Output operators sorted by QSO count (descending)
+    if (!operatorCounts.isEmpty()) {
+        // Convert map to list of pairs for sorting
+        QList<QPair<QString, int>> opList;
+        for (auto it = operatorCounts.begin(); it != operatorCounts.end(); ++it) {
+            opList.append({it.key(), it.value()});
+        }
+
+        // Sort by QSO count descending
+        std::sort(opList.begin(), opList.end(),
+            [](const QPair<QString, int>& a, const QPair<QString, int>& b) {
+                return a.second > b.second;  // Descending by QSO count
+            });
+
+        // Build comma-separated list (callsigns only, no counts)
+        QStringList opNames;
+        for (const auto& pair : opList) {
+            opNames.append(pair.first);
+        }
+
+        stream << "OPERATORS: " << opNames.join(", ") << "\n";
     }
+
     if (!m_club.isEmpty()) {
         stream << "CLUB: " << m_club << "\n";
     }
