@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.95.11";  // Comprehensive widget background rendering fix for macOS
+constexpr const char* APP_VERSION = "2.96.0";  // ARRL Sections Map web dashboard feature
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
