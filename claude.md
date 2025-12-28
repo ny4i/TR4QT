@@ -2,6 +2,56 @@
 
 This file contains important reminders and conventions for Claude when working on TR4QT.
 
+## 🏗️ BUILD PHILOSOPHY - APPLIES TO ALL PROJECTS
+
+### Explicit > Implicit (when implicit is unreliable)
+
+**NEVER use "automatic" deployment tools that don't work reliably.**
+
+Common unreliable tools:
+- ❌ `windeployqt` (Windows) - Silently fails to copy plugins, inconsistent
+- ❌ `macdeployqt` (macOS) - Misses dependencies, gets paths wrong
+- ❌ `linuxdeploy` (Linux) - Complex, hard to debug, inconsistent
+
+**Why these tools are problematic:**
+1. **Silent failures** - Missing dependencies without clear errors
+2. **False confidence** - "I used the official tool, so it should work"
+3. **Wastes time** - Hours debugging what the tool "forgot"
+4. **Not deterministic** - Same inputs can produce different outputs
+5. **Hard to debug** - Don't know what they did vs. didn't do
+
+**Instead: Be Explicit**
+
+✅ **List every dependency explicitly**
+✅ **Copy every file with clear commands**
+✅ **Verify what was deployed**
+✅ **Clear errors when something fails**
+
+**Example (Windows):**
+```bash
+# BAD: Hope windeployqt works
+windeployqt tr4qt.exe --sql  # Maybe copies SQL plugin? Maybe not?
+
+# GOOD: Explicit
+cp Qt6Core.dll Qt6Gui.dll Qt6Widgets.dll ...  # Know exactly what's copied
+mkdir sqldrivers && cp qsqlite.dll sqldrivers/  # SQL plugin always included
+ls -la sqldrivers/  # Verify it's there
+```
+
+**Benefits of Explicit Deployment:**
+- Deterministic (same result every time)
+- Transparent (see exactly what's deployed)
+- Debuggable (clear errors when missing)
+- Maintainable (easy to add/remove dependencies)
+- Reliable (no silent failures)
+
+**This philosophy applies to ALL projects, not just TR4QT.**
+
+If you encounter an "automatic" tool that doesn't work reliably:
+1. Don't keep using it hoping it will work this time
+2. Replace it with explicit, deterministic steps
+3. Document exactly what needs to be deployed
+
 ## ⚠️ CRITICAL REMINDERS
 
 ### Always Bump Version Before Building
