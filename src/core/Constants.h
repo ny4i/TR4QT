@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.95.5";  // Fixed missing libbrotlicommon dependency in macOS bundle
+constexpr const char* APP_VERSION = "2.95.6";  // Fixed missing QtDBus framework in macOS bundle
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

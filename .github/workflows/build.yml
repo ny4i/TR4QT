@@ -161,6 +161,7 @@ jobs:
 
         # Copy missing dependencies that macdeployqt didn't bundle
         cp /opt/homebrew/opt/brotli/lib/libbrotlicommon.1.dylib tr4qt.app/Contents/Frameworks/
+        cp -R /opt/homebrew/opt/qtbase/lib/QtDBus.framework tr4qt.app/Contents/Frameworks/
 
         # Fix Hamlib library paths to use @rpath
         for lib in tr4qt.app/Contents/Frameworks/libhamlib.*.dylib; do
