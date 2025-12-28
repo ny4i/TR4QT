@@ -517,7 +517,7 @@ void DXClusterWindow::onTextDisplayClicked() {
                 frequency *= 1000;  // Convert kHz to Hz
             }
 
-            LOG_DEBUG("DXClusterWindow", QString("Click-to-QSY: %1 Hz from line: %2").arg(frequency).arg(line));
+            LOG_DEBUG("DXClusterWindow", QString("Click-to-QSY: %1 Hz from line: %2").arg(QString::number(frequency)).arg(line));
             emit qsyRequested(frequency);
         }
     }

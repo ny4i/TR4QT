@@ -72,6 +72,8 @@ private:
     QLineEdit* m_continentEdit;
     QLineEdit* m_stateEdit;
     QLineEdit* m_countyEdit;
+    QLineEdit* m_arrlSectionEdit;
+    QLineEdit* m_contestClassEdit;
 
     // Scoring fields (read-only)
     QSpinBox* m_qsoPointsSpinBox;

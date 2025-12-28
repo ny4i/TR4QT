@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.96.0";  // ARRL Sections Map web dashboard feature
+constexpr const char* APP_VERSION = "2.96.6";  // Fix Class field display in QSO table
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -121,8 +121,8 @@ void BandMapWidget::addSpot(const Spot& spot) {
         QString currentBand = getBandFromFrequency(m_currentFrequency);
         QString spotBand = getBandFromFrequency(updatedSpot.frequency);
         LOG_DEBUG("BandMapWidget", QString("Band filter check: m_showAllBands=%1, current freq=%2 Hz (%3), spot %4 freq=%5 Hz (%6)")
-            .arg(m_showAllBands).arg(m_currentFrequency).arg(currentBand)
-            .arg(updatedSpot.callsign).arg(updatedSpot.frequency).arg(spotBand));
+            .arg(m_showAllBands).arg(QString::number(m_currentFrequency)).arg(currentBand)
+            .arg(updatedSpot.callsign).arg(QString::number(updatedSpot.frequency)).arg(spotBand));
         if (!currentBand.isEmpty() && !spotBand.isEmpty() && currentBand != spotBand) {
             // Remove spot if it exists but is on different band when filter is active
             LOG_DEBUG("BandMapWidget", QString("Filtering out spot on different band: %1 on %2 (current band: %3)")

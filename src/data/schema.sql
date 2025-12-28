@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS qsos (
     state TEXT,                         -- US/VE state/province
     county TEXT,                        -- US county (for ARRL section mapping)
     arrl_section TEXT,                  -- ARRL/RAC section (WMA, NFL, SCV, AB, etc.)
+    contest_class TEXT,                 -- Contest class (e.g., "2A" for Field Day)
 
     -- Scoring
     qso_points INTEGER DEFAULT 0,       -- Points for this QSO

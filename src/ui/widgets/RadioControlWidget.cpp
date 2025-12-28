@@ -223,8 +223,8 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
 
     // Trace logging for RIT/XIT values
     LOG_TRACE("RadioControlWidget", QString("Radio state update - RIT: %1 (offset: %2 Hz), XIT: %3 (offset: %4 Hz), SPLIT: %5")
-        .arg(state.isRitEnabled ? "ON" : "OFF").arg(state.ritOffsetA)
-        .arg(state.isXitEnabled ? "ON" : "OFF").arg(state.xitOffsetA)
+        .arg(state.isRitEnabled ? "ON" : "OFF").arg(QString::number(state.ritOffsetA))
+        .arg(state.isXitEnabled ? "ON" : "OFF").arg(QString::number(state.xitOffsetA))
         .arg(state.isSplitEnabled ? "ON" : "OFF"));
 
     // Update VFO A frequency (show full precision from hamlib - typically 1 Hz or 10 Hz)

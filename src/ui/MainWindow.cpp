@@ -1742,6 +1742,11 @@ void MainWindow::onLogQSO() {
         if (qso.parsedExchange.contains("Section")) {
             qso.arrlSection = qso.parsedExchange["Section"];
         }
+
+        // Extract contest class from parsed exchange if present
+        if (qso.parsedExchange.contains("Class")) {
+            qso.contestClass = qso.parsedExchange["Class"];
+        }
     } else {
         // No active contest - use default RST
         qso.rstReceived = (qso.mode == ModeType::CW) ? "599" : "59";
@@ -3414,7 +3419,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         LOG_DEBUG("MainWindow", QString("Set default band/mode/freq: %1 %2 %3 Hz (radio not connected)")
             .arg(bandToString(m_currentState.bandA))
             .arg(modeToString(m_currentState.modeA))
-            .arg(m_currentState.frequencyA));
+            .arg(QString::number(m_currentState.frequencyA)));
     }
 
     // Recalculate points for all QSOs (fixes old QSOs with 0 points)
@@ -3671,7 +3676,7 @@ void MainWindow::onShowDXCluster() {
                         LOG_DEBUG("MainWindow", QString("DX Cluster click-to-QSY: %1 Hz").arg(QString::number(frequency)));
                         m_radio->setFrequency(static_cast<freq_t>(frequency));
                     } else {
-                        LOG_DEBUG("MainWindow", QString("DX Cluster click-to-QSY: Radio not connected, cannot QSY to %1").arg(frequency));
+                        LOG_DEBUG("MainWindow", QString("DX Cluster click-to-QSY: Radio not connected, cannot QSY to %1 Hz").arg(QString::number(frequency)));
                     }
                 });
     }
@@ -4281,9 +4286,9 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
 
         // Comprehensive logging of spot details
         QString logMsg = QString("Added spot to band map: %1").arg(callsign);
-        logMsg += QString(" | TX: %1 Hz (%2 MHz)").arg(spot.frequency).arg(spot.frequency / 1000000.0, 0, 'f', 3);
+        logMsg += QString(" | TX: %1 Hz (%2 MHz)").arg(QString::number(spot.frequency)).arg(spot.frequency / 1000000.0, 0, 'f', 3);
         if (spot.qsx > 0) {
-            logMsg += QString(" | RX (QSX): %1 Hz (%2 MHz)").arg(spot.qsx).arg(spot.qsx / 1000000.0, 0, 'f', 3);
+            logMsg += QString(" | RX (QSX): %1 Hz (%2 MHz)").arg(QString::number(spot.qsx)).arg(spot.qsx / 1000000.0, 0, 'f', 3);
         }
         logMsg += QString(" | LOTW: %1").arg(spot.isLotwUser ? "YES" : "NO");
         if (!spot.comment.isEmpty()) {

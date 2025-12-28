@@ -62,7 +62,7 @@ QList<ExchangeField> ARRLFieldDayContest::getReceivedExchangeFields() const {
     // Class (e.g., "1O", "2O", "3O", "2I", "Home")
     ExchangeField classField;
     classField.name = "Class";
-    classField.hint = "1O";
+    classField.hint = "Class";
     classField.autoFill = false;
     classField.maxLength = 6;
     fields.append(classField);
@@ -70,7 +70,7 @@ QList<ExchangeField> ARRLFieldDayContest::getReceivedExchangeFields() const {
     // Section (ARRL/RAC section)
     ExchangeField sectionField;
     sectionField.name = "Section";
-    sectionField.hint = "WMA";
+    sectionField.hint = "Section";
     sectionField.autoFill = false;
     sectionField.maxLength = 4;
     fields.append(sectionField);
@@ -175,41 +175,25 @@ QMap<QString, QString> ARRLFieldDayContest::parseReceivedExchange(const QString&
 }
 
 int ARRLFieldDayContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) const {
-    // WFD scoring rules from WA7BNM:
-    // - 0 points: Same country (but counts as multiplier)
-    // - 1 point: Different country, same continent (except NA)
-    // - 2 points: Different country, same continent (NA only)
-    // - 3 points: Different continent
+    // ARRL Field Day scoring rules:
+    // - CW and digital modes: 2 points
+    // - SSB and FM modes: 1 point
 
-    QString theirCountry = qso.dxccEntity;
-    QString theirContinent = qso.continent;
-    QString myCountry = myStation.country;
-    QString myContinent = myStation.continent;
-
-    // Handle case where geographic data is missing
-    if (theirCountry.isEmpty() || theirContinent.isEmpty() ||
-        myCountry.isEmpty() || myContinent.isEmpty()) {
-        // Default to 1 point if we don't have complete geographic data
-        return 1;
-    }
-
-    // Same country: 0 points (but counts as multiplier)
-    if (theirCountry == myCountry) {
-        return 0;
-    }
-
-    // Different continent: 3 points
-    if (theirContinent != myContinent) {
-        return 3;
-    }
-
-    // Same continent, different country
-    // North America (NA) gets 2 points, others get 1 point
-    if (myContinent == "NA") {
+    // Check if mode is CW
+    if (qso.mode == ModeType::CW || qso.mode == ModeType::CWR) {
         return 2;
-    } else {
-        return 1;
     }
+
+    // Check if mode is digital
+    if (qso.mode == ModeType::RTTY || qso.mode == ModeType::RTTYR ||
+        qso.mode == ModeType::PSK || qso.mode == ModeType::PSKR ||
+        qso.mode == ModeType::FT8 || qso.mode == ModeType::FT4 ||
+        qso.mode == ModeType::DATA || qso.mode == ModeType::DATAR) {
+        return 2;
+    }
+
+    // Phone modes (SSB, FM, AM): 1 point
+    return 1;
 }
 
 int ARRLFieldDayContest::calculateTotalScore(
