@@ -8,7 +8,15 @@
 namespace TR4QT {
 
 BandSummaryGrid::BandSummaryGrid(QWidget* parent)
-    : QWidget(parent)
+    : QWidget(parent),
+      m_usesModeGroupBreakdown(false),
+      m_usesZoneMultipliers(true),  // Default: show zones
+      m_totalPointsLabel(nullptr),
+      m_bothLabel(nullptr),
+      m_qsoAllLabel(nullptr),
+      m_multAllLabel(nullptr),
+      m_zoneAllLabel(nullptr),
+      m_pointsAllLabel(nullptr)
 {
     // Ensure widget fills its background (prevents transparent/black rendering)
     setAutoFillBackground(true);
@@ -26,141 +34,8 @@ void BandSummaryGrid::setupUI() {
     m_gridLayout->setSpacing(8);  // More spacing between cells
     m_gridLayout->setContentsMargins(10, 10, 10, 10);  // More padding around edges
 
-    QFont headerFont;
-    headerFont.setBold(true);
-    headerFont.setPointSize(10);  // Larger header font
-
-    QFont dataFont("Monospace", 11);  // Larger data font
-
-    // Row 0: Band headers (clickable)
-    QList<BandType> headerBands = {
-        BandType::Band160M, BandType::Band80M, BandType::Band40M,
-        BandType::Band20M, BandType::Band15M, BandType::Band10M
-    };
-    QStringList bandHeaders = {"160", "80", "40", "20", "15", "10", "All"};
-    for (int col = 0; col < bandHeaders.size(); ++col) {
-        QLabel* header = new QLabel(bandHeaders[col], this);
-        header->setFont(headerFont);
-        header->setAlignment(Qt::AlignCenter);
-        header->setMinimumWidth(50);  // Ensure readable width
-
-        // Make band headers clickable (except "All")
-        if (col < headerBands.size()) {
-            header->setCursor(Qt::PointingHandCursor);
-            // Hover style will be set by applyTheme()
-            header->installEventFilter(this);
-            m_bandHeaders[headerBands[col]] = header;
-        }
-
-        m_gridLayout->addWidget(header, 0, col + 1);
-    }
-
-    // Column 0: Row labels
-    QLabel* qsoLabel = new QLabel("QSOs", this);
-    qsoLabel->setFont(headerFont);
-    qsoLabel->setMinimumWidth(70);
-    m_gridLayout->addWidget(qsoLabel, 1, 0);
-
-    QLabel* multLabel = new QLabel("Mults", this);
-    multLabel->setFont(headerFont);
-    multLabel->setMinimumWidth(70);
-    m_gridLayout->addWidget(multLabel, 2, 0);
-
-    QLabel* zoneLabel = new QLabel("Zones", this);
-    zoneLabel->setFont(headerFont);
-    zoneLabel->setMinimumWidth(70);
-    m_gridLayout->addWidget(zoneLabel, 3, 0);
-
-    QLabel* pointsLabel = new QLabel("Points", this);
-    pointsLabel->setFont(headerFont);
-    pointsLabel->setMinimumWidth(70);
-    m_gridLayout->addWidget(pointsLabel, 4, 0);
-
-    // Create data labels for each band
-    QList<BandType> bands = {
-        BandType::Band160M, BandType::Band80M, BandType::Band40M,
-        BandType::Band20M, BandType::Band15M, BandType::Band10M
-    };
-
-    for (int col = 0; col < bands.size(); ++col) {
-        BandType band = bands[col];
-
-        // QSO count
-        QLabel* qso = new QLabel("0", this);
-        qso->setFont(dataFont);
-        qso->setAlignment(Qt::AlignCenter);
-        qso->setMinimumWidth(50);
-        m_gridLayout->addWidget(qso, 1, col + 1);
-        m_qsoLabels[band] = qso;
-
-        // Mult count
-        QLabel* mult = new QLabel("0", this);
-        mult->setFont(dataFont);
-        mult->setAlignment(Qt::AlignCenter);
-        mult->setMinimumWidth(50);
-        m_gridLayout->addWidget(mult, 2, col + 1);
-        m_multLabels[band] = mult;
-
-        // Zone count
-        QLabel* zone = new QLabel("0", this);
-        zone->setFont(dataFont);
-        zone->setAlignment(Qt::AlignCenter);
-        zone->setMinimumWidth(50);
-        m_gridLayout->addWidget(zone, 3, col + 1);
-        m_zoneLabels[band] = zone;
-
-        // Points count
-        QLabel* points = new QLabel("0", this);
-        points->setFont(dataFont);
-        points->setAlignment(Qt::AlignCenter);
-        points->setMinimumWidth(50);
-        m_gridLayout->addWidget(points, 4, col + 1);
-        m_pointsLabels[band] = points;
-    }
-
-    // "All" column (totals)
-    m_qsoAllLabel = new QLabel("0", this);
-    m_qsoAllLabel->setFont(dataFont);
-    m_qsoAllLabel->setAlignment(Qt::AlignCenter);
-    m_qsoAllLabel->setMinimumWidth(50);
-    m_gridLayout->addWidget(m_qsoAllLabel, 1, 7);
-
-    m_multAllLabel = new QLabel("0", this);
-    m_multAllLabel->setFont(dataFont);
-    m_multAllLabel->setAlignment(Qt::AlignCenter);
-    m_multAllLabel->setMinimumWidth(50);
-    m_gridLayout->addWidget(m_multAllLabel, 2, 7);
-
-    m_zoneAllLabel = new QLabel("0", this);
-    m_zoneAllLabel->setFont(dataFont);
-    m_zoneAllLabel->setAlignment(Qt::AlignCenter);
-    m_zoneAllLabel->setMinimumWidth(50);
-    m_gridLayout->addWidget(m_zoneAllLabel, 3, 7);
-
-    m_pointsAllLabel = new QLabel("0", this);
-    m_pointsAllLabel->setFont(dataFont);
-    m_pointsAllLabel->setAlignment(Qt::AlignCenter);
-    m_pointsAllLabel->setMinimumWidth(50);
-    m_gridLayout->addWidget(m_pointsAllLabel, 4, 7);
-
-    // Total points label (right of "All" column, row 1)
-    m_totalPointsLabel = new QLabel("0 Pts", this);
-    m_totalPointsLabel->setFont(headerFont);
-    m_totalPointsLabel->setStyleSheet("font-size: 14pt; font-weight: bold;");
-    m_totalPointsLabel->setMinimumWidth(100);
-    m_gridLayout->addWidget(m_totalPointsLabel, 1, 8, 1, 2);
-
-    // "Both:" field (right side, row 4 now since we added Points row)
-    QLabel* bothLabelText = new QLabel("Both:", this);
-    bothLabelText->setFont(headerFont);
-    m_gridLayout->addWidget(bothLabelText, 4, 8);
-
-    m_bothLabel = new QLabel("", this);
-    m_bothLabel->setFont(dataFont);
-    m_bothLabel->setMinimumWidth(100);
-    m_gridLayout->addWidget(m_bothLabel, 4, 9);
-
-    m_gridLayout->setColumnStretch(10, 1);  // Push everything left
+    // Build initial grid with default configuration
+    rebuildGrid();
 }
 
 void BandSummaryGrid::setQSOCount(BandType band, int count) {
@@ -226,13 +101,23 @@ void BandSummaryGrid::clearAll() {
         label->setText("0");
     }
 
+    // Clear mode group labels (if using mode breakdown)
+    for (auto& bandMap : m_modeGroupLabels) {
+        for (auto label : bandMap) {
+            label->setText("0");
+        }
+    }
+    for (auto label : m_modeGroupAllLabels) {
+        label->setText("0");
+    }
+
     // Clear totals
-    m_qsoAllLabel->setText("0");
-    m_multAllLabel->setText("0");
-    m_zoneAllLabel->setText("0");
-    m_pointsAllLabel->setText("0");
-    m_totalPointsLabel->setText("0 Pts");
-    m_bothLabel->setText("");
+    if (m_qsoAllLabel) m_qsoAllLabel->setText("0");
+    if (m_multAllLabel) m_multAllLabel->setText("0");
+    if (m_zoneAllLabel) m_zoneAllLabel->setText("0");
+    if (m_pointsAllLabel) m_pointsAllLabel->setText("0");
+    if (m_totalPointsLabel) m_totalPointsLabel->setText("0 Pts");
+    if (m_bothLabel) m_bothLabel->setText("");
 }
 
 QString BandSummaryGrid::bandToColumnLabel(BandType band) const {
@@ -326,6 +211,255 @@ void BandSummaryGrid::setMultipliersEnabled(bool enabled) {
         if (!enabled) {
             m_multAllLabel->setText("-");
         }
+    }
+}
+
+void BandSummaryGrid::configureForContest(bool usesModeGroupBreakdown, bool usesZoneMultipliers) {
+    m_usesModeGroupBreakdown = usesModeGroupBreakdown;
+    m_usesZoneMultipliers = usesZoneMultipliers;
+
+    // Rebuild the grid with new configuration
+    rebuildGrid();
+}
+
+void BandSummaryGrid::rebuildGrid() {
+    // Clear existing layout (but keep widget references for reuse)
+    QLayoutItem* item;
+    while ((item = m_gridLayout->takeAt(0)) != nullptr) {
+        if (QWidget* widget = item->widget()) {
+            widget->setParent(nullptr);  // Remove from layout but don't delete
+        }
+        delete item;
+    }
+
+    // Clear label maps
+    m_qsoLabels.clear();
+    m_multLabels.clear();
+    m_zoneLabels.clear();
+    m_pointsLabels.clear();
+    m_bandHeaders.clear();
+    m_modeGroupLabels.clear();
+    m_modeGroupAllLabels.clear();
+    m_modeGroupRowHeaders.clear();
+
+    // Now rebuild from scratch
+    QFont headerFont;
+    headerFont.setBold(true);
+    headerFont.setPointSize(10);
+
+    QFont dataFont("Monospace", 11);
+
+    int currentRow = 0;
+
+    // Row 0: Band headers (clickable)
+    QList<BandType> headerBands = {
+        BandType::Band160M, BandType::Band80M, BandType::Band40M,
+        BandType::Band20M, BandType::Band15M, BandType::Band10M
+    };
+    QStringList bandHeaders = {"160", "80", "40", "20", "15", "10", "All"};
+    for (int col = 0; col < bandHeaders.size(); ++col) {
+        QLabel* header = new QLabel(bandHeaders[col], this);
+        header->setFont(headerFont);
+        header->setAlignment(Qt::AlignCenter);
+        header->setMinimumWidth(50);
+
+        // Make band headers clickable (except "All")
+        if (col < headerBands.size()) {
+            header->setCursor(Qt::PointingHandCursor);
+            header->installEventFilter(this);
+            m_bandHeaders[headerBands[col]] = header;
+        }
+
+        m_gridLayout->addWidget(header, currentRow, col + 1);
+    }
+    currentRow++;
+
+    // Create data rows based on configuration
+    QList<BandType> bands = {
+        BandType::Band160M, BandType::Band80M, BandType::Band40M,
+        BandType::Band20M, BandType::Band15M, BandType::Band10M
+    };
+
+    if (m_usesModeGroupBreakdown) {
+        // Mixed-mode: Show Phone, CW, Digital rows
+        QList<ModeGroup> modeGroups = {ModeGroup::Phone, ModeGroup::CW, ModeGroup::Digital};
+
+        for (ModeGroup group : modeGroups) {
+            // Row header
+            QLabel* rowHeader = new QLabel(modeGroupToString(group), this);
+            rowHeader->setFont(headerFont);
+            rowHeader->setMinimumWidth(70);
+            m_gridLayout->addWidget(rowHeader, currentRow, 0);
+            m_modeGroupRowHeaders[group] = rowHeader;
+
+            // Data labels for each band
+            for (int col = 0; col < bands.size(); ++col) {
+                BandType band = bands[col];
+                QLabel* label = new QLabel("0", this);
+                label->setFont(dataFont);
+                label->setAlignment(Qt::AlignCenter);
+                label->setMinimumWidth(50);
+                m_gridLayout->addWidget(label, currentRow, col + 1);
+                m_modeGroupLabels[group][band] = label;
+            }
+
+            // "All" column for this mode group
+            QLabel* allLabel = new QLabel("0", this);
+            allLabel->setFont(dataFont);
+            allLabel->setAlignment(Qt::AlignCenter);
+            allLabel->setMinimumWidth(50);
+            m_gridLayout->addWidget(allLabel, currentRow, 7);
+            m_modeGroupAllLabels[group] = allLabel;
+
+            currentRow++;
+        }
+    } else {
+        // Single-mode: Show just "QSOs" row
+        QLabel* qsoLabel = new QLabel("QSOs", this);
+        qsoLabel->setFont(headerFont);
+        qsoLabel->setMinimumWidth(70);
+        m_gridLayout->addWidget(qsoLabel, currentRow, 0);
+
+        for (int col = 0; col < bands.size(); ++col) {
+            BandType band = bands[col];
+            QLabel* qso = new QLabel("0", this);
+            qso->setFont(dataFont);
+            qso->setAlignment(Qt::AlignCenter);
+            qso->setMinimumWidth(50);
+            m_gridLayout->addWidget(qso, currentRow, col + 1);
+            m_qsoLabels[band] = qso;
+        }
+
+        m_qsoAllLabel = new QLabel("0", this);
+        m_qsoAllLabel->setFont(dataFont);
+        m_qsoAllLabel->setAlignment(Qt::AlignCenter);
+        m_qsoAllLabel->setMinimumWidth(50);
+        m_gridLayout->addWidget(m_qsoAllLabel, currentRow, 7);
+
+        // Total points label (right of "All" column, spans 2 columns)
+        if (!m_totalPointsLabel) {
+            m_totalPointsLabel = new QLabel("0 Pts", this);
+        }
+        m_totalPointsLabel->setFont(headerFont);
+        m_totalPointsLabel->setStyleSheet("font-size: 14pt; font-weight: bold;");
+        m_totalPointsLabel->setMinimumWidth(100);
+        m_gridLayout->addWidget(m_totalPointsLabel, currentRow, 8, 1, 2);
+
+        currentRow++;
+    }
+
+    // Mults row
+    QLabel* multLabel = new QLabel("Mults", this);
+    multLabel->setFont(headerFont);
+    multLabel->setMinimumWidth(70);
+    m_gridLayout->addWidget(multLabel, currentRow, 0);
+
+    for (int col = 0; col < bands.size(); ++col) {
+        BandType band = bands[col];
+        QLabel* mult = new QLabel("0", this);
+        mult->setFont(dataFont);
+        mult->setAlignment(Qt::AlignCenter);
+        mult->setMinimumWidth(50);
+        m_gridLayout->addWidget(mult, currentRow, col + 1);
+        m_multLabels[band] = mult;
+    }
+
+    m_multAllLabel = new QLabel("0", this);
+    m_multAllLabel->setFont(dataFont);
+    m_multAllLabel->setAlignment(Qt::AlignCenter);
+    m_multAllLabel->setMinimumWidth(50);
+    m_gridLayout->addWidget(m_multAllLabel, currentRow, 7);
+    currentRow++;
+
+    // Zones row (only if contest uses zone multipliers)
+    if (m_usesZoneMultipliers) {
+        QLabel* zoneLabel = new QLabel("Zones", this);
+        zoneLabel->setFont(headerFont);
+        zoneLabel->setMinimumWidth(70);
+        m_gridLayout->addWidget(zoneLabel, currentRow, 0);
+
+        for (int col = 0; col < bands.size(); ++col) {
+            BandType band = bands[col];
+            QLabel* zone = new QLabel("0", this);
+            zone->setFont(dataFont);
+            zone->setAlignment(Qt::AlignCenter);
+            zone->setMinimumWidth(50);
+            m_gridLayout->addWidget(zone, currentRow, col + 1);
+            m_zoneLabels[band] = zone;
+        }
+
+        m_zoneAllLabel = new QLabel("0", this);
+        m_zoneAllLabel->setFont(dataFont);
+        m_zoneAllLabel->setAlignment(Qt::AlignCenter);
+        m_zoneAllLabel->setMinimumWidth(50);
+        m_gridLayout->addWidget(m_zoneAllLabel, currentRow, 7);
+        currentRow++;
+    }
+
+    // Points row
+    QLabel* pointsLabel = new QLabel("Points", this);
+    pointsLabel->setFont(headerFont);
+    pointsLabel->setMinimumWidth(70);
+    m_gridLayout->addWidget(pointsLabel, currentRow, 0);
+
+    for (int col = 0; col < bands.size(); ++col) {
+        BandType band = bands[col];
+        QLabel* points = new QLabel("0", this);
+        points->setFont(dataFont);
+        points->setAlignment(Qt::AlignCenter);
+        points->setMinimumWidth(50);
+        m_gridLayout->addWidget(points, currentRow, col + 1);
+        m_pointsLabels[band] = points;
+    }
+
+    m_pointsAllLabel = new QLabel("0", this);
+    m_pointsAllLabel->setFont(dataFont);
+    m_pointsAllLabel->setAlignment(Qt::AlignCenter);
+    m_pointsAllLabel->setMinimumWidth(50);
+    m_gridLayout->addWidget(m_pointsAllLabel, currentRow, 7);
+
+    // "Both:" field (right side of points row)
+    QLabel* bothLabelText = new QLabel("Both:", this);
+    bothLabelText->setFont(headerFont);
+    m_gridLayout->addWidget(bothLabelText, currentRow, 8);
+
+    if (!m_bothLabel) {
+        m_bothLabel = new QLabel("", this);
+    }
+    m_bothLabel->setFont(dataFont);
+    m_bothLabel->setMinimumWidth(100);
+    m_gridLayout->addWidget(m_bothLabel, currentRow, 9);
+
+    // For mode breakdown contests, show total points on points row
+    if (m_usesModeGroupBreakdown) {
+        if (!m_totalPointsLabel) {
+            m_totalPointsLabel = new QLabel("0 Pts", this);
+        }
+        // Move total points to span across columns 8-9 on row 1 (first mode group row)
+        // Actually, let's put it at the top right, spanning multiple rows
+        m_totalPointsLabel->setFont(headerFont);
+        m_totalPointsLabel->setStyleSheet("font-size: 14pt; font-weight: bold;");
+        m_totalPointsLabel->setMinimumWidth(100);
+        m_gridLayout->addWidget(m_totalPointsLabel, 1, 8, 1, 2);  // Row 1, span 2 cols
+    }
+
+    currentRow++;
+
+    m_gridLayout->setColumnStretch(10, 1);  // Push everything left
+
+    // Apply theme to new widgets
+    applyTheme();
+}
+
+void BandSummaryGrid::setModeGroupQSOCount(BandType band, ModeGroup group, int count) {
+    if (m_modeGroupLabels.contains(group) && m_modeGroupLabels[group].contains(band)) {
+        m_modeGroupLabels[group][band]->setText(QString::number(count));
+    }
+}
+
+void BandSummaryGrid::setAllModeGroupQSOs(ModeGroup group, int count) {
+    if (m_modeGroupAllLabels.contains(group)) {
+        m_modeGroupAllLabels[group]->setText(QString::number(count));
     }
 }
 

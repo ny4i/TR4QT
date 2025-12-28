@@ -27,11 +27,18 @@ public:
     explicit BandSummaryGrid(QWidget* parent = nullptr);
     ~BandSummaryGrid() override = default;
 
-    // Update counts
+    // Configure grid based on contest rules
+    void configureForContest(bool usesModeGroupBreakdown, bool usesZoneMultipliers);
+
+    // Update counts (for single-mode contests or legacy)
     void setQSOCount(BandType band, int count);
     void setMultCount(BandType band, int count);
     void setZoneCount(BandType band, int count);
     void setPointsCount(BandType band, int points);  // Points per band
+
+    // Update counts for mode groups (mixed-mode contests)
+    void setModeGroupQSOCount(BandType band, ModeGroup group, int count);
+    void setAllModeGroupQSOs(ModeGroup group, int count);
 
     // Update "All" column totals
     void setAllQSOs(int count);
@@ -62,6 +69,7 @@ protected:
 
 private:
     void setupUI();
+    void rebuildGrid();  // Rebuild grid based on current configuration
     QString bandToColumnLabel(BandType band) const;
     void applyTheme();
 
@@ -69,12 +77,21 @@ private:
     QLabel* m_totalPointsLabel;
     QLabel* m_bothLabel;
 
+    // Configuration
+    bool m_usesModeGroupBreakdown;
+    bool m_usesZoneMultipliers;
+
     // Band columns (160, 80, 40, 20, 15, 10, All)
     QMap<BandType, QLabel*> m_qsoLabels;
     QMap<BandType, QLabel*> m_multLabels;
     QMap<BandType, QLabel*> m_zoneLabels;
     QMap<BandType, QLabel*> m_pointsLabels;  // Points per band
     QMap<BandType, QLabel*> m_bandHeaders;  // Clickable band headers
+
+    // Mode group labels (for mixed-mode contests)
+    QMap<ModeGroup, QMap<BandType, QLabel*>> m_modeGroupLabels;
+    QMap<ModeGroup, QLabel*> m_modeGroupAllLabels;
+    QMap<ModeGroup, QLabel*> m_modeGroupRowHeaders;
 
     QLabel* m_qsoAllLabel;
     QLabel* m_multAllLabel;
