@@ -91,6 +91,7 @@ void PreferencesDialog::setupUI() {
 
 QWidget* PreferencesDialog::createStationTab() {
     QWidget* stationTab = new QWidget(this);
+    stationTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* layout = new QVBoxLayout(stationTab);
 
     QGroupBox* stationGroup = new QGroupBox("Station Information", this);
@@ -154,6 +155,7 @@ QWidget* PreferencesDialog::createStationTab() {
 
 QWidget* PreferencesDialog::createRadioTab() {
     QWidget* radioTab = new QWidget(this);
+    radioTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* layout = new QVBoxLayout(radioTab);
 
     // Radio model selection
@@ -319,6 +321,7 @@ QWidget* PreferencesDialog::createRadioTab() {
 
 QWidget* PreferencesDialog::createDXClusterTab() {
     QWidget* dxClusterTab = new QWidget(this);
+    dxClusterTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* layout = new QVBoxLayout(dxClusterTab);
 
     QGroupBox* clusterGroup = new QGroupBox("DX Cluster Settings", this);
@@ -417,6 +420,7 @@ QWidget* PreferencesDialog::createDXClusterTab() {
 
 QWidget* PreferencesDialog::createUDPBroadcastTab() {
     QWidget* udpTab = new QWidget(this);
+    udpTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* mainLayout = new QVBoxLayout(udpTab);
 
     // Enable/Disable group
@@ -514,6 +518,7 @@ QWidget* PreferencesDialog::createUDPBroadcastTab() {
 
 QWidget* PreferencesDialog::createAppearanceTab() {
     QWidget* appearanceTab = new QWidget(this);
+    appearanceTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* layout = new QVBoxLayout(appearanceTab);
 
     QGroupBox* fontGroup = new QGroupBox("Font Sizes", this);
@@ -652,6 +657,7 @@ QWidget* PreferencesDialog::createAppearanceTab() {
 
 QWidget* PreferencesDialog::createLoggingTab() {
     QWidget* loggingTab = new QWidget(this);
+    loggingTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* mainLayout = new QVBoxLayout(loggingTab);
 
     // Log Level group
@@ -751,6 +757,7 @@ QWidget* PreferencesDialog::createLoggingTab() {
 
 QWidget* PreferencesDialog::createBackupTab() {
     QWidget* backupTab = new QWidget(this);
+    backupTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* mainLayout = new QVBoxLayout(backupTab);
 
     // Auto-backup Settings Group
@@ -812,6 +819,7 @@ QWidget* PreferencesDialog::createBackupTab() {
 
 QWidget* PreferencesDialog::createContestTab() {
     QWidget* contestTab = new QWidget(this);
+    contestTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* layout = new QVBoxLayout(contestTab);
 
     QGroupBox* contestGroup = new QGroupBox("Contest Settings", this);
@@ -858,6 +866,7 @@ QWidget* PreferencesDialog::createContestTab() {
 
 QWidget* PreferencesDialog::createWebServerTab() {
     QWidget* webServerTab = new QWidget(this);
+    webServerTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* layout = new QVBoxLayout(webServerTab);
 
     QGroupBox* webServerGroup = new QGroupBox("Web Server Settings", this);
@@ -898,6 +907,7 @@ QWidget* PreferencesDialog::createWebServerTab() {
 
 QWidget* PreferencesDialog::createAdvancedTab() {
     QWidget* advancedTab = new QWidget(this);
+    advancedTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* layout = new QVBoxLayout(advancedTab);
 
     QGroupBox* countryGroup = new QGroupBox("Country File", this);

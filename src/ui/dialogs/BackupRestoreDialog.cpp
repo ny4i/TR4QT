@@ -51,6 +51,7 @@ void BackupRestoreDialog::setupUI() {
 
 QWidget* BackupRestoreDialog::createBackupTab() {
     QWidget* widget = new QWidget(this);
+    widget->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* layout = new QVBoxLayout(widget);
 
     // Backup location group
@@ -105,6 +106,7 @@ QWidget* BackupRestoreDialog::createBackupTab() {
 
 QWidget* BackupRestoreDialog::createRestoreTab() {
     QWidget* widget = new QWidget(this);
+    widget->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* layout = new QVBoxLayout(widget);
 
     // List group

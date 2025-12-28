@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.95.10";  // Fixed blank radio status display on startup
+constexpr const char* APP_VERSION = "2.95.11";  // Comprehensive widget background rendering fix for macOS
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

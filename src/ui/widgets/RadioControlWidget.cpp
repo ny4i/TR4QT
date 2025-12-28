@@ -43,6 +43,7 @@ void RadioControlWidget::setupUI() {
 
     // VFO display area
     QWidget* vfoWidget = new QWidget(this);
+    vfoWidget->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* vfoLayout = new QVBoxLayout(vfoWidget);
     vfoLayout->setSpacing(2);
     vfoLayout->setContentsMargins(0, 0, 0, 0);
@@ -121,6 +122,7 @@ void RadioControlWidget::setupUI() {
 
     // Control buttons
     QWidget* buttonWidget = new QWidget(this);
+    buttonWidget->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QHBoxLayout* buttonLayout = new QHBoxLayout(buttonWidget);
     buttonLayout->setSpacing(5);
     buttonLayout->setContentsMargins(5, 5, 5, 5);

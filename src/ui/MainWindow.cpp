@@ -499,6 +499,7 @@ void MainWindow::createMenuBar() {
 
 void MainWindow::createCentralWidget() {
     QWidget* central = new QWidget(this);
+    central->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* mainLayout = new QVBoxLayout(central);
     mainLayout->setSpacing(4);
     mainLayout->setContentsMargins(4, 4, 4, 4);
@@ -583,12 +584,14 @@ void MainWindow::createCentralWidget() {
 
 QWidget* MainWindow::createBottomPanel() {
     QWidget* bottomPanel = new QWidget(this);
+    bottomPanel->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QHBoxLayout* bottomLayout = new QHBoxLayout(bottomPanel);
     bottomLayout->setSpacing(15);
     bottomLayout->setContentsMargins(10, 4, 10, 4);
 
     // LEFT: Radio status (frequency, band/mode, time) in container widget
     QWidget* radioStatusWidget = new QWidget(this);
+    radioStatusWidget->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QHBoxLayout* radioLayout = new QHBoxLayout(radioStatusWidget);
     radioLayout->setSpacing(15);
     radioLayout->setContentsMargins(10, 5, 10, 5);
@@ -652,6 +655,7 @@ QWidget* MainWindow::createBottomPanel() {
 
     // CENTER: Entry fields (vertical layout)
     QWidget* entryWidget = new QWidget(this);
+    entryWidget->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QGridLayout* entryLayout = new QGridLayout(entryWidget);
     entryLayout->setSpacing(4);
     entryLayout->setContentsMargins(0, 0, 0, 0);
@@ -700,6 +704,7 @@ QWidget* MainWindow::createBottomPanel() {
 
     // Right side: Stats panel
     QWidget* statsWidget = new QWidget(this);
+    statsWidget->setAutoFillBackground(true);  // Prevent transparent/blank rendering
     QVBoxLayout* statsLayout = new QVBoxLayout(statsWidget);
     statsLayout->setSpacing(2);
     statsLayout->setContentsMargins(4, 4, 4, 4);
