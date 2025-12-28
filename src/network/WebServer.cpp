@@ -50,6 +50,10 @@ WebServer::WebServer(QSOTableModel* qsoModel,
         return handleApiWorkedSections();
     });
 
+    m_server->route("/api/sections-geojson", [this]() {
+        return handleApiSectionsGeoJSON();
+    });
+
     // HTML dashboard
     m_server->route("/dashboard", [this]() {
         return handleDashboard();
@@ -1013,6 +1017,20 @@ QHttpServerResponse WebServer::handleAppleTouchIcon() {
     return QHttpServerResponse("image/png", iconData);
 }
 
+QHttpServerResponse WebServer::handleApiSectionsGeoJSON() {
+    // Serve the ARRL sections GeoJSON data from resources
+    QFile geoJsonFile(":/data/arrl_sections.geojson");
+    if (!geoJsonFile.open(QIODevice::ReadOnly)) {
+        LOG_WARN("WebServer", "Failed to open arrl_sections.geojson from resources");
+        return QHttpServerResponse(QHttpServerResponse::StatusCode::NotFound);
+    }
+
+    QByteArray geoJsonData = geoJsonFile.readAll();
+
+    // Return with appropriate content type
+    return QHttpServerResponse("application/json", geoJsonData);
+}
+
 QString WebServer::generateSectionsMapHtml() {
     AppSettings& settings = AppSettings::instance();
     QString callsign = settings.getMyCallsign();
@@ -1179,18 +1197,46 @@ QString WebServer::generateSectionsMapHtml() {
             </div>
 
             <div class="legend">
-                <h3>Legend</h3>
+                <h3>QSO Count Legend</h3>
                 <div class="legend-item">
-                    <div class="legend-color" style="background: #2ecc71;"></div>
-                    <span>Worked (1+ QSO)</span>
+                    <div class="legend-color" style="background: #cccccc;"></div>
+                    <span>0 (Not Worked)</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background: #3498db;"></div>
-                    <span>Multiple QSOs</span>
+                    <span>1 QSO</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background: #e74c3c;"></div>
-                    <span>Not Worked</span>
+                    <span>2 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #0d5d0d;"></div>
+                    <span>3-9 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #137a13;"></div>
+                    <span>10-19 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #1a9e1a;"></div>
+                    <span>20-49 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #2ecc71;"></div>
+                    <span>50-99 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #5ed68f;"></div>
+                    <span>100-199 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #8ee0ad;"></div>
+                    <span>200-499 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #c8f0dc;"></div>
+                    <span>500+ QSOs</span>
                 </div>
             </div>
 
@@ -1217,77 +1263,95 @@ QString WebServer::generateSectionsMapHtml() {
             maxZoom: 18,
         }).addTo(map);
 
-        // Store worked sections data
+        // Store data
         let workedSections = {};
-        let sectionLayers = {};
+        let geoJsonLayer = null;
+        let sectionsGeoJSON = null;
 
-        // ARRL Section coordinates (approximate centers) - we'll add markers for now
-        // TODO: Replace with actual shapefile polygons
-        const sectionCoordinates = {
-            'AL': [32.8, -86.8], 'AK': [64.0, -152.0], 'AB': [53.9, -116.6],
-            'AR': [34.9, -92.4], 'AZ': [34.3, -111.7], 'BC': [53.7, -127.6],
-            'CO': [39.0, -105.5], 'CT': [41.6, -72.7], 'DE': [38.9, -75.5],
-            'EB': [37.8, -122.3], 'EMA': [42.4, -71.1], 'ENY': [42.6, -76.2],
-            'EPA': [41.2, -77.2], 'EWA': [47.2, -119.4], 'GA': [32.7, -83.2],
-            'GTA': [43.7, -79.4], 'ID': [44.0, -114.7], 'IL': [40.0, -89.0],
-            'IN': [40.0, -86.3], 'IA': [42.0, -93.5], 'KS': [38.5, -98.0],
-            'KY': [37.5, -85.3], 'LA': [31.0, -92.0], 'LAX': [34.0, -118.2],
-            'ME': [45.3, -69.0], 'MB': [56.4, -98.7], 'MAR': [39.3, -76.6],
-            'MI': [44.3, -85.6], 'MN': [46.4, -94.2], 'MS': [32.7, -89.7],
-            'MO': [38.3, -92.4], 'MT': [46.9, -110.4], 'NE': [41.5, -99.9],
-            'NV': [39.0, -117.0], 'NH': [43.7, -71.5], 'NLI': [40.8, -73.5],
-            'NM': [34.5, -106.0], 'NC': [35.5, -79.8], 'ND': [47.5, -100.5],
-            'NE': [41.5, -100.0], 'NFL': [30.4, -87.2], 'NNJ': [40.9, -74.2],
-            'NNY': [44.3, -75.5], 'NT': [64.8, -124.8], 'NTX': [33.0, -97.0],
-            'NWT': [64.0, -120.0], 'OH': [40.4, -82.9], 'OK': [35.5, -97.5],
-            'ONE': [42.9, -78.9], 'ONN': [46.5, -81.0], 'ONS': [43.2, -80.2],
-            'OR': [43.9, -120.5], 'ORG': [45.5, -122.7], 'PA': [41.2, -77.2],
-            'PR': [18.2, -66.5], 'QC': [52.0, -72.0], 'RI': [41.7, -71.5],
-            'SB': [44.5, -100.3], 'SC': [33.8, -81.0], 'SCV': [37.4, -121.9],
-            'SD': [44.5, -100.3], 'SDG': [32.7, -117.2], 'SF': [37.8, -122.4],
-            'SFL': [26.1, -80.1], 'SJV': [37.3, -121.0], 'SK': [52.9, -106.5],
-            'SNJ': [39.9, -74.9], 'STX': [29.4, -98.5], 'SV': [38.5, -121.5],
-            'TN': [35.8, -86.0], 'UT': [39.3, -111.7], 'VT': [44.0, -72.7],
-            'VA': [37.5, -78.7], 'VI': [18.3, -64.9], 'WCF': [28.0, -82.5],
-            'WI': [44.6, -89.5], 'WMA': [42.3, -72.6], 'WNY': [42.9, -78.7],
-            'WPA': [40.3, -79.9], 'WTX': [31.8, -102.4], 'WV': [38.6, -80.5],
-            'WWA': [47.6, -122.3], 'WY': [43.0, -107.5]
-        };
-
+        // Chloropleth color scheme
         function getColorForCount(count) {
-            if (count === 0) return '#e74c3c';  // Red - not worked
-            if (count === 1) return '#2ecc71';  // Green - worked once
-            return '#3498db';  // Blue - multiple QSOs
+            if (count === 0) return '#cccccc';      // Gray - not worked
+            if (count === 1) return '#3498db';      // Blue - first contact
+            if (count === 2) return '#e74c3c';      // Red - second contact
+            if (count <= 9) return '#0d5d0d';       // Dark green - 3-9
+            if (count <= 19) return '#137a13';      // Green - 10-19
+            if (count <= 49) return '#1a9e1a';      // Medium green - 20-49
+            if (count <= 99) return '#2ecc71';      // Bright green - 50-99
+            if (count <= 199) return '#5ed68f';     // Light green - 100-199
+            if (count <= 499) return '#8ee0ad';     // Lighter green - 200-499
+            return '#c8f0dc';                        // Very light green - 500+
         }
 
-        function addSectionMarkers(workedData) {
-            // Clear existing markers
-            Object.values(sectionLayers).forEach(layer => map.removeLayer(layer));
-            sectionLayers = {};
+        function styleFeature(feature) {
+            const section = feature.properties.section;
+            const count = workedSections[section] || 0;
 
-            // Add markers for each section
-            Object.entries(sectionCoordinates).forEach(([section, coords]) => {
-                const count = workedData[section] || 0;
-                const color = getColorForCount(count);
+            return {
+                fillColor: getColorForCount(count),
+                weight: 1,
+                opacity: 1,
+                color: '#ffffff',
+                fillOpacity: 0.7
+            };
+        }
 
-                const marker = L.circleMarker(coords, {
-                    radius: count > 0 ? 8 : 5,
-                    fillColor: color,
-                    color: '#fff',
-                    weight: 1,
-                    opacity: 1,
-                    fillOpacity: 0.7
+        function onEachFeature(feature, layer) {
+            const section = feature.properties.section;
+            const count = workedSections[section] || 0;
+
+            layer.bindPopup(`
+                <b>${section}</b><br>
+                QSOs: ${count}<br>
+                Status: ${count > 0 ? 'Worked' : 'Not Worked'}
+            `);
+
+            // Highlight on hover
+            layer.on('mouseover', function() {
+                this.setStyle({
+                    weight: 3,
+                    color: '#ffff00',
+                    fillOpacity: 0.85
                 });
-
-                marker.bindPopup(`
-                    <b>${section}</b><br>
-                    QSOs: ${count}<br>
-                    Status: ${count > 0 ? 'Worked' : 'Not Worked'}
-                `);
-
-                marker.addTo(map);
-                sectionLayers[section] = marker;
             });
+
+            layer.on('mouseout', function() {
+                geoJsonLayer.resetStyle(this);
+            });
+        }
+
+        async function loadGeoJSON() {
+            try {
+                const response = await fetch('/api/sections-geojson');
+                sectionsGeoJSON = await response.json();
+                console.log(`Loaded ${sectionsGeoJSON.features.length} section polygons`);
+                return true;
+            } catch (error) {
+                console.error('Failed to load GeoJSON:', error);
+                return false;
+            }
+        }
+
+        async function renderSectionPolygons() {
+            if (!sectionsGeoJSON) {
+                console.error('GeoJSON data not loaded');
+                return;
+            }
+
+            // Remove existing layer if present
+            if (geoJsonLayer) {
+                map.removeLayer(geoJsonLayer);
+            }
+
+            // Add GeoJSON layer with styling
+            geoJsonLayer = L.geoJSON(sectionsGeoJSON, {
+                style: styleFeature,
+                onEachFeature: onEachFeature
+            }).addTo(map);
+
+            // Fit map to bounds
+            if (geoJsonLayer.getBounds().isValid()) {
+                map.fitBounds(geoJsonLayer.getBounds(), { padding: [20, 20] });
+            }
         }
 
         async function loadWorkedSections() {
@@ -1303,8 +1367,12 @@ QString WebServer::generateSectionsMapHtml() {
 
                 // Update UI
                 updateStats(data);
-                addSectionMarkers(workedSections);
                 updateWorkedList(data.sections);
+
+                // Re-render polygons with new data
+                if (sectionsGeoJSON) {
+                    renderSectionPolygons();
+                }
 
             } catch (error) {
                 console.error('Failed to load worked sections:', error);
@@ -1341,11 +1409,19 @@ QString WebServer::generateSectionsMapHtml() {
         }
 
         // Load data on page load
-        window.addEventListener('load', () => {
-            loadWorkedSections();
+        window.addEventListener('load', async () => {
+            // First load GeoJSON polygons (one-time load)
+            const geoJsonLoaded = await loadGeoJSON();
 
-            // Auto-refresh every 30 seconds
-            setInterval(loadWorkedSections, 30000);
+            if (geoJsonLoaded) {
+                // Then load worked sections data and render
+                await loadWorkedSections();
+
+                // Auto-refresh worked sections every 30 seconds
+                setInterval(loadWorkedSections, 30000);
+            } else {
+                console.error('Failed to initialize map - GeoJSON not loaded');
+            }
         });
     </script>
 </body>

@@ -78,6 +78,7 @@ private:
     QHttpServerResponse handleSectionsMap();
     QHttpServerResponse handleFavicon();
     QHttpServerResponse handleAppleTouchIcon();
+    QHttpServerResponse handleApiSectionsGeoJSON();
 
     // Helper methods
     QString generateDashboardHtml();
