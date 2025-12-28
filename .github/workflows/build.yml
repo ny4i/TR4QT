@@ -567,3 +567,70 @@ jobs:
           artifacts/TR4QT-${{ github.ref_name }}-Windows.zip
           artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
         retention-days: 30
+
+  notify:
+    name: Slack Notification
+    needs: [build-windows, build-macos, build-linux-arm64]
+    runs-on: ubuntu-latest
+    if: always()  # Run even if builds fail
+
+    steps:
+    - name: Determine build status
+      id: status
+      run: |
+        if [ "${{ needs.build-windows.result }}" == "success" ] && \
+           [ "${{ needs.build-macos.result }}" == "success" ] && \
+           [ "${{ needs.build-linux-arm64.result }}" == "success" ]; then
+          echo "status=✅ SUCCESS" >> $GITHUB_OUTPUT
+          echo "color=good" >> $GITHUB_OUTPUT
+        else
+          echo "status=❌ FAILED" >> $GITHUB_OUTPUT
+          echo "color=danger" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Send Slack notification
+      if: secrets.SLACK_WEBHOOK_URL != ''
+      run: |
+        curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+          -H 'Content-Type: application/json' \
+          -d '{
+            "attachments": [{
+              "color": "${{ steps.status.outputs.color }}",
+              "title": "TR4QT Build ${{ steps.status.outputs.status }}",
+              "text": "Build triggered by ${{ github.event_name }}",
+              "fields": [
+                {
+                  "title": "Windows",
+                  "value": "${{ needs.build-windows.result }}",
+                  "short": true
+                },
+                {
+                  "title": "macOS",
+                  "value": "${{ needs.build-macos.result }}",
+                  "short": true
+                },
+                {
+                  "title": "Linux ARM64",
+                  "value": "${{ needs.build-linux-arm64.result }}",
+                  "short": true
+                },
+                {
+                  "title": "Branch/Tag",
+                  "value": "${{ github.ref_name }}",
+                  "short": true
+                },
+                {
+                  "title": "Commit",
+                  "value": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>",
+                  "short": false
+                },
+                {
+                  "title": "Build URL",
+                  "value": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Build>",
+                  "short": false
+                }
+              ],
+              "footer": "GitHub Actions",
+              "ts": '${{ github.event.head_commit.timestamp }}'
+            }]
+          }'
