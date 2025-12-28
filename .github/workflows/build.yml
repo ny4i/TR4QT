@@ -106,7 +106,7 @@ jobs:
         cp "$QT_PLUGINS/platforms/qwindows.dll" "$DEST/platforms/"
 
         mkdir -p "$DEST/styles"
-        cp "$QT_PLUGINS/styles/qwindowsvistastyle.dll" "$DEST/styles/"
+        cp "$QT_PLUGINS/styles/qwindowsvistastyle.dll" "$DEST/styles/" || echo "WARNING: qwindowsvistastyle.dll not found (optional)"
 
         mkdir -p "$DEST/sqldrivers"
         cp "$QT_PLUGINS/sqldrivers/qsqlite.dll" "$DEST/sqldrivers/"
