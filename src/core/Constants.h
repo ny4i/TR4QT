@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.95.1";  // Fixed macOS code signature crash - build Hamlib from source (unsigned)
+constexpr const char* APP_VERSION = "2.95.2";  // Added NSIS Windows installer to CI build
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
