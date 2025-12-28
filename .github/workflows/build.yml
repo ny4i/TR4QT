@@ -85,6 +85,17 @@ jobs:
         windeployqt build/src/tr4qt.exe --release --no-translations
         cp C:/hamlib/bin/*.dll build/src/ || true
 
+    - name: Create Installer
+      shell: bash
+      run: |
+        # Install NSIS
+        choco install nsis -y
+        export PATH="/c/Program Files (x86)/NSIS:$PATH"
+
+        # Build installer
+        cd installer
+        makensis tr4qt.nsi
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
@@ -96,6 +107,7 @@ jobs:
           build/src/imageformats/
           build/src/styles/
           build/src/tls/
+          build/src/TR4QT-*-Setup.exe
 
   build-macos:
     name: macOS
@@ -341,6 +353,10 @@ jobs:
         cd artifacts/TR4QT-Windows
         zip -r ../TR4QT-${{ github.ref_name }}-Windows.zip .
 
+    - name: Rename Windows Installer
+      run: |
+        mv artifacts/TR4QT-Windows/TR4QT-*-Setup.exe artifacts/TR4QT-${{ github.ref_name }}-Setup.exe || true
+
     - name: Rename macOS DMG
       run: |
         mv artifacts/TR4QT-macOS/tr4qt.dmg artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
@@ -350,6 +366,7 @@ jobs:
       with:
         files: |
           artifacts/TR4QT-${{ github.ref_name }}-Windows.zip
+          artifacts/TR4QT-${{ github.ref_name }}-Setup.exe
           artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
         draft: ${{ !contains(github.ref_name, '-rc') }}
         prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
