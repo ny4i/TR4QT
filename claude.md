@@ -397,8 +397,12 @@ cp /opt/homebrew/opt/brotli/lib/libbrotlicommon.1.dylib tr4qt.app/Contents/Frame
 cp -R /opt/homebrew/opt/qtbase/lib/QtDBus.framework tr4qt.app/Contents/Frameworks/
 cp /opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib tr4qt.app/Contents/Frameworks/
 
-# 4. CRITICAL: Fix ALL library IDs to use @rpath
-# Homebrew libraries have absolute path IDs which MUST be changed to @rpath
+# 4. CRITICAL: Fix ALL library IDs and dependencies to use @rpath
+# There are TWO types of paths to fix:
+#   A) Library ID: What the library calls itself (install_name_tool -id)
+#   B) Dependencies: What other libraries it references (install_name_tool -change)
+
+# 4A. Fix library IDs
 # Check EVERY manually copied library:
 otool -L tr4qt.app/Contents/Frameworks/libbrotlicommon.1.dylib | head -2
 # If you see: /opt/homebrew/opt/brotli/lib/libbrotlicommon.1.dylib
@@ -411,6 +415,16 @@ install_name_tool -id "@rpath/libdbus-1.3.dylib" \
   tr4qt.app/Contents/Frameworks/libdbus-1.3.dylib
 
 install_name_tool -id "@rpath/QtDBus.framework/Versions/A/QtDBus" \
+  tr4qt.app/Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus
+
+# 4B. Fix library dependencies (references to OTHER libraries)
+# Check if any bundled library references absolute paths:
+otool -L tr4qt.app/Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus
+# If you see dependencies like: /opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib
+# Then you MUST fix the dependency reference:
+install_name_tool -change \
+  "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" \
+  "@rpath/libdbus-1.3.dylib" \
   tr4qt.app/Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus
 
 # 5. Ensure executable has @rpath set
@@ -595,8 +609,11 @@ otool -L /path/to/library.dylib
 # Check library install ID (first line of otool -L output)
 otool -L /path/to/library.dylib | head -2
 
-# Change library install ID to @rpath
+# Change library install ID to @rpath (what the library calls itself)
 install_name_tool -id "@rpath/libname.dylib" /path/to/library.dylib
+
+# Change library dependency to @rpath (what it references)
+install_name_tool -change "/absolute/path/to/dependency.dylib" "@rpath/dependency.dylib" /path/to/library.dylib
 
 # Add rpath to executable
 install_name_tool -add_rpath "@executable_path/../Frameworks" /path/to/executable
