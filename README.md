@@ -66,6 +66,10 @@ make
 
 Based on TR4W (Delphi) at `/Users/toms/projects/TR4W/`
 
+## Acknowledgments
+
+Thanks to [n1mm_view](https://github.com/n1kdo/n1mm_view) for the use of the ARRL section shapefiles.
+
 ## License
 
 TBD
