@@ -73,12 +73,15 @@ private:
     QHttpServerResponse handleApiQsos();
     QHttpServerResponse handleApiRadio();
     QHttpServerResponse handleApiScore();
+    QHttpServerResponse handleApiWorkedSections();
     QHttpServerResponse handleDashboard();
+    QHttpServerResponse handleSectionsMap();
     QHttpServerResponse handleFavicon();
     QHttpServerResponse handleAppleTouchIcon();
 
     // Helper methods
     QString generateDashboardHtml();
+    QString generateSectionsMapHtml();
     QJsonObject radioStateToJson(const RadioState& state);
     QJsonObject qsoToJson(const QSO& qso);
 
