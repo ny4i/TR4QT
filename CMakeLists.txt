@@ -8,6 +8,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # This ensures compatibility with Sonoma (14.x) and earlier versions
 if(APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version" FORCE)
+
+    # Set up proper rpath for app bundle
+    # This ensures Qt frameworks and libraries load from the bundled Frameworks directory
+    set(CMAKE_MACOSX_RPATH ON)
+    set(CMAKE_INSTALL_RPATH "@executable_path/../Frameworks")
+    # Use FALSE so macdeployqt can find the original Homebrew paths
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
 endif()
 
 # Qt6 setup
