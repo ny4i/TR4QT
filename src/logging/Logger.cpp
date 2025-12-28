@@ -3,6 +3,8 @@
 #include <QDateTime>
 #include <QThread>
 #include <QFileInfo>
+#include <QFile>
+#include <QTextStream>
 #include <iostream>
 
 namespace TR4QT {
@@ -176,6 +178,50 @@ qint64 Logger::elapsedMilliseconds() const {
 bool Logger::isLevelEnabled(LogLevel level) const {
     QMutexLocker locker(&m_mutex);
     return level >= m_logLevel;
+}
+
+QString Logger::getLastLogLines(int lineCount) const {
+    QMutexLocker locker(&m_mutex);
+
+    // Ensure file appender is flushed
+    if (m_fileAppender) {
+        const_cast<FileAppender*>(m_fileAppender)->flush();
+    }
+
+    // Read log file
+    QFile logFile(m_logFilePath);
+    if (!logFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return QString("Unable to read log file: %1").arg(m_logFilePath);
+    }
+
+    // Read all lines
+    QStringList lines;
+    QTextStream in(&logFile);
+    while (!in.atEnd()) {
+        lines.append(in.readLine());
+    }
+    logFile.close();
+
+    // Find last "PROGRAM STARTUP" banner (search from end backwards)
+    int startupIndex = -1;
+    for (int i = lines.size() - 1; i >= 0; --i) {
+        if (lines[i].contains("PROGRAM STARTUP")) {
+            startupIndex = i;
+            break;
+        }
+    }
+
+    // If startup banner found, return all lines from there
+    // Otherwise fall back to last N lines
+    QStringList resultLines;
+    if (startupIndex >= 0) {
+        resultLines = lines.mid(startupIndex);
+    } else {
+        int startIndex = qMax(0, lines.size() - lineCount);
+        resultLines = lines.mid(startIndex);
+    }
+
+    return resultLines.join("\n");
 }
 
 void Logger::messageHandler(QtMsgType type,

@@ -59,6 +59,15 @@ void FileAppender::close() {
     m_currentSize = 0;
 }
 
+void FileAppender::flush() {
+    QMutexLocker locker(&m_mutex);
+
+    if (m_file.isOpen()) {
+        m_stream.flush();
+        m_file.flush();
+    }
+}
+
 bool FileAppender::isOpen() const {
     QMutexLocker locker(&m_mutex);
     return m_file.isOpen();

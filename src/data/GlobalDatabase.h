@@ -108,6 +108,12 @@ public:
      */
     static QString defaultDatabasePath();
 
+    /**
+     * Check if QSQLITE driver is available
+     * @return true if QSQLITE driver can be loaded
+     */
+    static bool isSqliteDriverAvailable();
+
 private:
     GlobalDatabase();
     ~GlobalDatabase();
