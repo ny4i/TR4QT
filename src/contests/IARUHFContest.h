@@ -86,6 +86,9 @@ public:
     // ===== Special Rules =====
     bool usesSerialNumbers() const override { return false; }
 
+    // IARU HF is mixed mode (Phone/CW/Digital)
+    bool usesModeGroupBreakdown() const override { return true; }
+
     DuplicateCheckingRule getDuplicateCheckingRule() const override {
         // Per rules: "A station may be worked once per band per mode"
         return DuplicateCheckingRule::PerBandMode;
