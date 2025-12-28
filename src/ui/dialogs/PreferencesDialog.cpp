@@ -40,7 +40,7 @@ PreferencesDialog::PreferencesDialog(QWidget* parent)
     LOG_DEBUG("PreferencesDialog", "*** setupUI completed, calling loadSettings ***");
     loadSettings();
     LOG_DEBUG("PreferencesDialog", "*** loadSettings completed, resizing ***");
-    resize(600, 500);
+    resize(800, 550);  // Wider for sidebar layout
     LOG_DEBUG("PreferencesDialog", QString("*** PreferencesDialog fully initialized with window title: %1").arg(windowTitle()));
 }
 
@@ -48,31 +48,58 @@ void PreferencesDialog::setupUI() {
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating main layout ***");
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
-    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating tab widget ***");
-    // Tab widget
-    m_tabWidget = new QTabWidget(this);
-    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Station tab ***");
-    m_tabWidget->addTab(createStationTab(), "Station");
-    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Radio tab ***");
-    m_tabWidget->addTab(createRadioTab(), "Radio");
-    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating DX Cluster tab ***");
-    m_tabWidget->addTab(createDXClusterTab(), "DX Cluster");
-    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating UDP Broadcast tab ***");
-    m_tabWidget->addTab(createUDPBroadcastTab(), "UDP Broadcast");
-    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Appearance tab ***");
-    m_tabWidget->addTab(createAppearanceTab(), "Appearance");
-    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Logging tab ***");
-    m_tabWidget->addTab(createLoggingTab(), "Logging");
-    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Backup tab ***");
-    m_tabWidget->addTab(createBackupTab(), "Backup");
-    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Contest tab ***");
-    m_tabWidget->addTab(createContestTab(), "Contest");
-    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Web Server tab ***");
-    m_tabWidget->addTab(createWebServerTab(), "Web Server");
-    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Advanced tab ***");
-    m_tabWidget->addTab(createAdvancedTab(), "Advanced");
+    // Create horizontal splitter for sidebar + content
+    QHBoxLayout* contentLayout = new QHBoxLayout();
 
-    mainLayout->addWidget(m_tabWidget);
+    // Left sidebar: Category list
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating category list ***");
+    m_categoryList = new QListWidget(this);
+    m_categoryList->setMaximumWidth(160);
+    m_categoryList->setMinimumWidth(140);
+    m_categoryList->addItem("Station");
+    m_categoryList->addItem("Radio");
+    m_categoryList->addItem("DX Cluster");
+    m_categoryList->addItem("UDP Broadcast");
+    m_categoryList->addItem("Appearance");
+    m_categoryList->addItem("Logging");
+    m_categoryList->addItem("Backup");
+    m_categoryList->addItem("Contest");
+    m_categoryList->addItem("Web Server");
+    m_categoryList->addItem("Advanced");
+
+    // Right panel: Stacked widget with settings pages
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating settings stack ***");
+    m_settingsStack = new QStackedWidget(this);
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Station page ***");
+    m_settingsStack->addWidget(createStationTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Radio page ***");
+    m_settingsStack->addWidget(createRadioTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating DX Cluster page ***");
+    m_settingsStack->addWidget(createDXClusterTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating UDP Broadcast page ***");
+    m_settingsStack->addWidget(createUDPBroadcastTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Appearance page ***");
+    m_settingsStack->addWidget(createAppearanceTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Logging page ***");
+    m_settingsStack->addWidget(createLoggingTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Backup page ***");
+    m_settingsStack->addWidget(createBackupTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Contest page ***");
+    m_settingsStack->addWidget(createContestTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Web Server page ***");
+    m_settingsStack->addWidget(createWebServerTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Advanced page ***");
+    m_settingsStack->addWidget(createAdvancedTab());
+
+    // Connect list selection to stack page switching
+    connect(m_categoryList, &QListWidget::currentRowChanged,
+            m_settingsStack, &QStackedWidget::setCurrentIndex);
+
+    // Add sidebar and content to horizontal layout
+    contentLayout->addWidget(m_categoryList);
+    contentLayout->addWidget(m_settingsStack, 1);  // Give stack more stretch
+
+    mainLayout->addLayout(contentLayout);
 
     // Button box
     QDialogButtonBox* buttonBox = new QDialogButtonBox(this);
@@ -87,6 +114,9 @@ void PreferencesDialog::setupUI() {
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     mainLayout->addWidget(buttonBox);
+
+    // Select first category by default
+    m_categoryList->setCurrentRow(0);
 }
 
 QWidget* PreferencesDialog::createStationTab() {
