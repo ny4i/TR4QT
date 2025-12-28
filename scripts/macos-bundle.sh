@@ -27,12 +27,16 @@ fi
 
 # Copy QtDBus framework (not bundled by macdeployqt)
 if [ -d "/opt/homebrew/opt/qtbase/lib/QtDBus.framework" ]; then
+    # Remove existing QtDBus if present to avoid permission errors
+    rm -rf "$APP_BUNDLE/Contents/Frameworks/QtDBus.framework"
     cp -R "/opt/homebrew/opt/qtbase/lib/QtDBus.framework" "$APP_BUNDLE/Contents/Frameworks/"
     echo "    Copied QtDBus.framework"
 fi
 
 # Copy libdbus (required by QtDBus)
 if [ -f "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" ]; then
+    # Remove existing libdbus if present to avoid permission errors
+    rm -f "$APP_BUNDLE/Contents/Frameworks/libdbus-1.3.dylib"
     cp "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" "$APP_BUNDLE/Contents/Frameworks/"
     echo "    Copied libdbus-1.3.dylib"
 fi
