@@ -2,7 +2,6 @@ name: Build TR4QT
 
 on:
   push:
-    branches: [ master, main, develop ]
     tags:
       - 'v*'       # Release tags: v2.90.1
       - 'v*-beta*' # Beta releases: v2.91.0-beta1
