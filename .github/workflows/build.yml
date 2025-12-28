@@ -227,8 +227,7 @@ jobs:
 
   build-linux-x86_64:
     name: Linux (x86_64)
-    runs-on: ubuntu-latest
-    continue-on-error: true  # Qt HttpServer not in Ubuntu repos yet
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Checkout
@@ -243,10 +242,9 @@ jobs:
           libgl1-mesa-dev \
           libhamlib-dev \
           qt6-base-dev \
-          qt6-websockets-dev \
+          qt6-httpserver-dev \
           libqt6sql6-sqlite \
           libqt6network6 \
-          libqt6httpserver6-dev \
           libfuse2
 
     - name: Configure CMake
@@ -323,7 +321,7 @@ jobs:
         docker run --rm --platform linux/arm64 \
           -v $PWD:/workspace \
           -w /workspace \
-          arm64v8/ubuntu:22.04 \
+          arm64v8/ubuntu:24.04 \
           bash -c "
             apt-get update && \
             DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -332,10 +330,9 @@ jobs:
               libgl1-mesa-dev \
               libhamlib-dev \
               qt6-base-dev \
-              qt6-websockets-dev \
+              qt6-httpserver-dev \
               libqt6sql6-sqlite \
               libqt6network6 \
-              libqt6httpserver6-dev \
               libfuse2 \
               wget \
               file && \
