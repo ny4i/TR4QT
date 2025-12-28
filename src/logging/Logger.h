@@ -65,6 +65,9 @@ public:
     // Check if a log level is enabled
     bool isLevelEnabled(LogLevel level) const;
 
+    // Get last N lines from log file (for error reporting)
+    QString getLastLogLines(int lineCount = 50) const;
+
 private:
     Logger();
     ~Logger();

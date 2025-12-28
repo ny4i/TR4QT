@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.2.0";  // K4 radio network discovery
+constexpr const char* APP_VERSION = "3.3.0";  // Fatal error handling for database driver failures
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

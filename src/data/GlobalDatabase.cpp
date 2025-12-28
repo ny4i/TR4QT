@@ -32,6 +32,11 @@ QString GlobalDatabase::defaultDatabasePath() {
     return homeDir + "/.tr4qt/tr4qt_global.db";
 }
 
+bool GlobalDatabase::isSqliteDriverAvailable() {
+    QStringList drivers = QSqlDatabase::drivers();
+    return drivers.contains("QSQLITE");
+}
+
 bool GlobalDatabase::open() {
     return open(defaultDatabasePath());
 }

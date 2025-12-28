@@ -38,6 +38,7 @@ public:
     // File management
     bool open();
     void close();
+    void flush();  // Flush buffered data to disk
     bool isOpen() const;
 
     QString filePath() const { return m_filePath; }
