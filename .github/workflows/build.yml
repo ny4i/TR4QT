@@ -475,11 +475,12 @@ jobs:
 
             # Create AppImage using appimagetool
             echo '==> Creating AppImage...'
-            # Use x86_64 appimagetool (runs on the host) with ARCH=aarch64 to build ARM64 AppImage
-            wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-            chmod +x appimagetool-x86_64.AppImage
-            # Use --appimage-extract-and-run to work without FUSE in Docker
-            ARCH=aarch64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run appdir TR4QT-ARM64.AppImage
+            # Download ARM64 appimagetool (runs inside ARM64 Docker container)
+            wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage
+            chmod +x appimagetool-aarch64.AppImage
+            # Extract and run directly (avoids FUSE requirement in Docker)
+            ./appimagetool-aarch64.AppImage --appimage-extract >/dev/null
+            ARCH=aarch64 ./squashfs-root/AppRun appdir TR4QT-ARM64.AppImage
 
             echo '==> Deployment complete'
             ls -lh TR4QT-ARM64.AppImage
