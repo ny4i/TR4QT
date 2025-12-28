@@ -1737,6 +1737,11 @@ void MainWindow::onLogQSO() {
         if (qso.parsedExchange.contains("Serial")) {
             qso.serialNumber = qso.parsedExchange["Serial"].toInt();
         }
+
+        // Extract ARRL section from parsed exchange if present
+        if (qso.parsedExchange.contains("Section")) {
+            qso.arrlSection = qso.parsedExchange["Section"];
+        }
     } else {
         // No active contest - use default RST
         qso.rstReceived = (qso.mode == ModeType::CW) ? "599" : "59";
