@@ -82,7 +82,12 @@ jobs:
       shell: bash
       run: |
         export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
-        windeployqt build/src/tr4qt.exe --release --no-translations --sql
+        windeployqt build/src/tr4qt.exe --release --no-translations
+
+        # Manually copy SQL plugin (windeployqt doesn't always get it)
+        echo "Manually copying SQL plugins..."
+        mkdir -p build/src/sqldrivers
+        cp "${{ env.QT_ROOT_DIR }}/plugins/sqldrivers/qsqlite.dll" build/src/sqldrivers/ || echo "WARNING: qsqlite.dll not found"
 
         # Verify SQL plugin was deployed
         echo "Checking for SQL plugins..."
