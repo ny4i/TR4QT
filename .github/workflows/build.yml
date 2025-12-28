@@ -189,6 +189,31 @@ jobs:
           build/src/tls/
           build/src/TR4QT-*-Setup.exe
 
+    - name: Notify Slack - Windows Complete
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          STATUS="✅ SUCCESS"
+          COLOR="good"
+        else
+          STATUS="❌ FAILED"
+          COLOR="danger"
+        fi
+        curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+          -H 'Content-Type: application/json' \
+          -d "{
+            \"attachments\": [{
+              \"color\": \"$COLOR\",
+              \"title\": \"Windows Build $STATUS\",
+              \"fields\": [
+                {\"title\": \"Status\", \"value\": \"${{ job.status }}\", \"short\": true},
+                {\"title\": \"Duration\", \"value\": \"${{ job.duration }}\", \"short\": true},
+                {\"title\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                {\"title\": \"Build URL\", \"value\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Build>\", \"short\": false}
+              ]
+            }]
+          }"
+
   build-macos:
     name: macOS
     runs-on: macos-latest
@@ -305,6 +330,30 @@ jobs:
       with:
         name: TR4QT-macOS
         path: build/src/tr4qt.dmg
+
+    - name: Notify Slack - macOS Complete
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          STATUS="✅ SUCCESS"
+          COLOR="good"
+        else
+          STATUS="❌ FAILED"
+          COLOR="danger"
+        fi
+        curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+          -H 'Content-Type: application/json' \
+          -d "{
+            \"attachments\": [{
+              \"color\": \"$COLOR\",
+              \"title\": \"macOS Build $STATUS\",
+              \"fields\": [
+                {\"title\": \"Status\", \"value\": \"${{ job.status }}\", \"short\": true},
+                {\"title\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                {\"title\": \"Build URL\", \"value\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Build>\", \"short\": false}
+              ]
+            }]
+          }"
 
   # Commented out: Linux x86_64 is not a priority (Raspberry Pi ARM64 is the Linux focus)
   # build-linux-x86_64:
@@ -491,6 +540,30 @@ jobs:
       with:
         name: TR4QT-Linux-ARM64
         path: TR4QT*.AppImage
+
+    - name: Notify Slack - Linux ARM64 Complete
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          STATUS="✅ SUCCESS"
+          COLOR="good"
+        else
+          STATUS="❌ FAILED"
+          COLOR="danger"
+        fi
+        curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+          -H 'Content-Type: application/json' \
+          -d "{
+            \"attachments\": [{
+              \"color\": \"$COLOR\",
+              \"title\": \"Linux ARM64 Build $STATUS\",
+              \"fields\": [
+                {\"title\": \"Status\", \"value\": \"${{ job.status }}\", \"short\": true},
+                {\"title\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                {\"title\": \"Build URL\", \"value\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Build>\", \"short\": false}
+              ]
+            }]
+          }"
 
   # Create release when a tag is pushed
   release:
