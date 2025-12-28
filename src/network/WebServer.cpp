@@ -1267,6 +1267,7 @@ QString WebServer::generateSectionsMapHtml() {
         let workedSections = {};
         let geoJsonLayer = null;
         let sectionsGeoJSON = null;
+        let initialLoadComplete = false;
 
         // Chloropleth color scheme
         function getColorForCount(count) {
@@ -1348,9 +1349,10 @@ QString WebServer::generateSectionsMapHtml() {
                 onEachFeature: onEachFeature
             }).addTo(map);
 
-            // Fit map to bounds
-            if (geoJsonLayer.getBounds().isValid()) {
+            // Only fit bounds on initial load - preserve user's zoom/pan on refresh
+            if (!initialLoadComplete && geoJsonLayer.getBounds().isValid()) {
                 map.fitBounds(geoJsonLayer.getBounds(), { padding: [20, 20] });
+                initialLoadComplete = true;
             }
         }
 
