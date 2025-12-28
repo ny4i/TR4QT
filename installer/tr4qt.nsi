@@ -6,7 +6,7 @@
 
 ; Application metadata
 !define APPNAME "TR4QT"
-!define APPVERSION "3.3.0"
+!define APPVERSION "3.3.1"
 !define APPURL "https://github.com/ny4i/TR4QT"
 !define APPPUBLISHER "TR4QT Project"
 
@@ -48,6 +48,10 @@ Section "Install"
     ; Qt plugins - platforms
     SetOutPath "$INSTDIR\platforms"
     File "..\build\src\platforms\*.*"
+
+    ; Qt plugins - sqldrivers (CRITICAL - required for database access)
+    SetOutPath "$INSTDIR\sqldrivers"
+    File "..\build\src\sqldrivers\*.*"
 
     ; Qt plugins - imageformats
     SetOutPath "$INSTDIR\imageformats"
@@ -101,6 +105,7 @@ Section "Uninstall"
 
     ; Remove plugin directories
     RMDir /r "$INSTDIR\platforms"
+    RMDir /r "$INSTDIR\sqldrivers"
     RMDir /r "$INSTDIR\imageformats"
     RMDir /r "$INSTDIR\styles"
     RMDir /r "$INSTDIR\tls"

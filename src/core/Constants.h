@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.3.0";  // Fatal error handling for database driver failures
+constexpr const char* APP_VERSION = "3.3.1";  // Fix Windows QSQLITE driver deployment in artifact and installer
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
