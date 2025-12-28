@@ -46,9 +46,17 @@ WebServer::WebServer(QSOTableModel* qsoModel,
         return handleApiScore();
     });
 
+    m_server->route("/api/worked-sections", [this]() {
+        return handleApiWorkedSections();
+    });
+
     // HTML dashboard
     m_server->route("/dashboard", [this]() {
         return handleDashboard();
+    });
+
+    m_server->route("/map", [this]() {
+        return handleSectionsMap();
     });
 
     // Favicon routes
@@ -224,8 +232,46 @@ QHttpServerResponse WebServer::handleApiScore() {
     return QHttpServerResponse("application/json", doc.toJson());
 }
 
+QHttpServerResponse WebServer::handleApiWorkedSections() {
+    // Build map of sections → QSO count
+    QMap<QString, int> sectionCounts;
+
+    int qsoCount = m_qsoModel->count();
+    for (int row = 0; row < qsoCount; ++row) {
+        QSO qso = m_qsoModel->getQSO(row);
+        QString section = qso.arrlSection.trimmed().toUpper();
+
+        if (!section.isEmpty()) {
+            sectionCounts[section]++;
+        }
+    }
+
+    // Convert to JSON array
+    QJsonArray sectionsArray;
+    for (auto it = sectionCounts.begin(); it != sectionCounts.end(); ++it) {
+        QJsonObject sectionObj;
+        sectionObj["section"] = it.key();
+        sectionObj["count"] = it.value();
+        sectionsArray.append(sectionObj);
+    }
+
+    QJsonObject json;
+    json["sections"] = sectionsArray;
+    json["totalSections"] = sectionCounts.size();
+    json["totalQsos"] = qsoCount;
+    json["lastUpdate"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+
+    QJsonDocument doc(json);
+    return QHttpServerResponse("application/json", doc.toJson());
+}
+
 QHttpServerResponse WebServer::handleDashboard() {
     QString html = generateDashboardHtml();
+    return QHttpServerResponse("text/html", html.toUtf8());
+}
+
+QHttpServerResponse WebServer::handleSectionsMap() {
+    QString html = generateSectionsMapHtml();
     return QHttpServerResponse("text/html", html.toUtf8());
 }
 
@@ -964,6 +1010,350 @@ QHttpServerResponse WebServer::handleAppleTouchIcon() {
 
     QByteArray iconData = iconFile.readAll();
     return QHttpServerResponse("image/png", iconData);
+}
+
+QString WebServer::generateSectionsMapHtml() {
+    AppSettings& settings = AppSettings::instance();
+    QString callsign = settings.getMyCallsign();
+    QString operator_name = settings.getCurrentOperator();
+
+    QString html = R"HTML(<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARRL Sections Map - %1</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #fff;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        .header h1 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+        .header .info {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        .container {
+            display: flex;
+            height: calc(100vh - 80px);
+        }
+        #map {
+            flex: 1;
+            height: 100%;
+        }
+        .sidebar {
+            width: 300px;
+            background: #16213e;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.3);
+        }
+        .stats {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .stats h3 {
+            margin-bottom: 10px;
+            color: #ffd700;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .legend {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .legend h3 {
+            margin-bottom: 10px;
+            color: #ffd700;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+        .legend-color {
+            width: 30px;
+            height: 20px;
+            margin-right: 10px;
+            border: 1px solid #fff;
+            border-radius: 3px;
+        }
+        .worked-list {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .worked-list h3 {
+            margin-bottom: 10px;
+            color: #ffd700;
+            position: sticky;
+            top: 0;
+            background: #16213e;
+            padding: 5px 0;
+        }
+        .section-item {
+            padding: 5px;
+            margin: 3px 0;
+            background: rgba(255,255,255,0.05);
+            border-radius: 3px;
+        }
+        .controls {
+            text-align: center;
+            padding: 15px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        @media (max-width: 900px) {
+            .container { flex-direction: column; }
+            .sidebar { width: 100%; max-height: 300px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ARRL Sections Worked - %2</h1>
+        <div class="info">Callsign: %3 | Operator: %4</div>
+    </div>
+
+    <div class="container">
+        <div id="map"></div>
+
+        <div class="sidebar">
+            <div class="stats">
+                <h3>Statistics</h3>
+                <div class="stat-row">
+                    <span>Sections Worked:</span>
+                    <span id="sections-worked">0</span>
+                </div>
+                <div class="stat-row">
+                    <span>Total Sections:</span>
+                    <span>83</span>
+                </div>
+                <div class="stat-row">
+                    <span>Completion:</span>
+                    <span id="completion">0%</span>
+                </div>
+                <div class="stat-row">
+                    <span>Total QSOs:</span>
+                    <span id="total-qsos">0</span>
+                </div>
+            </div>
+
+            <div class="legend">
+                <h3>Legend</h3>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #2ecc71;"></div>
+                    <span>Worked (1+ QSO)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #3498db;"></div>
+                    <span>Multiple QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #e74c3c;"></div>
+                    <span>Not Worked</span>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn" onclick="refreshData()">Refresh Data</button>
+                <button class="btn" onclick="window.location.href='/dashboard'">Dashboard</button>
+            </div>
+
+            <div class="worked-list">
+                <h3>Worked Sections</h3>
+                <div id="worked-sections-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map centered on USA
+        const map = L.map('map').setView([39.8, -98.6], 4);
+
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 18,
+        }).addTo(map);
+
+        // Store worked sections data
+        let workedSections = {};
+        let sectionLayers = {};
+
+        // ARRL Section coordinates (approximate centers) - we'll add markers for now
+        // TODO: Replace with actual shapefile polygons
+        const sectionCoordinates = {
+            'AL': [32.8, -86.8], 'AK': [64.0, -152.0], 'AB': [53.9, -116.6],
+            'AR': [34.9, -92.4], 'AZ': [34.3, -111.7], 'BC': [53.7, -127.6],
+            'CO': [39.0, -105.5], 'CT': [41.6, -72.7], 'DE': [38.9, -75.5],
+            'EB': [37.8, -122.3], 'EMA': [42.4, -71.1], 'ENY': [42.6, -76.2],
+            'EPA': [41.2, -77.2], 'EWA': [47.2, -119.4], 'GA': [32.7, -83.2],
+            'GTA': [43.7, -79.4], 'ID': [44.0, -114.7], 'IL': [40.0, -89.0],
+            'IN': [40.0, -86.3], 'IA': [42.0, -93.5], 'KS': [38.5, -98.0],
+            'KY': [37.5, -85.3], 'LA': [31.0, -92.0], 'LAX': [34.0, -118.2],
+            'ME': [45.3, -69.0], 'MB': [56.4, -98.7], 'MAR': [39.3, -76.6],
+            'MI': [44.3, -85.6], 'MN': [46.4, -94.2], 'MS': [32.7, -89.7],
+            'MO': [38.3, -92.4], 'MT': [46.9, -110.4], 'NE': [41.5, -99.9],
+            'NV': [39.0, -117.0], 'NH': [43.7, -71.5], 'NLI': [40.8, -73.5],
+            'NM': [34.5, -106.0], 'NC': [35.5, -79.8], 'ND': [47.5, -100.5],
+            'NE': [41.5, -100.0], 'NFL': [30.4, -87.2], 'NNJ': [40.9, -74.2],
+            'NNY': [44.3, -75.5], 'NT': [64.8, -124.8], 'NTX': [33.0, -97.0],
+            'NWT': [64.0, -120.0], 'OH': [40.4, -82.9], 'OK': [35.5, -97.5],
+            'ONE': [42.9, -78.9], 'ONN': [46.5, -81.0], 'ONS': [43.2, -80.2],
+            'OR': [43.9, -120.5], 'ORG': [45.5, -122.7], 'PA': [41.2, -77.2],
+            'PR': [18.2, -66.5], 'QC': [52.0, -72.0], 'RI': [41.7, -71.5],
+            'SB': [44.5, -100.3], 'SC': [33.8, -81.0], 'SCV': [37.4, -121.9],
+            'SD': [44.5, -100.3], 'SDG': [32.7, -117.2], 'SF': [37.8, -122.4],
+            'SFL': [26.1, -80.1], 'SJV': [37.3, -121.0], 'SK': [52.9, -106.5],
+            'SNJ': [39.9, -74.9], 'STX': [29.4, -98.5], 'SV': [38.5, -121.5],
+            'TN': [35.8, -86.0], 'UT': [39.3, -111.7], 'VT': [44.0, -72.7],
+            'VA': [37.5, -78.7], 'VI': [18.3, -64.9], 'WCF': [28.0, -82.5],
+            'WI': [44.6, -89.5], 'WMA': [42.3, -72.6], 'WNY': [42.9, -78.7],
+            'WPA': [40.3, -79.9], 'WTX': [31.8, -102.4], 'WV': [38.6, -80.5],
+            'WWA': [47.6, -122.3], 'WY': [43.0, -107.5]
+        };
+
+        function getColorForCount(count) {
+            if (count === 0) return '#e74c3c';  // Red - not worked
+            if (count === 1) return '#2ecc71';  // Green - worked once
+            return '#3498db';  // Blue - multiple QSOs
+        }
+
+        function addSectionMarkers(workedData) {
+            // Clear existing markers
+            Object.values(sectionLayers).forEach(layer => map.removeLayer(layer));
+            sectionLayers = {};
+
+            // Add markers for each section
+            Object.entries(sectionCoordinates).forEach(([section, coords]) => {
+                const count = workedData[section] || 0;
+                const color = getColorForCount(count);
+
+                const marker = L.circleMarker(coords, {
+                    radius: count > 0 ? 8 : 5,
+                    fillColor: color,
+                    color: '#fff',
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.7
+                });
+
+                marker.bindPopup(`
+                    <b>${section}</b><br>
+                    QSOs: ${count}<br>
+                    Status: ${count > 0 ? 'Worked' : 'Not Worked'}
+                `);
+
+                marker.addTo(map);
+                sectionLayers[section] = marker;
+            });
+        }
+
+        async function loadWorkedSections() {
+            try {
+                const response = await fetch('/api/worked-sections');
+                const data = await response.json();
+
+                // Convert array to map
+                workedSections = {};
+                data.sections.forEach(section => {
+                    workedSections[section.section] = section.count;
+                });
+
+                // Update UI
+                updateStats(data);
+                addSectionMarkers(workedSections);
+                updateWorkedList(data.sections);
+
+            } catch (error) {
+                console.error('Failed to load worked sections:', error);
+            }
+        }
+
+        function updateStats(data) {
+            document.getElementById('sections-worked').textContent = data.totalSections;
+            document.getElementById('total-qsos').textContent = data.totalQsos;
+            const completion = ((data.totalSections / 83) * 100).toFixed(1);
+            document.getElementById('completion').textContent = completion + '%';
+        }
+
+        function updateWorkedList(sections) {
+            const listEl = document.getElementById('worked-sections-list');
+
+            if (sections.length === 0) {
+                listEl.innerHTML = '<div style="opacity: 0.6; text-align: center; padding: 20px;">No sections worked yet</div>';
+                return;
+            }
+
+            // Sort by count descending
+            sections.sort((a, b) => b.count - a.count);
+
+            listEl.innerHTML = sections.map(s => `
+                <div class="section-item">
+                    <strong>${s.section}</strong>: ${s.count} QSO${s.count !== 1 ? 's' : ''}
+                </div>
+            `).join('');
+        }
+
+        function refreshData() {
+            loadWorkedSections();
+        }
+
+        // Load data on page load
+        window.addEventListener('load', () => {
+            loadWorkedSections();
+
+            // Auto-refresh every 30 seconds
+            setInterval(loadWorkedSections, 30000);
+        });
+    </script>
+</body>
+</html>
+)HTML";
+
+    return html.arg(m_contestName.isEmpty() ? "Contest" : m_contestName)
+               .arg(m_contestName.isEmpty() ? "TR4QT Contest Logger" : m_contestName)
+               .arg(callsign.isEmpty() ? "N0CALL" : callsign)
+               .arg(operator_name.isEmpty() ? "Unknown" : operator_name);
 }
 
 } // namespace TR4QT
