@@ -193,8 +193,11 @@ jobs:
         # Sign the entire app bundle
         codesign -s - -f tr4qt.app
 
-        # Create DMG
-        $(brew --prefix qt@6)/bin/macdeployqt tr4qt.app -dmg
+        # Create DMG manually with hdiutil (macdeployqt -dmg breaks signatures)
+        mkdir -p dmg-contents
+        cp -R tr4qt.app dmg-contents/
+        hdiutil create -volname "TR4QT" -srcfolder dmg-contents -ov -format UDZO tr4qt.dmg
+        rm -rf dmg-contents
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
