@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.99.5";  // Manually copy qsqlite.dll plugin for Windows
+constexpr const char* APP_VERSION = "3.0.0";  // Remove windeployqt, explicit deterministic deployment
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

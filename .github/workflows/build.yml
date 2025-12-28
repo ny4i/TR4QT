@@ -78,37 +78,59 @@ jobs:
         ctest --output-on-failure -C Release
       continue-on-error: true
 
-    - name: Deploy Qt
+    - name: Deploy Qt Dependencies
       shell: bash
       run: |
-        export PATH="${{ env.QT_ROOT_DIR }}/bin:$PATH"
-        windeployqt build/src/tr4qt.exe --release --no-translations
+        echo "=== Explicit Qt Deployment (no windeployqt) ==="
 
-        # Manually copy SQL plugin (windeployqt doesn't always get it)
-        echo "Manually copying SQL plugins..."
-        mkdir -p build/src/sqldrivers
-        cp "${{ env.QT_ROOT_DIR }}/plugins/sqldrivers/qsqlite.dll" build/src/sqldrivers/ || echo "WARNING: qsqlite.dll not found"
+        QT_BIN="${{ env.QT_ROOT_DIR }}/bin"
+        QT_PLUGINS="${{ env.QT_ROOT_DIR }}/plugins"
+        MINGW_BIN="${{ runner.temp }}/../Qt/Tools/mingw1310_64/bin"
+        DEST="build/src"
 
-        # Verify SQL plugin was deployed
-        echo "Checking for SQL plugins..."
-        ls -la build/src/sqldrivers/ || echo "WARNING: sqldrivers directory not found"
+        # Copy Qt DLLs (explicit list of what we need)
+        echo "Copying Qt DLLs..."
+        cp "$QT_BIN/Qt6Core.dll" "$DEST/"
+        cp "$QT_BIN/Qt6Gui.dll" "$DEST/"
+        cp "$QT_BIN/Qt6Widgets.dll" "$DEST/"
+        cp "$QT_BIN/Qt6Network.dll" "$DEST/"
+        cp "$QT_BIN/Qt6Sql.dll" "$DEST/"
+        cp "$QT_BIN/Qt6HttpServer.dll" "$DEST/"
+        cp "$QT_BIN/Qt6WebSockets.dll" "$DEST/"
+        cp "$QT_BIN/Qt6PrintSupport.dll" "$DEST/"
+        cp "$QT_BIN/Qt6Concurrent.dll" "$DEST/"
+
+        # Copy Qt plugins
+        echo "Copying Qt plugins..."
+        mkdir -p "$DEST/platforms"
+        cp "$QT_PLUGINS/platforms/qwindows.dll" "$DEST/platforms/"
+
+        mkdir -p "$DEST/styles"
+        cp "$QT_PLUGINS/styles/qwindowsvistastyle.dll" "$DEST/styles/"
+
+        mkdir -p "$DEST/sqldrivers"
+        cp "$QT_PLUGINS/sqldrivers/qsqlite.dll" "$DEST/sqldrivers/"
 
         # Copy Hamlib DLLs
         echo "Copying Hamlib DLLs..."
-        cp C:/hamlib/bin/*.dll build/src/ || true
+        cp C:/hamlib/bin/*.dll "$DEST/" || true
 
-        # Copy MinGW runtime DLLs (required for execution)
+        # Copy MinGW runtime DLLs
         echo "Copying MinGW runtime DLLs..."
-        MINGW_BIN="${{ runner.temp }}/../Qt/Tools/mingw1310_64/bin"
-        echo "Looking for DLLs in: $MINGW_BIN"
-        ls -la "$MINGW_BIN"/lib*.dll || true
-        cp "$MINGW_BIN/libgcc_s_seh-1.dll" build/src/ || echo "WARNING: libgcc_s_seh-1.dll not found"
-        cp "$MINGW_BIN/libstdc++-6.dll" build/src/ || echo "WARNING: libstdc++-6.dll not found"
-        cp "$MINGW_BIN/libwinpthread-1.dll" build/src/ || echo "WARNING: libwinpthread-1.dll not found"
+        cp "$MINGW_BIN/libgcc_s_seh-1.dll" "$DEST/" || cp "$MINGW_BIN/libgcc_s_dw2-1.dll" "$DEST/" || cp "$MINGW_BIN/libgcc_s_sjlj-1.dll" "$DEST/" || echo "WARNING: No libgcc variant found"
+        cp "$MINGW_BIN/libstdc++-6.dll" "$DEST/" || echo "WARNING: libstdc++-6.dll not found"
+        cp "$MINGW_BIN/libwinpthread-1.dll" "$DEST/" || echo "WARNING: libwinpthread-1.dll not found"
 
-        # List all DLLs in build/src for verification
-        echo "=== DLLs in build/src: ==="
-        ls -lh build/src/*.dll | awk '{print $9, $5}'
+        # Verify deployment
+        echo "=== Deployment Verification ==="
+        echo "Qt DLLs:"
+        ls -lh "$DEST"/Qt6*.dll | awk '{print "  " $9, $5}'
+        echo "SQL Drivers:"
+        ls -lh "$DEST/sqldrivers/"*.dll | awk '{print "  " $9, $5}'
+        echo "Platforms:"
+        ls -lh "$DEST/platforms/"*.dll | awk '{print "  " $9, $5}'
+        echo "MinGW Runtime:"
+        ls -lh "$DEST"/lib*.dll | awk '{print "  " $9, $5}'
 
     - name: Create Installer
       shell: bash
