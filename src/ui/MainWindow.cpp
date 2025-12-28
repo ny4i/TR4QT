@@ -2308,11 +2308,18 @@ void MainWindow::updateScoreDisplay() {
         return;
     }
 
+    // Check if contest uses mode group breakdown
+    bool usesModeGroupBreakdown = m_activeContest && m_activeContest->usesModeGroupBreakdown();
+
     // Initialize per-band counters
     QMap<BandType, int> qsosPerBand;
     QMap<BandType, int> pointsPerBand;
     QMap<BandType, int> multsPerBand;  // Count of mult QSOs per band
     QMap<BandType, QSet<int>> zonesPerBand;
+
+    // Mode group counters (for mixed-mode contests)
+    QMap<ModeGroup, QMap<BandType, int>> qsosPerBandPerModeGroup;
+    QMap<ModeGroup, int> totalQSOsPerModeGroup;
 
     int totalQSOs = 0;
     int totalQSOPoints = 0;
@@ -2338,6 +2345,13 @@ void MainWindow::updateScoreDisplay() {
         // Count QSOs per band
         qsosPerBand[qso.band]++;
         totalQSOs++;
+
+        // Track mode group statistics if contest uses breakdown
+        if (usesModeGroupBreakdown) {
+            ModeGroup group = modeTypeToModeGroup(qso.mode);
+            qsosPerBandPerModeGroup[group][qso.band]++;
+            totalQSOsPerModeGroup[group]++;
+        }
 
         // Sum points per band
         pointsPerBand[qso.band] += qso.qsoPoints;
@@ -2384,13 +2398,34 @@ void MainWindow::updateScoreDisplay() {
 
     // WebServer calculates band data from QSOTableModel - no need to push
 
+    if (usesModeGroupBreakdown) {
+        // Update mode group QSO counts per band
+        QList<ModeGroup> modeGroups = {ModeGroup::Phone, ModeGroup::CW, ModeGroup::Digital};
+        for (ModeGroup group : modeGroups) {
+            for (BandType band : bands) {
+                int count = qsosPerBandPerModeGroup.value(group).value(band, 0);
+                m_bandSummaryGrid->setModeGroupQSOCount(band, group, count);
+            }
+
+            // Update "All" column for each mode group
+            int totalForGroup = totalQSOsPerModeGroup.value(group, 0);
+            m_bandSummaryGrid->setAllModeGroupQSOs(group, totalForGroup);
+        }
+    } else {
+        // Single-mode: Update regular QSO counts
+        for (BandType band : bands) {
+            int qsos = qsosPerBand.value(band, 0);
+            m_bandSummaryGrid->setQSOCount(band, qsos);
+        }
+        m_bandSummaryGrid->setAllQSOs(totalQSOs);
+    }
+
+    // Update points, mults, and zones (same for both modes)
     for (BandType band : bands) {
-        int qsos = qsosPerBand.value(band, 0);
         int points = pointsPerBand.value(band, 0);
         int mults = multsPerBand.value(band, 0);  // Simple count of marked mult QSOs
         int zones = zonesPerBand.value(band).size();
 
-        m_bandSummaryGrid->setQSOCount(band, qsos);
         m_bandSummaryGrid->setPointsCount(band, points);
         m_bandSummaryGrid->setMultCount(band, mults);
         m_bandSummaryGrid->setZoneCount(band, zones);
@@ -2408,7 +2443,12 @@ void MainWindow::updateScoreDisplay() {
     }
 
     // Update "All" column totals
-    m_bandSummaryGrid->setAllQSOs(totalQSOs);
+    // Note: For mode breakdown contests, setAllQSOs() is called per mode group above
+    if (!usesModeGroupBreakdown) {
+        // Only set total QSOs for single-mode contests
+        // (already set per mode group for mixed-mode contests)
+        m_bandSummaryGrid->setAllQSOs(totalQSOs);
+    }
     m_bandSummaryGrid->setAllMults(totalMults);
     m_bandSummaryGrid->setAllZones(totalZones);
     m_bandSummaryGrid->setAllPoints(totalQSOPoints);  // Sum of QSO points
@@ -3388,6 +3428,19 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     // Update UI based on contest capabilities
     if (m_bandSummaryGrid) {
         m_bandSummaryGrid->setMultipliersEnabled(m_activeContest->usesMultipliers());
+
+        // Configure grid for mode group breakdown and zone tracking
+        bool usesZones = false;
+        for (const MultiplierDefinition& multDef : m_activeContest->getMultiplierTypes()) {
+            if (multDef.type == MultiplierType::CQZone || multDef.type == MultiplierType::ITUZone) {
+                usesZones = true;
+                break;
+            }
+        }
+        m_bandSummaryGrid->configureForContest(
+            m_activeContest->usesModeGroupBreakdown(),
+            usesZones
+        );
     }
 
     // Update window title to include contest name
