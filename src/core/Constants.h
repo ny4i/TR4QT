@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "2.97.1";  // BandSummaryGrid dynamic mode group display
+constexpr const char* APP_VERSION = "2.98.0";  // ARRL sections chloropleth map with GeoJSON polygons
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
