@@ -773,9 +773,10 @@ jobs:
       run: |
         mv artifacts/TR4QT-Windows/TR4QT-*-Setup.exe artifacts/TR4QT-${{ github.ref_name }}-Setup.exe || true
 
-    - name: Rename macOS DMG
+    - name: Prepare macOS DMG for release
       run: |
-        mv artifacts/TR4QT-macOS/tr4qt.dmg artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
+        # DMG already has version in filename, just move to expected location
+        mv artifacts/TR4QT-macOS/TR4QT-*-macOS.dmg artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -811,9 +812,10 @@ jobs:
         cd artifacts/TR4QT-Windows
         zip -r ../TR4QT-${{ github.ref_name }}-Windows.zip .
 
-    - name: Rename macOS DMG
+    - name: Prepare macOS DMG for test artifacts
       run: |
-        mv artifacts/TR4QT-macOS/tr4qt.dmg artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
+        # DMG already has version in filename, just move to expected location
+        mv artifacts/TR4QT-macOS/TR4QT-*-macOS.dmg artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
 
     - name: Upload combined test artifacts
       uses: actions/upload-artifact@v4
