@@ -23,6 +23,7 @@ class QMenuBar;
 class QStatusBar;
 class QGroupBox;
 class QPushButton;
+class NativeMapViewer;
 
 namespace TR4QT {
 
@@ -89,6 +90,7 @@ private slots:
     void onDownloadLOTW(bool headless = false);  // Download LOTW user list (headless=true for testing)
     void onSetDateTime();           // TODO: Implement set system date/time
     void onInitialize();            // TODO: Implement initialize
+    void onResetWindowPositions();  // Reset all window positions to defaults
 
     // Operating menu actions (ALT- shortcuts from TR4W)
     void onAutoCQ();                // TODO: Implement auto CQ
@@ -251,6 +253,8 @@ private:
     RadioControlWidget* m_radioControlWindow;
     MultiplierWidget* m_multiplierWindow;
     StatisticsWindow* m_statisticsWindow;
+    NativeMapViewer* m_sectionsMapViewer;
+    NativeMapViewer* m_statesMapViewer;
 
     // Time tracking
     QTimer* m_updateTimer;
