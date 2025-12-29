@@ -663,6 +663,15 @@ bool AppSettings::getConsoleLoggingEnabled() const {
     return m_settings.value("Logging/consoleEnabled", true).toBool();
 }
 
+void AppSettings::setHamlibDebugEnabled(bool enabled) {
+    m_settings.setValue("Logging/hamlibDebugEnabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getHamlibDebugEnabled() const {
+    return m_settings.value("Logging/hamlibDebugEnabled", false).toBool();
+}
+
 void AppSettings::setLogFilePath(const QString& path) {
     m_settings.setValue("Logging/filePath", path);
     m_settings.sync();

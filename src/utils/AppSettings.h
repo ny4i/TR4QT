@@ -226,6 +226,9 @@ public:
     void setConsoleLoggingEnabled(bool enabled);
     bool getConsoleLoggingEnabled() const;
 
+    void setHamlibDebugEnabled(bool enabled);
+    bool getHamlibDebugEnabled() const;
+
     void setLogFilePath(const QString& path);
     QString getLogFilePath() const;
 

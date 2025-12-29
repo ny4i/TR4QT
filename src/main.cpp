@@ -49,8 +49,8 @@ int main(int argc, char *argv[]) {
 
     parser.process(app);
 
-    // Set hamlib debug level (default: none, unless --hamlib-debug specified)
-    if (parser.isSet(hamlibDebugOption)) {
+    // Set hamlib debug level (command-line overrides setting)
+    if (parser.isSet(hamlibDebugOption) || settings.getHamlibDebugEnabled()) {
         rig_set_debug(RIG_DEBUG_VERBOSE);
         LOG_DEBUG("Main", "Hamlib debug output enabled");
     } else {
