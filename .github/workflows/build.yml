@@ -658,15 +658,23 @@ jobs:
 
             # Create AppImage using appimagetool
             echo '==> Creating AppImage...'
-            # Download and extract appimagetool (avoids FUSE requirement)
+            # Download appimagetool AppImage
             wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage
+            chmod +x appimagetool-aarch64.AppImage
 
-            # Extract the AppImage manually (--appimage-extract requires FUSE)
-            # Use unsquashfs instead
-            apt-get install -y squashfs-tools
-            OFFSET=\$(LANG=C grep -aobUP 'AI\\x02' appimagetool-aarch64.AppImage | tail -1 | cut -d: -f1)
-            dd if=appimagetool-aarch64.AppImage of=appimagetool.squashfs bs=1 skip=\$OFFSET 2>/dev/null
-            unsquashfs -d squashfs-root appimagetool.squashfs
+            # Extract using --appimage-extract with special env var (works without FUSE)
+            APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool-aarch64.AppImage --appimage-extract >/dev/null 2>&1 || true
+
+            # If extraction failed, try alternative method
+            if [ ! -d "squashfs-root" ]; then
+              echo "Trying alternative extraction method..."
+              apt-get install -y squashfs-tools
+              # AppImage format: ELF header + squashfs. Find squashfs start with offset.
+              # Skip to squashfs magic bytes (hsqs in little-endian = 73 71 73 68)
+              OFFSET=\$(grep -aobm1 'hsqs' appimagetool-aarch64.AppImage | cut -d: -f1)
+              dd if=appimagetool-aarch64.AppImage of=appimagetool.squashfs bs=1 skip=\$OFFSET 2>/dev/null
+              unsquashfs -d squashfs-root appimagetool.squashfs
+            fi
 
             # Run appimagetool from extracted directory
             ARCH=aarch64 ./squashfs-root/AppRun appdir TR4QT-ARM64.AppImage
