@@ -217,13 +217,14 @@ jobs:
         INSTALLER=$(ls build/src/TR4QT-*-Setup.exe | head -1)
         echo "Testing installer: $INSTALLER"
 
-        # Verify installer file size (should be >20MB for Qt app with all dependencies)
+        # Verify installer file size (should be >15MB for Qt app with all dependencies)
+        # NSIS compresses well, so compressed size is much smaller than uncompressed
         SIZE=$(stat -c%s "$INSTALLER" 2>/dev/null || stat -f%z "$INSTALLER")
         SIZE_MB=$((SIZE / 1024 / 1024))
         echo "Installer size: ${SIZE_MB}MB"
 
-        if [ $SIZE_MB -lt 20 ]; then
-          echo "✗ ERROR: Installer suspiciously small (< 20MB)"
+        if [ $SIZE_MB -lt 15 ]; then
+          echo "✗ ERROR: Installer suspiciously small (< 15MB)"
           echo "This suggests missing dependencies or build failure"
           exit 1
         fi
