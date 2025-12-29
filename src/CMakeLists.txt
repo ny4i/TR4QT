@@ -176,7 +176,15 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_VERSION "2.13.0"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
+elseif(WIN32)
+    # Windows: Build as GUI application (no console window)
+    add_executable(tr4qt WIN32
+        ${SOURCES}
+        ${HEADERS}
+        ../resources/resources.qrc
+    )
 else()
+    # Linux: Standard executable
     add_executable(tr4qt
         ${SOURCES}
         ${HEADERS}
