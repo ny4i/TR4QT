@@ -10,7 +10,7 @@ This file contains important reminders and conventions for Claude when working o
 
 Common unreliable tools:
 - ❌ `windeployqt` (Windows) - Silently fails to copy plugins, inconsistent
-- ❌ `macdeployqt` (macOS) - Misses dependencies, gets paths wrong
+- ❌ `macdeployqt` (macOS) - Misses dependencies, gets paths wrong, **NEVER bundles TLS plugins**
 - ❌ `linuxdeploy` (Linux) - Complex, hard to debug, inconsistent
 
 **Why these tools are problematic:**
@@ -36,6 +36,21 @@ windeployqt tr4qt.exe --sql  # Maybe copies SQL plugin? Maybe not?
 cp Qt6Core.dll Qt6Gui.dll Qt6Widgets.dll ...  # Know exactly what's copied
 mkdir sqldrivers && cp qsqlite.dll sqldrivers/  # SQL plugin always included
 ls -la sqldrivers/  # Verify it's there
+```
+
+**Example (macOS):**
+```bash
+# BAD: Trust macdeployqt to bundle everything
+macdeployqt tr4qt.app
+# Result: App launches but HTTPS fails with "No functional TLS backend was found"
+# macdeployqt silently forgot TLS plugins!
+
+# GOOD: Explicit TLS plugin bundling
+macdeployqt tr4qt.app
+mkdir -p tr4qt.app/Contents/PlugIns/tls
+cp /opt/homebrew/opt/qtbase/share/qt/plugins/tls/*.dylib tr4qt.app/Contents/PlugIns/tls/
+ls -la tr4qt.app/Contents/PlugIns/tls/  # Verify all 3 TLS backends present
+# Result: App works perfectly, HTTPS downloads succeed
 ```
 
 **Benefits of Explicit Deployment:**
@@ -446,6 +461,16 @@ find tr4qt.app/Contents/Frameworks -type f -exec otool -L {} \; | \
 cp /opt/homebrew/opt/brotli/lib/libbrotlicommon.1.dylib tr4qt.app/Contents/Frameworks/
 cp -R /opt/homebrew/opt/qtbase/lib/QtDBus.framework tr4qt.app/Contents/Frameworks/
 cp /opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib tr4qt.app/Contents/Frameworks/
+
+# 3B. CRITICAL: Copy TLS plugins (macdeployqt DOES NOT bundle these!)
+# Qt6 requires TLS plugins for HTTPS connections
+# Without these, all HTTPS downloads fail with "No functional TLS backend was found"
+mkdir -p tr4qt.app/Contents/PlugIns/tls
+cp /opt/homebrew/opt/qtbase/share/qt/plugins/tls/*.dylib tr4qt.app/Contents/PlugIns/tls/
+# This copies:
+#   - libqsecuretransportbackend.dylib (macOS native TLS - recommended)
+#   - libqopensslbackend.dylib (OpenSSL TLS backend)
+#   - libqcertonlybackend.dylib (certificate-only backend)
 
 # 4. CRITICAL: Fix ALL library IDs and dependencies to use @rpath
 # There are TWO types of paths to fix:

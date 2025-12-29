@@ -78,6 +78,18 @@ mkdir -p "$PLUGINS/sqldrivers"
 echo "    Copying sqldrivers/libqsqlite.dylib..."
 cp "$QT_PREFIX/share/qt/plugins/sqldrivers/libqsqlite.dylib" "$PLUGINS/sqldrivers/"
 
+# TLS plugins (CRITICAL - for HTTPS connections)
+mkdir -p "$PLUGINS/tls"
+echo "    Copying TLS plugins..."
+# Copy all available TLS backends (OpenSSL, SecureTransport, cert-only)
+for tls_plugin in "$QT_PREFIX/share/qt/plugins/tls"/*.dylib; do
+    if [ -f "$tls_plugin" ]; then
+        plugin_name=$(basename "$tls_plugin")
+        echo "      Copying tls/$plugin_name..."
+        cp "$tls_plugin" "$PLUGINS/tls/"
+    fi
+done
+
 # Step 3: Copy Hamlib library
 echo "==> Step 3: Copying Hamlib library..."
 if [ -f "$HAMLIB_INSTALL/lib/libhamlib.5.dylib" ]; then
@@ -98,6 +110,10 @@ fi
 # Step 5: Fix library paths in executable
 echo "==> Step 5: Fixing executable library paths..."
 cd "$APP_BUNDLE/Contents/MacOS"
+
+# Add correct rpath for app bundle (points to Frameworks directory)
+install_name_tool -add_rpath "@executable_path/../Frameworks" tr4qt 2>/dev/null || true
+echo "    Added @executable_path/../Frameworks to rpath"
 
 # Fix Hamlib path
 install_name_tool -change "$HAMLIB_INSTALL/lib/libhamlib.5.dylib" \
