@@ -11,7 +11,7 @@
 #include "widgets/RadioControlWidget.h"
 #include "widgets/MultiplierWidget.h"
 #include "widgets/StatisticsWindow.h"
-#include "MapViewerDialog.h"
+#include "NativeMapViewer.h"
 #include "../network/UdpBroadcastManager.h"
 #include "../network/WebServer.h"
 #include "../core/Constants.h"
@@ -71,6 +71,8 @@ MainWindow::MainWindow(QWidget* parent)
     , m_radioControlWindow(nullptr)
     , m_multiplierWindow(nullptr)
     , m_statisticsWindow(nullptr)
+    , m_sectionsMapViewer(nullptr)
+    , m_statesMapViewer(nullptr)
     , m_qsosThisHour(0)
     , m_qsosSinceLastIntegrityCheck(0)
     , m_hasActiveContest(false)
@@ -381,6 +383,9 @@ void MainWindow::createMenuBar() {
     connect(m_webServerAction, &QAction::triggered, this, &MainWindow::onToggleWebServer);
 
     toolsMenu->addSeparator();
+
+    QAction* resetWindowsAction = toolsMenu->addAction("Reset Window Positions");
+    connect(resetWindowsAction, &QAction::triggered, this, &MainWindow::onResetWindowPositions);
 
     QAction* optionsAction = toolsMenu->addAction("Options");
     optionsAction->setShortcut(QKeySequence("Ctrl+J"));
@@ -855,6 +860,34 @@ void MainWindow::loadSettings() {
         }
     }
 
+    // Restore Statistics window
+    QSettings qsettings("TR4QT", "TR4QT");
+    bool statisticsVisible = qsettings.value("Windows/Statistics/Visible", false).toBool();
+    LOG_DEBUG("MainWindow", QString("Statistics was visible: %1").arg(statisticsVisible ? "true" : "false"));
+    if (statisticsVisible) {
+        LOG_DEBUG("MainWindow", "Restoring Statistics window");
+        onShowStatistics();
+        QByteArray statsGeometry = qsettings.value("Windows/Statistics/Geometry").toByteArray();
+        if (!statsGeometry.isEmpty()) {
+            m_statisticsWindow->restoreGeometry(statsGeometry);
+        }
+    }
+
+    // Restore map viewer windows
+    bool sectionsMapVisible = qsettings.value("MapViewer/Sections/Visible", false).toBool();
+    LOG_DEBUG("MainWindow", QString("Sections Map was visible: %1").arg(sectionsMapVisible ? "true" : "false"));
+    if (sectionsMapVisible) {
+        LOG_DEBUG("MainWindow", "Restoring Sections Map window");
+        onShowSectionsMap();
+    }
+
+    bool statesMapVisible = qsettings.value("MapViewer/States/Visible", false).toBool();
+    LOG_DEBUG("MainWindow", QString("States Map was visible: %1").arg(statesMapVisible ? "true" : "false"));
+    if (statesMapVisible) {
+        LOG_DEBUG("MainWindow", "Restoring States Map window");
+        onShowStatesMap();
+    }
+
     // Load and display current operator
     QString currentOperator = settings.getCurrentOperator();
     if (!currentOperator.isEmpty()) {
@@ -894,6 +927,29 @@ void MainWindow::saveSettings() {
         LOG_DEBUG("MainWindow", QString("Saving Multipliers window - visible: %1").arg(visible ? "true" : "false"));
         settings.saveMultipliersGeometry(m_multiplierWindow->saveGeometry());
         settings.setMultipliersVisible(visible);
+    }
+
+    if (m_statisticsWindow) {
+        bool visible = m_statisticsWindow->isVisible();
+        LOG_DEBUG("MainWindow", QString("Saving Statistics window - visible: %1").arg(visible ? "true" : "false"));
+        QSettings qsettings("TR4QT", "TR4QT");
+        qsettings.setValue("Windows/Statistics/Geometry", m_statisticsWindow->saveGeometry());
+        qsettings.setValue("Windows/Statistics/Visible", visible);
+    }
+
+    // Save map viewer visibility states (geometry is saved by the viewers themselves)
+    if (m_sectionsMapViewer) {
+        bool visible = m_sectionsMapViewer->isVisible();
+        LOG_DEBUG("MainWindow", QString("Saving Sections Map window - visible: %1").arg(visible ? "true" : "false"));
+        QSettings qsettings("TR4QT", "TR4QT");
+        qsettings.setValue("MapViewer/Sections/Visible", visible);
+    }
+
+    if (m_statesMapViewer) {
+        bool visible = m_statesMapViewer->isVisible();
+        LOG_DEBUG("MainWindow", QString("Saving States Map window - visible: %1").arg(visible ? "true" : "false"));
+        QSettings qsettings("TR4QT", "TR4QT");
+        qsettings.setValue("MapViewer/States/Visible", visible);
     }
 }
 
@@ -3850,19 +3906,29 @@ void MainWindow::onShowStatistics() {
 }
 
 void MainWindow::onShowSectionsMap() {
-    // Create and show ARRL Sections map dialog
-    // Dialog is self-contained and handles all map logic
-    auto* dialog = new MapViewerDialog(MapViewerDialog::Sections, m_qsoTableModel, this);
-    dialog->setAttribute(Qt::WA_DeleteOnClose);  // Auto-cleanup when closed
-    dialog->show();
+    // Create and show ARRL Sections map viewer
+    // Uses native Qt graphics (QGraphicsView), works on all platforms
+    if (!m_sectionsMapViewer) {
+        m_sectionsMapViewer = new NativeMapViewer(NativeMapViewer::Sections, m_qsoTableModel, this);
+        m_sectionsMapViewer->setWindowFlags(Qt::Window);
+        m_sectionsMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
+    }
+    m_sectionsMapViewer->show();
+    m_sectionsMapViewer->raise();
+    m_sectionsMapViewer->activateWindow();
 }
 
 void MainWindow::onShowStatesMap() {
-    // Create and show US States map dialog (WAS tracking)
-    // Dialog is self-contained and handles all map logic
-    auto* dialog = new MapViewerDialog(MapViewerDialog::States, m_qsoTableModel, this);
-    dialog->setAttribute(Qt::WA_DeleteOnClose);  // Auto-cleanup when closed
-    dialog->show();
+    // Create and show US States map viewer (WAS tracking)
+    // Uses native Qt graphics (QGraphicsView), works on all platforms
+    if (!m_statesMapViewer) {
+        m_statesMapViewer = new NativeMapViewer(NativeMapViewer::States, m_qsoTableModel, this);
+        m_statesMapViewer->setWindowFlags(Qt::Window);
+        m_statesMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
+    }
+    m_statesMapViewer->show();
+    m_statesMapViewer->raise();
+    m_statesMapViewer->activateWindow();
 }
 
 // Window menu placeholder implementations
@@ -3978,6 +4044,83 @@ void MainWindow::onToggleWebServer() {
                     .arg(addressStr).arg(port));
         }
     }
+}
+
+void MainWindow::onResetWindowPositions() {
+    // Confirm with user
+    QMessageBox::StandardButton reply = DialogHelper::question(
+        this,
+        "Reset Window Positions",
+        "This will reset all window positions to their defaults.\n\n"
+        "All windows will be repositioned near the main window.\n\n"
+        "Continue?"
+    );
+
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+
+    LOG_INFO("MainWindow", "Resetting all window positions to defaults");
+
+    // Clear all saved geometries from QSettings
+    QSettings settings("TR4QT", "TR4QT");
+    settings.remove("Windows");
+    settings.remove("MapViewer");
+
+    // Reposition all currently open windows
+    // Use cascade offset so windows don't completely overlap
+    int offsetX = 100;
+    int offsetY = 100;
+    const int cascadeStep = 30;
+
+    if (m_statisticsWindow && m_statisticsWindow->isVisible()) {
+        m_statisticsWindow->move(this->pos() + QPoint(offsetX, offsetY));
+        LOG_DEBUG("MainWindow", QString("Repositioned Statistics window to (%1, %2)").arg(offsetX).arg(offsetY));
+        offsetX += cascadeStep;
+        offsetY += cascadeStep;
+    }
+
+    if (m_sectionsMapViewer && m_sectionsMapViewer->isVisible()) {
+        m_sectionsMapViewer->move(this->pos() + QPoint(offsetX, offsetY));
+        LOG_DEBUG("MainWindow", QString("Repositioned Sections Map window to (%1, %2)").arg(offsetX).arg(offsetY));
+        offsetX += cascadeStep;
+        offsetY += cascadeStep;
+    }
+
+    if (m_statesMapViewer && m_statesMapViewer->isVisible()) {
+        m_statesMapViewer->move(this->pos() + QPoint(offsetX, offsetY));
+        LOG_DEBUG("MainWindow", QString("Repositioned States Map window to (%1, %2)").arg(offsetX).arg(offsetY));
+        offsetX += cascadeStep;
+        offsetY += cascadeStep;
+    }
+
+    if (m_dxClusterWindow && m_dxClusterWindow->isVisible()) {
+        m_dxClusterWindow->move(this->pos() + QPoint(offsetX, offsetY));
+        LOG_DEBUG("MainWindow", QString("Repositioned DX Cluster window to (%1, %2)").arg(offsetX).arg(offsetY));
+        offsetX += cascadeStep;
+        offsetY += cascadeStep;
+    }
+
+    if (m_bandMapWindow && m_bandMapWindow->isVisible()) {
+        m_bandMapWindow->move(this->pos() + QPoint(offsetX, offsetY));
+        LOG_DEBUG("MainWindow", QString("Repositioned Band Map window to (%1, %2)").arg(offsetX).arg(offsetY));
+        offsetX += cascadeStep;
+        offsetY += cascadeStep;
+    }
+
+    if (m_radioControlWindow && m_radioControlWindow->isVisible()) {
+        m_radioControlWindow->move(this->pos() + QPoint(offsetX, offsetY));
+        LOG_DEBUG("MainWindow", QString("Repositioned Radio Control window to (%1, %2)").arg(offsetX).arg(offsetY));
+        offsetX += cascadeStep;
+        offsetY += cascadeStep;
+    }
+
+    if (m_multiplierWindow && m_multiplierWindow->isVisible()) {
+        m_multiplierWindow->move(this->pos() + QPoint(offsetX, offsetY));
+        LOG_DEBUG("MainWindow", QString("Repositioned Multiplier window to (%1, %2)").arg(offsetX).arg(offsetY));
+    }
+
+    setStatusMessage("Window positions reset to defaults");
 }
 
 void MainWindow::onDownloadCTY(bool headless) {

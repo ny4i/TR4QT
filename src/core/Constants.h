@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.5.1";  // In-app map viewer with auto-refresh on new QSOs
+constexpr const char* APP_VERSION = "3.6.2";  // Window persistence, Hawaii pseudo-positioning, reset window positions
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

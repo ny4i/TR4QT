@@ -868,7 +868,9 @@ QStringList getAllSections()
         // Other
         "AZ", "HI",
         // Canadian RAC Sections
-        "AB", "BC", "MB", "NB", "NL", "NS", "NT", "ON", "PE", "QC", "SK", "YT",
+        "AB", "BC", "MB", "NB", "NL", "NLI", "NS", "NT", "PE", "QC", "SK", "YT",
+        // Ontario Subdivisions (like US states, Ontario is subdivided)
+        "GH", "ONE", "ONN", "ONS",
         // DX
         "DX"
     };
