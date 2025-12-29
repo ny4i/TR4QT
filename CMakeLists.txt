@@ -37,8 +37,10 @@ find_package(Qt6 REQUIRED COMPONENTS
     PrintSupport
     Concurrent
     Test
-    EntryPoint
 )
+
+# Optional: EntryPoint for Windows GUI applications (Qt 6.10+)
+find_package(Qt6 COMPONENTS EntryPoint QUIET)
 
 
 # Hamlib configuration
