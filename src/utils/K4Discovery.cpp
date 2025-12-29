@@ -78,9 +78,9 @@ void K4Discovery::startDiscovery() {
     m_timeoutTimer->start();
 }
 
-void K4Discovery::sendDiscoveryMessage(const QNetworkInterface& interface) {
+void K4Discovery::sendDiscoveryMessage(const QNetworkInterface& netInterface) {
     // Get IPv4 addresses for this interface
-    QList<QNetworkAddressEntry> entries = interface.addressEntries();
+    QList<QNetworkAddressEntry> entries = netInterface.addressEntries();
 
     for (const QNetworkAddressEntry& entry : entries) {
         QHostAddress address = entry.ip();
@@ -91,7 +91,7 @@ void K4Discovery::sendDiscoveryMessage(const QNetworkInterface& interface) {
         }
 
         LOG_DEBUG("K4Discovery", QString("Sending discovery via interface %1 (%2)")
-            .arg(interface.humanReadableName())
+            .arg(netInterface.humanReadableName())
             .arg(address.toString()));
 
         // CRITICAL: Create a socket bound to THIS SPECIFIC INTERFACE
@@ -105,7 +105,7 @@ void K4Discovery::sendDiscoveryMessage(const QNetworkInterface& interface) {
         // Bind to this interface's IP with port 0 (OS assigns ephemeral port)
         if (!socket->bind(address, 0, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
             LOG_WARN("K4Discovery", QString("Failed to bind to interface %1 (%2): %3")
-                .arg(interface.humanReadableName())
+                .arg(netInterface.humanReadableName())
                 .arg(address.toString())
                 .arg(socket->errorString()));
             socket->deleteLater();
@@ -116,7 +116,7 @@ void K4Discovery::sendDiscoveryMessage(const QNetworkInterface& interface) {
         LOG_DEBUG("K4Discovery", QString("Bound socket to %1:%2 for interface %3")
             .arg(address.toString())
             .arg(localPort)
-            .arg(interface.humanReadableName()));
+            .arg(netInterface.humanReadableName()));
 
         // Connect this socket's readyRead signal to our handler
         connect(socket, &QUdpSocket::readyRead, this, &K4Discovery::onReadyRead);
@@ -139,7 +139,7 @@ void K4Discovery::sendDiscoveryMessage(const QNetworkInterface& interface) {
 
         if (bytesSent == -1) {
             LOG_WARN("K4Discovery", QString("Failed to send on interface %1: %2")
-                .arg(interface.humanReadableName())
+                .arg(netInterface.humanReadableName())
                 .arg(socket->errorString()));
             socket->close();
             socket->deleteLater();
@@ -150,7 +150,7 @@ void K4Discovery::sendDiscoveryMessage(const QNetworkInterface& interface) {
                 .arg(localPort)
                 .arg(broadcastAddr.toString())
                 .arg(UDP_PORT)
-                .arg(interface.humanReadableName()));
+                .arg(netInterface.humanReadableName()));
 
             // Keep this socket alive to receive responses
             m_sockets.append(socket);
