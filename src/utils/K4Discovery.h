@@ -86,7 +86,7 @@ private slots:
     void onDiscoveryTimeout();
 
 private:
-    void sendDiscoveryMessage(const QNetworkInterface& interface);
+    void sendDiscoveryMessage(const QNetworkInterface& netInterface);
     bool parseK4Response(const QByteArray& data, K4RadioInfo& radioInfo);
 
     static constexpr int UDP_PORT = 9100;           // K4 listens on this port
