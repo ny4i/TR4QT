@@ -115,11 +115,9 @@ void ContestChooserDialog::populateContestTypes() {
                 if (mode == ModeType::None) continue;  // Skip "Mixed" mode indicator
 
                 QString displayName = meta.getDisplayName(mode);
-                QString dataValue = QString("%1_%2")
-                    .arg(meta.id)
-                    .arg((mode == ModeType::CW) ? "CW" : "SSB");
-
-                m_contestTypeCombo->addItem(displayName, dataValue);
+                // Store base contest ID without mode suffix
+                // Mode is selected separately via mode combo box
+                m_contestTypeCombo->addItem(displayName, meta.id);
             }
         } else {
             // Single entry for mixed-mode contests
