@@ -52,7 +52,7 @@ jobs:
         target: desktop
         arch: win64_mingw
         tools: 'tools_mingw1310'
-        modules: 'qtwebsockets qthttpserver'  # Additional modules (HttpServer depends on WebSockets)
+        modules: 'qtwebsockets qthttpserver qtwebengine qtwebchannel qtpositioning'  # WebEngine for map viewer, HttpServer/WebSockets for web UI
         cache: true
 
     - name: Download Hamlib
