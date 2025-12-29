@@ -478,7 +478,7 @@ jobs:
         echo ""
         echo "=== Verifying bundled frameworks ==="
         MISSING_FILES=0
-        for framework in Qt6Core Qt6Gui Qt6Widgets Qt6Sql; do
+        for framework in QtCore QtGui QtWidgets QtSql; do
           if [ ! -d "tr4qt.app/Contents/Frameworks/${framework}.framework" ]; then
             echo "✗ ERROR: Missing ${framework}.framework"
             MISSING_FILES=$((MISSING_FILES + 1))
