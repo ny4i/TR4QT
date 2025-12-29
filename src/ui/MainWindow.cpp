@@ -447,30 +447,37 @@ void MainWindow::createMenuBar() {
     // Window menu (window display functions)
     QMenu* windowMenu = menuBar->addMenu("&Window");
 
-    QAction* bandMapAction = windowMenu->addAction("&Band Map");
-    connect(bandMapAction, &QAction::triggered, this, &MainWindow::onShowBandMap);
+    m_bandMapAction = windowMenu->addAction("&Band Map");
+    m_bandMapAction->setCheckable(true);
+    connect(m_bandMapAction, &QAction::triggered, this, &MainWindow::onShowBandMap);
 
-    QAction* dxClusterAction = windowMenu->addAction("DX &Cluster");
-    connect(dxClusterAction, &QAction::triggered, this, &MainWindow::onShowDXCluster);
+    m_dxClusterAction = windowMenu->addAction("DX &Cluster");
+    m_dxClusterAction->setCheckable(true);
+    connect(m_dxClusterAction, &QAction::triggered, this, &MainWindow::onShowDXCluster);
 
-    QAction* radioControlAction = windowMenu->addAction("&Radio Control");
-    connect(radioControlAction, &QAction::triggered, this, &MainWindow::onShowRadioControl);
+    m_radioControlAction = windowMenu->addAction("&Radio Control");
+    m_radioControlAction->setCheckable(true);
+    connect(m_radioControlAction, &QAction::triggered, this, &MainWindow::onShowRadioControl);
 
     QAction* sendMorseAction = windowMenu->addAction("Send &Morse Code");
     sendMorseAction->setShortcut(QKeySequence("Alt+K"));
     connect(sendMorseAction, &QAction::triggered, this, &MainWindow::onSendMorse);
 
-    QAction* multipliersAction = windowMenu->addAction("&Multipliers");
-    connect(multipliersAction, &QAction::triggered, this, &MainWindow::onShowMultipliers);
+    m_multipliersAction = windowMenu->addAction("&Multipliers");
+    m_multipliersAction->setCheckable(true);
+    connect(m_multipliersAction, &QAction::triggered, this, &MainWindow::onShowMultipliers);
 
-    QAction* statisticsAction = windowMenu->addAction("&Statistics");
-    connect(statisticsAction, &QAction::triggered, this, &MainWindow::onShowStatistics);
+    m_statisticsAction = windowMenu->addAction("&Statistics");
+    m_statisticsAction->setCheckable(true);
+    connect(m_statisticsAction, &QAction::triggered, this, &MainWindow::onShowStatistics);
 
-    QAction* sectionsMapAction = windowMenu->addAction("S&ections Map");
-    connect(sectionsMapAction, &QAction::triggered, this, &MainWindow::onShowSectionsMap);
+    m_sectionsMapAction = windowMenu->addAction("S&ections Map");
+    m_sectionsMapAction->setCheckable(true);
+    connect(m_sectionsMapAction, &QAction::triggered, this, &MainWindow::onShowSectionsMap);
 
-    QAction* statesMapAction = windowMenu->addAction("St&ates Map (WAS)");
-    connect(statesMapAction, &QAction::triggered, this, &MainWindow::onShowStatesMap);
+    m_statesMapAction = windowMenu->addAction("St&ates Map (WAS)");
+    m_statesMapAction->setCheckable(true);
+    connect(m_statesMapAction, &QAction::triggered, this, &MainWindow::onShowStatesMap);
 
     windowMenu->addSeparator();
 
@@ -1931,6 +1938,14 @@ void MainWindow::onLogQSO() {
     // Update band summary grid with new scores
     updateScoreDisplay();
 
+    // Update multiplier window if it exists and has section data
+    if (m_multiplierWindow && !qso.arrlSection.isEmpty()) {
+        m_multiplierWindow->setMultiplierWorked(qso.arrlSection, qso.band);
+        LOG_DEBUG("MainWindow", QString("Updated multiplier window: %1 on %2")
+            .arg(qso.arrlSection)
+            .arg(bandToString(qso.band)));
+    }
+
     // Scroll to show the newly logged QSO
     m_qsoTableView->scrollToBottom();
 
@@ -2338,6 +2353,17 @@ void MainWindow::onEditQSO(const QModelIndex& index) {
         if (repo.updateQSO(editedQSO)) {
             // Update the table model at the specific row
             m_qsoTableModel->updateQSO(row, editedQSO);
+
+            // Rebuild multiplier window from all QSOs (sections may have changed)
+            if (m_multiplierWindow) {
+                m_multiplierWindow->clear();
+                for (int r = 0; r < m_qsoTableModel->count(); ++r) {
+                    QSO q = m_qsoTableModel->getQSO(r);
+                    if (!q.arrlSection.isEmpty()) {
+                        m_multiplierWindow->setMultiplierWorked(q.arrlSection, q.band);
+                    }
+                }
+            }
 
             LOG_INFO("MainWindow", QString("Updated QSO #%1 (%2)")
                 .arg(editedQSO.id)
@@ -2829,6 +2855,17 @@ void MainWindow::onRescoreContest() {
     // Refresh display
     updateScoreDisplay();
 
+    // Rebuild multiplier window from all QSOs
+    if (m_multiplierWindow) {
+        m_multiplierWindow->clear();
+        for (int row = 0; row < m_qsoTableModel->count(); ++row) {
+            QSO qso = m_qsoTableModel->getQSO(row);
+            if (!qso.arrlSection.isEmpty()) {
+                m_multiplierWindow->setMultiplierWorked(qso.arrlSection, qso.band);
+            }
+        }
+    }
+
     // Show results
     QString resultsMessage = QString("Contest rescored successfully!\n\n"
                 "QSOs updated: %1\n"
@@ -3136,6 +3173,9 @@ void MainWindow::updateTimeDisplay() {
 
     // Update radio status grid (date/time updates every second)
     updateRadioStatusGrid();
+
+    // Update window menu checkmarks
+    updateWindowMenuCheckmarks();
 }
 
 void MainWindow::updateRadioStatusGrid() {
@@ -3167,6 +3207,31 @@ void MainWindow::updateRadioStatusGrid() {
     QString timeStr = now.toString("hh:mm:ss");
     m_radioDateLabel->setText(dateStr);
     m_radioTimeLabel->setText(timeStr);
+}
+
+void MainWindow::updateWindowMenuCheckmarks() {
+    // Update checkmarks in Window menu to reflect which windows are currently open
+    if (m_bandMapAction) {
+        m_bandMapAction->setChecked(m_bandMapWindow && m_bandMapWindow->isVisible());
+    }
+    if (m_dxClusterAction) {
+        m_dxClusterAction->setChecked(m_dxClusterWindow && m_dxClusterWindow->isVisible());
+    }
+    if (m_radioControlAction) {
+        m_radioControlAction->setChecked(m_radioControlWindow && m_radioControlWindow->isVisible());
+    }
+    if (m_multipliersAction) {
+        m_multipliersAction->setChecked(m_multiplierWindow && m_multiplierWindow->isVisible());
+    }
+    if (m_statisticsAction) {
+        m_statisticsAction->setChecked(m_statisticsWindow && m_statisticsWindow->isVisible());
+    }
+    if (m_sectionsMapAction) {
+        m_sectionsMapAction->setChecked(m_sectionsMapViewer && m_sectionsMapViewer->isVisible());
+    }
+    if (m_statesMapAction) {
+        m_statesMapAction->setChecked(m_statesMapViewer && m_statesMapViewer->isVisible());
+    }
 }
 
 void MainWindow::applyFontSettings() {
@@ -3394,8 +3459,19 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         QList<QSO> existingQSOs = repo.findByContest(m_currentContestDbId);
         m_qsoTableModel->clear();
         m_bandSummaryGrid->clearAll();  // Clear band grid when switching contests
+
+        // Clear multiplier window when loading new contest
+        if (m_multiplierWindow) {
+            m_multiplierWindow->clear();
+        }
+
         for (QSO& qso : existingQSOs) {
             m_qsoTableModel->addQSO(qso);
+
+            // Update multiplier window with existing sections
+            if (m_multiplierWindow && !qso.arrlSection.isEmpty()) {
+                m_multiplierWindow->setMultiplierWorked(qso.arrlSection, qso.band);
+            }
         }
         LOG_DEBUG("MainWindow", QString("Loaded %1 existing QSOs").arg(existingQSOs.size()));
 
@@ -3805,6 +3881,7 @@ void MainWindow::onShowDXCluster() {
     m_dxClusterWindow->show();
     m_dxClusterWindow->raise();
     m_dxClusterWindow->activateWindow();
+    updateWindowMenuCheckmarks();
 }
 
 void MainWindow::onShowBandMap() {
@@ -3833,6 +3910,7 @@ void MainWindow::onShowBandMap() {
     m_bandMapWindow->show();
     m_bandMapWindow->raise();
     m_bandMapWindow->activateWindow();
+    updateWindowMenuCheckmarks();
 }
 
 void MainWindow::onShowRadioControl() {
@@ -3879,6 +3957,7 @@ void MainWindow::onShowRadioControl() {
     m_radioControlWindow->show();
     m_radioControlWindow->raise();
     m_radioControlWindow->activateWindow();
+    updateWindowMenuCheckmarks();
 }
 
 void MainWindow::onShowMultipliers() {
@@ -3891,6 +3970,7 @@ void MainWindow::onShowMultipliers() {
     m_multiplierWindow->show();
     m_multiplierWindow->raise();
     m_multiplierWindow->activateWindow();
+    updateWindowMenuCheckmarks();
 }
 
 void MainWindow::onShowStatistics() {
@@ -3903,6 +3983,7 @@ void MainWindow::onShowStatistics() {
     m_statisticsWindow->show();
     m_statisticsWindow->raise();
     m_statisticsWindow->activateWindow();
+    updateWindowMenuCheckmarks();
 }
 
 void MainWindow::onShowSectionsMap() {
@@ -3916,6 +3997,7 @@ void MainWindow::onShowSectionsMap() {
     m_sectionsMapViewer->show();
     m_sectionsMapViewer->raise();
     m_sectionsMapViewer->activateWindow();
+    updateWindowMenuCheckmarks();
 }
 
 void MainWindow::onShowStatesMap() {
@@ -3929,6 +4011,7 @@ void MainWindow::onShowStatesMap() {
     m_statesMapViewer->show();
     m_statesMapViewer->raise();
     m_statesMapViewer->activateWindow();
+    updateWindowMenuCheckmarks();
 }
 
 // Window menu placeholder implementations

@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.6.2";  // Window persistence, Hawaii pseudo-positioning, reset window positions
+constexpr const char* APP_VERSION = "3.6.3";  // Multiplier window checkmarks, window menu checkmarks
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

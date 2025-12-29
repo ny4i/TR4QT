@@ -64,6 +64,10 @@ signals:
      */
     void multiplierSelected(const QString& value);
 
+private slots:
+    void onContextMenuRequested(const QPoint& pos);
+    void onToggleHideWorked();
+
 private:
     void setupUI();
     void loadMultiplierList();
@@ -82,6 +86,9 @@ private:
 
     // Full list of possible multipliers for this type
     QStringList m_allMultipliers;
+
+    // Display options
+    bool m_hideWorked;  // Hide worked multipliers when true
 };
 
 } // namespace TR4QT

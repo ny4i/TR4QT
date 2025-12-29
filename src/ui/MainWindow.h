@@ -169,6 +169,7 @@ private:
     void updateRadioStatusGrid();
     void raiseAllWindows();
     void setStatusMessage(const QString& message);  // Set status and log it
+    void updateWindowMenuCheckmarks();  // Update checkmarks for open windows
 
     // Contest management
     void activateContest(const ContestInfo& contestInfo);
@@ -246,6 +247,15 @@ private:
     QAction* m_disconnectAction;
     QAction* m_autoSendCWAction;
     QAction* m_webServerAction;
+
+    // Window menu actions (for checkmarks)
+    QAction* m_bandMapAction;
+    QAction* m_dxClusterAction;
+    QAction* m_radioControlAction;
+    QAction* m_multipliersAction;
+    QAction* m_statisticsAction;
+    QAction* m_sectionsMapAction;
+    QAction* m_statesMapAction;
 
     // Window widgets
     DXClusterWindow* m_dxClusterWindow;
