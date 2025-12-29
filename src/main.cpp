@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QCommandLineParser>
 #include <QMessageBox>
+#include <QTimer>
 #include <hamlib/rig.h>
 #include "core/Constants.h"
 #include "utils/CountryFile.h"
@@ -137,17 +138,73 @@ int main(int argc, char *argv[]) {
     TR4QT::CountryFile countryFile;
     QString ctyPath = TR4QT::AppSettings::instance().getCountryFilePath();
 
+    if (!QFile::exists(ctyPath)) {
+        // First run: extract bundled cty.dat from resources
+        LOG_DEBUG("Main", QString("No cty.dat found at %1, extracting from resources").arg(ctyPath));
+
+        QFile resourceFile(":/data/cty.dat");
+        if (resourceFile.open(QIODevice::ReadOnly)) {
+            // Ensure directory exists
+            QFileInfo fileInfo(ctyPath);
+            QDir().mkpath(fileInfo.absolutePath());
+
+            QFile outputFile(ctyPath);
+            if (outputFile.open(QIODevice::WriteOnly)) {
+                outputFile.write(resourceFile.readAll());
+                outputFile.close();
+                LOG_DEBUG("Main", QString("Extracted bundled cty.dat to %1").arg(ctyPath));
+            } else {
+                LOG_WARN("Main", QString("Failed to write cty.dat to %1: %2").arg(ctyPath).arg(outputFile.errorString()));
+            }
+            resourceFile.close();
+        } else {
+            LOG_WARN("Main", "Failed to open bundled cty.dat from resources");
+        }
+    }
+
+    bool ctyLoaded = false;
     if (QFile::exists(ctyPath)) {
         LOG_DEBUG("Main", QString("Loading cty.dat from %1").arg(ctyPath));
         if (countryFile.loadFromFile(ctyPath)) {
             LOG_DEBUG("Main", QString("Loaded %1 countries").arg(countryFile.getAllCountries().size()));
+            ctyLoaded = true;
         }
-    } else {
-        LOG_DEBUG("Main", "No cty.dat found. Use Tools → Download Country File when implemented.");
+    }
+
+    // If cty.dat failed to load, offer to download it
+    if (!ctyLoaded) {
+        QMessageBox msgBox;
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.setWindowTitle("Country File Not Available");
+        msgBox.setText("The country database (cty.dat) is not available.");
+        msgBox.setInformativeText("The country database is required for DXCC lookups, zone information, "
+                                  "and contest scoring.\n\n"
+                                  "Would you like to download it now?");
+        msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+        msgBox.setDefaultButton(QMessageBox::Yes);
+
+        int ret = msgBox.exec();
+        if (ret == QMessageBox::No) {
+            LOG_INFO("Main", "User declined to download cty.dat, exiting");
+            logger.shutdown();
+            return 0;
+        }
+
+        // User chose to download - create window and trigger download
+        LOG_INFO("Main", "User chose to download cty.dat");
     }
 
     // Create and show main window
     TR4QT::MainWindow mainWindow;
+
+    // If cty.dat wasn't loaded and user chose to download, trigger download
+    if (!ctyLoaded) {
+        // Use QTimer to trigger download after window is shown
+        QTimer::singleShot(100, &mainWindow, [&mainWindow]() {
+            mainWindow.triggerCountryFileDownload();
+        });
+    }
+
     mainWindow.show();
 
     int result = app.exec();

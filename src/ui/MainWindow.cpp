@@ -231,6 +231,10 @@ MainWindow::~MainWindow() {
     }
 }
 
+void MainWindow::triggerCountryFileDownload() {
+    onDownloadCTY(false);
+}
+
 void MainWindow::setupUI() {
     createMenuBar();
     createCentralWidget();
@@ -3617,7 +3621,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         LOG_DEBUG("MainWindow", QString("Set default band/mode/freq: %1 %2 %3 Hz (radio not connected)")
             .arg(bandToString(m_currentState.bandA))
             .arg(modeToString(m_currentState.modeA))
-            .arg(QString::number(m_currentState.frequencyA)));
+            .arg(QString::number(m_currentState.frequencyA, 'f', 0)));
     }
 
     // Recalculate points for all QSOs (fixes old QSOs with 0 points)
@@ -3871,10 +3875,10 @@ void MainWindow::onShowDXCluster() {
         connect(m_dxClusterWindow, &DXClusterWindow::qsyRequested,
                 this, [this](double frequency) {
                     if (m_radioConnected) {
-                        LOG_DEBUG("MainWindow", QString("DX Cluster click-to-QSY: %1 Hz").arg(QString::number(frequency)));
+                        LOG_DEBUG("MainWindow", QString("DX Cluster click-to-QSY: %1 Hz").arg(QString::number(frequency, 'f', 0)));
                         m_radio->setFrequency(static_cast<freq_t>(frequency));
                     } else {
-                        LOG_DEBUG("MainWindow", QString("DX Cluster click-to-QSY: Radio not connected, cannot QSY to %1 Hz").arg(QString::number(frequency)));
+                        LOG_DEBUG("MainWindow", QString("DX Cluster click-to-QSY: Radio not connected, cannot QSY to %1 Hz").arg(QString::number(frequency, 'f', 0)));
                     }
                 });
     }
@@ -3895,7 +3899,7 @@ void MainWindow::onShowBandMap() {
         connect(m_bandMapWindow, &BandMapWidget::qsyRequested,
                 this, [this](freq_t frequency) {
                     if (m_radioConnected) {
-                        LOG_DEBUG("MainWindow", QString("Band Map QSY to %1 Hz").arg(QString::number(frequency)));
+                        LOG_DEBUG("MainWindow", QString("Band Map QSY to %1 Hz").arg(QString::number(frequency, 'f', 0)));
                         m_radio->setFrequency(frequency);
                     }
                 });
@@ -4594,9 +4598,9 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
 
         // Comprehensive logging of spot details
         QString logMsg = QString("Added spot to band map: %1").arg(callsign);
-        logMsg += QString(" | TX: %1 Hz (%2 MHz)").arg(QString::number(spot.frequency)).arg(spot.frequency / 1000000.0, 0, 'f', 3);
+        logMsg += QString(" | TX: %1 Hz (%2 MHz)").arg(QString::number(spot.frequency, 'f', 0)).arg(spot.frequency / 1000000.0, 0, 'f', 3);
         if (spot.qsx > 0) {
-            logMsg += QString(" | RX (QSX): %1 Hz (%2 MHz)").arg(QString::number(spot.qsx)).arg(spot.qsx / 1000000.0, 0, 'f', 3);
+            logMsg += QString(" | RX (QSX): %1 Hz (%2 MHz)").arg(QString::number(spot.qsx, 'f', 0)).arg(spot.qsx / 1000000.0, 0, 'f', 3);
         }
         logMsg += QString(" | LOTW: %1").arg(spot.isLotwUser ? "YES" : "NO");
         if (!spot.comment.isEmpty()) {
@@ -4614,7 +4618,7 @@ void MainWindow::onBandClicked(BandType band) {
         freq_t frequency = getFrequencyForBand(band, m_currentState.modeA);
         LOG_DEBUG("MainWindow", QString("Band clicked: %1 Setting frequency to: %2 Hz")
             .arg(QString::number(static_cast<int>(band)))
-            .arg(QString::number(frequency)));
+            .arg(QString::number(frequency, 'f', 0)));
 
         // Send frequency change to radio
         m_radio->setFrequency(frequency);
