@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.3.3";  // Fix missing TLS plugins - HTTPS downloads now work on all platforms
+constexpr const char* APP_VERSION = "3.3.4";  // Fix K4 discovery - use same socket for send/receive
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -99,13 +99,15 @@ void K4Discovery::sendDiscoveryMessage(const QNetworkInterface& interface) {
             .arg(interface.humanReadableName())
             .arg(address.toString()));
 
-        // Create a new socket for sending (to bind to specific interface)
-        QUdpSocket sendSocket;
-        sendSocket.bind(address, 0);
+        // CRITICAL FIX: Use the SAME socket (m_socket) for sending that we use for receiving
+        // The K4 radio responds back to the source port, so if we create a temporary socket
+        // here, it gets destroyed before the K4 can respond, and the response goes to a dead port.
+        // By using m_socket (which is already bound and listening), the K4's response comes
+        // back to the port we're actually listening on.
 
-        // Send broadcast message
+        // Send broadcast message using the main socket
         QByteArray message(DISCOVERY_MESSAGE);
-        qint64 bytesSent = sendSocket.writeDatagram(
+        qint64 bytesSent = m_socket->writeDatagram(
             message,
             QHostAddress::Broadcast,
             UDP_PORT
@@ -114,14 +116,12 @@ void K4Discovery::sendDiscoveryMessage(const QNetworkInterface& interface) {
         if (bytesSent == -1) {
             LOG_WARN("K4Discovery", QString("Failed to send on interface %1: %2")
                 .arg(interface.humanReadableName())
-                .arg(sendSocket.errorString()));
+                .arg(m_socket->errorString()));
         } else {
             LOG_DEBUG("K4Discovery", QString("Sent %1 bytes on interface %2")
                 .arg(bytesSent)
                 .arg(interface.humanReadableName()));
         }
-
-        // Socket will be destroyed when it goes out of scope
     }
 }
 
