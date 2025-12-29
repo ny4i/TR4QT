@@ -204,6 +204,11 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::Concurrent
 )
 
+# Windows: Link Qt6::EntryPoint for GUI applications (required for Qt 6.10+)
+if(WIN32)
+    target_link_libraries(tr4qt PRIVATE Qt6::EntryPoint)
+endif()
+
 # Link Hamlib (will be used when we add radio support)
 target_include_directories(tr4qt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
