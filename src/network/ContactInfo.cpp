@@ -28,7 +28,7 @@ QByteArray ContactInfo::toXml() const
     xml.writeTextElement("call", call);
 
     // Frequency and mode
-    xml.writeTextElement("freq", QString::number(freq));
+    xml.writeTextElement("freq", QString::number(freq, 'f', 0));
     xml.writeTextElement("band", band);
     xml.writeTextElement("mode", mode);
 

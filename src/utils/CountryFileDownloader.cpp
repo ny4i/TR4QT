@@ -1,11 +1,11 @@
 #include "CountryFileDownloader.h"
 #include "../core/Constants.h"
 #include "../logging/LogMacros.h"
+#include "../3rdparty/miniz/miniz.h"
 #include <QFile>
 #include <QDir>
 #include <QRegularExpression>
 #include <QXmlStreamReader>
-#include <QProcess>
 #include <QTemporaryDir>
 
 namespace TR4QT {
@@ -189,36 +189,39 @@ void CountryFileDownloader::onDownloadFinished() {
         zipFile.close();
         LOG_DEBUG("CountryFileDownloader", QString("Saved ZIP to %1").arg(zipPath));
 
-        // Extract ZIP file using system unzip command
-        QProcess unzip;
-        unzip.setWorkingDirectory(tempDir.path());
-        unzip.start("unzip", QStringList() << "-o" << zipPath);
+        // Extract ZIP file using miniz
+        LOG_DEBUG("CountryFileDownloader", "Extracting ZIP with miniz");
 
-        if (!unzip.waitForFinished(10000)) {  // 10 second timeout
-            emit errorOccurred("Unzip process timeout");
+        mz_zip_archive zip_archive;
+        memset(&zip_archive, 0, sizeof(zip_archive));
+
+        // Open ZIP file
+        if (!mz_zip_reader_init_file(&zip_archive, zipPath.toUtf8().constData(), 0)) {
+            emit errorOccurred("Failed to open ZIP archive");
             m_currentReply->deleteLater();
             m_currentReply = nullptr;
             emit downloadFinished(false, "", QString());
             return;
         }
 
-        if (unzip.exitCode() != 0) {
-            QString error = QString("Unzip failed: %1").arg(QString::fromUtf8(unzip.readAllStandardError()));
-            LOG_DEBUG("CountryFileDownloader", error);
-            emit errorOccurred(error);
-            m_currentReply->deleteLater();
-            m_currentReply = nullptr;
-            emit downloadFinished(false, "", QString());
-            return;
+        // Find cty.dat (case-insensitive search)
+        int file_index = -1;
+        int num_files = mz_zip_reader_get_num_files(&zip_archive);
+
+        for (int i = 0; i < num_files; i++) {
+            mz_zip_archive_file_stat file_stat;
+            if (mz_zip_reader_file_stat(&zip_archive, i, &file_stat)) {
+                QString filename = QString::fromUtf8(file_stat.m_filename).toLower();
+                if (filename.endsWith("cty.dat")) {
+                    file_index = i;
+                    LOG_DEBUG("CountryFileDownloader", QString("Found cty.dat at index %1: %2").arg(i).arg(file_stat.m_filename));
+                    break;
+                }
+            }
         }
 
-        LOG_DEBUG("CountryFileDownloader", QString("Unzip output: %1").arg(QString::fromUtf8(unzip.readAllStandardOutput())));
-
-        // Find cty.dat in extracted files
-        QDir extractedDir(tempDir.path());
-        QFileInfoList files = extractedDir.entryInfoList(QStringList() << "cty.dat" << "CTY.DAT", QDir::Files);
-
-        if (files.isEmpty()) {
+        if (file_index == -1) {
+            mz_zip_reader_end(&zip_archive);
             emit errorOccurred("cty.dat not found in ZIP archive");
             m_currentReply->deleteLater();
             m_currentReply = nullptr;
@@ -226,8 +229,19 @@ void CountryFileDownloader::onDownloadFinished() {
             return;
         }
 
-        QString extractedFile = files.first().absoluteFilePath();
-        LOG_DEBUG("CountryFileDownloader", QString("Found extracted file: %1").arg(extractedFile));
+        // Extract to temp directory
+        QString extractedPath = tempDir.path() + "/cty.dat";
+        if (!mz_zip_reader_extract_to_file(&zip_archive, file_index, extractedPath.toUtf8().constData(), 0)) {
+            mz_zip_reader_end(&zip_archive);
+            emit errorOccurred("Failed to extract cty.dat from ZIP");
+            m_currentReply->deleteLater();
+            m_currentReply = nullptr;
+            emit downloadFinished(false, "", QString());
+            return;
+        }
+
+        mz_zip_reader_end(&zip_archive);
+        LOG_DEBUG("CountryFileDownloader", QString("Successfully extracted to %1").arg(extractedPath));
 
         // Move extracted cty.dat to final location
         filePath = m_saveDir + "/" + COUNTRY_FILE_NAME;
@@ -237,7 +251,7 @@ void CountryFileDownloader::onDownloadFinished() {
             QFile::remove(filePath);
         }
 
-        if (QFile::copy(extractedFile, filePath)) {
+        if (QFile::copy(extractedPath, filePath)) {
             success = true;
             LOG_DEBUG("CountryFileDownloader", QString("Downloaded and extracted country file to %1").arg(filePath));
         } else {

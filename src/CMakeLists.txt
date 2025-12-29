@@ -73,6 +73,7 @@ set(SOURCES
     ui/widgets/StatisticsWindow.cpp
     ui/widgets/NeedsDisplayWidget.cpp
     ui/plots/qcustomplot.cpp
+    3rdparty/miniz/miniz.cpp
 )
 
 set(HEADERS

@@ -24,8 +24,8 @@ QByteArray RadioInfo::toXml() const
     xml.writeTextElement("RadioName", radioName);
 
     // Frequencies (in tens of Hz)
-    xml.writeTextElement("Freq", QString::number(freq));
-    xml.writeTextElement("TXFreq", QString::number(txFreq));
+    xml.writeTextElement("Freq", QString::number(freq, 'f', 0));
+    xml.writeTextElement("TXFreq", QString::number(txFreq, 'f', 0));
 
     // Operating parameters
     xml.writeTextElement("Mode", mode);
