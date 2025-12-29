@@ -124,6 +124,14 @@ jobs:
         mkdir -p "$DEST/styles"
         cp "$QT_PLUGINS/styles/qwindowsvistastyle.dll" "$DEST/styles/" || echo "WARNING: qwindowsvistastyle.dll not found (optional)"
 
+        # Copy image format plugins (for PNG, JPG, etc.)
+        echo "Copying image format plugins..."
+        mkdir -p "$DEST/imageformats"
+        if [ -d "$QT_PLUGINS/imageformats" ]; then
+          cp "$QT_PLUGINS/imageformats/"*.dll "$DEST/imageformats/" 2>/dev/null || echo "WARNING: No image format plugins found"
+          echo "Image formats copied"
+        fi
+
         # Copy SQL drivers (CRITICAL - required for database access)
         echo "Copying SQL drivers..."
         mkdir -p "$DEST/sqldrivers"
@@ -137,6 +145,21 @@ jobs:
           echo "ERROR: qsqlite.dll not found at $QT_PLUGINS/sqldrivers/qsqlite.dll"
           echo "ERROR: This is a FATAL error - application will not work without SQL driver"
           exit 1
+        fi
+
+        # Copy TLS plugins (CRITICAL - required for HTTPS connections)
+        echo "Copying TLS plugins..."
+        mkdir -p "$DEST/tls"
+        if [ -d "$QT_PLUGINS/tls" ]; then
+          cp "$QT_PLUGINS/tls/"*.dll "$DEST/tls/" 2>/dev/null || echo "WARNING: No TLS plugins found"
+          if ls "$DEST/tls/"*.dll >/dev/null 2>&1; then
+            echo "SUCCESS: TLS plugins copied"
+            ls -lh "$DEST/tls/"*.dll | awk '{print "  " $9, $5}'
+          else
+            echo "WARNING: No TLS plugins available - HTTPS may not work"
+          fi
+        else
+          echo "WARNING: TLS plugins directory not found at $QT_PLUGINS/tls/"
         fi
 
         # Copy Hamlib DLLs
@@ -335,6 +358,13 @@ jobs:
         cp -R /opt/homebrew/opt/qtbase/lib/QtDBus.framework tr4qt.app/Contents/Frameworks/
         cp /opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib tr4qt.app/Contents/Frameworks/
 
+        # CRITICAL: Copy TLS plugins (macdeployqt doesn't bundle these reliably)
+        echo "Copying TLS plugins..."
+        mkdir -p tr4qt.app/Contents/PlugIns/tls
+        cp /opt/homebrew/opt/qtbase/share/qt/plugins/tls/*.dylib tr4qt.app/Contents/PlugIns/tls/
+        echo "TLS plugins copied:"
+        ls -lh tr4qt.app/Contents/PlugIns/tls/
+
         # Fix library paths to use @rpath
         for lib in tr4qt.app/Contents/Frameworks/libhamlib.*.dylib; do
           if [ -f "$lib" ]; then
@@ -407,6 +437,19 @@ jobs:
           echo "✗ ERROR: libqsqlite.dylib NOT found in app bundle!"
           echo "Expected location: tr4qt.app/Contents/PlugIns/sqldrivers/libqsqlite.dylib"
           echo "This is a FATAL error - app will not work without SQL driver"
+          exit 1
+        fi
+
+        # Critical verification: Check for TLS plugins
+        echo ""
+        echo "=== CRITICAL: Verifying TLS plugins ==="
+        if [ -d "tr4qt.app/Contents/PlugIns/tls" ] && ls tr4qt.app/Contents/PlugIns/tls/*.dylib >/dev/null 2>&1; then
+          echo "✓ SUCCESS: TLS plugins found in app bundle"
+          ls -lh tr4qt.app/Contents/PlugIns/tls/
+        else
+          echo "✗ ERROR: TLS plugins NOT found in app bundle!"
+          echo "Expected location: tr4qt.app/Contents/PlugIns/tls/"
+          echo "This is a FATAL error - HTTPS downloads will not work without TLS plugins"
           exit 1
         fi
 
