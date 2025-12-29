@@ -613,7 +613,7 @@ jobs:
   build-linux-arm64:
     name: Linux (ARM64/RPi)
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch' || inputs.build_linux == true
+    if: github.event_name == 'workflow_dispatch' && inputs.build_linux == true
     continue-on-error: true  # Qt HttpServer not in Ubuntu repos yet
 
     steps:
@@ -893,9 +893,16 @@ jobs:
     - name: Determine build status
       id: status
       run: |
+        # Linux is optional (manual only), so only require Windows + macOS
+        LINUX_OK=true
+        if [ "${{ needs.build-linux-arm64.result }}" != "skipped" ] && \
+           [ "${{ needs.build-linux-arm64.result }}" != "success" ]; then
+          LINUX_OK=false
+        fi
+
         if [ "${{ needs.build-windows.result }}" == "success" ] && \
            [ "${{ needs.build-macos.result }}" == "success" ] && \
-           [ "${{ needs.build-linux-arm64.result }}" == "success" ]; then
+           [ "$LINUX_OK" == "true" ]; then
           echo "status=✅ SUCCESS" >> $GITHUB_OUTPUT
           echo "color=good" >> $GITHUB_OUTPUT
         else
