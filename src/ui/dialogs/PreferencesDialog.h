@@ -168,6 +168,7 @@ private:
     QComboBox* m_logLevelCombo;
     QCheckBox* m_fileLoggingEnabledCheck;
     QCheckBox* m_consoleLoggingEnabledCheck;
+    QCheckBox* m_hamlibDebugEnabledCheck;
     QLineEdit* m_logFilePathEdit;
     QSpinBox* m_logMaxFileSizeSpin;
     QSpinBox* m_logMaxBackupFilesSpin;

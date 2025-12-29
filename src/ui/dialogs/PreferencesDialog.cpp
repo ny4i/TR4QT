@@ -734,6 +734,25 @@ QWidget* PreferencesDialog::createLoggingTab() {
 
     mainLayout->addWidget(outputGroup);
 
+    // Advanced Settings group
+    QGroupBox* advancedGroup = new QGroupBox("Advanced Settings", this);
+    QVBoxLayout* advancedLayout = new QVBoxLayout(advancedGroup);
+
+    m_hamlibDebugEnabledCheck = new QCheckBox("Enable Hamlib debug logging", this);
+    m_hamlibDebugEnabledCheck->setToolTip("Enable verbose Hamlib radio library logging");
+    advancedLayout->addWidget(m_hamlibDebugEnabledCheck);
+
+    QLabel* hamlibWarning = new QLabel(
+        "⚠️ WARNING: Hamlib debug logging generates extremely verbose output.\n"
+        "Only enable this when requested by TR4QT support team for troubleshooting radio issues.",
+        this
+    );
+    hamlibWarning->setWordWrap(true);
+    hamlibWarning->setStyleSheet("QLabel { color: #d68910; font-size: 9pt; padding-left: 20px; }");
+    advancedLayout->addWidget(hamlibWarning);
+
+    mainLayout->addWidget(advancedGroup);
+
     // File Settings group
     QGroupBox* fileGroup = new QGroupBox("File Settings", this);
     QFormLayout* fileLayout = new QFormLayout(fileGroup);
@@ -1102,6 +1121,7 @@ void PreferencesDialog::loadSettings() {
     }
     m_fileLoggingEnabledCheck->setChecked(settings.getFileLoggingEnabled());
     m_consoleLoggingEnabledCheck->setChecked(settings.getConsoleLoggingEnabled());
+    m_hamlibDebugEnabledCheck->setChecked(settings.getHamlibDebugEnabled());
     m_logFilePathEdit->setText(settings.getLogFilePath());
     m_logMaxFileSizeSpin->setValue(settings.getLogMaxFileSize() / (1024 * 1024));  // Convert bytes to MB
     m_logMaxBackupFilesSpin->setValue(settings.getLogMaxBackupFiles());
@@ -1223,6 +1243,7 @@ void PreferencesDialog::saveSettings() {
     settings.setLogLevel(logLevel);
     settings.setFileLoggingEnabled(m_fileLoggingEnabledCheck->isChecked());
     settings.setConsoleLoggingEnabled(m_consoleLoggingEnabledCheck->isChecked());
+    settings.setHamlibDebugEnabled(m_hamlibDebugEnabledCheck->isChecked());
     settings.setLogFilePath(m_logFilePathEdit->text());
     settings.setLogMaxFileSize(static_cast<qint64>(m_logMaxFileSizeSpin->value()) * 1024 * 1024);  // Convert MB to bytes
     settings.setLogMaxBackupFiles(m_logMaxBackupFilesSpin->value());
@@ -1235,6 +1256,15 @@ void PreferencesDialog::saveSettings() {
     logger.setLogFilePath(m_logFilePathEdit->text());
     logger.setMaxFileSize(static_cast<qint64>(m_logMaxFileSizeSpin->value()) * 1024 * 1024);
     logger.setMaxBackupFiles(m_logMaxBackupFilesSpin->value());
+
+    // Apply Hamlib debug setting immediately
+    if (m_hamlibDebugEnabledCheck->isChecked()) {
+        rig_set_debug(RIG_DEBUG_VERBOSE);
+        LOG_INFO("PreferencesDialog", "Hamlib debug logging enabled");
+    } else {
+        rig_set_debug(RIG_DEBUG_NONE);
+        LOG_INFO("PreferencesDialog", "Hamlib debug logging disabled");
+    }
 
     // Backup tab
     settings.setAutoBackupEnabled(m_autoBackupEnabledCheck->isChecked());
