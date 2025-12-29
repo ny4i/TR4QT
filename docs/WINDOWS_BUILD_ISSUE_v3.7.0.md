@@ -1,6 +1,29 @@
 # Windows Build Issue - v3.7.0
 
-## Current Problem
+## Status: ✅ RESOLVED (2025-12-29)
+
+**Root Cause**: MinGW toolchain mismatch - Strawberry Perl MinGW 13.2.0 is incompatible with Qt 6.10.1 (built with MinGW 13.1.0)
+
+**Solution**: Use Qt's bundled MinGW 13.1.0 at `C:\Qt\Tools\mingw1310_64\bin`
+
+```bash
+# Set PATH to use Qt's MinGW (not Strawberry Perl)
+export PATH="/c/Qt/Tools/mingw1310_64/bin:$PATH"
+
+# Clean build
+rm -rf build
+cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release \
+  -DHAMLIB_ROOT=C:/projects/hamlib \
+  -DCMAKE_PREFIX_PATH=C:/Qt/6.10.1/mingw_64
+
+cmake --build build
+```
+
+**CI Status**: Already uses Qt's MinGW (configured in `.github/workflows/build.yml`)
+
+---
+
+## Original Problem (for reference)
 **Error**: `undefined reference to '__imp___argc'` when linking on Windows
 
 ## Timeline
@@ -41,25 +64,20 @@ The error suggests a **MinGW toolchain mismatch** between:
 - The MinGW used to build Qt 6.10.1 (likely Qt's bundled MinGW 13.1.0)
 - The MinGW being used to compile TR4QT (Strawberry Perl MinGW 13.2.0)
 
-## Attempted Fixes (All Failed)
+## Attempted Fixes
 1. ❌ Added Qt6::EntryPoint to find_package - Component not found
 2. ❌ Made Qt6::EntryPoint optional - Still get error
 3. ❌ Removed WIN32 flag (console mode) - User correctly noted v3.6.3 worked as GUI
 4. ❌ Clean rebuild - Error persists
+5. ✅ **Use Qt's bundled MinGW 13.1.0** - **THIS FIXED IT**
 
-## Next Steps to Try
-1. **Use Qt's bundled MinGW** instead of Strawberry Perl MinGW:
-   - Check: `dir C:\Qt\Tools\mingw*`
-   - Use: `C:\Qt\Tools\mingw1310_64\bin` (or similar)
-   - Add to PATH before building
+## Resolution
+**Use Qt's bundled MinGW** instead of Strawberry Perl MinGW:
+- Qt 6.10.1 was built with MinGW 13.1.0
+- Strawberry Perl has MinGW 13.2.0 (incompatible at link time)
+- Solution: `C:\Qt\Tools\mingw1310_64\bin` must be in PATH before Strawberry
 
-2. **Investigate miniz.cpp compilation**:
-   - Original miniz is C code, we renamed to .cpp
-   - Might need `extern "C"` blocks or different compilation
-
-3. **Check if large resource (cty.dat) causes issues**:
-   - Try temporarily removing cty.dat from resources.qrc
-   - See if build succeeds without embedded resource
+The miniz.cpp and cty.dat were NOT the problem - it was purely a toolchain mismatch.
 
 ## Files to Check
 - `src/CMakeLists.txt` - Lines 76 (miniz.cpp added), 182 (WIN32 flag)
@@ -67,13 +85,14 @@ The error suggests a **MinGW toolchain mismatch** between:
 - `resources/resources.qrc` - Line 13 (cty.dat added)
 - `src/3rdparty/miniz/miniz.cpp` - Renamed from .c, might need extern "C"
 
-## Success Criteria
+## Success Criteria ✅ MET
 Build completes successfully on Windows with:
-- WIN32 flag (GUI application, no console window)
-- All v3.7.0 features working (bundled cty.dat, miniz extraction)
-- Same toolchain that worked in v3.6.3
+- ✅ WIN32 flag (GUI application, no console window)
+- ✅ All v3.7.0 features working (bundled cty.dat, miniz extraction)
+- ✅ Qt's bundled MinGW 13.1.0 toolchain
 
 ## Reference Commits
 - v3.6.3: `b3044ce` - Last known working Windows build
 - v3.7.0 changes: `3a4ee89`, `c97d44e`, `9299a7a`
 - Latest: `7905d43` - Restored WIN32 flag after debugging attempts
+- Resolution verified: 2025-12-29 (local build successful with Qt MinGW)
