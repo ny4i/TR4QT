@@ -178,9 +178,8 @@ if(APPLE)
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
-    # Windows: Standard executable (console mode for Qt 6.10+ compatibility)
-    # Note: Qt 6.10.1 has issues with WIN32 flag and MinGW entry point
-    add_executable(tr4qt
+    # Windows: Build as GUI application (no console window)
+    add_executable(tr4qt WIN32
         ${SOURCES}
         ${HEADERS}
         ../resources/resources.qrc
