@@ -39,9 +39,6 @@ find_package(Qt6 REQUIRED COMPONENTS
     Test
 )
 
-# Optional: EntryPoint for Windows GUI applications (Qt 6.10+)
-find_package(Qt6 COMPONENTS EntryPoint QUIET)
-
 
 # Hamlib configuration
 # HAMLIB_ROOT can be passed via -DHAMLIB_ROOT=path or will use platform defaults
