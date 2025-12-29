@@ -50,8 +50,16 @@ WebServer::WebServer(QSOTableModel* qsoModel,
         return handleApiWorkedSections();
     });
 
+    m_server->route("/api/worked-states", [this]() {
+        return handleApiWorkedStates();
+    });
+
     m_server->route("/api/sections-geojson", [this]() {
         return handleApiSectionsGeoJSON();
+    });
+
+    m_server->route("/api/states-geojson", [this]() {
+        return handleApiStatesGeoJSON();
     });
 
     // HTML dashboard
@@ -61,6 +69,10 @@ WebServer::WebServer(QSOTableModel* qsoModel,
 
     m_server->route("/map", [this]() {
         return handleSectionsMap();
+    });
+
+    m_server->route("/states-map", [this]() {
+        return handleStatesMap();
     });
 
     // Favicon routes
@@ -277,6 +289,39 @@ QHttpServerResponse WebServer::handleApiWorkedSections() {
     return QHttpServerResponse("application/json", doc.toJson());
 }
 
+QHttpServerResponse WebServer::handleApiWorkedStates() {
+    // Build map of states → QSO count
+    QMap<QString, int> stateCounts;
+
+    int qsoCount = m_qsoModel->count();
+    for (int row = 0; row < qsoCount; ++row) {
+        QSO qso = m_qsoModel->getQSO(row);
+        QString state = qso.state.trimmed().toUpper();
+
+        if (!state.isEmpty()) {
+            stateCounts[state]++;
+        }
+    }
+
+    // Convert to JSON array
+    QJsonArray statesArray;
+    for (auto it = stateCounts.begin(); it != stateCounts.end(); ++it) {
+        QJsonObject stateObj;
+        stateObj["state"] = it.key();
+        stateObj["count"] = it.value();
+        statesArray.append(stateObj);
+    }
+
+    QJsonObject json;
+    json["states"] = statesArray;
+    json["totalStates"] = stateCounts.size();
+    json["totalQsos"] = qsoCount;
+    json["lastUpdate"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+
+    QJsonDocument doc(json);
+    return QHttpServerResponse("application/json", doc.toJson());
+}
+
 QHttpServerResponse WebServer::handleDashboard() {
     QString html = generateDashboardHtml();
     return QHttpServerResponse("text/html", html.toUtf8());
@@ -284,6 +329,11 @@ QHttpServerResponse WebServer::handleDashboard() {
 
 QHttpServerResponse WebServer::handleSectionsMap() {
     QString html = generateSectionsMapHtml();
+    return QHttpServerResponse("text/html", html.toUtf8());
+}
+
+QHttpServerResponse WebServer::handleStatesMap() {
+    QString html = generateStatesMapHtml();
     return QHttpServerResponse("text/html", html.toUtf8());
 }
 
@@ -1069,6 +1119,20 @@ QHttpServerResponse WebServer::handleApiSectionsGeoJSON() {
     return QHttpServerResponse("application/json", geoJsonData);
 }
 
+QHttpServerResponse WebServer::handleApiStatesGeoJSON() {
+    // Serve the US states GeoJSON data from resources
+    QFile geoJsonFile(":/data/us_states.geojson");
+    if (!geoJsonFile.open(QIODevice::ReadOnly)) {
+        LOG_WARN("WebServer", "Failed to open us_states.geojson from resources");
+        return QHttpServerResponse(QHttpServerResponse::StatusCode::NotFound);
+    }
+
+    QByteArray geoJsonData = geoJsonFile.readAll();
+
+    // Return with appropriate content type
+    return QHttpServerResponse("application/json", geoJsonData);
+}
+
 QString WebServer::generateSectionsMapHtml() {
     AppSettings& settings = AppSettings::instance();
     QString callsign = settings.getMyCallsign();
@@ -1472,6 +1536,47 @@ QString WebServer::generateSectionsMapHtml() {
                .arg(m_contestName.isEmpty() ? "TR4QT Contest Logger" : m_contestName)
                .arg(callsign.isEmpty() ? "N0CALL" : callsign)
                .arg(operator_name.isEmpty() ? "Unknown" : operator_name);
+}
+
+QString WebServer::generateStatesMapHtml() {
+    AppSettings& settings = AppSettings::instance();
+    QString callsign = settings.getMyCallsign();
+    QString operator_name = settings.getCurrentOperator();
+
+    // Re-use the exact same HTML as sections map, but with states terminology
+    // Just search-replace: sections→states, Sections→States, ARRL Sections→US States
+    QString html = generateSectionsMapHtml();
+
+    // Replace sections terminology with states terminology
+    html.replace("ARRL Sections", "US States");
+    html.replace("Sections Worked", "States Worked");
+    html.replace("sections-worked", "states-worked");
+    html.replace("Total Sections:", "Total States:");
+    html.replace("<span>83</span>", "<span>50</span>");  // 50 states
+    html.replace("/api/worked-sections", "/api/worked-states");
+    html.replace("/api/sections-geojson", "/api/states-geojson");
+    html.replace("sectionsGeoJSON", "statesGeoJSON");
+    html.replace("workedSections", "workedStates");
+    html.replace("feature.properties.section", "feature.properties.state");
+    html.replace("const section =", "const state =");
+    html.replace("section polygons", "state polygons");
+    html.replace("Worked Sections", "Worked States");
+    html.replace("worked-sections-list", "worked-states-list");
+    html.replace("`Loaded ${", "`Loaded ${");  // Keep this line intact
+    html.replace("Section:", "State:");
+    html.replace("forEach(section =>", "forEach(state =>");
+    html.replace("(section.section", "(state.state");
+    html.replace("section.count", "state.count");
+    html.replace("${section.section}", "${state.state}");
+    html.replace("${section.count}", "${state.count}");
+    html.replace("'/api/sections-geojson'", "'/api/states-geojson'");
+    html.replace("'/api/worked-sections'", "'/api/worked-states'");
+    html.replace("console.log(`Loaded ${sectionsGeoJSON", "console.log(`Loaded ${statesGeoJSON");
+    html.replace(".sections", ".states");
+    html.replace("sections:", "states:");
+    html.replace("totalSections", "totalStates");
+
+    return html;
 }
 
 } // namespace TR4QT

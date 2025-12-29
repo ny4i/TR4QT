@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.3.5";  // Fix K4 discovery - per-interface sockets with subnet broadcast
+constexpr const char* APP_VERSION = "3.4.0";  // Add US States map for WAS tracking
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
