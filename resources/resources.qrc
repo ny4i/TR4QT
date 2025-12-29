@@ -11,4 +11,16 @@
         <file alias="arrl_sections.geojson">arrl_sections.geojson</file>
         <file alias="us_states.geojson">us_states.geojson</file>
     </qresource>
+    <qresource prefix="/maps">
+        <file alias="leaflet.js">maps/leaflet.js</file>
+        <file alias="leaflet.css">maps/leaflet.css</file>
+        <file alias="qwebchannel.js">maps/qwebchannel.js</file>
+        <file alias="images/layers.png">maps/images/layers.png</file>
+        <file alias="images/layers-2x.png">maps/images/layers-2x.png</file>
+        <file alias="images/marker-icon.png">maps/images/marker-icon.png</file>
+        <file alias="images/marker-icon-2x.png">maps/images/marker-icon-2x.png</file>
+        <file alias="images/marker-shadow.png">maps/images/marker-shadow.png</file>
+        <file alias="sections_map_standalone.html">maps/sections_map_standalone.html</file>
+        <file alias="states_map_standalone.html">maps/states_map_standalone.html</file>
+    </qresource>
 </RCC>
