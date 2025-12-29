@@ -9,21 +9,22 @@ const char* K4Discovery::K4_RESPONSE_PREFIX = "k4";
 
 K4Discovery::K4Discovery(QObject* parent)
     : QObject(parent)
-    , m_socket(new QUdpSocket(this))
     , m_timeoutTimer(new QTimer(this))
     , m_discoveryActive(false)
 {
     m_timeoutTimer->setSingleShot(true);
     m_timeoutTimer->setInterval(TIMEOUT_MS);
 
-    connect(m_socket, &QUdpSocket::readyRead, this, &K4Discovery::onReadyRead);
     connect(m_timeoutTimer, &QTimer::timeout, this, &K4Discovery::onDiscoveryTimeout);
 }
 
 K4Discovery::~K4Discovery() {
-    if (m_socket) {
-        m_socket->close();
+    // Clean up any active sockets
+    for (QUdpSocket* socket : m_sockets) {
+        socket->close();
+        socket->deleteLater();
     }
+    m_sockets.clear();
 }
 
 void K4Discovery::startDiscovery() {
@@ -36,17 +37,12 @@ void K4Discovery::startDiscovery() {
     m_discoveredRadios.clear();
     m_discoveryActive = true;
 
-    // Bind socket to receive responses
-    // Using port 0 lets system choose an available port
-    if (!m_socket->bind(QHostAddress::AnyIPv4, 0, QUdpSocket::ShareAddress)) {
-        QString errorMsg = QString("Failed to bind UDP socket: %1").arg(m_socket->errorString());
-        LOG_ERROR("K4Discovery", errorMsg);
-        emit error(errorMsg);
-        m_discoveryActive = false;
-        return;
+    // Clean up any existing sockets from previous discovery
+    for (QUdpSocket* socket : m_sockets) {
+        socket->close();
+        socket->deleteLater();
     }
-
-    LOG_DEBUG("K4Discovery", QString("Bound to port %1 for receiving").arg(m_socket->localPort()));
+    m_sockets.clear();
 
     // Get all network interfaces
     QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
@@ -71,7 +67,6 @@ void K4Discovery::startDiscovery() {
     if (interfaceCount == 0) {
         LOG_WARN("K4Discovery", "No active network interfaces found");
         emit error("No active network interfaces found");
-        m_socket->close();
         m_discoveryActive = false;
         emit discoveryFinished(0);
         return;
@@ -99,41 +94,96 @@ void K4Discovery::sendDiscoveryMessage(const QNetworkInterface& interface) {
             .arg(interface.humanReadableName())
             .arg(address.toString()));
 
-        // CRITICAL FIX: Use the SAME socket (m_socket) for sending that we use for receiving
-        // The K4 radio responds back to the source port, so if we create a temporary socket
-        // here, it gets destroyed before the K4 can respond, and the response goes to a dead port.
-        // By using m_socket (which is already bound and listening), the K4's response comes
-        // back to the port we're actually listening on.
+        // CRITICAL: Create a socket bound to THIS SPECIFIC INTERFACE
+        // The K4 responds to the source IP:port of the discovery packet.
+        // By binding to the interface's IP, we ensure:
+        // 1. The broadcast goes out on THIS interface
+        // 2. The K4 sees the correct source IP
+        // 3. The K4's response comes back to this socket
+        QUdpSocket* socket = new QUdpSocket(this);
 
-        // Send broadcast message using the main socket
+        // Bind to this interface's IP with port 0 (OS assigns ephemeral port)
+        if (!socket->bind(address, 0, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
+            LOG_WARN("K4Discovery", QString("Failed to bind to interface %1 (%2): %3")
+                .arg(interface.humanReadableName())
+                .arg(address.toString())
+                .arg(socket->errorString()));
+            socket->deleteLater();
+            continue;
+        }
+
+        quint16 localPort = socket->localPort();
+        LOG_DEBUG("K4Discovery", QString("Bound socket to %1:%2 for interface %3")
+            .arg(address.toString())
+            .arg(localPort)
+            .arg(interface.humanReadableName()));
+
+        // Connect this socket's readyRead signal to our handler
+        connect(socket, &QUdpSocket::readyRead, this, &K4Discovery::onReadyRead);
+
+        // Get the subnet broadcast address (e.g., 192.168.73.255)
+        // This is more reliable than 255.255.255.255 for some networks
+        QHostAddress broadcastAddr = entry.broadcast();
+        if (broadcastAddr.isNull()) {
+            // Fallback to global broadcast if subnet broadcast not available
+            broadcastAddr = QHostAddress::Broadcast;
+        }
+
+        // Send broadcast message
         QByteArray message(DISCOVERY_MESSAGE);
-        qint64 bytesSent = m_socket->writeDatagram(
+        qint64 bytesSent = socket->writeDatagram(
             message,
-            QHostAddress::Broadcast,
+            broadcastAddr,
             UDP_PORT
         );
 
         if (bytesSent == -1) {
             LOG_WARN("K4Discovery", QString("Failed to send on interface %1: %2")
                 .arg(interface.humanReadableName())
-                .arg(m_socket->errorString()));
+                .arg(socket->errorString()));
+            socket->close();
+            socket->deleteLater();
         } else {
-            LOG_DEBUG("K4Discovery", QString("Sent %1 bytes on interface %2")
+            LOG_DEBUG("K4Discovery", QString("Sent %1 bytes from %2:%3 to %4:%5 via %6")
                 .arg(bytesSent)
+                .arg(address.toString())
+                .arg(localPort)
+                .arg(broadcastAddr.toString())
+                .arg(UDP_PORT)
                 .arg(interface.humanReadableName()));
+
+            // Keep this socket alive to receive responses
+            m_sockets.append(socket);
         }
     }
 }
 
 void K4Discovery::onReadyRead() {
-    while (m_socket->hasPendingDatagrams()) {
-        QNetworkDatagram datagram = m_socket->receiveDatagram();
+    // Figure out which socket triggered this
+    QUdpSocket* socket = qobject_cast<QUdpSocket*>(sender());
+    if (!socket) {
+        LOG_WARN("K4Discovery", "onReadyRead() called but sender is not a QUdpSocket");
+        return;
+    }
+
+    LOG_DEBUG("K4Discovery", QString("onReadyRead() triggered on socket %1:%2 - pending datagrams: %3")
+        .arg(socket->localAddress().toString())
+        .arg(socket->localPort())
+        .arg(socket->hasPendingDatagrams()));
+
+    while (socket->hasPendingDatagrams()) {
+        QNetworkDatagram datagram = socket->receiveDatagram();
         QByteArray data = datagram.data();
         QHostAddress sender = datagram.senderAddress();
+        quint16 senderPort = datagram.senderPort();
 
-        LOG_DEBUG("K4Discovery", QString("Received %1 bytes from %2")
+        LOG_DEBUG("K4Discovery", QString("Received %1 bytes from %2:%3 on %4:%5 - data: '%6'")
             .arg(data.size())
-            .arg(sender.toString()));
+            .arg(sender.toString())
+            .arg(senderPort)
+            .arg(socket->localAddress().toString())
+            .arg(socket->localPort())
+            .arg(QString::fromUtf8(data)));
 
         K4RadioInfo radioInfo;
         if (parseK4Response(data, radioInfo)) {
@@ -166,7 +216,13 @@ void K4Discovery::onDiscoveryTimeout() {
     LOG_INFO("K4Discovery", QString("Discovery timeout - found %1 K4 radio(s)")
         .arg(m_discoveredRadios.count()));
 
-    m_socket->close();
+    // Close all sockets
+    for (QUdpSocket* socket : m_sockets) {
+        socket->close();
+        socket->deleteLater();
+    }
+    m_sockets.clear();
+
     m_discoveryActive = false;
 
     emit discoveryFinished(m_discoveredRadios.count());

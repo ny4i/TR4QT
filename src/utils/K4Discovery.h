@@ -94,7 +94,7 @@ private:
     static const char* DISCOVERY_MESSAGE;           // "findk4"
     static const char* K4_RESPONSE_PREFIX;          // "k4"
 
-    QUdpSocket* m_socket;
+    QList<QUdpSocket*> m_sockets;  // One socket per interface for sending/receiving
     QTimer* m_timeoutTimer;
     QList<K4RadioInfo> m_discoveredRadios;
     bool m_discoveryActive;
