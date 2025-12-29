@@ -123,19 +123,38 @@ python3 scripts/convert_shp_to_geojson.py --input shapes/dxcc/ --output resource
 
 ## Priority
 
-1. **High**: US States Map
+1. **High**: ✅ US States Map (COMPLETED v3.4.0)
    - Most requested feature
    - Data readily available
    - Many states already in hand from ARRL sections
    - Simpler than DXCC (no prefix mapping needed)
+   - **Status**: Implemented and committed
 
-2. **Medium**: DXCC Entities Map
+2. **High**: In-App Map Viewer Window
+   - Create standalone Qt widget to view maps inside TR4QT
+   - **Does NOT depend on web server** - works even if server disabled
+   - Better UX than opening external browser
+   - Two implementation approaches:
+     - **Option A**: QWebEngineView loading HTML from Qt resources (qrc://)
+     - **Option B**: Native QGraphicsView rendering GeoJSON polygons
+   - Add menu items: View → Sections Map, View → States Map
+   - Could be dockable window or separate dialog
+   - Fetches QSO data directly from QSOTableModel, not via HTTP API
+
+3. **Medium**: DXCC Entities Map
    - More complex (multi-entity countries)
    - Requires DXCC prefix mapping
    - Larger dataset (world coverage)
    - Higher value for DX contesters
 
-3. **Low**: Contest-specific auto-switching
+4. **Medium**: Static Map Export (JPG/PNG)
+   - Generate static image files of maps for sharing/reports
+   - Export current state of sections/states/DXCC maps
+   - Useful for contest reports, presentations, social media
+   - Could use headless browser rendering or server-side map generation
+   - File → Export Map as Image...
+
+5. **Low**: Contest-specific auto-switching
    - Nice-to-have feature
    - Depends on having all maps implemented first
 
@@ -161,10 +180,222 @@ python3 scripts/convert_shp_to_geojson.py --input shapes/dxcc/ --output resource
 
 ---
 
+## In-App Map Viewer Implementation Details
+
+**Goal**: Embed maps directly in TR4QT without requiring web server or external browser
+
+**Critical Requirement**: Must work independently of web server (user may have it disabled)
+
+---
+
+### Option A: QWebEngineView with Embedded HTML (Recommended)
+
+**Approach**: Load self-contained HTML from Qt resources
+
+**How It Works**:
+1. Create standalone HTML files with embedded CSS/JS (no external URLs)
+2. Embed Leaflet JS library in Qt resources
+3. Load HTML via `qrc://` URLs instead of `http://`
+4. Use Qt/JavaScript bridge to pass QSO data from C++ to JavaScript
+5. JavaScript renders map with data from Qt, not HTTP API
+
+**Implementation Steps**:
+1. Create `resources/maps/sections_map_standalone.html` (self-contained)
+2. Embed Leaflet library in `resources/maps/leaflet.js`
+3. Add to `resources.qrc`
+4. Create `MapViewerDialog` class with QWebEngineView
+5. Load via `view->load(QUrl("qrc:/maps/sections_map_standalone.html"))`
+6. Use `QWebChannel` to pass QSO data from C++ to JavaScript
+7. Add menu items: View → Sections Map, View → States Map
+
+**Advantages**:
+- Reuses existing Leaflet/web map code (already written!)
+- No web server dependency
+- Self-contained
+- Beautiful, interactive maps
+- Professional quality (mature Leaflet library)
+- Zoom, pan, tooltips all work perfectly
+- ~50MB for Qt WebEngine is negligible (standard Qt module)
+
+**Architecture** (Avoid God Class Anti-Pattern):
+
+**CRITICAL**: Do NOT add map logic to MainWindow! Create proper separation:
+
+```cpp
+// NEW: Self-contained dialog class
+class MapViewerDialog : public QDialog {
+    enum MapType { Sections, States, DXCC };
+    MapViewerDialog(MapType type, QSOTableModel* qsoModel, QWidget* parent);
+    // Owns QWebEngineView, QWebChannel, handles all map logic
+};
+
+// NEW: Pure utility class for data transformation
+class MapDataProvider {
+    static QJsonObject getWorkedSections(QSOTableModel* model);
+    static QJsonObject getWorkedStates(QSOTableModel* model);
+    // No state, just transforms QSO data to JSON
+};
+
+// MainWindow: ONLY creates and shows dialog (2 lines!)
+void MainWindow::onShowSectionsMap() {
+    auto* dialog = new MapViewerDialog(MapType::Sections, m_qsoModel, this);
+    dialog->show();
+}
+```
+
+**Benefits**:
+- ✅ Reduces MainWindow coupling
+- ✅ MapViewerDialog is self-contained and reusable
+- ✅ MapDataProvider is testable in isolation
+- ✅ Clear single responsibility for each class
+- ✅ Example of good architecture for future features
+
+**Files to Create/Modify**:
+- `resources/maps/sections_map_standalone.html` - Embedded HTML/CSS/JS
+- `resources/maps/states_map_standalone.html` - States version
+- `resources/maps/leaflet.js` - Leaflet library embedded
+- `resources/maps/leaflet.css` - Leaflet styles
+- `resources/resources.qrc` - Add map resources
+- `src/ui/MapViewerDialog.h` - NEW: Self-contained dialog class
+- `src/ui/MapViewerDialog.cpp` - NEW: QWebEngineView + QWebChannel bridge
+- `src/utils/MapDataProvider.h` - NEW: Data transformation utility
+- `src/utils/MapDataProvider.cpp` - NEW: QSO data → JSON conversion
+- `src/ui/MainWindow.cpp` - Add menu actions ONLY (minimal changes)
+- `CMakeLists.txt` - Add Qt6::WebEngineWidgets dependency
+
+---
+
+### Option B: Native Qt Graphics (Pure Qt, No WebEngine)
+
+**Approach**: Render GeoJSON polygons directly using Qt graphics
+
+**How It Works**:
+1. Parse GeoJSON files using QJsonDocument
+2. Convert lat/lon coordinates to screen coordinates (Mercator projection)
+3. Create QGraphicsPolygonItem for each state/section
+4. Color based on QSO count (chloropleth logic in C++)
+5. Use QGraphicsView to display and interact
+
+**Implementation Steps**:
+1. Create `MapRenderer` class to parse GeoJSON and convert coordinates
+2. Create `MapWidget` inheriting QGraphicsView
+3. Render polygons as QGraphicsPolygonItems with appropriate colors
+4. Implement hover/click interactions with QGraphicsItem events
+5. Add legend and statistics as QGraphicsTextItems
+6. Add menu items to show MapWidget
+
+**Pros**:
+- No Qt WebEngine dependency (smaller distribution)
+- Truly native Qt - faster, lighter weight
+- Complete control over rendering
+- No JavaScript needed
+
+**Cons**:
+- More C++ code to write (projection math, rendering logic)
+- Less polished visuals compared to Leaflet
+- More work to implement zoom/pan/interactions
+- Need to implement chloropleth coloring in C++
+
+**Files to Create/Modify**:
+- `src/ui/MapWidget.h` - QGraphicsView-based map widget
+- `src/ui/MapWidget.cpp` - GeoJSON parsing and rendering
+- `src/utils/MapRenderer.h` - Coordinate projection utilities
+- `src/utils/MapRenderer.cpp` - Mercator projection, polygon rendering
+- `src/ui/MainWindow.cpp` - Menu actions
+- No CMake changes needed (uses existing Qt modules)
+
+---
+
+### Recommendation: Use Option A
+
+Option A is the clear choice - it has no real downsides:
+- ✅ Faster to implement (reuse existing map HTML/JS)
+- ✅ Professional results (Leaflet is battle-tested)
+- ✅ All features work (zoom, pan, tooltips, colors)
+- ✅ No web server dependency (works offline)
+- ✅ Qt WebEngine is a standard Qt module
+
+Option B would only be needed if targeting embedded systems with severe size constraints, which doesn't apply to TR4QT.
+
+**Implementation Priority**: High - users will love having maps integrated directly in the app
+
+---
+
+## Static Map Export Implementation Details
+
+**Goal**: Generate PNG/JPG images of maps for sharing, reports, or archiving
+
+**Use Cases**:
+- Contest reports (include map showing worked states/sections)
+- Social media posts (share WAS progress)
+- Presentations
+- Print-friendly format
+- Archive snapshots of progress over time
+
+**Implementation Options**:
+
+### Option 1: Browser Screenshot (Easiest)
+- Use QWebEngineView to render map
+- Call `QWebEngineView::grab()` to capture as QPixmap
+- Save as PNG/JPG
+- **Pros**: Simple, reuses existing rendering
+- **Cons**: Requires Qt WebEngine
+
+### Option 2: Headless Browser (Puppeteer/Playwright)
+- Use Node.js with Puppeteer to render and screenshot
+- Call from Qt via QProcess
+- **Pros**: High quality, supports all web features
+- **Cons**: External dependency
+
+### Option 3: Server-Side Rendering
+- Python library like `matplotlib` + `geopandas` or `folium`
+- Generate map image directly from GeoJSON + worked data
+- **Pros**: No browser needed, fast, scriptable
+- **Cons**: Separate codebase from web maps
+
+### Option 4: Canvas Export from Web Map
+- Add JavaScript button to existing maps: "Export as PNG"
+- Use `html2canvas` or Leaflet's `.toDataURL()` method
+- Download directly from browser
+- **Pros**: Zero Qt code needed
+- **Cons**: User must use browser, not integrated
+
+**Recommended Approach**: Option 1 (QWebEngineView screenshot)
+- Most integrated with existing architecture
+- Leverages already-working web maps
+- Simple Qt implementation
+
+**Implementation Steps**:
+1. Create `MapExporter` class with `exportMapImage()` method
+2. Render map in hidden QWebEngineView
+3. Wait for map to fully load (detect via JS callback)
+4. Call `grab()` to capture as QPixmap
+5. Save to user-selected file path (PNG/JPG)
+6. Add menu action: File → Export Map as Image...
+7. Show file dialog with format selection
+
+**Files to Create/Modify**:
+- `src/utils/MapExporter.h` - New exporter class
+- `src/utils/MapExporter.cpp` - Screenshot implementation
+- `src/ui/MainWindow.cpp` - Add export menu action
+- May reuse `MapViewerDialog` if it exists
+
+**Export Options Dialog**:
+- Map type: Sections / States / DXCC
+- Image size: 1920x1080, 2560x1440, 3840x2160, Custom
+- Format: PNG (lossless) / JPG (smaller file)
+- Include legend: Yes/No
+- Include statistics overlay: Yes/No
+
+---
+
 ## Estimated Implementation Time
 
-- US States Map: ~2-3 hours (download data, convert, implement)
+- ✅ US States Map: ~2-3 hours (download data, convert, implement) - **COMPLETED**
+- In-App Map Viewer: ~2-3 hours (QWebEngineView widget, menu items, window management)
+- Static Map Export: ~2-3 hours (QWebEngineView screenshot, export dialog, file handling)
 - DXCC Map: ~4-6 hours (download data, mapping logic, implement)
 - Contest auto-switching: ~1 hour (simple routing logic)
 
-**Total**: ~7-10 hours of development work
+**Total Completed**: 2-3 hours
+**Total Remaining**: ~9-15 hours of development work
