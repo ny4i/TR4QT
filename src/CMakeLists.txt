@@ -204,9 +204,10 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::Concurrent
 )
 
-# Windows: Link Qt6::EntryPoint for GUI applications (required for Qt 6.10+)
-if(WIN32)
+# Windows: Link Qt6::EntryPoint for GUI applications (Qt 6.10+ compatibility)
+if(WIN32 AND TARGET Qt6::EntryPoint)
     target_link_libraries(tr4qt PRIVATE Qt6::EntryPoint)
+    message(STATUS "Linking Qt6::EntryPoint for Windows GUI application")
 endif()
 
 # Link Hamlib (will be used when we add radio support)
