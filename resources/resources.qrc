@@ -9,5 +9,6 @@
         <file alias="schema.sql">../src/data/schema.sql</file>
         <file alias="global_schema.sql">../src/data/global_schema.sql</file>
         <file alias="arrl_sections.geojson">arrl_sections.geojson</file>
+        <file alias="us_states.geojson">us_states.geojson</file>
     </qresource>
 </RCC>
