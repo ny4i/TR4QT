@@ -174,13 +174,30 @@ QMap<QString, QString> WinterFieldDayContest::parseReceivedExchange(const QStrin
     return result;
 }
 
+bool WinterFieldDayContest::isValidMode(ModeType mode, QString& errorMsg) const {
+    // Winter Field Day allowed modes: CW, Phone, Digital
+    // NOT allowed: FT8, FT4 per official rules
+
+    switch (mode) {
+        case ModeType::FT8:
+        case ModeType::FT4:
+            errorMsg = "FT8 and FT4 are not allowed in Winter Field Day";
+            return false;
+
+        default:
+            return true;  // All other modes are allowed
+    }
+}
+
 int WinterFieldDayContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) const {
     Q_UNUSED(myStation);
 
     // Winter Field Day scoring rules (mode-based):
     // - Phone (SSB, FM, AM): 1 point
     // - CW: 2 points
-    // - Digital (RTTY, PSK, FT8, etc.): 2 points
+    // - Digital (RTTY, PSK): 2 points
+    //
+    // NOTE: FT8/FT4 are NOT allowed in WFD per official rules
 
     switch (qso.mode) {
         case ModeType::CW:
@@ -188,8 +205,6 @@ int WinterFieldDayContest::calculateQSOPoints(const QSO& qso, const StationInfo&
 
         case ModeType::RTTY:
         case ModeType::PSK:
-        case ModeType::FT8:
-        case ModeType::FT4:
             return 2;  // Digital: 2 points
 
         case ModeType::USB:
@@ -198,8 +213,13 @@ int WinterFieldDayContest::calculateQSOPoints(const QSO& qso, const StationInfo&
         case ModeType::AM:
             return 1;  // Phone: 1 point
 
+        case ModeType::FT8:
+        case ModeType::FT4:
+            // These modes are not allowed in WFD - return 0 points
+            return 0;
+
         default:
-            return 1;  // Default to 1 point for unknown modes
+            return 1;  // Default to 1 point for other modes
     }
 }
 

@@ -62,6 +62,7 @@ public:
     QString formatSentExchange(int serialNumber, const QString& rst = "599") const override;
     bool validateReceivedExchange(const QString& exchange, QString& errorMsg) const override;
     QMap<QString, QString> parseReceivedExchange(const QString& exchange) const override;
+    bool isValidMode(ModeType mode, QString& errorMsg) const override;
 
     // ===== Scoring =====
     int calculateQSOPoints(

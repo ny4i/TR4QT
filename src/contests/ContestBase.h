@@ -144,6 +144,24 @@ public:
      */
     virtual QMap<QString, QString> parseReceivedExchange(const QString& exchange) const = 0;
 
+    /**
+     * Validate if a mode is allowed for this contest
+     * Contests define supported modes in their metadata
+     *
+     * Default implementation checks against supportedModes list.
+     * Override for contests with complex mode rules.
+     *
+     * @param mode The mode to validate
+     * @param errorMsg Output parameter for error message if invalid
+     * @return true if mode is allowed, false with errorMsg set if not allowed
+     */
+    virtual bool isValidMode(ModeType mode, QString& errorMsg) const {
+        Q_UNUSED(mode);
+        Q_UNUSED(errorMsg);
+        // Default: all modes allowed (contests should override this)
+        return true;
+    }
+
     // ===== Scoring =====
 
     /**
