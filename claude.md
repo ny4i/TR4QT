@@ -10,8 +10,9 @@ This file contains important reminders and conventions for Claude when working o
 
 Common unreliable tools:
 - ❌ `windeployqt` (Windows) - Silently fails to copy plugins, inconsistent
-- ❌ `macdeployqt` (macOS) - Misses dependencies, gets paths wrong, **NEVER bundles TLS plugins**
+- ❌ `macdeployqt` (macOS) - Misses dependencies, gets paths wrong
 - ❌ `linuxdeploy` (Linux) - Complex, hard to debug, inconsistent
+- ❌ **ALL OF THEM** - None bundle Qt TLS plugins by default (critical for HTTPS!)
 
 **Why these tools are problematic:**
 1. **Silent failures** - Missing dependencies without clear errors
@@ -82,14 +83,76 @@ Before making any code changes:
 
 This prevents confusion about which version is running.
 
+### Adding New Qt Modules - Update CI Configuration!
+**CRITICAL**: When adding new Qt modules to CMakeLists.txt, you MUST update the Windows CI configuration!
+
+Why this matters:
+- macOS: `brew install qt@6` includes ALL modules (won't catch the issue)
+- Windows: `install-qt-action` only installs base modules + explicitly listed modules
+- If you forget to update CI, Windows builds will fail with "Qt6ModuleName not found"
+
+**Workflow when adding a new Qt module:**
+
+1. Add to `/CMakeLists.txt`:
+   ```cmake
+   find_package(Qt6 REQUIRED COMPONENTS
+       Core Widgets Network
+       NewModule  # ← Added here
+   )
+   ```
+
+2. Add to `/src/CMakeLists.txt`:
+   ```cmake
+   target_link_libraries(tr4qt PRIVATE
+       Qt6::Core Qt6::Widgets
+       Qt6::NewModule  # ← Added here
+   )
+   ```
+
+3. **CRITICAL**: Add to `/.github/workflows/build.yml` Windows CI:
+   ```yaml
+   - name: Install Qt
+     uses: jurplel/install-qt-action@v4
+     with:
+       modules: 'qtwebsockets qthttpserver qtnewmodule'  # ← Added here
+   ```
+
+**Base modules** (always installed, don't need to be listed in CI):
+- Core, Gui, Widgets, Network, Sql, PrintSupport, Concurrent, Test, OpenGL, Xml
+
+**Additional modules** (MUST be explicitly listed in CI):
+- WebEngine, WebEngineWidgets, WebChannel, Positioning, WebSockets, HttpServer
+- Multimedia, Charts, 3D, etc.
+
+**Verification after adding:**
+```bash
+# Check CMakeLists.txt matches Windows CI
+grep -A 10 "find_package(Qt6 REQUIRED COMPONENTS" CMakeLists.txt
+grep "modules:" .github/workflows/build.yml
+```
+
+**Real example that broke CI:**
+- Added Qt WebEngineWidgets for map viewer in CMakeLists.txt
+- Forgot to add `qtwebengine qtwebchannel qtpositioning` to Windows CI
+- macOS build succeeded (all modules available), Windows failed
+- Fixed by adding modules to `install-qt-action` configuration
+
+This prevents confusion about which version is running.
+
 ## Version Management
 
-**CRITICAL**: The version number must be updated with every release commit.
+**CRITICAL**: The version number must be updated with every release commit IN TWO PLACES!
 
-Location: `/src/core/Constants.h`
-```cpp
-constexpr const char* APP_VERSION = "X.Y.Z";
-```
+Locations:
+1. **Application**: `/src/core/Constants.h`
+   ```cpp
+   constexpr const char* APP_VERSION = "X.Y.Z";
+   ```
+
+2. **Windows Installer**: `/installer/tr4qt.nsi`
+   ```nsis
+   !define APPVERSION "X.Y.Z"
+   ```
 
 Convention:
 - **Major (X)**: Major features or breaking changes
@@ -99,13 +162,24 @@ Convention:
 Update process:
 1. Increment version in Constants.h
 2. Update comment to describe the change
-3. Include version in commit message: "Feature description - vX.Y.Z"
-4. Rebuild: `cmake --build build`
+3. **Update version in tr4qt.nsi to match**
+4. Include version in commit message: "Feature description - vX.Y.Z"
+5. Rebuild: `cmake --build build`
 
-Example:
+Example (Constants.h):
 ```cpp
 constexpr const char* APP_VERSION = "2.58.0";  // Zone lookup from cty.dat, manual band selection fixes
 ```
+
+Example (tr4qt.nsi):
+```nsis
+!define APPVERSION "2.58.0"
+```
+
+**Why both files?**
+- Constants.h: Used by the running application for "About" dialog, window titles, etc.
+- tr4qt.nsi: Used by the Windows installer filename and registry entries
+- If they don't match, users get confused about which version they installed
 
 ## Build Process
 
