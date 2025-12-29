@@ -636,24 +636,24 @@ jobs:
 
             # Create desktop entry
             cat > appdir/usr/share/applications/tr4qt.desktop <<'DESKTOP_EOF'
-        [Desktop Entry]
-        Type=Application
-        Name=TR4QT
-        Comment=Amateur Radio Contest Logger
-        Exec=tr4qt
-        Icon=tr4qt
-        Categories=HamRadio;Network;
-        DESKTOP_EOF
+[Desktop Entry]
+Type=Application
+Name=TR4QT
+Comment=Amateur Radio Contest Logger
+Exec=tr4qt
+Icon=tr4qt
+Categories=HamRadio;Network;
+DESKTOP_EOF
 
             # Create AppRun script
             cat > appdir/AppRun <<'APPRUN_EOF'
-        #!/bin/bash
-        SELF=\$(readlink -f \"\$0\")
-        HERE=\${SELF%/*}
-        export LD_LIBRARY_PATH=\"\${HERE}/usr/lib:\$LD_LIBRARY_PATH\"
-        export QT_PLUGIN_PATH=\"\${HERE}/usr/plugins\"
-        exec \"\${HERE}/usr/bin/tr4qt\" \"\$@\"
-        APPRUN_EOF
+#!/bin/bash
+SELF=\$(readlink -f \"\$0\")
+HERE=\${SELF%/*}
+export LD_LIBRARY_PATH=\"\${HERE}/usr/lib:\$LD_LIBRARY_PATH\"
+export QT_PLUGIN_PATH=\"\${HERE}/usr/plugins\"
+exec \"\${HERE}/usr/bin/tr4qt\" \"\$@\"
+APPRUN_EOF
             chmod +x appdir/AppRun
 
             # Create AppImage using appimagetool
