@@ -178,8 +178,9 @@ if(APPLE)
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
-    # Windows: Build as GUI application (no console window)
-    add_executable(tr4qt WIN32
+    # Windows: Standard executable (console mode for Qt 6.10+ compatibility)
+    # Note: Qt 6.10.1 has issues with WIN32 flag and MinGW entry point
+    add_executable(tr4qt
         ${SOURCES}
         ${HEADERS}
         ../resources/resources.qrc
@@ -204,11 +205,8 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::Concurrent
 )
 
-# Windows: Link Qt6::EntryPoint for GUI applications (Qt 6.10+ compatibility)
-if(WIN32 AND TARGET Qt6::EntryPoint)
-    target_link_libraries(tr4qt PRIVATE Qt6::EntryPoint)
-    message(STATUS "Linking Qt6::EntryPoint for Windows GUI application")
-endif()
+# Note: Qt6::EntryPoint is not needed for console applications
+# Windows builds as console app due to Qt 6.10.1 MinGW compatibility issues
 
 # Link Hamlib (will be used when we add radio support)
 target_include_directories(tr4qt PRIVATE
