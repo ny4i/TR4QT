@@ -175,29 +175,32 @@ QMap<QString, QString> WinterFieldDayContest::parseReceivedExchange(const QStrin
 }
 
 int WinterFieldDayContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) const {
-    // Winter Field Day scoring rules (geographic):
-    // - Same country: 0 points (but counts as multiplier)
-    // - Different country, same continent (NA only): 2 points
-    // - Different country, same continent (non-NA): 1 point
-    // - Different continent: 3 points
+    Q_UNUSED(myStation);
 
-    // Same country check
-    if (qso.dxccEntity == myStation.country) {
-        return 0;  // Same country: 0 points (but counts as multiplier)
+    // Winter Field Day scoring rules (mode-based):
+    // - Phone (SSB, FM, AM): 1 point
+    // - CW: 2 points
+    // - Digital (RTTY, PSK, FT8, etc.): 2 points
+
+    switch (qso.mode) {
+        case ModeType::CW:
+            return 2;  // CW: 2 points
+
+        case ModeType::RTTY:
+        case ModeType::PSK:
+        case ModeType::FT8:
+        case ModeType::FT4:
+            return 2;  // Digital: 2 points
+
+        case ModeType::USB:
+        case ModeType::LSB:
+        case ModeType::FM:
+        case ModeType::AM:
+            return 1;  // Phone: 1 point
+
+        default:
+            return 1;  // Default to 1 point for unknown modes
     }
-
-    // Different country checks
-    if (qso.continent == myStation.continent) {
-        // Same continent
-        if (myStation.continent == "NA" || qso.continent == "NA") {
-            return 2;  // Different country, same continent (NA): 2 points
-        } else {
-            return 1;  // Different country, same continent (non-NA): 1 point
-        }
-    }
-
-    // Different continent
-    return 3;
 }
 
 int WinterFieldDayContest::calculateTotalScore(
