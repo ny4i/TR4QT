@@ -37,7 +37,6 @@ find_package(Qt6 REQUIRED COMPONENTS
     PrintSupport
     Concurrent
     Test
-    WebEngineWidgets
 )
 
 
