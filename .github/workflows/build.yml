@@ -385,9 +385,11 @@ jobs:
         codesign -s - -f tr4qt.app
 
         # Create DMG manually with hdiutil (macdeployqt -dmg breaks signatures)
+        # Extract version from Constants.h for filename
+        VERSION=$(grep 'APP_VERSION' ../../src/core/Constants.h | cut -d'"' -f2)
         mkdir -p dmg-contents
         cp -R tr4qt.app dmg-contents/
-        hdiutil create -volname "TR4QT" -srcfolder dmg-contents -ov -format UDZO tr4qt.dmg
+        hdiutil create -volname "TR4QT" -srcfolder dmg-contents -ov -format UDZO "TR4QT-${VERSION}-macOS.dmg"
         rm -rf dmg-contents
 
     - name: Verify App Bundle Contents
@@ -463,7 +465,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: TR4QT-macOS
-        path: build/src/tr4qt.dmg
+        path: build/src/TR4QT-*-macOS.dmg
 
     - name: Notify Slack - macOS Complete
       if: always()
