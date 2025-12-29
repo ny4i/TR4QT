@@ -874,7 +874,7 @@ void BandMapWidget::rebuildDisplayList() {
 
     sortSpots();
 
-    LOG_DEBUG("BandMapWidget", QString("rebuildDisplayList() filtered: m_displaySpots=%1 (from %2 total spots)")
+    LOG_TRACE("BandMapWidget", QString("rebuildDisplayList() filtered: m_displaySpots=%1 (from %2 total spots)")
         .arg(m_displaySpots.size()).arg(m_allSpots.size()));
 
     // Restore selection by callsign (keeps same spot selected after sort/filter)
