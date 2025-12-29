@@ -478,12 +478,12 @@ jobs:
         echo ""
         echo "=== Verifying bundled frameworks ==="
         MISSING_FILES=0
-        for framework in QtCore QtGui QtWidgets QtSql; do
-          if [ ! -d "tr4qt.app/Contents/Frameworks/Qt${framework}.framework" ]; then
-            echo "✗ ERROR: Missing Qt${framework}.framework"
+        for framework in Qt6Core Qt6Gui Qt6Widgets Qt6Sql; do
+          if [ ! -d "tr4qt.app/Contents/Frameworks/${framework}.framework" ]; then
+            echo "✗ ERROR: Missing ${framework}.framework"
             MISSING_FILES=$((MISSING_FILES + 1))
           else
-            echo "✓ Found Qt${framework}.framework"
+            echo "✓ Found ${framework}.framework"
           fi
         done
 
@@ -696,11 +696,17 @@ jobs:
 
             # Create AppImage using appimagetool
             echo '==> Creating AppImage...'
-            # Download ARM64 appimagetool (runs inside ARM64 Docker container)
+            # Download and extract appimagetool (avoids FUSE requirement)
             wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage
-            chmod +x appimagetool-aarch64.AppImage
-            # Extract and run directly (avoids FUSE requirement in Docker)
-            ./appimagetool-aarch64.AppImage --appimage-extract >/dev/null
+
+            # Extract the AppImage manually (--appimage-extract requires FUSE)
+            # Use unsquashfs instead
+            apt-get install -y squashfs-tools
+            OFFSET=\$(LANG=C grep -aobUP 'AI\\x02' appimagetool-aarch64.AppImage | tail -1 | cut -d: -f1)
+            dd if=appimagetool-aarch64.AppImage of=appimagetool.squashfs bs=1 skip=\$OFFSET 2>/dev/null
+            unsquashfs -d squashfs-root appimagetool.squashfs
+
+            # Run appimagetool from extracted directory
             ARCH=aarch64 ./squashfs-root/AppRun appdir TR4QT-ARM64.AppImage
 
             echo '==> Deployment complete'
