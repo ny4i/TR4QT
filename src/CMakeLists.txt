@@ -53,7 +53,7 @@ set(SOURCES
     logging/FileAppender.cpp
     logging/Logger.cpp
     ui/MainWindow.cpp
-    ui/MapViewerDialog.cpp
+    ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp
     ui/dialogs/RadioConfigDialog.cpp
     ui/dialogs/PreferencesDialog.cpp
@@ -193,7 +193,6 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::HttpServer
     Qt6::PrintSupport
     Qt6::Concurrent
-    Qt6::WebEngineWidgets
 )
 
 # Link Hamlib (will be used when we add radio support)
