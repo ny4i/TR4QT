@@ -69,6 +69,8 @@ private slots:
     void onShowRadioControl();
     void onShowMultipliers();
     void onShowStatistics();
+    void onShowSectionsMap();       // Show ARRL Sections map
+    void onShowStatesMap();         // Show US States map (WAS)
     void onSwapMultView();          // TODO: Implement swap multiplier view
     void onMissingMultsReport();    // TODO: Implement missing mults report
 

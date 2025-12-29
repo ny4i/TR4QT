@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARRL Sections Map</title>
+    <link rel="stylesheet" href="leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #fff;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        .header h1 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+        .header .info {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        .container {
+            display: flex;
+            height: calc(100vh - 80px);
+        }
+        #map {
+            flex: 1;
+            height: 100%;
+        }
+        .sidebar {
+            width: 300px;
+            background: #16213e;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.3);
+        }
+        .stats {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .stats h3 {
+            margin-bottom: 10px;
+            color: #ffd700;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .legend {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .legend h3 {
+            margin-bottom: 10px;
+            color: #ffd700;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+        .legend-color {
+            width: 30px;
+            height: 20px;
+            margin-right: 10px;
+            border: 1px solid #fff;
+            border-radius: 3px;
+        }
+        .worked-list {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .worked-list h3 {
+            margin-bottom: 10px;
+            color: #ffd700;
+            position: sticky;
+            top: 0;
+            background: #16213e;
+            padding: 5px 0;
+        }
+        .section-item {
+            padding: 5px;
+            margin: 3px 0;
+            background: rgba(255,255,255,0.05);
+            border-radius: 3px;
+        }
+        .controls {
+            text-align: center;
+            padding: 15px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        @media (max-width: 900px) {
+            .container { flex-direction: column; }
+            .sidebar { width: 100%; max-height: 300px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ARRL Sections Worked</h1>
+        <div class="info"><span id="header-info">Loading...</span></div>
+    </div>
+
+    <div class="container">
+        <div id="map"></div>
+
+        <div class="sidebar">
+            <div class="stats">
+                <h3>Statistics</h3>
+                <div class="stat-row">
+                    <span>Sections Worked:</span>
+                    <span id="sections-worked">0</span>
+                </div>
+                <div class="stat-row">
+                    <span>Total Sections:</span>
+                    <span>83</span>
+                </div>
+                <div class="stat-row">
+                    <span>Completion:</span>
+                    <span id="completion">0%</span>
+                </div>
+                <div class="stat-row">
+                    <span>Total QSOs:</span>
+                    <span id="total-qsos">0</span>
+                </div>
+            </div>
+
+            <div class="legend">
+                <h3>QSO Count Legend</h3>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #cccccc;"></div>
+                    <span>0 (Not Worked)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #3498db;"></div>
+                    <span>1 QSO</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #e74c3c;"></div>
+                    <span>2 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #0d5d0d;"></div>
+                    <span>3-9 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #137a13;"></div>
+                    <span>10-19 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #1a9e1a;"></div>
+                    <span>20-49 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #2ecc71;"></div>
+                    <span>50-99 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #5ed68f;"></div>
+                    <span>100-199 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #8ee0ad;"></div>
+                    <span>200-499 QSOs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #c8f0dc;"></div>
+                    <span>500+ QSOs</span>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn" onclick="refreshData()">Refresh Data</button>
+            </div>
+
+            <div class="worked-list">
+                <h3>Worked Sections</h3>
+                <div id="worked-sections-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="leaflet.js"></script>
+    <script src="qwebchannel.js"></script>
+    <script>
+        // Initialize map centered on USA
+        const map = L.map('map').setView([39.8, -98.6], 4);
+
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 18,
+        }).addTo(map);
+
+        // Store data
+        let workedSections = {};
+        let geoJsonLayer = null;
+        let sectionsGeoJSON = null;
+        let initialLoadComplete = false;
+        let bridge = null;  // QWebChannel bridge to C++
+
+        // Chloropleth color scheme
+        function getColorForCount(count) {
+            if (count === 0) return '#cccccc';      // Gray - not worked
+            if (count === 1) return '#3498db';      // Blue - first contact
+            if (count === 2) return '#e74c3c';      // Red - second contact
+            if (count <= 9) return '#0d5d0d';       // Dark green - 3-9
+            if (count <= 19) return '#137a13';      // Green - 10-19
+            if (count <= 49) return '#1a9e1a';      // Medium green - 20-49
+            if (count <= 99) return '#2ecc71';      // Bright green - 50-99
+            if (count <= 199) return '#5ed68f';     // Light green - 100-199
+            if (count <= 499) return '#8ee0ad';     // Lighter green - 200-499
+            return '#c8f0dc';                        // Very light green - 500+
+        }
+
+        function styleFeature(feature) {
+            const section = feature.properties.section;
+            const count = workedSections[section] || 0;
+
+            return {
+                fillColor: getColorForCount(count),
+                weight: 1,
+                opacity: 1,
+                color: '#ffffff',
+                fillOpacity: 0.7
+            };
+        }
+
+        function onEachFeature(feature, layer) {
+            const section = feature.properties.section;
+            const count = workedSections[section] || 0;
+
+            layer.bindPopup(`
+                <b>${section}</b><br>
+                QSOs: ${count}<br>
+                Status: ${count > 0 ? 'Worked' : 'Not Worked'}
+            `);
+
+            // Highlight on hover
+            layer.on('mouseover', function() {
+                this.setStyle({
+                    weight: 3,
+                    color: '#ffff00',
+                    fillOpacity: 0.85
+                });
+            });
+
+            layer.on('mouseout', function() {
+                geoJsonLayer.resetStyle(this);
+            });
+        }
+
+        function loadGeoJSON(callback) {
+            if (!bridge) {
+                console.error('Bridge not available');
+                callback(false);
+                return;
+            }
+
+            // QWebChannel methods are async, use callback
+            bridge.getSectionsGeoJSON(function(geoJSONString) {
+                try {
+                    sectionsGeoJSON = JSON.parse(geoJSONString);
+                    console.log(`Loaded ${sectionsGeoJSON.features.length} section polygons`);
+                    callback(true);
+                } catch (error) {
+                    console.error('Failed to load GeoJSON:', error);
+                    callback(false);
+                }
+            });
+        }
+
+        function renderSectionPolygons() {
+            if (!sectionsGeoJSON) {
+                console.error('GeoJSON data not loaded');
+                return;
+            }
+
+            // Remove existing layer if present
+            if (geoJsonLayer) {
+                map.removeLayer(geoJsonLayer);
+            }
+
+            // Add GeoJSON layer with styling
+            geoJsonLayer = L.geoJSON(sectionsGeoJSON, {
+                style: styleFeature,
+                onEachFeature: onEachFeature
+            }).addTo(map);
+
+            // Only fit bounds on initial load - preserve user's zoom/pan on refresh
+            if (!initialLoadComplete && geoJsonLayer.getBounds().isValid()) {
+                map.fitBounds(geoJsonLayer.getBounds(), { padding: [20, 20] });
+                initialLoadComplete = true;
+            }
+        }
+
+        function updateMapWithData(data) {
+            // Convert array to map
+            workedSections = {};
+            data.sections.forEach(section => {
+                workedSections[section.section] = section.count;
+            });
+
+            // Update UI
+            updateStats(data);
+            updateWorkedList(data.sections);
+
+            // Re-render polygons with new data
+            if (sectionsGeoJSON) {
+                renderSectionPolygons();
+            }
+        }
+
+        function updateStats(data) {
+            document.getElementById('sections-worked').textContent = data.totalSections;
+            document.getElementById('total-qsos').textContent = data.totalQsos;
+            const completion = ((data.totalSections / 83) * 100).toFixed(1);
+            document.getElementById('completion').textContent = completion + '%';
+        }
+
+        function updateWorkedList(sections) {
+            const listEl = document.getElementById('worked-sections-list');
+
+            if (sections.length === 0) {
+                listEl.innerHTML = '<div style="opacity: 0.6; text-align: center; padding: 20px;">No sections worked yet</div>';
+                return;
+            }
+
+            // Sort by count descending
+            sections.sort((a, b) => b.count - a.count);
+
+            listEl.innerHTML = sections.map(s => `
+                <div class="section-item">
+                    <strong>${s.section}</strong>: ${s.count} QSO${s.count !== 1 ? 's' : ''}
+                </div>
+            `).join('');
+        }
+
+        function refreshData() {
+            if (bridge) {
+                bridge.requestSectionsData();
+            }
+        }
+
+        // Initialize QWebChannel connection to C++
+        new QWebChannel(qt.webChannelTransport, function(channel) {
+            bridge = channel.objects.bridge;
+
+            // Set up header info (callsign, operator, contest)
+            document.getElementById('header-info').textContent =
+                `Callsign: ${bridge.callsign} | Operator: ${bridge.operatorName} | Contest: ${bridge.contestName}`;
+
+            // Load GeoJSON from C++ (bridge is now available)
+            loadGeoJSON(function(success) {
+                if (!success) {
+                    console.error('Failed to load GeoJSON');
+                    return;
+                }
+
+                // Request initial QSO data (after GeoJSON loaded)
+                bridge.requestSectionsData();
+
+                // Listen for data updates from C++
+                bridge.sectionsDataChanged.connect(function(jsonData) {
+                    const data = JSON.parse(jsonData);
+                    updateMapWithData(data);
+                });
+
+                console.log('QWebChannel bridge connected, GeoJSON loaded');
+            });
+        });
+    </script>
+</body>
+</html>

@@ -11,6 +11,7 @@
 #include "widgets/RadioControlWidget.h"
 #include "widgets/MultiplierWidget.h"
 #include "widgets/StatisticsWindow.h"
+#include "MapViewerDialog.h"
 #include "../network/UdpBroadcastManager.h"
 #include "../network/WebServer.h"
 #include "../core/Constants.h"
@@ -459,6 +460,12 @@ void MainWindow::createMenuBar() {
 
     QAction* statisticsAction = windowMenu->addAction("&Statistics");
     connect(statisticsAction, &QAction::triggered, this, &MainWindow::onShowStatistics);
+
+    QAction* sectionsMapAction = windowMenu->addAction("S&ections Map");
+    connect(sectionsMapAction, &QAction::triggered, this, &MainWindow::onShowSectionsMap);
+
+    QAction* statesMapAction = windowMenu->addAction("St&ates Map (WAS)");
+    connect(statesMapAction, &QAction::triggered, this, &MainWindow::onShowStatesMap);
 
     windowMenu->addSeparator();
 
@@ -3840,6 +3847,22 @@ void MainWindow::onShowStatistics() {
     m_statisticsWindow->show();
     m_statisticsWindow->raise();
     m_statisticsWindow->activateWindow();
+}
+
+void MainWindow::onShowSectionsMap() {
+    // Create and show ARRL Sections map dialog
+    // Dialog is self-contained and handles all map logic
+    auto* dialog = new MapViewerDialog(MapViewerDialog::Sections, m_qsoTableModel, this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);  // Auto-cleanup when closed
+    dialog->show();
+}
+
+void MainWindow::onShowStatesMap() {
+    // Create and show US States map dialog (WAS tracking)
+    // Dialog is self-contained and handles all map logic
+    auto* dialog = new MapViewerDialog(MapViewerDialog::States, m_qsoTableModel, this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);  // Auto-cleanup when closed
+    dialog->show();
 }
 
 // Window menu placeholder implementations
