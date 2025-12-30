@@ -16,6 +16,7 @@ function(add_tr4qt_test test_name)
         Qt6::Widgets
         Qt6::Sql
         Qt6::Network
+        Qt6::Concurrent
     )
 
     # Add source directory to include path so tests can access source headers
