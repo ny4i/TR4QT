@@ -2,6 +2,7 @@
 #include "ContestRegistry.h"
 #include "ContestMetadata.h"
 #include "../models/QSO.h"
+#include "RSTValidator.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
@@ -60,7 +61,7 @@ QList<ExchangeField> CQWPXContest::getReceivedExchangeFields() const {
     // RST (auto-filled based on mode)
     ExchangeField rstField;
     rstField.name = "RST";
-    rstField.hint = (m_mode == ModeType::CW) ? "599" : "59";
+    rstField.hint = RSTValidator::getDefault(m_mode);
     rstField.autoFill = true;
     rstField.maxLength = 3;
     fields.append(rstField);
@@ -82,7 +83,7 @@ QList<ExchangeField> CQWPXContest::getSentExchangeFields() const {
     // RST (auto-filled based on mode)
     ExchangeField rstField;
     rstField.name = "RST";
-    rstField.hint = (m_mode == ModeType::CW) ? "599" : "59";
+    rstField.hint = RSTValidator::getDefault(m_mode);
     rstField.autoFill = true;
     rstField.maxLength = 3;
     fields.append(rstField);
@@ -109,23 +110,6 @@ QString CQWPXContest::formatSentExchange(int serialNumber, const QString& rst) c
     return QString("%1 %2").arg(rst).arg(serialNumber, 3, 10, QChar('0'));
 }
 
-bool CQWPXContest::isValidRST(const QString& rst, ModeType mode) {
-    // RST pattern: [1-5][1-9][1-9]*
-    // - First digit: 1-5 (Readability)
-    // - Second digit: 1-9 (Strength)
-    // - Third digit: 1-9 (Tone) - required for CW, optional for SSB/AM/FM
-
-    if (mode == ModeType::CW || mode == ModeType::CWR) {
-        // CW: Must be exactly 3 digits (e.g., 599, 579, 339)
-        QRegularExpression re("^[1-5][1-9][1-9]$");
-        return re.match(rst).hasMatch();
-    } else {
-        // SSB/AM/FM: 2 or 3 digits (e.g., 59, 57, 599)
-        QRegularExpression re("^[1-5][1-9][1-9]?$");
-        return re.match(rst).hasMatch();
-    }
-}
-
 bool CQWPXContest::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
@@ -145,8 +129,8 @@ bool CQWPXContest::validateReceivedExchange(const QString& exchange, QString& er
         QString first = parts[0];
         QString second = parts[1];
 
-        bool firstIsRST = isValidRST(first, m_mode);
-        bool secondIsRST = isValidRST(second, m_mode);
+        bool firstIsRST = RSTValidator::isValid(first, m_mode);
+        bool secondIsRST = RSTValidator::isValid(second, m_mode);
 
         if (firstIsRST && !secondIsRST) {
             // First is RST, second is serial (e.g., "599 3")
@@ -194,15 +178,15 @@ QMap<QString, QString> CQWPXContest::parseReceivedExchange(const QString& exchan
 
     if (parts.size() == 1) {
         // Only serial provided - auto-fill RST based on mode
-        result["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
+        result["RST"] = RSTValidator::getDefault(m_mode);
         result["Serial"] = parts[0];
     } else if (parts.size() >= 2) {
         // Two fields: detect which is RST and which is Serial (order-agnostic)
         QString first = parts[0];
         QString second = parts[1];
 
-        bool firstIsRST = isValidRST(first, m_mode);
-        bool secondIsRST = isValidRST(second, m_mode);
+        bool firstIsRST = RSTValidator::isValid(first, m_mode);
+        bool secondIsRST = RSTValidator::isValid(second, m_mode);
 
         if (firstIsRST && !secondIsRST) {
             // First is RST, second is serial (e.g., "599 3")
@@ -218,7 +202,7 @@ QMap<QString, QString> CQWPXContest::parseReceivedExchange(const QString& exchan
             result["Serial"] = second;
         } else {
             // Neither is valid RST - use defaults
-            result["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
+            result["RST"] = RSTValidator::getDefault(m_mode);
             result["Serial"] = first;  // Assume first is serial
         }
     }

@@ -99,14 +99,6 @@ public:
      */
     static QString extractPrefix(const QString& callsign);
 
-    /**
-     * Validate RST format
-     * Pattern: [1-5][1-9][1-9]*
-     * - CW: Must be 3 digits (e.g., 599, 579)
-     * - SSB/AM/FM: 2 or 3 digits (e.g., 59, 57)
-     */
-    static bool isValidRST(const QString& rst, ModeType mode);
-
 private:
     ModeType m_mode;  // CW or SSB
 };
