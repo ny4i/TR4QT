@@ -1,4 +1,5 @@
 #include "CountryFile.h"
+#include "../models/QSO.h"
 #include "../data/DXCCRepository.h"
 #include "../logging/LogMacros.h"
 #include <QFile>
@@ -137,18 +138,96 @@ bool CountryFile::parseMainLine(const QString& line, CountryData& country) {
 // Based on ADIF specification: https://adif.org.uk/316/ADIF_316.htm#DXCC_Entity_Code_Enumeration
 int CountryFile::getDXCCEntityCode(const QString& countryName) {
     // CTY.DAT uses different country names than ADIF spec
-    // Map common CTY.DAT names to ADIF names
-    static QMap<QString, QString> ctyToAdifNames;
-    if (ctyToAdifNames.isEmpty()) {
-        ctyToAdifNames["United States"] = "UNITED STATES OF AMERICA";
-        ctyToAdifNames["Hawaii"] = "HAWAII";
-        ctyToAdifNames["Alaska"] = "ALASKA";
-        ctyToAdifNames["Canada"] = "CANADA";
-        // Add more mappings as needed
+    // Try multiple strategies to find the correct DXCC entity code
+
+    DXCCRepository& dxccRepo = DXCCRepository::instance();
+
+    // Strategy 1: Try exact match (rare, but fast)
+    int code = dxccRepo.getEntityCode(countryName);
+    if (code > 0) {
+        return code;
     }
 
-    QString adifName = ctyToAdifNames.value(countryName, countryName);
-    return DXCCRepository::instance().getEntityCode(adifName);
+    // Strategy 2: Try uppercase match (ADIF uses all caps)
+    code = dxccRepo.getEntityCode(countryName.toUpper());
+    if (code > 0) {
+        return code;
+    }
+
+    // Strategy 3: Try expanding abbreviations first
+    QString expandedName = countryName.toUpper();
+
+    // Expand common abbreviations used in CTY.DAT
+    if (expandedName.startsWith("FED. REP. OF ")) {
+        expandedName.replace("FED. REP. OF ", "FEDERAL REPUBLIC OF ");
+    } else if (expandedName.startsWith("DEM. REP. OF ")) {
+        expandedName.replace("DEM. REP. OF ", "DEMOCRATIC REPUBLIC OF ");
+    } else if (expandedName.startsWith("DPR OF ")) {
+        // "DPR of Korea" → "DEMOCRATIC PEOPLE'S REP. OF KOREA"
+        expandedName.replace("DPR OF ", "DEMOCRATIC PEOPLE'S REP. OF ");
+    } else if (expandedName.startsWith("REP. OF ")) {
+        expandedName.replace("REP. OF ", "REPUBLIC OF ");
+    }
+
+    code = dxccRepo.getEntityCode(expandedName);
+    if (code > 0) {
+        return code;
+    }
+
+    // Strategy 4: Try fuzzy match - strip common prefixes/suffixes
+    // Remove common political designations that differ between CTY.DAT and ADIF
+    QString fuzzyName = countryName.toUpper();
+
+    // Remove common prefixes
+    QStringList prefixesToRemove = {
+        "FED. REP. OF ",
+        "DEM. REP. OF THE ",
+        "DEM. REP. OF ",
+        "DEMOCRATIC REPUBLIC OF THE ",
+        "DEMOCRATIC REPUBLIC OF ",
+        "REPUBLIC OF THE ",
+        "REPUBLIC OF ",
+        "PEOPLE'S REP. OF ",
+        "PEOPLE'S REPUBLIC OF ",
+        "ISLAMIC REP. OF ",
+        "ISLAMIC REPUBLIC OF ",
+        "KINGDOM OF ",
+        "STATE OF ",
+        "TERRITORY OF ",
+        "THE "
+    };
+
+    for (const QString& prefix : prefixesToRemove) {
+        if (fuzzyName.startsWith(prefix)) {
+            fuzzyName = fuzzyName.mid(prefix.length());
+            code = dxccRepo.getEntityCode(fuzzyName);
+            if (code > 0) {
+                return code;
+            }
+        }
+    }
+
+    // Strategy 5: Try a few common known mappings that don't fit the pattern
+    static QMap<QString, QString> specialCases;
+    if (specialCases.isEmpty()) {
+        specialCases["UNITED STATES"] = "UNITED STATES OF AMERICA";
+        specialCases["HAWAII"] = "HAWAII";
+        specialCases["ALASKA"] = "ALASKA";
+        specialCases["CANADA"] = "CANADA";
+        // Add other special cases as discovered
+    }
+
+    QString upperName = countryName.toUpper();
+    if (specialCases.contains(upperName)) {
+        code = dxccRepo.getEntityCode(specialCases[upperName]);
+        if (code > 0) {
+            return code;
+        }
+    }
+
+    // Not found - log warning for manual investigation
+    LOG_WARN("CountryFile", QString("No DXCC code found for country: '%1' (tried exact, uppercase, and fuzzy matching)").arg(countryName));
+    return 0;
 }
 
 void CountryFile::parseAliases(const QStringList& aliasLines, CountryData& country) {
@@ -423,6 +502,37 @@ QVector<CountryData> CountryFile::getAllCountries() const {
         countries.append(country);
     }
     return countries;
+}
+
+QStringList CountryFile::getAllPrimaryPrefixes() const {
+    // Shared lock for reading - multiple readers can run concurrently
+    QReadLocker locker(&m_lock);
+
+    // m_countries key is the primary prefix
+    QStringList prefixes = m_countries.keys();
+    prefixes.sort();
+    return prefixes;
+}
+
+void CountryFile::populateQSODXCCFields(QSO& qso) const {
+    if (qso.callsign.isEmpty()) {
+        return;
+    }
+
+    CountryData countryData = lookup(qso.callsign);
+
+    if (!countryData.isValid()) {
+        return;
+    }
+
+    // Populate all DXCC-related fields
+    // This is the SINGLE source of truth for DXCC data population
+    qso.dxccEntity = countryData.name;
+    qso.dxccEntityCode = countryData.dxccEntity;
+    qso.dxccPrefix = countryData.primaryPrefix;  // Always use PRIMARY prefix (e.g., "F" not "TM6")
+    qso.continent = continentToString(countryData.continent);
+    qso.cqZone = countryData.cqZone;
+    qso.ituZone = countryData.ituZone;
 }
 
 } // namespace TR4QT

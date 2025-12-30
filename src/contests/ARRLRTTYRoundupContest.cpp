@@ -3,6 +3,7 @@
 #include "ContestMetadata.h"
 #include "../models/QSO.h"
 #include "../utils/ArrlSectionHelper.h"
+#include "../utils/CountryFile.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
@@ -214,10 +215,13 @@ QString ARRLRTTYRoundupContest::getMultiplierValue(
         }
     } else if (multType == MultiplierType::Country) {
         // DX countries (not US or Canada)
-        QString dxcc = qso.dxccPrefix;
-        if (!dxcc.isEmpty() && dxcc != "K" && dxcc != "VE" &&
-            !alreadyWorkedValues.contains(dxcc)) {
-            value = dxcc;
+        // Use dxccPrefix which should be the primary DXCC prefix (e.g., "I", "HB", "PY")
+        // Entity code ensures proper country identification (exclude US=291, Canada=1)
+        if (qso.dxccEntityCode > 0 &&
+            qso.dxccEntityCode != 291 && qso.dxccEntityCode != 1 &&
+            !qso.dxccPrefix.isEmpty() &&
+            !alreadyWorkedValues.contains(qso.dxccPrefix)) {
+            value = qso.dxccPrefix;
         }
     }
 

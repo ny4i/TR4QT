@@ -177,20 +177,23 @@ if(APPLE)
     )
 
     # Set macOS bundle properties
+    # IMPORTANT: Update version here AND in src/core/Constants.h AND installer/tr4qt.nsi
     set_target_properties(tr4qt PROPERTIES
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "2.13.0"
-        MACOSX_BUNDLE_BUNDLE_VERSION "2.13.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.8.1"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.8.1"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
     # Windows: Build as GUI application (no console window)
+    # Include resource file for version information and manifest
     add_executable(tr4qt WIN32
         ${SOURCES}
         ${HEADERS}
         ../resources/resources.qrc
+        ../resources/tr4qt.rc
     )
 else()
     # Linux: Standard executable

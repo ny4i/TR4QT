@@ -1912,20 +1912,15 @@ void MainWindow::onLogQSO() {
     }
 
     // Lookup country/zone from cty.dat
-    CountryData countryData = m_countryFile.lookup(callsign);
-    if (countryData.isValid()) {
-        qso.cqZone = countryData.cqZone;
-        qso.ituZone = countryData.ituZone;
-        qso.dxccEntity = countryData.name;
-        qso.dxccPrefix = countryData.primaryPrefix;
-        qso.dxccEntityCode = countryData.dxccEntity;  // ADIF DXCC Entity Code
-        qso.continent = continentToString(countryData.continent);
+    // Populate all DXCC fields using centralized function (single source of truth)
+    m_countryFile.populateQSODXCCFields(qso);
 
+    if (!qso.dxccEntity.isEmpty()) {
         LOG_DEBUG("MainWindow", QString("Looked up %1: %2 (Zone %3, %4)")
             .arg(callsign)
-            .arg(countryData.name)
-            .arg(countryData.cqZone)
-            .arg(continentToString(countryData.continent)));
+            .arg(qso.dxccEntity)
+            .arg(qso.cqZone)
+            .arg(qso.continent));
     } else {
         LOG_WARN("MainWindow", QString("Country lookup failed for callsign: %1").arg(callsign));
     }
@@ -2019,12 +2014,23 @@ void MainWindow::onLogQSO() {
     // Update band summary grid with new scores
     updateScoreDisplay();
 
-    // Update multiplier window if it exists and has section data
-    if (m_multiplierWindow && !qso.arrlSection.isEmpty()) {
-        m_multiplierWindow->setMultiplierWorked(qso.arrlSection, qso.band);
-        LOG_DEBUG("MainWindow", QString("Updated multiplier window: %1 on %2")
-            .arg(qso.arrlSection)
-            .arg(bandToString(qso.band)));
+    // Update multiplier window based on contest's primary multiplier type
+    if (m_multiplierWindow && m_activeContest) {
+        QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
+        if (!multDefs.isEmpty()) {
+            MultiplierType primaryMultType = multDefs.first().type;
+
+            // Use contest's getMultiplierValue() method which has contest-specific
+            // filtering logic (e.g., RTTY Roundup excludes US/Canada from countries)
+            QString multValue = m_activeContest->getMultiplierValue(qso, primaryMultType, QStringList());
+
+            if (!multValue.isEmpty()) {
+                m_multiplierWindow->setMultiplierWorked(multValue, qso.band);
+                LOG_DEBUG("MainWindow", QString("Updated multiplier window: %1 on %2")
+                    .arg(multValue)
+                    .arg(bandToString(qso.band)));
+            }
+        }
     }
 
     // Scroll to show the newly logged QSO
@@ -2886,13 +2892,28 @@ RescoreStats MainWindow::rescoreContestSilent() {
     updateScoreDisplay();
 
     // Rebuild multiplier window from all QSOs
-    if (m_multiplierWindow) {
+    // Update based on contest's primary multiplier type
+    if (m_multiplierWindow && m_activeContest) {
         m_multiplierWindow->clear();
-        for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-            QSO qso = m_qsoTableModel->getQSO(row);
-            if (!qso.arrlSection.isEmpty()) {
-                m_multiplierWindow->setMultiplierWorked(qso.arrlSection, qso.band);
+
+        QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
+        if (!multDefs.isEmpty()) {
+            MultiplierType primaryMultType = multDefs.first().type;
+
+            for (int row = 0; row < m_qsoTableModel->count(); ++row) {
+                QSO qso = m_qsoTableModel->getQSO(row);
+
+                // Use contest's getMultiplierValue() method which has contest-specific
+                // filtering logic (e.g., RTTY Roundup excludes US/Canada from countries)
+                QString multValue = m_activeContest->getMultiplierValue(qso, primaryMultType, QStringList());
+
+                if (!multValue.isEmpty()) {
+                    m_multiplierWindow->setMultiplierWorked(multValue, qso.band);
+                }
             }
+
+            LOG_DEBUG("MainWindow", QString("Updated multiplier window with worked %1 multipliers")
+                .arg(multDefs.first().displayName));
         }
     }
 
@@ -3531,12 +3552,10 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
 
         for (QSO& qso : existingQSOs) {
             m_qsoTableModel->addQSO(qso);
-
-            // Update multiplier window with existing sections
-            if (m_multiplierWindow && !qso.arrlSection.isEmpty()) {
-                m_multiplierWindow->setMultiplierWorked(qso.arrlSection, qso.band);
-            }
         }
+
+        // Note: Multiplier window will be updated after contest is activated
+        // and we know the contest's multiplier types
         LOG_DEBUG("MainWindow", QString("Loaded %1 existing QSOs").arg(existingQSOs.size()));
 
         // Calculate next serial number from loaded QSOs (for contests that use serial numbers)
@@ -3652,6 +3671,28 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         m_webServer->setUsesModeGroupBreakdown(usesModeGroups);
     }
 
+    // Configure multiplier window to show contest-specific multipliers
+    if (m_multiplierWindow) {
+        QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
+        if (!multDefs.isEmpty()) {
+            // Set to the first (primary) multiplier type
+            // For contests with multiple types (like RTTY Roundup: State + Country),
+            // the window will show the first type. Future enhancement: tabs or multiple views.
+            m_multiplierWindow->setMultiplierType(multDefs.first().type);
+
+            // For Country type, load the list from CountryFile instead of hardcoded
+            if (multDefs.first().type == MultiplierType::Country) {
+                m_multiplierWindow->setCountryList(m_countryFile.getAllPrimaryPrefixes());
+            }
+
+            LOG_DEBUG("MainWindow", QString("Set multiplier window to type: %1")
+                .arg(multDefs.first().displayName));
+        } else {
+            // Default to sections if contest doesn't define multipliers
+            m_multiplierWindow->setMultiplierType(MultiplierType::Section);
+        }
+    }
+
     // Update window title to include contest name
     setWindowTitle(QString("%1 v%2 - %3")
                       .arg(APP_NAME)
@@ -3688,6 +3729,29 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     // Must be called after m_activeContest is created
     if (m_qsoTableModel->count() > 0) {
         recalculateAllPoints();
+    }
+
+    // Update multiplier window with all loaded QSOs (must be after contest is created)
+    if (m_multiplierWindow && m_activeContest && m_qsoTableModel->count() > 0) {
+        QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
+        if (!multDefs.isEmpty()) {
+            MultiplierType primaryMultType = multDefs.first().type;
+
+            for (int row = 0; row < m_qsoTableModel->count(); ++row) {
+                QSO qso = m_qsoTableModel->getQSO(row);
+
+                // Use contest's getMultiplierValue() method which has contest-specific
+                // filtering logic (e.g., RTTY Roundup excludes US/Canada from countries)
+                QString multValue = m_activeContest->getMultiplierValue(qso, primaryMultType, QStringList());
+
+                if (!multValue.isEmpty()) {
+                    m_multiplierWindow->setMultiplierWorked(multValue, qso.band);
+                }
+            }
+
+            LOG_DEBUG("MainWindow", QString("Loaded %1 worked multipliers into multiplier window")
+                .arg(m_qsoTableModel->count()));
+        }
     }
 
     // Update exchange fields for this contest
@@ -3888,9 +3952,12 @@ QString MainWindow::getMultiplierValueForCallsign(const QString& callsign) const
         return QString();
     }
 
-    // Use country file to lookup the callsign
-    CountryData countryData = m_countryFile.lookup(callsign);
-    if (!countryData.isValid()) {
+    // Build a temporary QSO and populate DXCC fields using centralized function
+    QSO tempQso;
+    tempQso.callsign = callsign;
+    m_countryFile.populateQSODXCCFields(tempQso);
+
+    if (tempQso.dxccEntity.isEmpty()) {
         return QString();
     }
 
@@ -3903,14 +3970,6 @@ QString MainWindow::getMultiplierValueForCallsign(const QString& callsign) const
     // For now, use the first multiplier type
     // Most contests have Country or Zone as primary multiplier
     MultiplierType primaryMultType = multDefs.first().type;
-
-    // Build a temporary QSO just to get the multiplier value
-    QSO tempQso;
-    tempQso.callsign = callsign;
-    tempQso.dxccEntity = countryData.name;
-    tempQso.cqZone = countryData.cqZone;
-    tempQso.ituZone = countryData.ituZone;
-    tempQso.continent = continentToString(countryData.continent);
 
     // Get the multiplier value
     QString multValue = m_activeContest->getMultiplierValue(
