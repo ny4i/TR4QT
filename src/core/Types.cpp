@@ -147,4 +147,26 @@ unsigned long bandToBaseFrequency(BandType band) {
     }
 }
 
+BandType frequencyToBand(unsigned long frequencyHz) {
+    // Convert frequency in Hz to BandType
+    // Uses standard amateur radio band allocations
+
+    if (frequencyHz >= 1800000 && frequencyHz <= 2000000) return BandType::Band160M;
+    if (frequencyHz >= 3500000 && frequencyHz <= 4000000) return BandType::Band80M;
+    if (frequencyHz >= 5330000 && frequencyHz <= 5405000) return BandType::Band60M;
+    if (frequencyHz >= 7000000 && frequencyHz <= 7300000) return BandType::Band40M;
+    if (frequencyHz >= 10100000 && frequencyHz <= 10150000) return BandType::Band30M;
+    if (frequencyHz >= 14000000 && frequencyHz <= 14350000) return BandType::Band20M;
+    if (frequencyHz >= 18068000 && frequencyHz <= 18168000) return BandType::Band17M;
+    if (frequencyHz >= 21000000 && frequencyHz <= 21450000) return BandType::Band15M;
+    if (frequencyHz >= 24890000 && frequencyHz <= 24990000) return BandType::Band12M;
+    if (frequencyHz >= 28000000 && frequencyHz <= 29700000) return BandType::Band10M;
+    if (frequencyHz >= 50000000 && frequencyHz <= 54000000) return BandType::Band6M;
+    if (frequencyHz >= 70000000 && frequencyHz <= 71000000) return BandType::Band4M;
+    if (frequencyHz >= 144000000 && frequencyHz <= 148000000) return BandType::Band2M;
+    if (frequencyHz >= 420000000 && frequencyHz <= 450000000) return BandType::Band70CM;
+
+    return BandType::None;
+}
+
 } // namespace TR4QT

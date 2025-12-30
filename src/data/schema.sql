@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS qsos (
     -- Frequency/Mode/Band
     frequency INTEGER NOT NULL,         -- Frequency in Hz
     mode TEXT NOT NULL,                 -- Mode (CW, SSB, etc.)
+    submode TEXT,                       -- ADIF SUBMODE (e.g., "FT4" when mode is MFSK)
     band TEXT NOT NULL,                 -- Band (160M, 80M, etc.)
 
     -- Exchange

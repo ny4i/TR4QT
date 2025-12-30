@@ -139,6 +139,71 @@ grep "modules:" .github/workflows/build.yml
 
 This prevents confusion about which version is running.
 
+### Check for Existing Data Before Loading/Creating
+
+**CRITICAL**: Before loading data from files or creating new instances, ALWAYS check if the data already exists in the application.
+
+**The Problem**:
+- Loading duplicate copies of data wastes memory
+- Creates synchronization issues (which copy is authoritative?)
+- Can cause race conditions if one copy is updated
+- Violates Single Source of Truth principle
+
+**Examples of what to check**:
+- ✅ Does MainWindow already have `m_countryFile` loaded?
+- ✅ Is there a GlobalDatabase with DXCC entities?
+- ✅ Does a singleton already exist for this data?
+- ✅ Can I get a pointer/reference to existing data?
+
+**Bad Pattern** (what NOT to do):
+```cpp
+// ADIFImportDialog.cpp
+void ADIFImportDialog::onImportClicked() {
+    // ❌ BAD: Loading own copy of cty.dat from filesystem
+    CountryFile countryFile;
+    countryFile.loadFromFile("~/.tr4qt/cty.dat");
+
+    // ❌ Creates duplicate, wastes memory, no sync with MainWindow's copy
+}
+```
+
+**Good Pattern** (what TO do):
+```cpp
+// ADIFImportDialog.h
+class ADIFImportDialog : public QDialog {
+public:
+    // ✅ GOOD: Receive pointer to existing data
+    ADIFImportDialog(CountryFile* countryFile, QWidget* parent);
+
+private:
+    CountryFile* m_countryFile;  // Pointer to MainWindow's CountryFile
+};
+
+// Usage in MainWindow
+ADIFImportDialog dialog(&m_countryFile, this);
+```
+
+**Checklist before loading/creating data**:
+1. Search codebase for existing instances (`grep -r "CountryFile m_"`)
+2. Check for singletons (`SomeClass::instance()`)
+3. Check GlobalDatabase for tables with the data
+4. Ask: "Who is the authoritative owner of this data?"
+5. Pass pointer/reference instead of creating duplicate
+
+**Real-world example**:
+- **Issue**: ADIFImportDialog was loading cty.dat from filesystem
+- **Problem**: MainWindow already had `m_countryFile` loaded
+- **Fix**: Pass `&m_countryFile` to dialog constructor
+- **Benefit**: No duplicate load, always uses same data, no sync issues
+
+**Why this matters**:
+- Thread safety: Multiple copies can get out of sync during reload
+- Memory efficiency: Large files (like cty.dat) shouldn't be duplicated
+- Single Source of Truth: One authoritative copy prevents conflicts
+- Performance: Loading from disk is slow, reuse what's in memory
+
+**This principle applies to ALL projects, not just TR4QT.**
+
 ## Version Management
 
 **CRITICAL**: The version number must be updated with every release commit IN TWO PLACES!

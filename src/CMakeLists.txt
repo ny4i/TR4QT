@@ -36,6 +36,9 @@ set(SOURCES
     data/DXCCRepository.cpp
     exchanges/InitialExchangeManager.cpp
     exchanges/SmartExchangeParser.cpp
+    importers/ADIFParser.cpp
+    importers/ADIFFieldMapper.cpp
+    importers/ADIFImporter.cpp
     cw/HamlibCWSender.cpp
     cw/CWSenderFactory.cpp
     contests/ARRLDXContest.cpp
@@ -64,6 +67,7 @@ set(SOURCES
     ui/dialogs/ExportPreviewDialog.cpp
     ui/dialogs/SendMorseDialog.cpp
     ui/dialogs/MacroEditDialog.cpp
+    ui/dialogs/ADIFImportDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
     ui/widgets/RadioControlWidget.cpp
@@ -112,6 +116,9 @@ set(HEADERS
     data/DXCCRepository.h
     exchanges/InitialExchangeManager.h
     exchanges/SmartExchangeParser.h
+    importers/ADIFParser.h
+    importers/ADIFFieldMapper.h
+    importers/ADIFImporter.h
     cw/CWSender.h
     cw/HamlibCWSender.h
     cw/CWSenderFactory.h
@@ -145,6 +152,7 @@ set(HEADERS
     ui/dialogs/ExportPreviewDialog.h
     ui/dialogs/SendMorseDialog.h
     ui/dialogs/MacroEditDialog.h
+    ui/dialogs/ADIFImportDialog.h
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
     ui/widgets/RadioControlWidget.h

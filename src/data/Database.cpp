@@ -483,6 +483,31 @@ bool Database::migrateSchema() {
         LOG_INFO("Database", "Note: IOTA references will be populated from exchange data in IOTA contest");
     }
 
+    // Migration 5: Add submode column to qsos table (v3.9.0)
+    query.exec("PRAGMA table_info(qsos)");
+    bool hasSubmodeColumn = false;
+    while (query.next()) {
+        QString columnName = query.value(1).toString();
+        if (columnName == "submode") {
+            hasSubmodeColumn = true;
+            break;
+        }
+    }
+
+    if (!hasSubmodeColumn) {
+        LOG_INFO("Database", "Migrating schema: Adding submode column to qsos table");
+
+        // Add submode column
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN submode TEXT")) {
+            m_lastError = QString("Failed to add submode column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+
+        LOG_INFO("Database", "submode column added successfully");
+        LOG_INFO("Database", "Note: ADIF SUBMODE support (e.g., FT4 as submode of MFSK)");
+    }
+
     LOG_DEBUG("Database", "Schema migration complete");
     return true;
 }

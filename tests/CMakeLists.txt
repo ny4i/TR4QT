@@ -196,3 +196,37 @@ add_tr4qt_test(test_qso_load_performance
 set_tests_properties(test_qso_load_performance PROPERTIES TIMEOUT 300)
 # This test uses Qt Concurrent for multi-threading
 target_link_libraries(test_qso_load_performance PRIVATE Qt6::Concurrent)
+
+# ADIF import tests
+add_tr4qt_test(test_adif_import
+    test_adif_import.cpp
+    ../src/importers/ADIFParser.cpp
+    ../src/importers/ADIFFieldMapper.cpp
+    ../src/importers/ADIFImporter.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/data/Database.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
+# ADIF mapping demo (shows field mapping for first record)
+add_tr4qt_test(test_adif_mapping_demo
+    test_adif_mapping_demo.cpp
+    ../src/importers/ADIFParser.cpp
+    ../src/importers/ADIFFieldMapper.cpp
+    ../src/importers/ADIFImporter.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/data/Database.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)

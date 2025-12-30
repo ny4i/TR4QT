@@ -30,6 +30,7 @@ struct QSO {
     // Frequency/Mode/Band
     freq_t frequency{0};        // Frequency in Hz
     ModeType mode{ModeType::None};
+    QString submode;            // ADIF SUBMODE (e.g., "FT4" when mode is MFSK, blank for FT8)
     BandType band{BandType::None};
 
     // Exchange (contest-specific)
