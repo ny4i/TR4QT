@@ -12,6 +12,7 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QFileInfo>
+#include <QCheckBox>
 
 namespace TR4QT {
 
@@ -43,6 +44,13 @@ void ADIFImportDialog::setupUI() {
     fileLayout->addWidget(m_selectFileButton);
 
     mainLayout->addLayout(fileLayout);
+
+    // Validation options
+    m_autoCorrectCheckBox = new QCheckBox("Auto-correct validation errors (recommended)");
+    m_autoCorrectCheckBox->setChecked(true);
+    m_autoCorrectCheckBox->setToolTip("Automatically fix data quality issues like country/state mismatches.\n"
+                                       "If unchecked, you'll be prompted to review errors before importing.");
+    mainLayout->addWidget(m_autoCorrectCheckBox);
 
     // Status section
     m_statusLabel = new QLabel("Ready to import. Select an ADIF file to begin.");

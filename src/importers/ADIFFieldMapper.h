@@ -29,6 +29,13 @@ public:
     void setCountryFile(CountryFile* countryFile) { m_countryFile = countryFile; }
 
     /**
+     * Enable/disable auto-correction of validation errors
+     * @param autoCorrect If true, automatically fix errors (e.g., clear invalid STATE)
+     *                    If false, report errors without fixing
+     */
+    void setAutoCorrect(bool autoCorrect) { m_autoCorrect = autoCorrect; }
+
+    /**
      * Map ADIF record fields to a QSO struct
      * @param adifFields Raw field map from ADIFParser
      * @param qso Output QSO struct
@@ -91,6 +98,7 @@ private:
     QString m_lastError;
     QList<ADIFValidationError> m_validationErrors;
     CountryFile* m_countryFile{nullptr};  // Optional - for validation
+    bool m_autoCorrect{true};              // Auto-correct validation errors
 };
 
 } // namespace TR4QT
