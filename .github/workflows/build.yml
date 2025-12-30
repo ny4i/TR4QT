@@ -101,7 +101,13 @@ jobs:
 
         QT_BIN="${{ env.QT_ROOT_DIR }}/bin"
         QT_PLUGINS="${{ env.QT_ROOT_DIR }}/plugins"
-        MINGW_BIN="${{ runner.temp }}/../Qt/Tools/mingw1310_64/bin"
+        # Find MinGW bin directory (installed by install-qt-action)
+        MINGW_BIN=$(find "${{ runner.temp }}/../Qt/Tools" -type d -name "mingw*_64" -print -quit 2>/dev/null || echo "")/bin
+        if [ ! -d "$MINGW_BIN" ]; then
+          echo "ERROR: MinGW not found, checking alternative locations..."
+          MINGW_BIN="C:/Qt/Tools/mingw1310_64/bin"
+        fi
+        echo "Using MinGW from: $MINGW_BIN"
         DEST="build/src"
 
         # Copy Qt DLLs (explicit list of what we need)
@@ -166,11 +172,41 @@ jobs:
         echo "Copying Hamlib DLLs..."
         cp C:/hamlib/bin/*.dll "$DEST/" || true
 
-        # Copy MinGW runtime DLLs
-        echo "Copying MinGW runtime DLLs..."
-        cp "$MINGW_BIN/libgcc_s_seh-1.dll" "$DEST/" || cp "$MINGW_BIN/libgcc_s_dw2-1.dll" "$DEST/" || cp "$MINGW_BIN/libgcc_s_sjlj-1.dll" "$DEST/" || echo "WARNING: No libgcc variant found"
-        cp "$MINGW_BIN/libstdc++-6.dll" "$DEST/" || echo "WARNING: libstdc++-6.dll not found"
-        cp "$MINGW_BIN/libwinpthread-1.dll" "$DEST/" || echo "WARNING: libwinpthread-1.dll not found"
+        # Copy MinGW runtime DLLs (CRITICAL - required for application to run)
+        echo "Copying MinGW runtime DLLs from: $MINGW_BIN"
+
+        # Try different libgcc variants (SEH is most common for 64-bit)
+        if [ -f "$MINGW_BIN/libgcc_s_seh-1.dll" ]; then
+          cp "$MINGW_BIN/libgcc_s_seh-1.dll" "$DEST/"
+          echo "SUCCESS: Copied libgcc_s_seh-1.dll"
+        elif [ -f "$MINGW_BIN/libgcc_s_dw2-1.dll" ]; then
+          cp "$MINGW_BIN/libgcc_s_dw2-1.dll" "$DEST/"
+          echo "SUCCESS: Copied libgcc_s_dw2-1.dll"
+        elif [ -f "$MINGW_BIN/libgcc_s_sjlj-1.dll" ]; then
+          cp "$MINGW_BIN/libgcc_s_sjlj-1.dll" "$DEST/"
+          echo "SUCCESS: Copied libgcc_s_sjlj-1.dll"
+        else
+          echo "ERROR: No libgcc variant found in $MINGW_BIN"
+          ls -la "$MINGW_BIN" | grep libgcc || true
+          exit 1
+        fi
+
+        # Copy other required runtime DLLs
+        if [ -f "$MINGW_BIN/libstdc++-6.dll" ]; then
+          cp "$MINGW_BIN/libstdc++-6.dll" "$DEST/"
+          echo "SUCCESS: Copied libstdc++-6.dll"
+        else
+          echo "ERROR: libstdc++-6.dll not found in $MINGW_BIN"
+          exit 1
+        fi
+
+        if [ -f "$MINGW_BIN/libwinpthread-1.dll" ]; then
+          cp "$MINGW_BIN/libwinpthread-1.dll" "$DEST/"
+          echo "SUCCESS: Copied libwinpthread-1.dll"
+        else
+          echo "ERROR: libwinpthread-1.dll not found in $MINGW_BIN"
+          exit 1
+        fi
 
         # Verify deployment
         echo "=== Deployment Verification ==="
