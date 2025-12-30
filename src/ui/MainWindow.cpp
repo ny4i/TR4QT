@@ -1264,19 +1264,19 @@ void MainWindow::onRadioDisconnect() {
 }
 
 void MainWindow::onAbout() {
-    QMessageBox::about(this, "About TR4QT",
-                      QString("<h2>%1 v%2</h2>"
-                              "<p>Amateur Radio Contest Logger</p>"
-                              "<p>Cross-platform Qt/C++ port of TR4W</p>"
-                              "<p><b>Phase 1 Development Build</b></p>"
-                              "<p>Features:</p>"
-                              "<ul>"
-                              "<li>Radio control via Hamlib</li>"
-                              "<li>Support for K4, IC-7610, IC-7760</li>"
-                              "<li>DXCC country lookup (cty.dat)</li>"
-                              "</ul>")
-                          .arg(APP_NAME)
-                          .arg(APP_VERSION));
+    DialogHelper::about(this, "About TR4QT",
+                       QString("<h2>%1 v%2</h2>"
+                               "<p>Amateur Radio Contest Logger</p>"
+                               "<p>Cross-platform Qt/C++ port of TR4W</p>"
+                               "<p><b>Phase 1 Development Build</b></p>"
+                               "<p>Features:</p>"
+                               "<ul>"
+                               "<li>Radio control via Hamlib</li>"
+                               "<li>Support for K4, IC-7610, IC-7760</li>"
+                               "<li>DXCC country lookup (cty.dat)</li>"
+                               "</ul>")
+                           .arg(APP_NAME)
+                           .arg(APP_VERSION));
 }
 
 void MainWindow::onExit() {
