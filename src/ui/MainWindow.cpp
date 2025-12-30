@@ -1428,6 +1428,20 @@ void MainWindow::onImportADIF() {
             LOG_INFO("MainWindow", QString("ADIF import completed: %1 successful, %2 failed")
                 .arg(successCount)
                 .arg(failureCount));
+
+            // Ask if user wants to rescore the contest
+            QMessageBox::StandardButton reply = DialogHelper::question(
+                this,
+                "Rescore Contest?",
+                QString("Successfully imported %1 QSO%2.\n\n"
+                        "Would you like to rescore the contest now to calculate points and multipliers?")
+                    .arg(successCount)
+                    .arg(successCount == 1 ? "" : "s")
+            );
+
+            if (reply == QMessageBox::Yes) {
+                onRescoreContest();
+            }
         } else {
             DialogHelper::critical(this, "Import Failed",
                 QString("Failed to import any QSOs.\n\nError: %1").arg(repo.lastError()));

@@ -204,6 +204,61 @@ ADIFImportDialog dialog(&m_countryFile, this);
 
 **This principle applies to ALL projects, not just TR4QT.**
 
+### ALWAYS Use DialogHelper for User Dialogs
+
+**CRITICAL**: ALL dialog messages MUST go through DialogHelper. Never use QMessageBox directly.
+
+**Why this matters**:
+- All dialogs are automatically logged (message + user response)
+- Text is selectable/copyable by default for error messages
+- Consistent user experience across the application
+- Easier debugging via log analysis
+
+**Pattern to follow**:
+```cpp
+// ❌ NEVER do this:
+QMessageBox::question(this, "Title", "Message");
+QMessageBox::information(this, "Title", "Message");
+QMessageBox::warning(this, "Title", "Message");
+QMessageBox::critical(this, "Title", "Error");
+
+// ✅ ALWAYS use DialogHelper:
+#include "../../utils/DialogHelper.h"
+
+// Question dialog (returns QMessageBox::StandardButton)
+QMessageBox::StandardButton reply = DialogHelper::question(
+    this,
+    "Confirm Action",
+    "Are you sure you want to proceed?"
+);
+if (reply == QMessageBox::Yes) {
+    // User clicked Yes
+}
+
+// Information
+DialogHelper::information(this, "Success", "Operation completed successfully.");
+
+// Warning
+DialogHelper::warning(this, "Warning", "This action cannot be undone.");
+
+// Critical error
+DialogHelper::critical(this, "Error", QString("Failed: %1").arg(errorMessage));
+```
+
+**What DialogHelper does automatically**:
+1. Logs the dialog message to debug log
+2. Logs user's response (Yes/No/Cancel/etc.)
+3. Makes text selectable in error dialogs
+4. Consistent styling across the app
+
+**Files**:
+- `/src/utils/DialogHelper.h` - Dialog wrapper with logging
+- `/src/utils/DialogHelper.cpp` - Implementation
+
+**Note**: Using the return type `QMessageBox::StandardButton` is correct - that's what DialogHelper returns. The key is calling `DialogHelper::question()` instead of `QMessageBox::question()`.
+
+**This pattern applies to all projects**: If one dialog is logged, ALL dialogs must be logged via a common helper class.
+
 ## Version Management
 
 **CRITICAL**: The version number must be updated with every release commit IN TWO PLACES!
