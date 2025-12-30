@@ -4,6 +4,7 @@
 #include "../models/QSO.h"
 #include "../utils/ArrlSectionHelper.h"
 #include "../utils/CountryFile.h"
+#include "RSTValidator.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
@@ -62,7 +63,7 @@ QList<ExchangeField> ARRLRTTYRoundupContest::getReceivedExchangeFields() const {
     // RST (auto-filled)
     ExchangeField rst;
     rst.name = "RST";
-    rst.hint = "599";
+    rst.hint = "RSTValidator::getDefault(getContestMode())";
     rst.autoFill = true;
     rst.maxLength = 3;
     fields.append(rst);
@@ -146,7 +147,7 @@ QMap<QString, QString> ARRLRTTYRoundupContest::parseReceivedExchange(const QStri
     QMap<QString, QString> result;
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
-    QString rst = "599";
+    QString rst = "RSTValidator::getDefault(getContestMode())";
     QString stateOrSerial;
 
     if (parts.size() == 1) {
