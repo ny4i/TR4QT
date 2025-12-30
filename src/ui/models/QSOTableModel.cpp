@@ -68,8 +68,8 @@ QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
                 .arg(bandToString(qso.band).remove('M'))
                 .arg(modeToString(qso.mode));
         case ColDate:
-            // Format: "30-11-..." (day-month)
-            return qso.timestamp.toUTC().toString("dd-MM-yy");
+            // Format: "11-30-2025" (month-day-year, 4-digit year)
+            return qso.timestamp.toUTC().toString("MM-dd-yyyy");
         case ColUTC:
             // Format: "22:45" (time only)
             return qso.timestamp.toUTC().toString("HH:mm");
