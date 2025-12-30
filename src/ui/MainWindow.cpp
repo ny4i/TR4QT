@@ -1429,18 +1429,17 @@ void MainWindow::onImportADIF() {
                 .arg(successCount)
                 .arg(failureCount));
 
-            // Ask if user wants to rescore the contest
-            QMessageBox::StandardButton reply = DialogHelper::question(
-                this,
-                "Rescore Contest?",
-                QString("Successfully imported %1 QSO%2.\n\n"
-                        "Would you like to rescore the contest now to calculate points and multipliers?")
+            // Rescore if user enabled the checkbox
+            if (dialog.shouldRescore()) {
+                RescoreStats stats = rescoreContestSilent();
+                m_statusLabel->setText(QString("Imported %1 QSO%2, rescored: %3 updated, %4 mults, %5 dupes")
                     .arg(successCount)
                     .arg(successCount == 1 ? "" : "s")
-            );
-
-            if (reply == QMessageBox::Yes) {
-                onRescoreContest();
+                    .arg(stats.qsosUpdated)
+                    .arg(stats.multsMarked)
+                    .arg(stats.dupesFound));
+                LOG_INFO("MainWindow", QString("Auto-rescore after import: %1 updated, %2 mults, %3 dupes")
+                    .arg(stats.qsosUpdated).arg(stats.multsMarked).arg(stats.dupesFound));
             }
         } else {
             DialogHelper::critical(this, "Import Failed",
@@ -2752,34 +2751,13 @@ void MainWindow::handleIntegrityMismatch(int memoryCount, int dbCount) {
     }
 }
 
-// Rescore entire contest (recalculate QSO points and multiplier flags)
-void MainWindow::onRescoreContest() {
+// Rescore contest without showing dialogs (used by ADIF import)
+RescoreStats MainWindow::rescoreContestSilent() {
+    RescoreStats stats;
+
     if (!m_hasActiveContest || !m_activeContest || !m_qsoTableModel) {
-        DialogHelper::information(this, "Rescore Contest",
-            "No active contest to rescore.");
-        return;
+        return stats;  // Return empty stats if no contest
     }
-
-    // Confirm with user
-    QString dialogMessage = QString("This will recalculate QSO points, multiplier flags, and duplicate status for all %1 QSOs in the contest log.\n\n"
-                "This is useful for:\n"
-                "- Detecting and marking duplicates (set to 0 points)\n"
-                "- Updating old logs to new scoring rules\n"
-                "- Fixing multiplier flags on pre-v2.85.0 QSOs\n"
-                "- Validating scoring calculations\n\n"
-                "Continue?").arg(m_qsoTableModel->count());
-
-    QMessageBox::StandardButton reply = DialogHelper::question(this,
-        "Rescore Contest",
-        dialogMessage,
-        QMessageBox::Yes | QMessageBox::No);
-
-    if (reply != QMessageBox::Yes) {
-        return;
-    }
-
-    m_statusLabel->setText("Rescoring contest...");
-    QApplication::processEvents();
 
     // Get station info for QSO point calculation
     StationInfo myStation;
@@ -2793,19 +2771,11 @@ void MainWindow::onRescoreContest() {
     }
 
     QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
-    int qsosUpdated = 0;
-    int multsMarked = 0;
-    int dupesFound = 0;
 
     // Track worked multipliers as we go through QSOs in chronological order
     QMap<MultiplierType, QStringList> workedMults;
 
     // Track worked QSOs for duplicate detection
-    // Key format depends on DuplicateCheckingRule:
-    // - PerBandMode: "CALL_BAND_MODE"
-    // - AllBandMode: "CALL_MODE"
-    // - PerBand: "CALL_BAND"
-    // - AllBand: "CALL"
     QSet<QString> workedQSOs;
     DuplicateCheckingRule dupeRule = m_activeContest->getDuplicateCheckingRule();
 
@@ -2842,14 +2812,11 @@ void MainWindow::onRescoreContest() {
         qso.isDupe = isDupe;
 
         // Recalculate QSO points
-        int oldPoints = qso.qsoPoints;
         if (isDupe) {
-            // Duplicates always get 0 points
             qso.qsoPoints = 0;
-            dupesFound++;
+            stats.dupesFound++;
         } else {
             qso.qsoPoints = m_activeContest->calculateQSOPoints(qso, myStation);
-            // Add to worked set (only if not a dupe)
             workedQSOs.insert(dupeKey);
         }
 
@@ -2858,30 +2825,23 @@ void MainWindow::onRescoreContest() {
         QStringList multiplierValues;
 
         for (const MultiplierDefinition& multDef : multDefs) {
-            // For PerBand multipliers, build a band-specific list of worked mults
-            // For AllBands multipliers, use the global list
             QStringList relevantWorked;
             if (multDef.scope == MultiplierScope::PerBand) {
-                // Only include mults from this specific band
                 QString bandPrefix = bandToString(qso.band) + ":";
                 for (const QString& worked : workedMults[multDef.type]) {
                     if (worked.startsWith(bandPrefix)) {
-                        // Extract the value part after "BAND:"
                         relevantWorked.append(worked.mid(bandPrefix.length()));
                     }
                 }
             } else {
-                // AllBands: use all worked mults
                 relevantWorked = workedMults[multDef.type];
             }
 
-            QString multValue = m_activeContest->getMultiplierValue(
-                qso, multDef.type, relevantWorked);
+            QString multValue = m_activeContest->getMultiplierValue(qso, multDef.type, relevantWorked);
 
             if (!multValue.isEmpty()) {
-                // This is a new multiplier!
                 qso.isMultiplier = true;
-                // Store as "Type:Value" for display (e.g., "Prefix:W1", "CQZone:5")
+                stats.multsMarked++;
                 QString typeStr = multDef.type == MultiplierType::Country ? "Country" :
                                  multDef.type == MultiplierType::CQZone ? "CQZone" :
                                  multDef.type == MultiplierType::ITUZone ? "ITUZone" :
@@ -2890,22 +2850,17 @@ void MainWindow::onRescoreContest() {
                                  multDef.type == MultiplierType::Prefix ? "Prefix" : "Custom";
                 multiplierValues.append(QString("%1:%2").arg(typeStr, multValue));
 
-                // Add to worked list (with band prefix for PerBand mults)
                 if (multDef.scope == MultiplierScope::PerBand) {
                     workedMults[multDef.type].append(bandToString(qso.band) + ":" + multValue);
                 } else {
                     workedMults[multDef.type].append(multValue);
                 }
-                multsMarked++;
             } else {
-                // Not a new mult, but still track it as worked
-                QString existingValue = m_activeContest->getMultiplierValue(
-                    qso, multDef.type, QStringList());
+                QString existingValue = m_activeContest->getMultiplierValue(qso, multDef.type, QStringList());
                 if (!existingValue.isEmpty()) {
-                    // Add to worked list if not already there (with band prefix for PerBand)
                     QString trackValue = (multDef.scope == MultiplierScope::PerBand) ?
-                                        bandToString(qso.band) + ":" + existingValue :
-                                        existingValue;
+                                            bandToString(qso.band) + ":" + existingValue :
+                                            existingValue;
                     if (!workedMults[multDef.type].contains(trackValue)) {
                         workedMults[multDef.type].append(trackValue);
                     }
@@ -2920,17 +2875,10 @@ void MainWindow::onRescoreContest() {
 
         // Update in database
         QSORepository repo;
-        if (!repo.updateQSO(qso)) {
-            LOG_WARN("MainWindow", QString("Failed to update QSO %1 in database").arg(qso.id));
+        if (repo.updateQSO(qso)) {
+            stats.qsosUpdated++;
         } else {
-            qsosUpdated++;
-        }
-
-        // Progress update every 100 QSOs
-        if (row % 100 == 0 && row > 0) {
-            m_statusLabel->setText(QString("Rescoring... %1 / %2 QSOs")
-                .arg(row).arg(m_qsoTableModel->count()));
-            QApplication::processEvents();
+            LOG_WARN("MainWindow", QString("Failed to update QSO %1 in database").arg(qso.id));
         }
     }
 
@@ -2948,21 +2896,55 @@ void MainWindow::onRescoreContest() {
         }
     }
 
+    return stats;
+}
+
+// Rescore entire contest (recalculate QSO points and multiplier flags)
+void MainWindow::onRescoreContest() {
+    if (!m_hasActiveContest || !m_activeContest || !m_qsoTableModel) {
+        DialogHelper::information(this, "Rescore Contest",
+            "No active contest to rescore.");
+        return;
+    }
+
+    // Confirm with user
+    QString dialogMessage = QString("This will recalculate QSO points, multiplier flags, and duplicate status for all %1 QSOs in the contest log.\n\n"
+                "This is useful for:\n"
+                "- Detecting and marking duplicates (set to 0 points)\n"
+                "- Updating old logs to new scoring rules\n"
+                "- Fixing multiplier flags on pre-v2.85.0 QSOs\n"
+                "- Validating scoring calculations\n\n"
+                "Continue?").arg(m_qsoTableModel->count());
+
+    QMessageBox::StandardButton reply = DialogHelper::question(this,
+        "Rescore Contest",
+        dialogMessage,
+        QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+
+    m_statusLabel->setText("Rescoring contest...");
+    QApplication::processEvents();
+
+    // Call silent rescore helper
+    RescoreStats stats = rescoreContestSilent();
+
     // Show results
     QString resultsMessage = QString("Contest rescored successfully!\n\n"
                 "QSOs updated: %1\n"
                 "Multipliers marked: %2\n"
                 "Duplicates found: %3\n\n"
                 "Score display has been refreshed.")
-            .arg(qsosUpdated).arg(multsMarked).arg(dupesFound);
+            .arg(stats.qsosUpdated).arg(stats.multsMarked).arg(stats.dupesFound);
 
     DialogHelper::information(this, "Rescore Complete", resultsMessage);
 
     m_statusLabel->setText(QString("Rescore complete: %1 QSOs updated, %2 mults marked, %3 dupes found")
-        .arg(qsosUpdated).arg(multsMarked).arg(dupesFound));
+        .arg(stats.qsosUpdated).arg(stats.multsMarked).arg(stats.dupesFound));
 }
 
-// Tier 3: Full detailed integrity check
 void MainWindow::onFullIntegrityCheck() {
     if (!m_hasActiveContest || !m_qsoTableModel) {
         DialogHelper::information(this, "Integrity Check",

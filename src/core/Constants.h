@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.8.0";  // Add grid_square and iota_reference fields with schema migration
+constexpr const char* APP_VERSION = "3.8.1";  // Streamlined ADIF import with checkbox rescore, date format MM-dd-yyyy
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

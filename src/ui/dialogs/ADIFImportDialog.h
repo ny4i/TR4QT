@@ -37,6 +37,11 @@ public:
      */
     QList<QSO> getImportedQSOs() const { return m_importedQSOs; }
 
+    /**
+     * Check if user wants to rescore contest after import
+     */
+    bool shouldRescore() const;
+
 private slots:
     void onSelectFileClicked();
     void onImportClicked();
@@ -53,6 +58,7 @@ private:
     QPushButton* m_importButton;
     QPushButton* m_closeButton;
     QCheckBox* m_autoCorrectCheckBox;
+    QCheckBox* m_rescoreCheckBox;
     QLabel* m_statusLabel;
     QProgressBar* m_progressBar;
     QTextEdit* m_resultsText;

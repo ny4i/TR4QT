@@ -27,6 +27,15 @@ class NativeMapViewer;
 
 namespace TR4QT {
 
+/**
+ * Statistics from contest rescore operation
+ */
+struct RescoreStats {
+    int qsosUpdated = 0;
+    int multsMarked = 0;
+    int dupesFound = 0;
+};
+
 class DXClusterWindow;
 class BandMapWidget;
 class RadioControlWidget;
@@ -199,6 +208,9 @@ private:
     bool quickIntegrityCheck();         // Quick count-based check
     QString fullIntegrityCheck();       // Detailed check with report
     void handleIntegrityMismatch(int memoryCount, int dbCount);
+
+    // Rescore helpers
+    RescoreStats rescoreContestSilent();  // Rescore without showing dialogs
 
     // UI Components
     QLabel* m_statusLabel;
