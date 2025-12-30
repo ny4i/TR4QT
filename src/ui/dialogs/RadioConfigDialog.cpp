@@ -1,5 +1,6 @@
 #include "RadioConfigDialog.h"
 #include "../../utils/AppSettings.h"
+#include "../../utils/DialogHelper.h"
 #include "../../logging/LogMacros.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>

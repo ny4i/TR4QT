@@ -1,5 +1,6 @@
 #include "EditQSODialog.h"
 #include "../../core/Constants.h"
+#include "../../utils/DialogHelper.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
