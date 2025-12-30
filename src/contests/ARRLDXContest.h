@@ -92,8 +92,6 @@ public:
 
     QMap<QString, QString> getCabrilloHeaders() const override;
 
-    static bool isValidRST(const QString& rst, ModeType mode);
-
 private:
     ModeType m_mode;  // CW or SSB
 

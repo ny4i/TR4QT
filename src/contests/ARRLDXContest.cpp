@@ -3,6 +3,7 @@
 #include "ContestMetadata.h"
 #include "../models/QSO.h"
 #include "../utils/ArrlSectionHelper.h"
+#include "RSTValidator.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
@@ -63,7 +64,7 @@ QList<ExchangeField> ARRLDXContest::getReceivedExchangeFields() const {
     // RST
     ExchangeField rst;
     rst.name = "RST";
-    rst.hint = m_mode == ModeType::CW ? "599" : "59";
+    rst.hint = RSTValidator::getDefault(m_mode);
     rst.autoFill = true;
     rst.maxLength = 3;
     fields.append(rst);
@@ -104,18 +105,6 @@ QString ARRLDXContest::formatSentExchange(int serialNumber, const QString& rst) 
     return rst + " {STATE}";
 }
 
-bool ARRLDXContest::isValidRST(const QString& rst, ModeType mode) {
-    if (mode == ModeType::CW || mode == ModeType::CWR) {
-        // CW: Must be exactly 3 digits
-        QRegularExpression re("^[1-5][1-9][1-9]$");
-        return re.match(rst).hasMatch();
-    } else {
-        // SSB: 2 or 3 digits
-        QRegularExpression re("^[1-5][1-9][1-9]?$");
-        return re.match(rst).hasMatch();
-    }
-}
-
 bool ARRLDXContest::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
@@ -130,7 +119,7 @@ bool ARRLDXContest::validateReceivedExchange(const QString& exchange, QString& e
     } else if (parts.size() == 2) {
         // RST + State/Power
         QString rst = parts[0];
-        if (!isValidRST(rst, m_mode)) {
+        if (!RSTValidator::isValid(rst, m_mode)) {
             QString expectedFormat = (m_mode == ModeType::CW) ?
                 "3 digits (e.g., 599)" : "2-3 digits (e.g., 59)";
             errorMsg = QString("Invalid RST format. Expected %1").arg(expectedFormat);
@@ -158,7 +147,7 @@ QMap<QString, QString> ARRLDXContest::parseReceivedExchange(const QString& excha
     QMap<QString, QString> result;
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
-    QString rst = m_mode == ModeType::CW ? "599" : "59";
+    QString rst = RSTValidator::getDefault(m_mode);
     QString stateOrPower;
 
     if (parts.size() == 1) {
