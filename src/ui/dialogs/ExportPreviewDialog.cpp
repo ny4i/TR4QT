@@ -6,6 +6,7 @@
 #include <QClipboard>
 #include <QApplication>
 #include <QMessageBox>
+#include "../../utils/DialogHelper.h"
 #include <QFile>
 #include <QTextStream>
 #include <QFileInfo>
@@ -111,7 +112,7 @@ void ExportPreviewDialog::onSaveToFile() {
     // Save to file
     QFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::critical(this, "Save Error",
+        DialogHelper::critical(this, "Save Error",
                             QString("Failed to open file for writing:\n%1")
                                 .arg(file.errorString()));
         return;
@@ -124,7 +125,7 @@ void ExportPreviewDialog::onSaveToFile() {
     m_saveFilePath = fileName;
     
     // Show success message
-    QMessageBox::information(this, "Export Saved",
+    DialogHelper::information(this, "Export Saved",
                            QString("Export saved successfully to:\n%1")
                                .arg(QFileInfo(fileName).fileName()));
     
