@@ -213,22 +213,22 @@ void ContestChooserDialog::onResumeContest() {
 
     // Try to determine contest type from filename
     if (baseName.contains("CQWW", Qt::CaseInsensitive) && baseName.contains("CW", Qt::CaseInsensitive)) {
-        m_contestInfo.contestType = "CQWW_CW";
+        m_contestInfo.contestType = "CQWW";
         m_contestInfo.mode = "CW";
     } else if (baseName.contains("CQWW", Qt::CaseInsensitive)) {
-        m_contestInfo.contestType = "CQWW_SSB";
+        m_contestInfo.contestType = "CQWW";
         m_contestInfo.mode = "SSB";
     } else if (baseName.contains("WPX", Qt::CaseInsensitive) && baseName.contains("CW", Qt::CaseInsensitive)) {
-        m_contestInfo.contestType = "CQWPX_CW";
+        m_contestInfo.contestType = "CQWPX";
         m_contestInfo.mode = "CW";
     } else if (baseName.contains("WPX", Qt::CaseInsensitive)) {
-        m_contestInfo.contestType = "CQWPX_SSB";
+        m_contestInfo.contestType = "CQWPX";
         m_contestInfo.mode = "SSB";
     } else if (baseName.contains("WFD", Qt::CaseInsensitive) || baseName.contains("Winter", Qt::CaseInsensitive)) {
         m_contestInfo.contestType = "WFD";
         m_contestInfo.mode = "Mixed";
     } else {
-        m_contestInfo.contestType = "CQWW_CW";  // Default
+        m_contestInfo.contestType = "CQWW";  // Default
         m_contestInfo.mode = "CW";
     }
 
