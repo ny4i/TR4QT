@@ -190,37 +190,29 @@ bool WinterFieldDayContest::isValidMode(ModeType mode, QString& errorMsg) const 
 }
 
 int WinterFieldDayContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) const {
-    Q_UNUSED(myStation);
+    // Winter Field Day scoring rules (geography-based):
+    // - Same country: 0 points (but counts as multiplier)
+    // - Different country, same continent (North America): 2 points
+    // - Different country, same continent (non-North America): 1 point
+    // - Different continent: 3 points
 
-    // Winter Field Day scoring rules (mode-based):
-    // - Phone (SSB, FM, AM): 1 point
-    // - CW: 2 points
-    // - Digital (RTTY, PSK): 2 points
-    //
-    // NOTE: FT8/FT4 are NOT allowed in WFD per official rules
-
-    switch (qso.mode) {
-        case ModeType::CW:
-            return 2;  // CW: 2 points
-
-        case ModeType::RTTY:
-        case ModeType::PSK:
-            return 2;  // Digital: 2 points
-
-        case ModeType::USB:
-        case ModeType::LSB:
-        case ModeType::FM:
-        case ModeType::AM:
-            return 1;  // Phone: 1 point
-
-        case ModeType::FT8:
-        case ModeType::FT4:
-            // These modes are not allowed in WFD - return 0 points
-            return 0;
-
-        default:
-            return 1;  // Default to 1 point for other modes
+    // Same country - no points
+    if (qso.dxccEntity == myStation.country) {
+        return 0;
     }
+
+    // Different country, same continent
+    if (qso.continent == myStation.continent) {
+        // North America gets 2 points
+        if (myStation.continent == "NA") {
+            return 2;
+        }
+        // Other continents get 1 point
+        return 1;
+    }
+
+    // Different continent - 3 points
+    return 3;
 }
 
 int WinterFieldDayContest::calculateTotalScore(
