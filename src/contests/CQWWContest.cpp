@@ -2,6 +2,7 @@
 #include "ContestRegistry.h"
 #include "ContestMetadata.h"
 #include "../models/QSO.h"
+#include "RSTValidator.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
@@ -62,7 +63,7 @@ QList<ExchangeField> CQWWContest::getReceivedExchangeFields() const {
     // RST
     ExchangeField rst;
     rst.name = "RST";
-    rst.hint = m_mode == ModeType::CW ? "599" : "59";
+    rst.hint = RSTValidator::getDefault(m_mode);
     rst.autoFill = true;
     rst.maxLength = 3;
     fields.append(rst);
@@ -106,23 +107,6 @@ QString CQWWContest::formatSentExchange(int serialNumber, const QString& rst) co
     return rst + " {ZONE}";  // {ZONE} will be replaced by actual zone from settings
 }
 
-bool CQWWContest::isValidRST(const QString& rst, ModeType mode) {
-    // RST pattern: [1-5][1-9][1-9]*
-    // - First digit: 1-5 (Readability)
-    // - Second digit: 1-9 (Strength)
-    // - Third digit: 1-9 (Tone) - required for CW, optional for SSB/AM/FM
-
-    if (mode == ModeType::CW || mode == ModeType::CWR) {
-        // CW: Must be exactly 3 digits (e.g., 599, 579, 339)
-        QRegularExpression re("^[1-5][1-9][1-9]$");
-        return re.match(rst).hasMatch();
-    } else {
-        // SSB/AM/FM: 2 or 3 digits (e.g., 59, 57, 599)
-        QRegularExpression re("^[1-5][1-9][1-9]?$");
-        return re.match(rst).hasMatch();
-    }
-}
-
 bool CQWWContest::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
@@ -143,8 +127,8 @@ bool CQWWContest::validateReceivedExchange(const QString& exchange, QString& err
         QString first = parts[0];
         QString second = parts[1];
 
-        bool firstIsRST = isValidRST(first, m_mode);
-        bool secondIsRST = isValidRST(second, m_mode);
+        bool firstIsRST = RSTValidator::isValid(first, m_mode);
+        bool secondIsRST = RSTValidator::isValid(second, m_mode);
 
         // Check if values are in valid zone range (1-40)
         bool ok1, ok2;
@@ -209,15 +193,15 @@ QMap<QString, QString> CQWWContest::parseReceivedExchange(const QString& exchang
 
     if (parts.size() == 1) {
         // Only zone provided - auto-fill RST
-        parsed["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
+        parsed["RST"] = RSTValidator::getDefault(m_mode);
         parsed["Zone"] = parts[0];
     } else if (parts.size() >= 2) {
         // Two fields: detect which is RST and which is Zone (order-agnostic)
         QString first = parts[0];
         QString second = parts[1];
 
-        bool firstIsRST = isValidRST(first, m_mode);
-        bool secondIsRST = isValidRST(second, m_mode);
+        bool firstIsRST = RSTValidator::isValid(first, m_mode);
+        bool secondIsRST = RSTValidator::isValid(second, m_mode);
 
         // Check if values are in valid zone range (1-40)
         bool ok1, ok2;
@@ -251,7 +235,7 @@ QMap<QString, QString> CQWWContest::parseReceivedExchange(const QString& exchang
             }
         } else {
             // Neither is valid RST - use defaults
-            parsed["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
+            parsed["RST"] = RSTValidator::getDefault(m_mode);
             parsed["Zone"] = first;  // Assume first is zone
         }
     }
