@@ -92,7 +92,7 @@ QList<ExchangeField> ARRLFieldDayContest::getSentExchangeFields() const {
     // Section - from station settings
     ExchangeField sectionField;
     sectionField.name = "Section";
-    sectionField.hint = "WMA";
+    sectionField.hint = "WCF";
     sectionField.autoFill = true;  // From station settings
     sectionField.maxLength = 4;
     fields.append(sectionField);
@@ -121,7 +121,7 @@ bool ARRLFieldDayContest::validateReceivedExchange(const QString& exchange, QStr
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     if (parts.size() != 2) {
-        errorMsg = "Exchange must be: Class + Section (e.g., '1O WMA' or 'WMA 1O')";
+        errorMsg = "Exchange must be: Class + Section (e.g., '1O WCF' or 'WCF 1O')";
         return false;
     }
 

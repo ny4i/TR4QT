@@ -71,7 +71,7 @@ QList<ExchangeField> ARRLRTTYRoundupContest::getReceivedExchangeFields() const {
     // State/Province OR Serial Number (smart detection)
     ExchangeField exchange;
     exchange.name = "State/Serial";
-    exchange.hint = "MA or 001";
+    exchange.hint = "FL or 001";
     exchange.autoFill = false;
     exchange.maxLength = 4;
     fields.append(exchange);
@@ -120,7 +120,7 @@ bool ARRLRTTYRoundupContest::validateReceivedExchange(const QString& exchange, Q
         // RST + State/Serial
         stateOrSerial = parts[1];
     } else {
-        errorMsg = "Exchange must be: State (e.g., 'MA') or RST + State (e.g., '599 MA')";
+        errorMsg = "Exchange must be: State (e.g., 'FL') or RST + State (e.g., '599 FL')";
         return false;
     }
 
