@@ -52,6 +52,13 @@ void ADIFImportDialog::setupUI() {
                                        "If unchecked, you'll be prompted to review errors before importing.");
     mainLayout->addWidget(m_autoCorrectCheckBox);
 
+    // Rescore option
+    m_rescoreCheckBox = new QCheckBox("Rescore contest after import (recommended)");
+    m_rescoreCheckBox->setChecked(true);
+    m_rescoreCheckBox->setToolTip("Automatically recalculate QSO points, multipliers, and duplicates after import.\n"
+                                   "This ensures imported QSOs are scored correctly for the active contest.");
+    mainLayout->addWidget(m_rescoreCheckBox);
+
     // Status section
     m_statusLabel = new QLabel("Ready to import. Select an ADIF file to begin.");
     m_statusLabel->setWordWrap(true);
@@ -245,6 +252,10 @@ void ADIFImportDialog::showResults(int imported, int failed, const QStringList& 
     }
 
     m_resultsText->setPlainText(results);
+}
+
+bool ADIFImportDialog::shouldRescore() const {
+    return m_rescoreCheckBox->isChecked();
 }
 
 } // namespace TR4QT
