@@ -58,6 +58,7 @@ private slots:
     // Menu actions
     void onNewOpenContest();
     void onPreferences();
+    void onImportADIF();
     void onExportADIF();
     void onExportCabrillo();
     void onClearLog();

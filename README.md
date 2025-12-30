@@ -9,15 +9,83 @@ Cross-platform Qt/C++ port of TR4W (Delphi contest logger) with centralized radi
 
 ## Features (Phase 1 - In Progress)
 
-- ✅ cty.dat country file parser with auto-download
-- ✅ DXCC entity lookup
-- ✅ Radio control via hamlib (K4, IC-7610/7760 focus)
+### Core Logging
+- ✅ Real-time QSO logging with validation
+- ✅ Duplicate checking (per-band-mode, all-band-mode, contest-specific rules)
+- ✅ Exchange prediction and memory (learns from previous QSOs)
+- ✅ Auto-increment serial numbers
+- ✅ Zone lookup from CTY.DAT (CQ/ITU zones)
+- ✅ Operator callsign tracking
+- ✅ QSO editing and deletion
+
+### Radio Control
+- ✅ Hamlib integration (direct linking, not rigctld)
+- ✅ Tested with Elecraft K4, Icom IC-7610/IC-7300
+- ✅ Frequency/mode/band monitoring
+- ✅ Manual band selection (when radio disconnected)
+- ✅ Auto-band detection from frequency
+
+### Contest Support
+- ✅ CQ WW DX Contest (CW & SSB)
+- ✅ CQ WPX Contest (CW & SSB)
+- ✅ Winter Field Day
+- ✅ ARRL Field Day
+- ✅ ARRL Sweepstakes
+- ✅ Contest-specific scoring and multipliers
+- ✅ Real-time score calculation
+- ✅ Band summary grid with QSO/multiplier counts
+
+### Country/Geographic Data
+- ✅ CTY.DAT parser with thread-safe reload
+- ✅ Auto-download of fresh CTY.DAT files
+- ✅ DXCC entity lookup by callsign
+- ✅ US call area zone logic
+- ✅ Geographic utilities (distance/bearing calculations)
+- ✅ Native map viewer for multipliers
+
+### DX Cluster & Spotting
+- ✅ DX Cluster client (Telnet)
+- ✅ Band Map window with spot filtering
+- ✅ LOTW user database with auto-download
+- ✅ Filter spots by LOTW users
+- ✅ Click-to-tune from band map
+
+### Import/Export
+- ✅ **ADIF import** with validation and CTY.DAT lookup
+- ✅ ADIF export
+- ✅ Cabrillo export
+- ✅ Export preview dialogs
+
+### Multiplier Tracking
+- ✅ Per-contest multiplier rules
+- ✅ Per-band vs all-band multiplier scopes
+- ✅ Needs display widget (worked/confirmed status)
+- ✅ Visual multiplier indicators
+
+### Data Management
 - ✅ SQLite database for portable log storage
-- ✅ Contest support: CQ WW, CQ WPX, Winter Field Day, ARRl Field Day, ARRL Sweepstakes
-- ✅ ADIF and Cabrillo export
-- ✅ DX Cluster support
-- ✅ Band Map Window
-- ✅ Downloads fresh CTY.DAT files and LOTW users file (allows bandmap to filter by recent LOTW user)
+- ✅ Automatic database migrations
+- ✅ Backup and restore functionality
+- ✅ Multiple contest support (switch between contests)
+
+### Network Features
+- ✅ UDP broadcast support (N1MM-compatible format)
+- ✅ Web server for remote monitoring
+- ✅ Real-time statistics via HTTP
+
+### User Interface
+- ✅ Dark/light theme support
+- ✅ Configurable fonts and sizes
+- ✅ Statistics window (real-time contest stats)
+- ✅ Resizable/dockable windows
+- ✅ Keyboard shortcuts (Alt-B/Alt-V for band up/down)
+- ✅ macOS menu integration
+
+### Utilities
+- ✅ Send Morse dialog (via radio)
+- ✅ Preferences dialog (radio, logging, display, network, hamlib debug)
+- ✅ Emergency ADIF logging (when database fails)
+- ✅ Comprehensive logging system with file output
 
 ## Priority Contests
 
