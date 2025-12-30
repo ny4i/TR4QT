@@ -441,6 +441,48 @@ bool Database::migrateSchema() {
         LOG_INFO("Database", "Note: Contest class will be populated for new QSOs from exchange data");
     }
 
+    // Migration 4: Add grid_square and iota_reference columns to qsos table (v3.8.0)
+    query.exec("PRAGMA table_info(qsos)");
+    bool hasGridSquareColumn = false;
+    bool hasIotaReferenceColumn = false;
+    while (query.next()) {
+        QString columnName = query.value(1).toString();
+        if (columnName == "grid_square") {
+            hasGridSquareColumn = true;
+        }
+        if (columnName == "iota_reference") {
+            hasIotaReferenceColumn = true;
+        }
+    }
+
+    if (!hasGridSquareColumn) {
+        LOG_INFO("Database", "Migrating schema: Adding grid_square column to qsos table");
+
+        // Add grid_square column
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN grid_square TEXT")) {
+            m_lastError = QString("Failed to add grid_square column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+
+        LOG_INFO("Database", "grid_square column added successfully");
+        LOG_INFO("Database", "Note: Grid squares will be populated from exchange data in VHF/UHF contests");
+    }
+
+    if (!hasIotaReferenceColumn) {
+        LOG_INFO("Database", "Migrating schema: Adding iota_reference column to qsos table");
+
+        // Add iota_reference column
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN iota_reference TEXT")) {
+            m_lastError = QString("Failed to add iota_reference column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+
+        LOG_INFO("Database", "iota_reference column added successfully");
+        LOG_INFO("Database", "Note: IOTA references will be populated from exchange data in IOTA contest");
+    }
+
     LOG_DEBUG("Database", "Schema migration complete");
     return true;
 }

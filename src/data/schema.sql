@@ -54,9 +54,13 @@ CREATE TABLE IF NOT EXISTS qsos (
     cq_zone INTEGER,                    -- CQ Zone
     itu_zone INTEGER,                   -- ITU Zone
     continent TEXT,                     -- Continent code
-    state TEXT,                         -- US/VE state/province
+
+    -- Core geographic fields (commonly used, prevent overloaded QTH anti-pattern)
+    state TEXT,                         -- US/VE state/province (e.g., "MA", "ON")
     county TEXT,                        -- US county (for ARRL section mapping)
     arrl_section TEXT,                  -- ARRL/RAC section (WMA, NFL, SCV, AB, etc.)
+    grid_square TEXT,                   -- Maidenhead locator (e.g., "FN42", "DM79")
+    iota_reference TEXT,                -- IOTA reference (e.g., "NA-001", "EU-005")
     contest_class TEXT,                 -- Contest class (e.g., "2A" for Field Day)
 
     -- Scoring

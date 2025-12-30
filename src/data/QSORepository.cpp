@@ -52,13 +52,13 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         INSERT INTO qsos (
             contest_id, guid, timestamp, callsign, frequency, mode, band,
             rst_sent, rst_received, exchange_sent, exchange_received,
-            dxcc_entity, dxcc_prefix, dxcc_entity_code, cq_zone, itu_zone, continent, state, county, arrl_section, contest_class,
+            dxcc_entity, dxcc_prefix, dxcc_entity_code, cq_zone, itu_zone, continent, state, county, arrl_section, grid_square, iota_reference, contest_class,
             qso_points, is_dupe, is_multiplier, multipliers,
             serial_number, operator_call, notes
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?
         )
@@ -85,6 +85,8 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         qso.state,
         qso.county,
         qso.arrlSection,
+        qso.gridSquare,
+        qso.iotaReference,
         qso.contestClass,
         qso.qsoPoints,
         qso.isDupe,
@@ -156,7 +158,7 @@ bool QSORepository::updateQSO(const QSO& qso) {
         UPDATE qsos SET
             timestamp = ?, callsign = ?, frequency = ?, mode = ?, band = ?,
             rst_sent = ?, rst_received = ?, exchange_sent = ?, exchange_received = ?,
-            dxcc_entity = ?, dxcc_prefix = ?, dxcc_entity_code = ?, cq_zone = ?, itu_zone = ?, continent = ?, state = ?, county = ?, arrl_section = ?, contest_class = ?,
+            dxcc_entity = ?, dxcc_prefix = ?, dxcc_entity_code = ?, cq_zone = ?, itu_zone = ?, continent = ?, state = ?, county = ?, arrl_section = ?, grid_square = ?, iota_reference = ?, contest_class = ?,
             qso_points = ?, is_dupe = ?, is_multiplier = ?, multipliers = ?,
             serial_number = ?, operator_call = ?, notes = ?
         WHERE id = ?
@@ -181,6 +183,8 @@ bool QSORepository::updateQSO(const QSO& qso) {
         qso.state,
         qso.county,
         qso.arrlSection,
+        qso.gridSquare,
+        qso.iotaReference,
         qso.contestClass,
         qso.qsoPoints,
         qso.isDupe,
@@ -614,6 +618,8 @@ QSO QSORepository::qsoFromQuery(const QSqlQuery& query) const {
     qso.state = query.value("state").toString();
     qso.county = query.value("county").toString();
     qso.arrlSection = query.value("arrl_section").toString();
+    qso.gridSquare = query.value("grid_square").toString();
+    qso.iotaReference = query.value("iota_reference").toString();
     qso.contestClass = query.value("contest_class").toString();
 
     qso.qsoPoints = query.value("qso_points").toInt();
