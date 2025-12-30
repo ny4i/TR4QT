@@ -4,6 +4,7 @@
 #include "dialogs/BackupRestoreDialog.h"
 #include "dialogs/OperatorDialog.h"
 #include "dialogs/EditQSODialog.h"
+#include "dialogs/ADIFImportDialog.h"
 #include "dialogs/ExportPreviewDialog.h"
 #include "dialogs/SendMorseDialog.h"
 #include "widgets/DXClusterWindow.h"
@@ -264,6 +265,11 @@ void MainWindow::createMenuBar() {
     connect(clearLogAction, &QAction::triggered, this, &MainWindow::onClearLog);
 
     fileMenu->addSeparator();
+
+    // Import submenu
+    QMenu* importMenu = fileMenu->addMenu("&Import");
+    QAction* importADIFAction = importMenu->addAction("Import &ADIF...");
+    connect(importADIFAction, &QAction::triggered, this, &MainWindow::onImportADIF);
 
     // Export submenu
     QMenu* exportMenu = fileMenu->addMenu("&Export");
@@ -1368,6 +1374,64 @@ void MainWindow::onPreferences() {
         }
 
         // TODO: Reload contest settings if changed
+    }
+}
+
+void MainWindow::onImportADIF() {
+    // Check if we have an active contest
+    if (!m_hasActiveContest) {
+        DialogHelper::warning(this, "Import ADIF",
+                            "Please create or open a contest before importing QSOs.");
+        return;
+    }
+
+    // Open import dialog with pointer to CountryFile
+    ADIFImportDialog dialog(&m_countryFile, this);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        QList<QSO> importedQSOs = dialog.getImportedQSOs();
+
+        if (importedQSOs.isEmpty()) {
+            m_statusLabel->setText("No QSOs imported");
+            return;
+        }
+
+        // Save imported QSOs to database
+        QSORepository repo;
+        int successCount = 0;
+        int failureCount = 0;
+
+        for (const QSO& qsoConst : importedQSOs) {
+            QSO qso = qsoConst;  // Make mutable copy (saveQSO modifies GUID if needed)
+            if (repo.saveQSO(qso, m_currentContestDbId)) {
+                successCount++;
+            } else {
+                failureCount++;
+                LOG_WARN("MainWindow", QString("Failed to import QSO: %1 - %2")
+                    .arg(qso.callsign)
+                    .arg(repo.lastError()));
+            }
+        }
+
+        // Reload QSOs from database to refresh UI
+        if (successCount > 0) {
+            QList<QSO> allQSOs = repo.findByContest(m_currentContestDbId);
+            m_qsoTableModel->clear();
+            for (const QSO& qso : allQSOs) {
+                m_qsoTableModel->addQSO(qso);
+            }
+            m_statusLabel->setText(QString("Imported %1 QSO%2%3")
+                .arg(successCount)
+                .arg(successCount == 1 ? "" : "s")
+                .arg(failureCount > 0 ? QString(" (%1 failed)").arg(failureCount) : ""));
+
+            LOG_INFO("MainWindow", QString("ADIF import completed: %1 successful, %2 failed")
+                .arg(successCount)
+                .arg(failureCount));
+        } else {
+            DialogHelper::critical(this, "Import Failed",
+                QString("Failed to import any QSOs.\n\nError: %1").arg(repo.lastError()));
+        }
     }
 }
 

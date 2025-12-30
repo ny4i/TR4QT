@@ -215,27 +215,37 @@ bool ADIFFieldMapper::mapToQSO(const QMap<QString, QString>& adifFields, QSO& qs
                                        qso.state == "YT");
 
                 if (isUS && stateIsCanadian) {
-                    ADIFValidationError error;
-                    error.recordNumber = recordNumber;
-                    error.callsign = qso.callsign;
-                    error.severity = ADIFValidationError::Error;
-                    error.field = "STATE";
-                    error.value = qso.state;
-                    error.message = QString("US callsign (%1, DXCC %2) has Canadian province")
+                    // Auto-correct: Clear invalid Canadian province for US callsign
+                    QString originalState = qso.state;
+                    qso.state.clear();
+
+                    ADIFValidationError warning;
+                    warning.recordNumber = recordNumber;
+                    warning.callsign = qso.callsign;
+                    warning.severity = ADIFValidationError::Warning;
+                    warning.field = "STATE";
+                    warning.value = originalState;
+                    warning.message = QString("Corrected: US callsign (%1, DXCC %2) had Canadian province '%3' - cleared STATE field")
                         .arg(countryData.name)
-                        .arg(countryData.dxccEntity);
-                    m_validationErrors.append(error);
+                        .arg(countryData.dxccEntity)
+                        .arg(originalState);
+                    m_validationErrors.append(warning);
                 } else if (isCanada && !stateIsCanadian && !qso.state.isEmpty()) {
-                    ADIFValidationError error;
-                    error.recordNumber = recordNumber;
-                    error.callsign = qso.callsign;
-                    error.severity = ADIFValidationError::Error;
-                    error.field = "STATE";
-                    error.value = qso.state;
-                    error.message = QString("Canadian callsign (%1, DXCC %2) has non-Canadian state")
+                    // Auto-correct: Clear invalid US state for Canadian callsign
+                    QString originalState = qso.state;
+                    qso.state.clear();
+
+                    ADIFValidationError warning;
+                    warning.recordNumber = recordNumber;
+                    warning.callsign = qso.callsign;
+                    warning.severity = ADIFValidationError::Warning;
+                    warning.field = "STATE";
+                    warning.value = originalState;
+                    warning.message = QString("Corrected: Canadian callsign (%1, DXCC %2) had US state '%3' - cleared STATE field")
                         .arg(countryData.name)
-                        .arg(countryData.dxccEntity);
-                    m_validationErrors.append(error);
+                        .arg(countryData.dxccEntity)
+                        .arg(originalState);
+                    m_validationErrors.append(warning);
                 }
             }
         }
