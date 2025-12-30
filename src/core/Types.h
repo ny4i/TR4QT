@@ -124,6 +124,13 @@ QString continentToString(Continent cont);
  */
 unsigned long bandToBaseFrequency(BandType band);
 
+/**
+ * Convert frequency in Hz to BandType
+ * Used for validation and auto-detection
+ * Returns BandType::None if frequency doesn't match any band
+ */
+BandType frequencyToBand(unsigned long frequencyHz);
+
 } // namespace TR4QT
 
 #endif // TYPES_H
