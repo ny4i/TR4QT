@@ -1,6 +1,7 @@
 #include "DXClusterWindow.h"
 #include "../../core/Constants.h"
 #include "../../logging/LogMacros.h"
+#include "../../utils/DialogHelper.h"
 #include "../../utils/AppSettings.h"
 #include "../../utils/ThemeManager.h"
 #include "../../data/LOTWUserRepository.h"
@@ -271,7 +272,7 @@ void DXClusterWindow::onConnectClicked() {
 
     QString serverString = m_serverCombo->currentText().trimmed();
     if (serverString.isEmpty()) {
-        QMessageBox::warning(this, "DX Cluster",
+        DialogHelper::warning(this, "DX Cluster",
                            "Please enter a server address (host:port)");
         return;
     }
@@ -303,18 +304,18 @@ void DXClusterWindow::onConnectClicked() {
         port = parts[1].trimmed().toInt(&ok);
 
         if (!ok || port <= 0 || port > 65535) {
-            QMessageBox::warning(this, "DX Cluster",
+            DialogHelper::warning(this, "DX Cluster",
                                "Invalid port number");
             return;
         }
     } else {
-        QMessageBox::warning(this, "DX Cluster",
+        DialogHelper::warning(this, "DX Cluster",
                            "Invalid format. Use: hostname:port or just hostname (e.g., DXC.NC7J.COM:7373 or DXC.NC7J.COM)");
         return;
     }
 
     if (host.isEmpty()) {
-        QMessageBox::warning(this, "DX Cluster",
+        DialogHelper::warning(this, "DX Cluster",
                            "Please enter a valid hostname or IP address");
         return;
     }
@@ -381,7 +382,7 @@ void DXClusterWindow::onCommandsClicked() {
         "SH/SUN        - Show sunrise/sunset\n"
         "BYE           - Disconnect\n";
 
-    QMessageBox::information(this, "DX Cluster Commands", help);
+    DialogHelper::information(this, "DX Cluster Commands", help);
 }
 
 void DXClusterWindow::onSendClicked() {
