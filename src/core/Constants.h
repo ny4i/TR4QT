@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.7.1";  // Fix Windows MinGW DLL deployment
+constexpr const char* APP_VERSION = "3.7.2";  // Fix Windows MinGW path detection in CI
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
