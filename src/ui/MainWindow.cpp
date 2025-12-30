@@ -204,17 +204,17 @@ MainWindow::MainWindow(QWidget* parent)
         QString gridSquare = settings.getMyGridSquare();
 
         if (gridSquare.isEmpty()) {
-            QMessageBox msgBox(this);
-            msgBox.setIcon(QMessageBox::Information);
-            msgBox.setWindowTitle("Grid Square Not Configured");
-            msgBox.setText("Your Maidenhead grid square is not configured.");
-            msgBox.setInformativeText("The grid square is needed to calculate distance and azimuth "
-                                     "to DX spots in the band map.\n\n"
-                                     "Would you like to configure it now in Preferences?");
-            msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-            msgBox.setDefaultButton(QMessageBox::Yes);
+            QMessageBox::StandardButton reply = DialogHelper::question(
+                this,
+                "Grid Square Not Configured",
+                "Your Maidenhead grid square is not configured.\n\n"
+                "The grid square is needed to calculate distance and azimuth "
+                "to DX spots in the band map.\n\n"
+                "Would you like to configure it now in Preferences?",
+                QMessageBox::Yes | QMessageBox::No,
+                QMessageBox::Yes);
 
-            if (msgBox.exec() == QMessageBox::Yes) {
+            if (reply == QMessageBox::Yes) {
                 onPreferences();
             }
         }
