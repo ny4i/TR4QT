@@ -9,6 +9,7 @@ class QLabel;
 class QTextEdit;
 class QPushButton;
 class QProgressBar;
+class QCheckBox;
 
 namespace TR4QT {
 
@@ -51,6 +52,7 @@ private:
     QPushButton* m_selectFileButton;
     QPushButton* m_importButton;
     QPushButton* m_closeButton;
+    QCheckBox* m_autoCorrectCheckBox;
     QLabel* m_statusLabel;
     QProgressBar* m_progressBar;
     QTextEdit* m_resultsText;

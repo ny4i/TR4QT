@@ -126,13 +126,29 @@ bool CountryFile::parseMainLine(const QString& line, CountryData& country) {
     // Map country name to ADIF DXCC Entity Code
     country.dxccEntity = getDXCCEntityCode(country.name);
 
+    if (country.dxccEntity == 0) {
+        LOG_WARN("CountryFile", QString("No DXCC code found for country: '%1'").arg(country.name));
+    }
+
     return true;
 }
 
 // Get DXCC Entity Code from country name using global database
 // Based on ADIF specification: https://adif.org.uk/316/ADIF_316.htm#DXCC_Entity_Code_Enumeration
 int CountryFile::getDXCCEntityCode(const QString& countryName) {
-    return DXCCRepository::instance().getEntityCode(countryName);
+    // CTY.DAT uses different country names than ADIF spec
+    // Map common CTY.DAT names to ADIF names
+    static QMap<QString, QString> ctyToAdifNames;
+    if (ctyToAdifNames.isEmpty()) {
+        ctyToAdifNames["United States"] = "UNITED STATES OF AMERICA";
+        ctyToAdifNames["Hawaii"] = "HAWAII";
+        ctyToAdifNames["Alaska"] = "ALASKA";
+        ctyToAdifNames["Canada"] = "CANADA";
+        // Add more mappings as needed
+    }
+
+    QString adifName = ctyToAdifNames.value(countryName, countryName);
+    return DXCCRepository::instance().getEntityCode(adifName);
 }
 
 void CountryFile::parseAliases(const QStringList& aliasLines, CountryData& country) {
