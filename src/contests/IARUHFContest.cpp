@@ -2,6 +2,7 @@
 #include "ContestRegistry.h"
 #include "ContestMetadata.h"
 #include "../models/QSO.h"
+#include "RSTValidator.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
@@ -218,7 +219,7 @@ QMap<QString, QString> IARUHFContest::parseReceivedExchange(const QString& excha
 
     if (parts.size() == 1) {
         // Only zone/HQ provided - auto-fill RST
-        parsed["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
+        parsed["RST"] = RSTValidator::getDefault(m_mode);
         parsed["Zone"] = parts[0].toUpper();
     } else if (parts.size() >= 2) {
         // Two fields: detect which is RST and which is Zone/HQ (order-agnostic)
@@ -278,7 +279,7 @@ QMap<QString, QString> IARUHFContest::parseReceivedExchange(const QString& excha
                 }
             } else {
                 // Neither is valid RST - use defaults
-                parsed["RST"] = (m_mode == ModeType::CW) ? "599" : "59";
+                parsed["RST"] = RSTValidator::getDefault(m_mode);
                 parsed["Zone"] = first;  // Assume first is zone
             }
         }
