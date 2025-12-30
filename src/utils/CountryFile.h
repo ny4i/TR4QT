@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <QHash>
 #include <QVector>
+#include <QReadWriteLock>
 #include "../core/Types.h"
 
 namespace TR4QT {
@@ -92,6 +93,9 @@ private:
     QHash<QString, QString> m_exactMatches;   // Exact callsign → Primary prefix
 
     QString m_version;
+
+    // Thread safety: Protects all data structures during reload
+    mutable QReadWriteLock m_lock;
 };
 
 } // namespace TR4QT

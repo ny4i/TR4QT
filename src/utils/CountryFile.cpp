@@ -17,6 +17,9 @@ bool CountryFile::loadFromFile(const QString& filePath) {
         return false;
     }
 
+    // Exclusive lock for writing - blocks all readers until reload completes
+    QWriteLocker locker(&m_lock);
+
     m_countries.clear();
     m_prefixMap.clear();
     m_exactMatches.clear();
@@ -194,6 +197,9 @@ CountryData CountryFile::lookup(const QString& callsign) const {
     if (callsign.isEmpty()) {
         return CountryData();
     }
+
+    // Shared lock for reading - multiple readers can run concurrently
+    QReadLocker locker(&m_lock);
 
     QString cleanCall = stripPortable(callsign).toUpper();
 
@@ -393,6 +399,9 @@ int CountryFile::getUSCallAreaZone(const QString& callsign) {
 }
 
 QVector<CountryData> CountryFile::getAllCountries() const {
+    // Shared lock for reading - multiple readers can run concurrently
+    QReadLocker locker(&m_lock);
+
     QVector<CountryData> countries;
     for (const auto& country : m_countries) {
         countries.append(country);

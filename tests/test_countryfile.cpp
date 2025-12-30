@@ -1,5 +1,8 @@
 #include <QTest>
 #include <QTemporaryFile>
+#include <QtConcurrent>
+#include <QFuture>
+#include <QThread>
 #include "../src/utils/CountryFile.h"
 
 using namespace TR4QT;
@@ -74,6 +77,9 @@ private slots:
 
     // getAllCountries() test
     void testGetAllCountries();
+
+    // Thread safety tests
+    void testConcurrentLookupAndReload();
 
 private:
     CountryFile m_countryFile;
@@ -461,6 +467,91 @@ void TestCountryFile::testGetAllCountries() {
     QVERIFY(foundUSA);
     QVERIFY(foundCanada);
     QVERIFY(foundGermany);
+}
+
+// Thread safety test - concurrent lookup and reload
+void TestCountryFile::testConcurrentLookupAndReload() {
+    CountryFile cf;
+    bool loaded = cf.loadFromFile(m_testFilePath);
+    QVERIFY(loaded);
+
+    // Track any failures in concurrent operations
+    QAtomicInt failureCount{0};
+    QAtomicInt lookupCount{0};
+    QAtomicInt reloadCount{0};
+
+    // Define lookup operations (simulate ADIF import, DX cluster, QSO logging)
+    auto lookupTask = [&cf, &failureCount, &lookupCount, this]() {
+        QVector<QString> testCalls = {
+            "W1AW", "VE3ABC", "DL1ABC", "JA1XYZ",
+            "KH6XX", "3D2RR", "W6TA", "K3LR"
+        };
+
+        // Perform 500 lookups
+        for (int i = 0; i < 500; i++) {
+            QString call = testCalls[i % testCalls.size()];
+            CountryData result = cf.lookup(call);
+
+            // Verify result is valid (should never be invalid for these test calls)
+            // If thread safety is broken, we might get corrupted data or crashes
+            if (call == "W1AW" && !result.isValid()) {
+                failureCount.fetchAndAddRelaxed(1);
+            }
+            if (call == "W1AW" && result.isValid() && result.name != "United States") {
+                failureCount.fetchAndAddRelaxed(1);
+            }
+
+            lookupCount.fetchAndAddRelaxed(1);
+
+            // Small delay to increase chance of race condition
+            if (i % 100 == 0) {
+                QThread::msleep(1);
+            }
+        }
+    };
+
+    // Define reload operations (simulate CTY.DAT download/update)
+    auto reloadTask = [&cf, &reloadCount, this]() {
+        // Perform 50 reloads
+        for (int i = 0; i < 50; i++) {
+            bool loaded = cf.loadFromFile(m_testFilePath);
+            if (loaded) {
+                reloadCount.fetchAndAddRelaxed(1);
+            }
+
+            // Small delay between reloads
+            QThread::msleep(5);
+        }
+    };
+
+    // Launch multiple concurrent lookup threads (simulating ADIF import, DX cluster, QSO logging)
+    QFuture<void> lookup1 = QtConcurrent::run(lookupTask);
+    QFuture<void> lookup2 = QtConcurrent::run(lookupTask);
+    QFuture<void> lookup3 = QtConcurrent::run(lookupTask);
+
+    // Launch reload thread (simulating CTY.DAT file update)
+    QFuture<void> reload = QtConcurrent::run(reloadTask);
+
+    // Wait for all threads to complete
+    lookup1.waitForFinished();
+    lookup2.waitForFinished();
+    lookup3.waitForFinished();
+    reload.waitForFinished();
+
+    // Verify no data corruption occurred
+    QCOMPARE(failureCount.loadRelaxed(), 0);
+
+    // Verify lookups happened (3 threads * 500 lookups = 1500 total)
+    QVERIFY(lookupCount.loadRelaxed() >= 1500);
+
+    // Verify reloads happened
+    QVERIFY(reloadCount.loadRelaxed() >= 45);  // Allow a few failures
+
+    // Final sanity check - CountryFile should still work correctly
+    CountryData result = cf.lookup("W1AW");
+    QVERIFY(result.isValid());
+    QCOMPARE(result.name, QString("United States"));
+    QCOMPARE(result.cqZone, 5);
 }
 
 QTEST_MAIN(TestCountryFile)
