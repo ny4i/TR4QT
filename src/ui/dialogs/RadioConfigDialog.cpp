@@ -187,18 +187,18 @@ void RadioConfigDialog::onTestConnection() {
     RadioConfig config = getConfig();
 
     if (config.hamlibModelId == 0) {
-        QMessageBox::warning(this, "Invalid Configuration",
+        DialogHelper::warning(this, "Invalid Configuration",
                            "Please select a radio model.");
         return;
     }
 
     if (config.port.isEmpty()) {
-        QMessageBox::warning(this, "Invalid Configuration",
+        DialogHelper::warning(this, "Invalid Configuration",
                            "Please specify a port or IP address.");
         return;
     }
 
-    QMessageBox::information(this, "Test Connection",
+    DialogHelper::information(this, "Test Connection",
                            QString("Would test connection to:\n"
                                    "Model ID: %1\n"
                                    "Port: %2\n"
