@@ -72,7 +72,7 @@ QList<ExchangeField> ARRLDXContest::getReceivedExchangeFields() const {
     // State/Province OR Power (smart detection)
     ExchangeField exchange;
     exchange.name = "State/Power";
-    exchange.hint = "MA or 100";
+    exchange.hint = "FL or 100";
     exchange.autoFill = false;
     exchange.maxLength = 4;
     fields.append(exchange);
@@ -127,7 +127,7 @@ bool ARRLDXContest::validateReceivedExchange(const QString& exchange, QString& e
         }
         stateOrPower = parts[1];
     } else {
-        errorMsg = "Exchange must be: State/Power (e.g., 'MA' or '100') or RST + State/Power";
+        errorMsg = "Exchange must be: State/Power (e.g., 'FL' or '100') or RST + State/Power";
         return false;
     }
 

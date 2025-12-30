@@ -122,7 +122,7 @@ bool NAQPContest::validateReceivedExchange(const QString& exchange, QString& err
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     if (parts.size() < 2) {
-        errorMsg = "Exchange must be: Name State (e.g., 'JOHN MA')";
+        errorMsg = "Exchange must be: Name State (e.g., 'JOHN FL')";
         return false;
     }
 
