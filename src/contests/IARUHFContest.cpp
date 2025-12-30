@@ -63,7 +63,7 @@ QList<ExchangeField> IARUHFContest::getReceivedExchangeFields() const {
     // RST
     ExchangeField rst;
     rst.name = "RST";
-    rst.hint = m_mode == ModeType::CW ? "599" : "59";
+    rst.hint = RSTValidator::getDefault(m_mode);
     rst.autoFill = true;
     rst.maxLength = 3;
     fields.append(rst);
