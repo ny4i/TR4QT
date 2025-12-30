@@ -7,6 +7,7 @@
 #include "../../logging/Logger.h"
 #include "../../logging/LogLevel.h"
 #include "../../logging/LogMacros.h"
+#include "../../utils/DialogHelper.h"
 #include "../../core/Constants.h"
 #include "../../contests/ContestRegistry.h"
 #include <QVBoxLayout>
@@ -1321,7 +1322,7 @@ void PreferencesDialog::onRadioModelChanged(int index) {
 }
 
 void PreferencesDialog::onTestRadioConnection() {
-    QMessageBox::information(this, "Test Connection",
+    DialogHelper::information(this, "Test Connection",
                            "Radio connection testing will be implemented when integrated with MainWindow.\n\n"
                            "For now, save these settings and use Radio → Connect to test.");
 }
@@ -1331,7 +1332,7 @@ void PreferencesDialog::onUdpAddDestination() {
     quint16 port = m_udpPortSpin->value();
 
     if (host.isEmpty()) {
-        QMessageBox::warning(this, "Add Destination",
+        DialogHelper::warning(this, "Add Destination",
                            "Please enter a host address.");
         return;
     }
@@ -1341,7 +1342,7 @@ void PreferencesDialog::onUdpAddDestination() {
     for (int i = 0; i < m_udpDestinationsList->count(); ++i) {
         QString existingItem = m_udpDestinationsList->item(i)->text();
         if (existingItem.startsWith(newItem)) {
-            QMessageBox::warning(this, "Add Destination",
+            DialogHelper::warning(this, "Add Destination",
                                "This destination already exists in the list.");
             return;
         }
@@ -1358,7 +1359,7 @@ void PreferencesDialog::onUdpAddDestination() {
 void PreferencesDialog::onUdpRemoveDestination() {
     QListWidgetItem* currentItem = m_udpDestinationsList->currentItem();
     if (!currentItem) {
-        QMessageBox::warning(this, "Remove Destination",
+        DialogHelper::warning(this, "Remove Destination",
                            "Please select a destination to remove.");
         return;
     }
@@ -1371,7 +1372,7 @@ void PreferencesDialog::onUdpTestDestination() {
     quint16 port = m_udpPortSpin->value();
 
     if (host.isEmpty()) {
-        QMessageBox::warning(this, "Test Destination",
+        DialogHelper::warning(this, "Test Destination",
                            "Please enter a host address to test.");
         return;
     }
@@ -1389,12 +1390,12 @@ void PreferencesDialog::onUdpTestDestination() {
     bool success = testBroadcaster.sendRawData(testData);
 
     if (success) {
-        QMessageBox::information(this, "Test Destination",
+        DialogHelper::information(this, "Test Destination",
                                QString("Successfully sent test message to %1:%2\n\n"
                                       "Check the receiving application to verify.")
                                    .arg(host).arg(port));
     } else {
-        QMessageBox::critical(this, "Test Destination",
+        DialogHelper::critical(this, "Test Destination",
                             QString("Failed to send test message to %1:%2\n\n"
                                    "Error: %3")
                                 .arg(host).arg(port).arg(testBroadcaster.lastError()));
@@ -1413,7 +1414,7 @@ void PreferencesDialog::onOpenLogFile() {
     }
 
     if (!QFile::exists(logPath)) {
-        QMessageBox::warning(this, "Open Log File",
+        DialogHelper::warning(this, "Open Log File",
                            QString("Log file does not exist:\n%1\n\n"
                                   "Start the application to create the log file.")
                                .arg(logPath));
@@ -1422,7 +1423,7 @@ void PreferencesDialog::onOpenLogFile() {
 
     // Open with default application
     if (!QDesktopServices::openUrl(QUrl::fromLocalFile(logPath))) {
-        QMessageBox::critical(this, "Open Log File",
+        DialogHelper::critical(this, "Open Log File",
                             QString("Failed to open log file:\n%1").arg(logPath));
     }
 }
@@ -1460,10 +1461,10 @@ void PreferencesDialog::onClearLogFile() {
     if (logFile.exists()) {
         if (logFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
             logFile.close();
-            QMessageBox::information(this, "Clear Log File",
+            DialogHelper::information(this, "Clear Log File",
                                    "Log file cleared successfully.");
         } else {
-            QMessageBox::critical(this, "Clear Log File",
+            DialogHelper::critical(this, "Clear Log File",
                                 QString("Failed to clear log file:\n%1\n\nError: %2")
                                     .arg(logPath).arg(logFile.errorString()));
         }
@@ -1711,7 +1712,7 @@ void PreferencesDialog::onDownloadClusterList() {
     connect(downloader, &DXClusterListDownloader::errorOccurred,
             this, [this, progressDialog](const QString& error) {
         progressDialog->cancel();
-        QMessageBox::warning(this, "Download Error",
+        DialogHelper::warning(this, "Download Error",
             QString("Failed to download cluster list:\n%1").arg(error));
     });
 
@@ -1736,7 +1737,7 @@ void PreferencesDialog::onClusterListDownloadFinished(bool success, const QList<
     LOG_DEBUG("PreferencesDialog", QString("Downloaded %1 cluster servers").arg(servers.size()));
 
     if (servers.isEmpty()) {
-        QMessageBox::warning(this, "Download Complete",
+        DialogHelper::warning(this, "Download Complete",
             "No cluster servers found in downloaded list.");
         return;
     }
@@ -1755,7 +1756,7 @@ void PreferencesDialog::onClusterListDownloadFinished(bool success, const QList<
     // Save to settings
     settings.saveDXClusterList(serverList);
 
-    QMessageBox::information(this, "Download Complete",
+    DialogHelper::information(this, "Download Complete",
         QString("Successfully downloaded and saved %1 DX cluster servers.\n\n"
                 "The server list is now available in the DX Cluster window.")
             .arg(servers.size()));
@@ -1984,7 +1985,7 @@ void PreferencesDialog::onK4DiscoveryFinished(int count) {
 
     // Display results
     if (count == 0) {
-        QMessageBox::information(this, "K4 Discovery",
+        DialogHelper::information(this, "K4 Discovery",
             "No K4 radios found on the network.\n\n"
             "Make sure:\n"
             "• Your K4 is powered on\n"
@@ -2051,7 +2052,7 @@ void PreferencesDialog::onK4DiscoveryFinished(int count) {
                 }
             }
         } else {
-            QMessageBox::information(this, "K4 Discovery", message);
+            DialogHelper::information(this, "K4 Discovery", message);
         }
     }
 }
