@@ -2,6 +2,7 @@
 #include "../../data/Database.h"
 #include "../../data/QSORepository.h"
 #include "../../utils/AppSettings.h"
+#include "../../utils/DialogHelper.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -174,7 +175,7 @@ void BackupRestoreDialog::onCreateBackup() {
 
     // Validate directory
     if (!backupDir.isEmpty() && !QDir(backupDir).exists()) {
-        QMessageBox::StandardButton reply = QMessageBox::question(
+        QMessageBox::StandardButton reply = DialogHelper::question(
             this,
             "Create Directory?",
             QString("Backup directory does not exist:\n\n%1\n\nCreate it?").arg(backupDir),
@@ -186,7 +187,7 @@ void BackupRestoreDialog::onCreateBackup() {
 
         QDir dir;
         if (!dir.mkpath(backupDir)) {
-            QMessageBox::critical(this, "Error",
+            DialogHelper::critical(this, "Error",
                                 "Failed to create backup directory:\n" + backupDir);
             return;
         }
@@ -206,7 +207,7 @@ void BackupRestoreDialog::onCreateBackup() {
 
     if (success) {
         QFileInfo backupInfo(backupPath);
-        QMessageBox::information(this, "Backup Complete",
+        DialogHelper::information(this, "Backup Complete",
                                QString("Backup created successfully:\n\n"
                                      "%1\n\nSize: %2")
                                    .arg(backupInfo.fileName())
@@ -217,7 +218,7 @@ void BackupRestoreDialog::onCreateBackup() {
             loadBackupList();
         }
     } else {
-        QMessageBox::critical(this, "Backup Failed",
+        DialogHelper::critical(this, "Backup Failed",
                             "Failed to create backup:\n\n" + backup.lastError());
     }
 }
@@ -251,7 +252,7 @@ void BackupRestoreDialog::onBackupSelected(QListWidgetItem* item) {
 void BackupRestoreDialog::onRestoreBackup() {
     QListWidgetItem* item = m_backupListWidget->currentItem();
     if (!item) {
-        QMessageBox::warning(this, "No Selection",
+        DialogHelper::warning(this, "No Selection",
                            "Please select a backup to restore.");
         return;
     }
@@ -259,7 +260,7 @@ void BackupRestoreDialog::onRestoreBackup() {
     BackupInfo info = item->data(Qt::UserRole).value<BackupInfo>();
 
     if (!info.isValid) {
-        QMessageBox::critical(this, "Invalid Backup",
+        DialogHelper::critical(this, "Invalid Backup",
                             "The selected backup is not a valid SQLite database.");
         return;
     }
@@ -280,13 +281,13 @@ void BackupRestoreDialog::onRestoreBackup() {
     m_restoreButton->setText("Restore from Selected Backup");
 
     if (success) {
-        QMessageBox::information(this, "Restore Complete",
+        DialogHelper::information(this, "Restore Complete",
                                QString("Database restored successfully from:\n\n%1\n\n"
                                      "Please restart the application to reload the contest.")
                                    .arg(info.fileName));
         accept();  // Close dialog
     } else {
-        QMessageBox::critical(this, "Restore Failed",
+        DialogHelper::critical(this, "Restore Failed",
                             "Failed to restore from backup:\n\n" + backup.lastError());
     }
 }
@@ -388,7 +389,7 @@ QString BackupRestoreDialog::formatFileSize(qint64 bytes) {
 
 bool BackupRestoreDialog::confirmRestore(const QString& backupName) {
     // First confirmation
-    QMessageBox::StandardButton reply = QMessageBox::warning(
+    QMessageBox::StandardButton reply = DialogHelper::warning(
         this,
         "Confirm Restore",
         QString("<b>WARNING: This will REPLACE your current contest database!</b><br><br>"
@@ -414,7 +415,7 @@ bool BackupRestoreDialog::confirmRestore(const QString& backupName) {
         &ok);
 
     if (!ok || contestName.trimmed() != m_contestInfo.contestName) {
-        QMessageBox::information(this, "Cancelled",
+        DialogHelper::information(this, "Cancelled",
                                "Restore cancelled - contest name did not match.");
         return false;
     }
