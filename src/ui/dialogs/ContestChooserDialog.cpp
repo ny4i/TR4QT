@@ -2,6 +2,7 @@
 #include "../../core/Constants.h"
 #include "../../contests/ContestRegistry.h"
 #include "../../contests/ContestMetadata.h"
+#include "../../utils/DialogHelper.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -244,7 +245,7 @@ void ContestChooserDialog::onDeleteContest() {
     QString contestName = item->text();
     QString dbPath = item->data(Qt::UserRole).toString();
 
-    QMessageBox::StandardButton reply = QMessageBox::question(
+    QMessageBox::StandardButton reply = DialogHelper::question(
         this, "Delete Contest?",
         QString("Are you sure you want to delete the contest:\n\n%1\n\nThis action cannot be undone!")
             .arg(contestName),
@@ -254,11 +255,11 @@ void ContestChooserDialog::onDeleteContest() {
     if (reply == QMessageBox::Yes) {
         QFile file(dbPath);
         if (file.remove()) {
-            QMessageBox::information(this, "Contest Deleted",
+            DialogHelper::information(this, "Contest Deleted",
                                    QString("Contest '%1' has been deleted.").arg(contestName));
             loadExistingContests();  // Refresh list
         } else {
-            QMessageBox::warning(this, "Delete Failed",
+            DialogHelper::warning(this, "Delete Failed",
                                QString("Failed to delete contest database:\n%1").arg(file.errorString()));
         }
     }
@@ -267,7 +268,7 @@ void ContestChooserDialog::onDeleteContest() {
 void ContestChooserDialog::onNewContest() {
     QString contestName = m_contestNameEdit->text().trimmed();
     if (contestName.isEmpty()) {
-        QMessageBox::warning(this, "Invalid Input", "Please enter a contest name.");
+        DialogHelper::warning(this, "Invalid Input", "Please enter a contest name.");
         m_contestNameEdit->setFocus();
         return;
     }
@@ -290,7 +291,7 @@ void ContestChooserDialog::onNewContest() {
 
     // Check if file already exists
     if (QFile::exists(dbPath)) {
-        QMessageBox::StandardButton reply = QMessageBox::question(
+        QMessageBox::StandardButton reply = DialogHelper::question(
             this, "Contest Exists",
             QString("A contest with this name already exists:\n\n%1\n\nDo you want to resume it instead?")
                 .arg(contestId),
