@@ -44,6 +44,21 @@ void DialogHelper::critical(
         QMessageBox::Critical, parent, title, text, QMessageBox::Ok, QMessageBox::NoButton, true);
 }
 
+void DialogHelper::about(
+    QWidget* parent,
+    const QString& title,
+    const QString& text)
+{
+    // Log the about dialog
+    LOG_INFO("DialogHelper", QString("[About] %1 - %2").arg(title, text));
+
+    // Use Qt's built-in about() which has special formatting
+    QMessageBox::about(parent, title, text);
+
+    // Log that user closed the dialog
+    LOG_INFO("DialogHelper", QString("[About] %1 - User closed dialog").arg(title));
+}
+
 QMessageBox::StandardButton DialogHelper::showMessageBox(
     QMessageBox::Icon icon,
     QWidget* parent,

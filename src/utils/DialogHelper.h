@@ -70,6 +70,16 @@ public:
         const QString& text
     );
 
+    /**
+     * Show an "About" dialog (simple informational, no icon)
+     * Logs the message
+     */
+    static void about(
+        QWidget* parent,
+        const QString& title,
+        const QString& text
+    );
+
 private:
     /**
      * Core message box display with logging and optional text selection
