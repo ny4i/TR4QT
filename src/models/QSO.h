@@ -45,9 +45,15 @@ struct QSO {
     int cqZone{0};              // CQ Zone (1-40)
     int ituZone{0};             // ITU Zone
     QString continent;          // Continent code (NA, SA, EU, AF, AS, OC)
-    QString state;              // US state or Canadian province (if applicable)
+
+    // Core geographic fields (commonly used across many contests)
+    // These prevent TR4W's anti-pattern of overloading a single QTH field
+    QString state;              // US state or Canadian province (e.g., "MA", "ON")
     QString county;             // US county (for ARRL section mapping)
     QString arrlSection;        // ARRL/RAC section (WMA, NFL, SCV, AB, etc.)
+    QString gridSquare;         // Maidenhead grid locator (e.g., "FN42", "DM79")
+    QString iotaReference;      // IOTA reference (e.g., "NA-001", "EU-005")
+
     QString contestClass;       // Contest class (e.g., "2A" for Field Day, "M" for multi-op)
 
     // Contest-specific parsed fields (from exchangeReceived)
