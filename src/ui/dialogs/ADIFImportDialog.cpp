@@ -11,6 +11,7 @@
 #include <QProgressBar>
 #include <QFileDialog>
 #include <QMessageBox>
+#include "../../utils/DialogHelper.h"
 #include <QFileInfo>
 #include <QCheckBox>
 
@@ -118,7 +119,7 @@ void ADIFImportDialog::onSelectFileClicked() {
 
 void ADIFImportDialog::onImportClicked() {
     if (m_selectedFile.isEmpty()) {
-        QMessageBox::warning(this, "No File Selected", "Please select an ADIF file to import.");
+        DialogHelper::warning(this, "No File Selected", "Please select an ADIF file to import.");
         return;
     }
 
