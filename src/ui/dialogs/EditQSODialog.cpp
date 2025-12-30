@@ -300,7 +300,7 @@ void EditQSODialog::onAccept() {
         if (!exchange.isEmpty()) {
             QString errorMsg;
             if (!m_contest->validateReceivedExchange(exchange, errorMsg)) {
-                QMessageBox::warning(this, "Invalid Exchange",
+                DialogHelper::warning(this, "Invalid Exchange",
                     QString("The exchange is not valid for this contest:\n\n%1\n\n"
                             "Please correct the exchange before saving.")
                         .arg(errorMsg));
