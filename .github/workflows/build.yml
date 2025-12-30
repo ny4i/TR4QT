@@ -102,8 +102,15 @@ jobs:
         QT_BIN="${{ env.QT_ROOT_DIR }}/bin"
         QT_PLUGINS="${{ env.QT_ROOT_DIR }}/plugins"
         # Find MinGW bin directory (installed by install-qt-action)
-        MINGW_BIN=$(find "${{ runner.temp }}/../Qt/Tools" -type d -name "mingw*_64" -print -quit 2>/dev/null || echo "")/bin
-        if [ ! -d "$MINGW_BIN" ]; then
+        # QT_ROOT_DIR is like D:\a\TR4QT\Qt\6.7.2\mingw_64, so go up 2 levels to find Tools
+        QT_BASE=$(dirname $(dirname "${{ env.QT_ROOT_DIR }}"))
+        echo "DEBUG: QT_ROOT_DIR=${{ env.QT_ROOT_DIR }}"
+        echo "DEBUG: QT_BASE=$QT_BASE"
+        MINGW_BIN=$(find "$QT_BASE/Tools" -type d -name "mingw*_64" -print -quit 2>/dev/null || echo "")
+        if [ -n "$MINGW_BIN" ]; then
+          MINGW_BIN="$MINGW_BIN/bin"
+        fi
+        if [ ! -d "$MINGW_BIN" ] || [ -z "$MINGW_BIN" ]; then
           echo "ERROR: MinGW not found, checking alternative locations..."
           MINGW_BIN="C:/Qt/Tools/mingw1310_64/bin"
         fi
