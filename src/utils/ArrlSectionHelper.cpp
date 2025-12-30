@@ -884,5 +884,50 @@ bool isValidSection(const QString& section)
     return validSections.contains(section.toUpper());
 }
 
+QStringList getUSStates()
+{
+    // 50 US states as 2-letter postal codes (alphabetical)
+    static QStringList states = {
+        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+        "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+        "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+        "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+        "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+    };
+    return states;
+}
+
+QStringList getCanadianProvinces()
+{
+    // Canadian provinces/territories + Ontario subdivisions (alphabetical)
+    static QStringList provinces = {
+        "AB",   // Alberta
+        "BC",   // British Columbia
+        "GH",   // Greater Toronto Area / Golden Horseshoe (Ontario subdivision)
+        "MB",   // Manitoba
+        "NB",   // New Brunswick
+        "NL",   // Newfoundland and Labrador
+        "NS",   // Nova Scotia
+        "NT",   // Northwest Territories
+        "ONE",  // Ontario East
+        "ONN",  // Ontario North
+        "ONS",  // Ontario South
+        "PE",   // Prince Edward Island
+        "QC",   // Quebec
+        "SK",   // Saskatchewan
+        "YT"    // Yukon
+    };
+    return provinces;
+}
+
+QStringList getStatesAndProvinces()
+{
+    // Combined list for contests like RTTY Roundup, NAQP
+    QStringList combined = getUSStates();
+    combined.append(getCanadianProvinces());
+    combined.sort();  // Keep alphabetical
+    return combined;
+}
+
 } // namespace Arrl
 } // namespace TR4QT

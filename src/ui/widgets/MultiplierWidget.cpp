@@ -1,10 +1,14 @@
 #include "MultiplierWidget.h"
 #include "../../utils/ThemeManager.h"
+#include "../../utils/ArrlSectionHelper.h"
+#include "../../utils/CountryFile.h"
 #include <QVBoxLayout>
 #include <QHeaderView>
 #include <QFont>
 #include <QPalette>
 #include <QMenu>
+#include <QSet>
+#include <QResizeEvent>
 
 namespace TR4QT {
 
@@ -13,6 +17,7 @@ MultiplierWidget::MultiplierWidget(QWidget* parent)
     , m_type(MultiplierType::Country)
     , m_currentBand(BandType::None)
     , m_hideWorked(false)
+    , m_columnCount(4)  // Start with 4 columns, will be recalculated on resize
 {
     setupUI();
     loadMultiplierList();
@@ -29,7 +34,7 @@ void MultiplierWidget::setupUI() {
     layout->setContentsMargins(5, 5, 5, 5);
 
     m_table = new QTableWidget(this);
-    m_table->setColumnCount(4);  // 4 columns like TR4W
+    m_table->setColumnCount(m_columnCount);  // Dynamic column count
     m_table->horizontalHeader()->setVisible(false);
     m_table->verticalHeader()->setVisible(false);
     m_table->setShowGrid(true);
@@ -45,9 +50,9 @@ void MultiplierWidget::setupUI() {
     QFont font("Monospace", 9);
     m_table->setFont(font);
 
-    // Set column widths
-    for (int i = 0; i < 4; ++i) {
-        m_table->setColumnWidth(i, 60);
+    // Set initial column widths (will be recalculated on resize)
+    for (int i = 0; i < m_columnCount; ++i) {
+        m_table->setColumnWidth(i, MIN_COLUMN_WIDTH);
     }
 
     connect(m_table, &QTableWidget::cellClicked,
@@ -75,42 +80,78 @@ void MultiplierWidget::setupUI() {
 }
 
 void MultiplierWidget::loadMultiplierList() {
-    // Load DXCC prefix list (abbreviated 2-3 letter codes)
-    // This is a subset based on the TR4W screenshot
-    m_allMultipliers = {
-        "Ab", "Lax", "Oh", "Sv",
-        "Ak", "Mb", "Ok", "Ter",
-        "Al", "MDC", "One", "Tn",
-        "Ar", "Me", "Onn", "Ut",
-        "Az", "Mi", "Ons", "Va",
-        "Bc", "Mn", "Or", "Vi",
-        "C", "Mo", "Orn", "Vt",
-        "Ct", "Ms", "Pac", "WcF",
-        "De", "Mt", "PE", "Wi",
-        "Eb", "Nb", "Pr", "WMa",
-        "EMA", "Nc", "Qc", "WNy",
-        "ENy", "Nd", "Ri", "WPa",
-        "EPA", "Ne", "Sb", "WTx",
-        "EWA", "NFj", "Sc", "Wv",
-        "Ga", "Nh", "Scv", "WWa",
-        "Gh", "Ni", "Sd", "Wy",
-        "Ia", "NLj", "Sdg",
-        "Id", "NM", "Sf",
-        "Il", "NNj", "Sft",
-        "In", "NNy", "Sjv",
-        "Ks", "Ns", "Sk",
-        "Ky", "NTx", "SNj",
-        "La", "Nv", "STx"
-    };
+    m_allMultipliers.clear();
 
-    // Sort alphabetically
-    m_allMultipliers.sort();
+    switch (m_type) {
+    case MultiplierType::State:
+        // US states + Canadian provinces (for contests like RTTY Roundup, NAQP)
+        m_allMultipliers = Arrl::getStatesAndProvinces();
+        break;
+
+    case MultiplierType::Section:
+        // ARRL/RAC sections (for contests like Field Day, Sweepstakes)
+        m_allMultipliers = Arrl::getAllSections();
+        break;
+
+    case MultiplierType::Country:
+        // DXCC primary prefixes - will be loaded from CountryFile dynamically
+        // This provides a fallback list if CountryFile isn't available yet
+        m_allMultipliers = {"(Loading country list...)"};
+        break;
+
+    case MultiplierType::CQZone:
+        // CQ Zones 1-40
+        for (int i = 1; i <= 40; ++i) {
+            m_allMultipliers.append(QString::number(i));
+        }
+        break;
+
+    case MultiplierType::ITUZone:
+        // ITU Zones 1-90
+        for (int i = 1; i <= 90; ++i) {
+            m_allMultipliers.append(QString::number(i));
+        }
+        break;
+
+    case MultiplierType::Prefix:
+        // WPX prefixes - too many to list, will be populated dynamically
+        // as they're worked
+        m_allMultipliers = {"(Worked prefixes will appear here)"};
+        break;
+
+    case MultiplierType::Grid:
+        // Grids - too many to list, will be populated dynamically
+        m_allMultipliers = {"(Worked grids will appear here)"};
+        break;
+
+    case MultiplierType::Custom:
+        // Custom multipliers defined by contest
+        m_allMultipliers = {"(Custom multipliers)"};
+        break;
+
+    default:
+        // Fallback to sections
+        m_allMultipliers = Arrl::getAllSections();
+        break;
+    }
+
+    // Sort alphabetically (except for zones which are already numeric)
+    if (m_type != MultiplierType::CQZone && m_type != MultiplierType::ITUZone) {
+        m_allMultipliers.sort();
+    }
 }
 
 void MultiplierWidget::setMultiplierType(MultiplierType type) {
     m_type = type;
     loadMultiplierList();
     updateDisplay();
+}
+
+void MultiplierWidget::setCountryList(const QStringList& prefixes) {
+    if (m_type == MultiplierType::Country) {
+        m_allMultipliers = prefixes;
+        updateDisplay();
+    }
 }
 
 void MultiplierWidget::setMultiplierWorked(const QString& value, BandType band) {
@@ -157,22 +198,43 @@ void MultiplierWidget::updateDisplay() {
 
     // Build list of multipliers to display (filter out worked if m_hideWorked is true)
     QStringList displayList;
-    for (const QString& mult : m_allMultipliers) {
-        MultiplierStatus status = getStatus(mult, m_currentBand);
 
-        // Skip worked multipliers if hiding them
-        if (m_hideWorked && status == MultiplierStatus::Worked) {
-            continue;
+    // For dynamic types (Prefix, Grid, Custom), show worked multipliers
+    // For static types (State, Section, Country, Zones), show pre-populated list
+    bool isDynamicType = (m_type == MultiplierType::Prefix ||
+                          m_type == MultiplierType::Grid ||
+                          m_type == MultiplierType::Custom) &&
+                         (m_allMultipliers.size() == 1 &&
+                          m_allMultipliers.first().contains("Worked"));
+
+    if (isDynamicType) {
+        // Dynamic type - show only worked multipliers
+        QSet<QString> uniqueMults;
+        for (const QString& mult : m_workedMultipliers.keys()) {
+            uniqueMults.insert(mult);
         }
+        displayList = uniqueMults.values();
+        displayList.sort();
+    } else {
+        // Static type - show pre-populated list
+        for (const QString& mult : m_allMultipliers) {
+            MultiplierStatus status = getStatus(mult, m_currentBand);
 
-        displayList.append(mult);
+            // Skip worked multipliers if hiding them
+            if (m_hideWorked && status == MultiplierStatus::Worked) {
+                continue;
+            }
+
+            displayList.append(mult);
+        }
     }
 
-    int itemsPerColumn = (displayList.size() + 3) / 4;  // Divide into 4 columns
+    // Calculate rows needed based on current column count
+    int itemsPerColumn = (displayList.size() + m_columnCount - 1) / m_columnCount;
     m_table->setRowCount(itemsPerColumn);
 
     int multIndex = 0;
-    for (int col = 0; col < 4; ++col) {
+    for (int col = 0; col < m_columnCount; ++col) {
         for (int row = 0; row < itemsPerColumn; ++row) {
             if (multIndex >= displayList.size()) {
                 break;
@@ -250,6 +312,43 @@ void MultiplierWidget::onContextMenuRequested(const QPoint& pos) {
 void MultiplierWidget::onToggleHideWorked() {
     m_hideWorked = !m_hideWorked;
     updateDisplay();
+}
+
+void MultiplierWidget::calculateColumnCount() {
+    // Calculate optimal number of columns based on widget width
+    int availableWidth = width() - 10;  // Account for margins
+
+    if (availableWidth < MIN_COLUMN_WIDTH) {
+        m_columnCount = 1;
+        return;
+    }
+
+    // Calculate how many columns can fit
+    int maxColumns = availableWidth / MIN_COLUMN_WIDTH;
+
+    // At least 1 column, at most what can fit
+    m_columnCount = qMax(1, maxColumns);
+}
+
+void MultiplierWidget::resizeEvent(QResizeEvent* event) {
+    QWidget::resizeEvent(event);
+
+    // Recalculate column count based on new width
+    int oldColumnCount = m_columnCount;
+    calculateColumnCount();
+
+    // If column count changed, update the table
+    if (oldColumnCount != m_columnCount) {
+        m_table->setColumnCount(m_columnCount);
+
+        // Update column widths
+        for (int i = 0; i < m_columnCount; ++i) {
+            m_table->setColumnWidth(i, MIN_COLUMN_WIDTH);
+        }
+
+        // Refresh the display with new column count
+        updateDisplay();
+    }
 }
 
 } // namespace TR4QT

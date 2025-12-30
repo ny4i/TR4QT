@@ -75,6 +75,36 @@ bool isValidSection(const QString& section);
  */
 QStringList getAllSections();
 
+/**
+ * @brief Get list of US state abbreviations only (2-letter codes).
+ *
+ * Returns the 50 US states as 2-letter postal codes.
+ * Does NOT include Canadian provinces or ARRL section subdivisions.
+ *
+ * @return QStringList containing US state codes (AL, AK, AZ, ..., WY)
+ */
+QStringList getUSStates();
+
+/**
+ * @brief Get list of Canadian province/territory abbreviations.
+ *
+ * Returns Canadian provinces and territories as 2-letter codes,
+ * plus Ontario subdivisions (GH, ONE, ONN, ONS).
+ *
+ * @return QStringList containing Canadian codes (AB, BC, MB, ..., YT, GH, ONE, ONN, ONS)
+ */
+QStringList getCanadianProvinces();
+
+/**
+ * @brief Get combined list of US states and Canadian provinces.
+ *
+ * Convenience function for contests that use states/provinces as multipliers
+ * (like ARRL RTTY Roundup, NAQP, etc.).
+ *
+ * @return QStringList containing all US states + Canadian provinces
+ */
+QStringList getStatesAndProvinces();
+
 } // namespace Arrl
 } // namespace TR4QT
 

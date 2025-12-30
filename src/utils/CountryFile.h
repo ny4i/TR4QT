@@ -10,6 +10,9 @@
 
 namespace TR4QT {
 
+// Forward declaration
+struct QSO;
+
 // Country data structure
 struct CountryData {
     QString name;              // "United States"
@@ -54,8 +57,16 @@ public:
     // Lookup a callsign and return country data
     CountryData lookup(const QString& callsign) const;
 
+    // Populate all DXCC-related fields in a QSO from callsign lookup
+    // This is the single source of truth for DXCC data population
+    // Use this everywhere instead of duplicating lookup logic
+    void populateQSODXCCFields(QSO& qso) const;
+
     // Get all countries (for UI display, etc.)
     QVector<CountryData> getAllCountries() const;
+
+    // Get all primary DXCC prefixes (for multiplier lists, etc.)
+    QStringList getAllPrimaryPrefixes() const;
 
     // Extract prefix from callsign for WPX contests
     static QString extractWPXPrefix(const QString& callsign);

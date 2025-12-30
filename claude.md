@@ -261,7 +261,7 @@ DialogHelper::critical(this, "Error", QString("Failed: %1").arg(errorMessage));
 
 ## Version Management
 
-**CRITICAL**: The version number must be updated with every release commit IN TWO PLACES!
+**CRITICAL**: The version number must be updated with every release commit IN FOUR PLACES!
 
 Locations:
 1. **Application**: `/src/core/Constants.h`
@@ -274,6 +274,20 @@ Locations:
    !define APPVERSION "X.Y.Z"
    ```
 
+3. **macOS Bundle**: `/src/CMakeLists.txt`
+   ```cmake
+   MACOSX_BUNDLE_SHORT_VERSION_STRING "X.Y.Z"
+   MACOSX_BUNDLE_BUNDLE_VERSION "X.Y.Z"
+   ```
+
+4. **Windows Resource File**: `/resources/tr4qt.rc`
+   ```c
+   #define VER_FILEVERSION             X,Y,Z,0
+   #define VER_FILEVERSION_STR         "X.Y.Z.0\0"
+   #define VER_PRODUCTVERSION          X,Y,Z,0
+   #define VER_PRODUCTVERSION_STR      "X.Y.Z\0"
+   ```
+
 Convention:
 - **Major (X)**: Major features or breaking changes
 - **Minor (Y)**: New features, enhancements
@@ -283,23 +297,41 @@ Update process:
 1. Increment version in Constants.h
 2. Update comment to describe the change
 3. **Update version in tr4qt.nsi to match**
-4. Include version in commit message: "Feature description - vX.Y.Z"
-5. Rebuild: `cmake --build build`
+4. **Update version in CMakeLists.txt to match**
+5. **Update version in tr4qt.rc to match (4 places!)**
+6. Include version in commit message: "Feature description - vX.Y.Z"
+7. Rebuild: `cmake --build build`
 
 Example (Constants.h):
 ```cpp
-constexpr const char* APP_VERSION = "2.58.0";  // Zone lookup from cty.dat, manual band selection fixes
+constexpr const char* APP_VERSION = "3.8.1";  // Streamlined ADIF import with checkbox rescore
 ```
 
 Example (tr4qt.nsi):
 ```nsis
-!define APPVERSION "2.58.0"
+!define APPVERSION "3.8.1"
 ```
 
-**Why both files?**
+Example (CMakeLists.txt):
+```cmake
+MACOSX_BUNDLE_SHORT_VERSION_STRING "3.8.1"
+MACOSX_BUNDLE_BUNDLE_VERSION "3.8.1"
+```
+
+Example (tr4qt.rc):
+```c
+#define VER_FILEVERSION             3,8,1,0
+#define VER_FILEVERSION_STR         "3.8.1.0\0"
+#define VER_PRODUCTVERSION          3,8,1,0
+#define VER_PRODUCTVERSION_STR      "3.8.1\0"
+```
+
+**Why all four files?**
 - Constants.h: Used by the running application for "About" dialog, window titles, etc.
 - tr4qt.nsi: Used by the Windows installer filename and registry entries
-- If they don't match, users get confused about which version they installed
+- CMakeLists.txt: Used by macOS Info.plist (shown in crash reports and About dialog)
+- tr4qt.rc: Used by Windows .exe Properties → Details tab (File Version, Product Version, Company)
+- If they don't match, users and crash reports show inconsistent versions
 
 ## Build Process
 

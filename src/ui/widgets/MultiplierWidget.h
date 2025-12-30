@@ -43,6 +43,12 @@ public:
     void setMultiplierType(MultiplierType type);
 
     /**
+     * Set DXCC country list (for Country multiplier type)
+     * Should be called with CountryFile::getAllPrimaryPrefixes()
+     */
+    void setCountryList(const QStringList& prefixes);
+
+    /**
      * Update multiplier status
      */
     void setMultiplierWorked(const QString& value, BandType band = BandType::None);
@@ -68,10 +74,14 @@ private slots:
     void onContextMenuRequested(const QPoint& pos);
     void onToggleHideWorked();
 
+protected:
+    void resizeEvent(QResizeEvent* event) override;
+
 private:
     void setupUI();
     void loadMultiplierList();
     void updateDisplay();
+    void calculateColumnCount();
     QColor getColorForStatus(MultiplierStatus status) const;
     void applyTheme();
 
@@ -89,6 +99,10 @@ private:
 
     // Display options
     bool m_hideWorked;  // Hide worked multipliers when true
+
+    // Dynamic layout
+    int m_columnCount;  // Dynamically calculated based on window width
+    static constexpr int MIN_COLUMN_WIDTH = 70;  // Minimum width per column
 };
 
 } // namespace TR4QT

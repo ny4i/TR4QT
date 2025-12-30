@@ -175,39 +175,30 @@ bool ADIFFieldMapper::mapToQSO(const QMap<QString, QString>& adifFields, QSO& qs
     qso.isDupe = false;
     qso.isMultiplier = false;
 
-    // If CountryFile is available, look up callsign and populate/validate DXCC fields
+    // If CountryFile is available, populate all DXCC fields using centralized function
+    // This ensures consistency with manual QSO logging
     if (m_countryFile && !qso.callsign.isEmpty()) {
-        CountryData countryData = m_countryFile->lookup(qso.callsign);
+        // Save ADIF-provided values to check for conflicts
+        QString adifDxccEntity = qso.dxccEntity;
+        int adifDxccCode = qso.dxccEntityCode;
+        int adifCqZone = qso.cqZone;
+        int adifItuZone = qso.ituZone;
+        QString adifContinent = qso.continent;
 
-        if (countryData.isValid()) {
-            // Populate DXCC fields from CTY.DAT if not already set from ADIF
-            if (qso.dxccEntity.isEmpty()) {
-                qso.dxccEntity = countryData.name;
-            }
+        // Populate ALL DXCC fields from CountryFile (single source of truth)
+        m_countryFile->populateQSODXCCFields(qso);
 
-            if (qso.dxccEntityCode == 0) {
-                qso.dxccEntityCode = countryData.dxccEntity;
-            }
-
-            if (qso.continent.isEmpty()) {
-                qso.continent = continentToString(countryData.continent);
-            }
-
-            if (qso.cqZone == 0) {
-                qso.cqZone = countryData.cqZone;
-            }
-
-            if (qso.ituZone == 0) {
-                qso.ituZone = countryData.ituZone;
-            }
+        if (!qso.dxccEntity.isEmpty()) {
+            // DXCC fields were successfully populated from CTY.DAT
+            // Check for conflicts with ADIF data (for validation/warnings)
 
             // Validate: Check if ADIF data conflicts with CTY.DAT
             // This catches errors like NS4X (US) with STATE=ON (Canada)
             if (!qso.state.isEmpty()) {
                 // US callsigns (DXCC 291) can only have US states
                 // VE callsigns (DXCC 1) can only have Canadian provinces
-                bool isUS = (countryData.dxccEntity == 291);
-                bool isCanada = (countryData.dxccEntity == 1);
+                bool isUS = (qso.dxccEntityCode == 291);
+                bool isCanada = (qso.dxccEntityCode == 1);
                 bool stateIsCanadian = (qso.state == "AB" || qso.state == "BC" || qso.state == "MB" ||
                                        qso.state == "NB" || qso.state == "NL" || qso.state == "NS" ||
                                        qso.state == "NT" || qso.state == "NU" || qso.state == "ON" ||
@@ -215,7 +206,7 @@ bool ADIFFieldMapper::mapToQSO(const QMap<QString, QString>& adifFields, QSO& qs
                                        qso.state == "YT");
 
                 LOG_DEBUG("ADIFFieldMapper", QString("Validating %1: DXCC=%2, STATE=%3, isUS=%4, isCanada=%5, stateIsCanadian=%6")
-                    .arg(qso.callsign).arg(countryData.dxccEntity).arg(qso.state)
+                    .arg(qso.callsign).arg(qso.dxccEntityCode).arg(qso.state)
                     .arg(isUS).arg(isCanada).arg(stateIsCanadian));
 
                 if (isUS && stateIsCanadian) {
@@ -227,8 +218,8 @@ bool ADIFFieldMapper::mapToQSO(const QMap<QString, QString>& adifFields, QSO& qs
                     error.field = "STATE";
                     error.value = qso.state;
                     error.message = QString("US callsign (%1, DXCC %2) has Canadian province '%3'")
-                        .arg(countryData.name)
-                        .arg(countryData.dxccEntity)
+                        .arg(qso.dxccEntity)
+                        .arg(qso.dxccEntityCode)
                         .arg(qso.state);
                     m_validationErrors.append(error);
                 } else if (isCanada && !stateIsCanadian && !qso.state.isEmpty()) {
@@ -240,8 +231,8 @@ bool ADIFFieldMapper::mapToQSO(const QMap<QString, QString>& adifFields, QSO& qs
                     error.field = "STATE";
                     error.value = qso.state;
                     error.message = QString("Canadian callsign (%1, DXCC %2) has US state '%3'")
-                        .arg(countryData.name)
-                        .arg(countryData.dxccEntity)
+                        .arg(qso.dxccEntity)
+                        .arg(qso.dxccEntityCode)
                         .arg(qso.state);
                     m_validationErrors.append(error);
                 }
