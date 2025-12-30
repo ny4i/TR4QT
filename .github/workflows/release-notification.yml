@@ -1,0 +1,35 @@
+name: Release Notification
+
+on:
+  release:
+    types: [published]  # Only trigger when release is made public (not draft)
+
+jobs:
+  notify-slack:
+    name: Notify Slack of Public Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Send email to Slack channel
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.gmail.com
+        server_port: 587
+        username: ${{ secrets.EMAIL_USERNAME }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: "🎉 TR4QT ${{ github.event.release.tag_name }} Released!"
+        to: tr4qt-aaaassfqrf3cmx5venuypx5dbu@w4afc.slack.com
+        from: TR4QT Release Bot
+        body: |
+          TR4QT ${{ github.event.release.tag_name }} has been published!
+
+          Release Name: ${{ github.event.release.name }}
+          Tag: ${{ github.event.release.tag_name }}
+
+          ${{ github.event.release.body }}
+
+          Download: ${{ github.event.release.html_url }}
+
+          Assets:
+          ${{ github.event.release.assets }}
+        priority: normal
