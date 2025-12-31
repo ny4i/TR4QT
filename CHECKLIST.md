@@ -2,6 +2,23 @@
 
 Quick reference for common operations. Use this to prompt Claude before key steps.
 
+## Shorthand Commands
+
+For convenience, you can use these shorthand prompts:
+
+- **"ghcommit"** - Claude will:
+  1. Check CLAUDE.md version requirements
+  2. Verify all 4 version locations match
+  3. Run through commit checklist below
+  4. Commit and push to GitHub
+
+- **"ghrelease"** - Claude will:
+  1. Run pre-release checklist
+  2. Create annotated tag
+  3. Push tag and monitor CI
+
+---
+
 ## Before Committing to GitHub
 
 **Prompt Claude:** *"Ready to commit - run through the commit checklist"*
