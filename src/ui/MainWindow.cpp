@@ -188,12 +188,16 @@ MainWindow::MainWindow(QWidget* parent)
     // Try auto-connect if enabled and config exists
     AppSettings& settings = AppSettings::instance();
     if (settings.hasRadioConfig()) {
-        if (settings.getRadioAutoConnect()) {
+        RadioConfig config = settings.loadRadioConfig();
+        // Only auto-connect if a valid radio model is selected (not "Select radio...")
+        if (config.hamlibModelId > 0 && settings.getRadioAutoConnect()) {
             // Auto-connect enabled - connect now
             m_statusLabel->setText("Auto-connecting to radio...");
             QTimer::singleShot(500, this, &MainWindow::onRadioConnect);  // Slight delay to let UI initialize
-        } else {
+        } else if (config.hamlibModelId > 0) {
             m_statusLabel->setText("Found saved radio configuration. Use Radio → Connect to connect.");
+        } else {
+            m_statusLabel->setText("No valid radio model selected. Use Radio → Configure.");
         }
     } else {
         m_statusLabel->setText("No radio configuration found. Use Radio → Configure.");
@@ -697,13 +701,16 @@ QWidget* MainWindow::createBottomPanel() {
     entryLayout->setSpacing(4);
     entryLayout->setContentsMargins(0, 0, 0, 0);
 
+    AppSettings& settings = AppSettings::instance();
+    int miscFontSize = settings.getMiscDisplayFontSize();
+
     QLabel* callLabel = new QLabel("Call:", this);
     m_callsignEntry = new QLineEdit(this);
     m_callsignEntry->setPlaceholderText("Callsign");
     m_callsignEntry->setMinimumWidth(150);
     m_callsignEntry->setMaximumWidth(300);
     m_callsignEntry->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    m_callsignEntry->setFont(QFont("Monospace", 12));
+    m_callsignEntry->setFont(QFont("Monospace", miscFontSize));
 
     QLabel* exchLabel = new QLabel("Exch:", this);
     m_exchangeEntry = new QLineEdit(this);
@@ -711,7 +718,7 @@ QWidget* MainWindow::createBottomPanel() {
     m_exchangeEntry->setMinimumWidth(150);
     m_exchangeEntry->setMaximumWidth(300);
     m_exchangeEntry->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    m_exchangeEntry->setFont(QFont("Monospace", 12));
+    m_exchangeEntry->setFont(QFont("Monospace", miscFontSize));
 
     // Row 0: Call label and entry
     entryLayout->addWidget(callLabel, 0, 0);
@@ -721,16 +728,20 @@ QWidget* MainWindow::createBottomPanel() {
     entryLayout->addWidget(exchLabel, 1, 0);
     entryLayout->addWidget(m_exchangeEntry, 1, 1);
 
-    // SCP matches label (column 2, spans both rows - 2-column grid)
+    // Add spacing between entry fields and SCP labels
+    entryLayout->setColumnMinimumWidth(2, 20);  // 20px gap
+
+    // SCP matches label (column 3, spans both rows - 2-column grid)
+    int scpFontSize = settings.getSCPFontSize();
     m_scpMatchesLabel = new QLabel(this);
-    m_scpMatchesLabel->setStyleSheet("QLabel { color: #0066cc; font-size: 9pt; }");
+    m_scpMatchesLabel->setStyleSheet(QString("QLabel { color: #0066cc; font-size: %1pt; }").arg(scpFontSize));
     m_scpMatchesLabel->setMinimumWidth(120);
     m_scpMatchesLabel->setMaximumWidth(120);
     m_scpMatchesLabel->setMinimumHeight(50);  // Fixed height
     m_scpMatchesLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     m_scpMatchesLabel->setWordWrap(true);
     m_scpMatchesLabel->setText("");  // Always visible, just empty when no matches
-    entryLayout->addWidget(m_scpMatchesLabel, 0, 2, 2, 1);  // Span both rows
+    entryLayout->addWidget(m_scpMatchesLabel, 0, 3, 2, 1);  // Span both rows, column 3
 
     bottomLayout->addWidget(entryWidget);
 
@@ -744,8 +755,7 @@ QWidget* MainWindow::createBottomPanel() {
     statsLayout->setSpacing(2);
     statsLayout->setContentsMargins(4, 4, 4, 4);
 
-    AppSettings& settings = AppSettings::instance();
-    int miscFontSize = settings.getMiscDisplayFontSize();
+    // settings and miscFontSize already declared above
     QFont monoFont("Monospace", miscFontSize);
 
     // Time and rate
@@ -803,6 +813,10 @@ QWidget* MainWindow::createBottomPanel() {
             this, &MainWindow::onExchangeTextChanged);
     connect(m_exchangeEntry, &QLineEdit::returnPressed,
             this, &MainWindow::onLogQSO);
+
+    // Install event filter for ESC key handling
+    m_callsignEntry->installEventFilter(this);
+    m_exchangeEntry->installEventFilter(this);
 
     return bottomPanel;
 }
@@ -1123,6 +1137,24 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
             LOG_DEBUG("MainWindow", QString("WPM decreased to %1 (PgDn)").arg(newWpm));
             return true;  // Event handled, don't propagate
         }
+
+        // ESC key handling for callsign and exchange fields
+        if (keyEvent->key() == Qt::Key_Escape) {
+            // ESC in callsign field: clear callsign
+            if (obj == m_callsignEntry) {
+                m_callsignEntry->clear();
+                LOG_DEBUG("MainWindow", "ESC pressed in callsign field - cleared");
+                return true;  // Event handled
+            }
+
+            // ESC in exchange field: clear exchange and return focus to callsign
+            if (obj == m_exchangeEntry) {
+                m_exchangeEntry->clear();
+                m_callsignEntry->setFocus();
+                LOG_DEBUG("MainWindow", "ESC pressed in exchange field - cleared and returned to callsign");
+                return true;  // Event handled
+            }
+        }
     }
 
     // Catch WindowActivate events on any of our windows
@@ -1241,6 +1273,15 @@ void MainWindow::onRadioConnect() {
     }
 
     RadioConfig config = settings.loadRadioConfig();
+
+    // Validate that a valid radio model is selected
+    if (config.hamlibModelId <= 0) {
+        DialogHelper::warning(this, "Invalid Radio Model",
+                           "Please select a valid radio model (Radio → Configure).\n\n"
+                           "Model ID 0 or 'Select radio...' is not a valid radio.");
+        onRadioConfigure();
+        return;
+    }
 
     // Enable auto-reconnect when user initiates connection
     m_radioAutoReconnect = true;
@@ -1704,8 +1745,11 @@ void MainWindow::onRadioConnected(bool connected) {
     } else {
         m_statusLabel->setText("Radio disconnected");
 
-        // Start flashing red indicator
-        m_radioFlashTimer->start();
+        // Start flashing red indicator only if a radio is configured
+        // If no radio is selected in settings, the "Radio not connected" label is sufficient
+        if (AppSettings::instance().hasRadioConfig()) {
+            m_radioFlashTimer->start();
+        }
 
         // Clear radio control display when disconnected
         if (m_radioControlWindow) {
@@ -2242,8 +2286,15 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
         callsign, m_activeContest, workedBands, workedMultBands);
 
     // Update SCP matches display (2-column grid format)
-    if (AppSettings::instance().getSCPEnabled()) {
+    bool scpEnabled = AppSettings::instance().getSCPEnabled();
+    LOG_DEBUG("MainWindow", QString("SCP: enabled=%1, callsign='%2'")
+        .arg(scpEnabled ? "true" : "false").arg(callsign));
+
+    if (scpEnabled) {
         QStringList matches = m_scpMatcher->findMatches(callsign);
+        LOG_DEBUG("MainWindow", QString("SCP: found %1 matches: %2")
+            .arg(matches.size()).arg(matches.join(", ")));
+
         if (!matches.isEmpty()) {
             // Format matches in 2 columns (e.g., "W1ABC  W1DEF\nW1GHI  W1JKL\nW1MNO")
             QStringList rows;
@@ -2255,11 +2306,16 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
                 rows.append(row);
             }
             m_scpMatchesLabel->setText(rows.join("\n"));
+            m_scpMatchesLabel->show();  // Make sure label is visible
+            LOG_DEBUG("MainWindow", QString("SCP: displaying %1 rows").arg(rows.size()));
         } else {
             m_scpMatchesLabel->setText("");  // Clear but don't hide
+            m_scpMatchesLabel->show();  // Keep visible even when empty
+            LOG_DEBUG("MainWindow", "SCP: no matches, clearing display");
         }
     } else {
         m_scpMatchesLabel->setText("");  // Clear but don't hide
+        m_scpMatchesLabel->show();  // Keep visible even when empty
     }
 
     // Exchange auto-population now happens on Enter key press, not while typing
@@ -3359,6 +3415,10 @@ void MainWindow::applyFontSettings() {
     m_spCountLabel->setFont(miscFont);
     m_operatorLabelStatic->setFont(miscFont);
     m_operatorLabel->setFont(miscFont);
+
+    // Apply SCP matches font size
+    int scpFontSize = settings.getSCPFontSize();
+    m_scpMatchesLabel->setStyleSheet(QString("QLabel { color: #0066cc; font-size: %1pt; }").arg(scpFontSize));
 }
 
 void MainWindow::applyTheme() {

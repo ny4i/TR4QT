@@ -163,6 +163,7 @@ private:
     QSpinBox* m_tableFontSizeSpin;
     QSpinBox* m_gridFontSizeSpin;
     QSpinBox* m_miscDisplayFontSizeSpin;
+    QSpinBox* m_scpFontSizeSpin;
     QComboBox* m_themeCombo;
 
     // Band Needs Display widgets

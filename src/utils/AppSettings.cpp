@@ -523,6 +523,15 @@ int AppSettings::getMiscDisplayFontSize() const {
     return m_settings.value("Appearance/miscDisplayFontSize", 9).toInt();
 }
 
+void AppSettings::setSCPFontSize(int size) {
+    m_settings.setValue("Appearance/scpFontSize", size);
+    m_settings.sync();
+}
+
+int AppSettings::getSCPFontSize() const {
+    return m_settings.value("Appearance/scpFontSize", 9).toInt();
+}
+
 // Band Needs Display settings
 
 void AppSettings::setNeedsDisplayWorkedColor(const QString& color) {

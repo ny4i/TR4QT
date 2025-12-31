@@ -754,6 +754,14 @@ QWidget* PreferencesDialog::createAppearanceTab() {
     m_miscDisplayFontSizeSpin->setToolTip("Font size for miscellaneous display items (This Hr, Rate, Op, etc.)");
     formLayout->addRow("Misc Display:", m_miscDisplayFontSizeSpin);
 
+    // SCP matches font size
+    m_scpFontSizeSpin = new QSpinBox(this);
+    m_scpFontSizeSpin->setRange(6, 18);
+    m_scpFontSizeSpin->setValue(9);
+    m_scpFontSizeSpin->setSuffix(" pt");
+    m_scpFontSizeSpin->setToolTip("Font size for SCP (Super Check Partial) callsign matches");
+    formLayout->addRow("SCP Matches:", m_scpFontSizeSpin);
+
     layout->addWidget(fontGroup);
 
     // Color Theme group
@@ -1254,6 +1262,7 @@ void PreferencesDialog::loadSettings() {
     m_tableFontSizeSpin->setValue(settings.getTableFontSize());
     m_gridFontSizeSpin->setValue(settings.getGridFontSize());
     m_miscDisplayFontSizeSpin->setValue(settings.getMiscDisplayFontSize());
+    m_scpFontSizeSpin->setValue(settings.getSCPFontSize());
     m_useMetricDistanceCheck->setChecked(settings.getUseMetricDistance());
 
     // Band Needs Display settings
@@ -1388,6 +1397,7 @@ void PreferencesDialog::saveSettings() {
     settings.setTableFontSize(m_tableFontSizeSpin->value());
     settings.setGridFontSize(m_gridFontSizeSpin->value());
     settings.setMiscDisplayFontSize(m_miscDisplayFontSizeSpin->value());
+    settings.setSCPFontSize(m_scpFontSizeSpin->value());
     settings.setUseMetricDistance(m_useMetricDistanceCheck->isChecked());
 
     // Band Needs Display

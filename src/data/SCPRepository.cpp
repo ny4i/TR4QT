@@ -12,7 +12,10 @@ SCPRepository::SCPRepository() {
 }
 
 QStringList SCPRepository::findMatches(const QString& partial) const {
+    LOG_DEBUG("SCPRepository", QString("findMatches called with partial='%1'").arg(partial));
+
     if (partial.length() < 2) {
+        LOG_DEBUG("SCPRepository", "findMatches: partial too short, returning empty");
         return QStringList();
     }
 
@@ -24,6 +27,8 @@ QStringList SCPRepository::findMatches(const QString& partial) const {
     }
 
     QString normalized = partial.toUpper().trimmed();
+    LOG_DEBUG("SCPRepository", QString("findMatches: normalized='%1'").arg(normalized));
+
     QStringList allMatches;
 
     // Query 1: Prefix matches (callsign starts with partial)
@@ -35,6 +40,7 @@ QStringList SCPRepository::findMatches(const QString& partial) const {
         LIMIT 5
     )";
 
+    LOG_DEBUG("SCPRepository", QString("findMatches: executing prefix query with '%1'").arg(normalized));
     QSqlQuery prefixQuery = db.execute(prefixSql, {normalized});
 
     if (!prefixQuery.isActive()) {
@@ -44,8 +50,12 @@ QStringList SCPRepository::findMatches(const QString& partial) const {
     }
 
     while (prefixQuery.next()) {
-        allMatches << prefixQuery.value(0).toString();
+        QString match = prefixQuery.value(0).toString();
+        allMatches << match;
+        LOG_DEBUG("SCPRepository", QString("findMatches: prefix match found: %1").arg(match));
     }
+
+    LOG_DEBUG("SCPRepository", QString("findMatches: prefix query returned %1 matches").arg(allMatches.size()));
 
     // Query 2: Suffix matches (callsign ends with partial)
     // Fill remaining slots up to 5 total
@@ -59,6 +69,7 @@ QStringList SCPRepository::findMatches(const QString& partial) const {
             LIMIT ?
         )";
 
+        LOG_DEBUG("SCPRepository", QString("findMatches: executing suffix query, limit=%1").arg(suffixLimit));
         QSqlQuery suffixQuery = db.execute(suffixSql, {normalized, normalized, suffixLimit});
 
         if (!suffixQuery.isActive()) {
@@ -69,10 +80,16 @@ QStringList SCPRepository::findMatches(const QString& partial) const {
         }
 
         while (suffixQuery.next() && allMatches.size() < 5) {
-            allMatches << suffixQuery.value(0).toString();
+            QString match = suffixQuery.value(0).toString();
+            allMatches << match;
+            LOG_DEBUG("SCPRepository", QString("findMatches: suffix match found: %1").arg(match));
         }
+
+        LOG_DEBUG("SCPRepository", QString("findMatches: suffix query added %1 matches").arg(allMatches.size() - (5 - suffixLimit)));
     }
 
+    LOG_DEBUG("SCPRepository", QString("findMatches: returning %1 total matches: %2")
+        .arg(allMatches.size()).arg(allMatches.join(", ")));
     return allMatches;
 }
 
