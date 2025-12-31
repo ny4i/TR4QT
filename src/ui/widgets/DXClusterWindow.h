@@ -75,11 +75,23 @@ private slots:
                              const QString& timestamp);
 
 private:
+    /**
+     * Format range for character-based text formatting
+     * Used to apply colors and bold to specific character positions
+     */
+    struct FormatRange {
+        int start;      // Starting character position
+        int length;     // Number of characters
+        QColor color;   // Text color
+        bool bold;      // Bold weight
+    };
+
     void setupUI();
     void loadSettings();
     void saveSettings();
     void updateConnectionStatus(bool connected);
     void appendText(const QString& text, const QColor& color = Qt::black);
+    void appendRichText(const QString& text, const QList<FormatRange>& formats, bool isSplit = false);
     void applyTheme();
 
     /**
@@ -112,6 +124,7 @@ private:
     QTimer* m_reconnectTimer;
     int m_reconnectAttempts;
     static constexpr int MAX_RECONNECT_ATTEMPTS = 10;
+    int m_spotRowCount;  // For alternating row backgrounds
 
     // Split operation tracking
     // Maps displayed line text -> struct with split info

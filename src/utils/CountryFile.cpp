@@ -2,6 +2,7 @@
 #include "../models/QSO.h"
 #include "../data/DXCCRepository.h"
 #include "../logging/LogMacros.h"
+#include "GeographicUtils.h"
 #include <QFile>
 #include <QTextStream>
 #include <QRegularExpression>
@@ -503,102 +504,82 @@ int CountryFile::getUSCallAreaZone(const QString& callsign) {
     }
 }
 
-bool CountryFile::getUSCallAreaCoordinates(const QString& callsign, double& lat, double& lon) {
-    // Return approximate center coordinates for US call areas
-    // Based on geographic centers of call area regions
+bool CountryFile::getUSCallAreaCoordinates(const QString& callsign, int dxccEntity, double& lat, double& lon) {
+    // Only apply to DXCC 291 (United States)
+    // Alaska (DXCC 6) and Hawaii (DXCC 110) use country centers from CTY.DAT
+    if (dxccEntity != 291) {
+        return false;  // Not US mainland
+    }
+
+    // TODO: Known edge cases for future enhancement:
+    // 1. Portable callsigns: Should use operating location, not home callsign
+    //    Examples:
+    //    - Suffix: W6ABC/7 (operating in area 7), VE7ABC/W4 (VE7 operating in W4)
+    //    - Prefix: I9/NY4I (NY4I operating in Italy), W4/VE7ABC (VE7 operating in W4)
+    //    Current behavior:
+    //    - stripPortable() removes portable indicator entirely
+    //    - We use home callsign for geographic lookup (incorrect for operating location)
+    //    Correct behavior:
+    //    - Log entire callsign as-is (e.g., "I9/NY4I")
+    //    - Parse portable indicator (prefix or suffix) for geographic lookup
+    //    - Use portable location for distance/bearing (e.g., "I9" → Italy)
+    // 2. Multi-digit callsigns (e.g., 9N1AA, 4U100ABC, W100AW)
+    //    - Current logic finds first digit only, may not handle multiple digits correctly
+    //    - Examples: 9N1AA (Nepal), 4U100ABC (UN), W100AW (special event)
+    //    - Action needed: Audit all callsign regex patterns in codebase
+    //    - Ensure regex allows for multiple digits: \d+ instead of \d
+    //    - Known issue: DXClusterListDownloader.cpp:161 uses "\\d" (single digit)
+    //      Pattern: "^([A-Z0-9]+?)\\d" should be "^([A-Z0-9]+?)\\d+"
+    //    - Search for other patterns that assume single digit and update them
 
     QString base = stripPortable(callsign).toUpper();
 
-    // Check if this is a US callsign: starts with K, W, N, or A followed by digit
+    // Check if this is a US callsign: starts with K, W, N, or A
     if (base.length() < 2) {
         return false;  // Too short
     }
 
     QChar firstChar = base[0];
-    QChar secondChar = base[1];
 
     // Must start with K, W, N, or A
     if (firstChar != 'K' && firstChar != 'W' && firstChar != 'N' && firstChar != 'A') {
         return false;  // Not a US call
     }
 
-    // Second character must be a digit (call area number)
-    if (!secondChar.isDigit()) {
-        return false;  // Not standard US format
+    // Find the first digit (call area number) - can be at position 1 or 2
+    // Examples: W6ABC (pos 1), KA6ABC (pos 2), N1XYZ (pos 1), WB2XYZ (pos 2)
+    int callArea = -1;
+    for (int i = 1; i < base.length() && i < 3; ++i) {  // Check positions 1-2 only
+        if (base[i].isDigit()) {
+            callArea = base[i].digitValue();
+            break;
+        }
     }
 
-    // Special cases for Alaska (KL7) and Hawaii (KH6, AH6, etc.)
-    if (base.startsWith("KL") || base.startsWith("AL") ||
-        base.startsWith("NL") || base.startsWith("WL")) {
-        lat = 64.0;    // Alaska center
-        lon = -152.0;
-        return true;
-    }
-    if (base.startsWith("KH") || base.startsWith("AH") ||
-        base.startsWith("NH") || base.startsWith("WH")) {
-        lat = 21.3;    // Hawaii (Honolulu area)
-        lon = -157.8;
-        return true;
+    if (callArea == -1) {
+        return false;  // No digit found in expected positions
     }
 
-    int callArea = secondChar.digitValue();
-
-    // Map call area to approximate geographic center
-    // Coordinates are approximate centers of each region
+    // Map call area number to grid square (closest to center of call area)
+    // Grid squares provided for accurate distance/bearing calculations
+    QString gridSquare;
     switch (callArea) {
-        case 1:
-            // W1: CT, ME, MA, NH, RI, VT (New England)
-            lat = 42.5;
-            lon = -71.5;
-            return true;
-        case 2:
-            // W2: NJ, NY (New York area)
-            lat = 40.7;
-            lon = -74.0;
-            return true;
-        case 3:
-            // W3: DE, MD, PA, DC (Mid-Atlantic)
-            lat = 40.0;
-            lon = -76.0;
-            return true;
-        case 4:
-            // W4: AL, FL, GA, KY, NC, SC, TN, VA (Southeast)
-            lat = 33.5;
-            lon = -84.0;
-            return true;
-        case 5:
-            // W5: AR, LA, MS, NM, OK, TX (South Central)
-            lat = 32.5;
-            lon = -97.0;
-            return true;
-        case 6:
-            // W6: CA (California)
-            lat = 36.5;
-            lon = -119.0;
-            return true;
-        case 7:
-            // W7: AZ, ID, MT, NV, OR, UT, WA, WY (Pacific Northwest)
-            lat = 45.0;
-            lon = -117.0;
-            return true;
-        case 8:
-            // W8: MI, OH, WV (Great Lakes East)
-            lat = 41.0;
-            lon = -83.0;
-            return true;
-        case 9:
-            // W9: IL, IN, WI (Great Lakes West)
-            lat = 42.0;
-            lon = -89.0;
-            return true;
-        case 0:
-            // W0: CO, IA, KS, MN, MO, ND, NE, SD (Central)
-            lat = 39.0;
-            lon = -98.0;
-            return true;
+        case 1: gridSquare = "FN43"; break;  // W1: New England
+        case 2: gridSquare = "FN22"; break;  // W2: NY/NJ
+        case 3: gridSquare = "FN10"; break;  // W3: Mid-Atlantic
+        case 4: gridSquare = "EL83"; break;  // W4: Southeast
+        case 5: gridSquare = "EM13"; break;  // W5: South Central
+        case 6: gridSquare = "DM06"; break;  // W6: California
+        case 7: gridSquare = "DN42"; break;  // W7: Pacific NW
+        case 8: gridSquare = "EN80"; break;  // W8: Great Lakes East
+        case 9: gridSquare = "EN52"; break;  // W9: Great Lakes West
+        case 0: gridSquare = "EN04"; break;  // W0: Central
         default:
-            return false;  // Unknown
+            return false;  // Unknown call area
     }
+
+    // Convert grid square to lat/lon coordinates
+    return GeographicUtils::gridToLatLon(gridSquare, lat, lon);
 }
 
 QVector<CountryData> CountryFile::getAllCountries() const {

@@ -573,7 +573,12 @@ void MainWindow::createCentralWidget() {
     m_stationInfoLabel->setStyleSheet("QLabel { color: #006600; }");  // Dark green
     m_stationInfoLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     m_stationInfoLabel->setWordWrap(false);
-    m_stationInfoLabel->setMinimumHeight(20);
+
+    // Calculate max height based on font metrics (single line + padding)
+    int stationInfoHeight = m_stationInfoLabel->fontMetrics().height() + 6;  // Font height + padding
+    m_stationInfoLabel->setMinimumHeight(stationInfoHeight);
+    m_stationInfoLabel->setMaximumHeight(stationInfoHeight);  // Fixed height - prevents layout shift
+
     m_stationInfoLabel->setText("");  // Empty initially
     rightLayout->addWidget(m_stationInfoLabel);
 
@@ -741,20 +746,19 @@ QWidget* MainWindow::createBottomPanel() {
     AppSettings& settings = AppSettings::instance();
     int miscFontSize = settings.getMiscDisplayFontSize();
 
+    // Entry field width - both callsign and exchange use same width for consistent layout
+    const int ENTRY_FIELD_WIDTH = 200;
+
     QLabel* callLabel = new QLabel("Call:", this);
     m_callsignEntry = new QLineEdit(this);
     m_callsignEntry->setPlaceholderText("Callsign");
-    m_callsignEntry->setMinimumWidth(150);
-    m_callsignEntry->setMaximumWidth(300);
-    m_callsignEntry->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_callsignEntry->setFixedWidth(ENTRY_FIELD_WIDTH);
     m_callsignEntry->setFont(QFont("Monospace", miscFontSize));
 
     QLabel* exchLabel = new QLabel("Exch:", this);
     m_exchangeEntry = new QLineEdit(this);
     m_exchangeEntry->setPlaceholderText("RST + Zone");
-    m_exchangeEntry->setMinimumWidth(150);
-    m_exchangeEntry->setMaximumWidth(300);
-    m_exchangeEntry->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_exchangeEntry->setFixedWidth(ENTRY_FIELD_WIDTH);
     m_exchangeEntry->setFont(QFont("Monospace", miscFontSize));
 
     // Row 0: Call label and entry
@@ -774,7 +778,13 @@ QWidget* MainWindow::createBottomPanel() {
     m_scpMatchesLabel->setStyleSheet(QString("QLabel { color: #0066cc; font-size: %1pt; }").arg(scpFontSize));
     m_scpMatchesLabel->setMinimumWidth(120);
     m_scpMatchesLabel->setMaximumWidth(120);
-    m_scpMatchesLabel->setMinimumHeight(50);  // Fixed height
+
+    // Calculate max height based on entry field heights (spans 2 rows)
+    int entryRowHeight = m_callsignEntry->sizeHint().height();
+    int scpMaxHeight = (entryRowHeight * 2) + entryLayout->verticalSpacing();
+    m_scpMatchesLabel->setMinimumHeight(scpMaxHeight);
+    m_scpMatchesLabel->setMaximumHeight(scpMaxHeight);  // Fixed height - prevents layout shift when matches change
+
     m_scpMatchesLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     m_scpMatchesLabel->setWordWrap(true);
     m_scpMatchesLabel->setText("");  // Always visible, just empty when no matches
@@ -2293,7 +2303,8 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
     // Update needs display as user types
     if (callsign.length() < 2 || !m_activeContest) {
         m_needsDisplayWidget->clear();
-        m_scpMatchesLabel->hide();
+        m_scpMatchesLabel->setText("");  // Clear but keep visible to prevent layout shift
+        m_stationInfoLabel->setText("");  // Clear station info when callsign cleared
         return;
     }
 
@@ -2370,7 +2381,8 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
     }
 
     // Update station info display (prefix, bearing, distance)
-    if (callsign.length() >= 2) {
+    // Wait for at least one digit to avoid matching incomplete prefixes (e.g., "KA" before "KA6")
+    if (callsign.length() >= 2 && callsign.contains(QRegularExpression("\\d"))) {
         updateStationInfo(callsign);
     } else {
         m_stationInfoLabel->setText("");
@@ -2410,17 +2422,17 @@ void MainWindow::updateStationInfo(const QString& callsign) {
     double bearing = 0.0;
     bool useKilometers = settings.getUseMetricDistance();
 
-    // For US callsigns, use call area coordinates (more precise than country center)
+    // For US mainland callsigns (DXCC 291), use call area grid squares (more precise)
     double targetLat, targetLon;
-    if (CountryFile::getUSCallAreaCoordinates(callsign, targetLat, targetLon)) {
-        // US callsign - use call area center (W1, W2, etc.)
+    if (CountryFile::getUSCallAreaCoordinates(callsign, countryData.dxccEntity, targetLat, targetLon)) {
+        // US mainland callsign - use call area center grid (W1→FN43, W2→FN22, etc.)
         distance = GeographicUtils::haversineDistance(myLat, myLon,
                                                       targetLat, targetLon,
                                                       useKilometers);
         bearing = GeographicUtils::calculateBearing(myLat, myLon,
                                                     targetLat, targetLon);
     } else {
-        // Non-US callsign - use country center from CTY.DAT
+        // Non-US or Alaska/Hawaii - use country center from CTY.DAT
         distance = GeographicUtils::haversineDistance(myLat, myLon,
                                                       countryData.latitude, countryData.longitude,
                                                       useKilometers);

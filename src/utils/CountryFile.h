@@ -80,7 +80,7 @@ public:
 
     // Get approximate coordinates for US call area (W1→New England, W7→Pacific NW, etc.)
     // Returns true if coordinates were set, false if not a US call or unable to determine
-    static bool getUSCallAreaCoordinates(const QString& callsign, double& lat, double& lon);
+    static bool getUSCallAreaCoordinates(const QString& callsign, int dxccEntity, double& lat, double& lon);
 
     // Map CTY.DAT country name to ADIF DXCC Entity Code
     // Returns 0 if country not found in mapping

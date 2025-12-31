@@ -259,6 +259,75 @@ DialogHelper::critical(this, "Error", QString("Failed: %1").arg(errorMessage));
 
 **This pattern applies to all projects**: If one dialog is logged, ALL dialogs must be logged via a common helper class.
 
+### ALWAYS Avoid Magic Numbers
+
+**CRITICAL**: NEVER use literal numbers directly in code. Always use named constants.
+
+**Why this matters**:
+- Magic numbers are unclear: What does `12` mean? Field width? Buffer size? Timeout?
+- Hard to maintain: Change one occurrence, might miss others
+- Error-prone: Easy to use wrong value (typo, copy-paste)
+- Poor readability: Named constants document intent
+
+**Pattern to follow**:
+```cpp
+// ❌ BAD: Magic numbers
+QString formatted = QString("%1 %2").arg(callsign, -12).arg(frequency, 10);
+m_label->setMaximumHeight(45);
+QTimer::singleShot(3000, this, &Widget::refresh);
+
+// ✅ GOOD: Named constants
+const int CALLSIGN_FIELD_WIDTH = 12;
+const int FREQUENCY_FIELD_WIDTH = 10;
+QString formatted = QString("%1 %2")
+    .arg(callsign, -CALLSIGN_FIELD_WIDTH)
+    .arg(frequency, FREQUENCY_FIELD_WIDTH);
+
+const int LABEL_HEIGHT = m_label->fontMetrics().height() + 10;  // Font height + padding
+m_label->setMaximumHeight(LABEL_HEIGHT);
+
+const int REFRESH_INTERVAL_MS = 3000;  // 3 seconds
+QTimer::singleShot(REFRESH_INTERVAL_MS, this, &Widget::refresh);
+```
+
+**Guidelines**:
+1. **Name meaningfully**: `CALLSIGN_FIELD_WIDTH` not `WIDTH_1`
+2. **Calculate when possible**: Use `fontMetrics().height()` instead of hardcoded pixels
+3. **Add comments**: Explain what the value represents and why it's that value
+4. **Use `const` or `constexpr`**: Prevent accidental modification
+5. **Scope appropriately**: File-level for reused values, function-level for one-time use
+
+**Common magic numbers to avoid**:
+- Field widths and spacing (use named constants)
+- Timeout values (name with units: `_MS`, `_SECONDS`)
+- Buffer sizes (document why that size)
+- Pixel dimensions (calculate from font metrics when possible)
+- Array indices (use enum or named constants)
+
+**Exceptions** (when literals are OK):
+- Mathematical constants: `0`, `1`, `2` in formulas (e.g., `x * 2`)
+- Boolean values: `true`, `false`
+- Null/empty checks: `nullptr`, `0`, `-1` for "not found"
+- Loop counters: `for (int i = 0; i < n; i++)`
+
+**Real-world examples from TR4QT**:
+```cpp
+// ❌ Before: Magic 3
+QString formatted = QString("%1%2 %3%4%5")
+    .arg(freqStr, 10)
+    .arg(QString(3, ' '))  // What is 3?
+    .arg(callsign, -12);
+
+// ✅ After: Named constant
+const int CALLSIGN_INDENT = 3;  // Spaces between frequency and callsign
+QString formatted = QString("%1%2 %3%4%5")
+    .arg(freqStr, 10)
+    .arg(QString(CALLSIGN_INDENT, ' '))
+    .arg(callsign, -12);
+```
+
+**This principle applies to ALL projects, not just TR4QT.**
+
 ## Version Management
 
 **CRITICAL**: The version number must be updated with every release commit IN FOUR PLACES!
