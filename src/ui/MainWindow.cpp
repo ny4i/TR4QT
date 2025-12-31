@@ -24,6 +24,7 @@
 #include "../utils/CountryFileDownloader.h"
 #include "../utils/LOTWUserDownloader.h"
 #include "../utils/SCPDownloader.h"
+#include "../utils/GeographicUtils.h"
 #include "../data/Database.h"
 #include "../data/QSORepository.h"
 #include "../data/LOTWUserRepository.h"
@@ -556,10 +557,28 @@ void MainWindow::createCentralWidget() {
             this, &MainWindow::onBandClicked);
     topLayout->addWidget(m_bandSummaryGrid, 3);  // Stretch factor 3
 
-    // Right: Needs display widget (takes 25% of width)
+    // Right: Vertical layout for needs display and station info
+    QVBoxLayout* rightLayout = new QVBoxLayout();
+    rightLayout->setSpacing(4);
+
+    // Needs display widget (top)
     m_needsDisplayWidget = new NeedsDisplayWidget(this);
     m_needsDisplayWidget->setMinimumWidth(200);
-    topLayout->addWidget(m_needsDisplayWidget, 1);  // Stretch factor 1
+    rightLayout->addWidget(m_needsDisplayWidget);
+
+    // Station info label (below needs display)
+    m_stationInfoLabel = new QLabel(this);
+    int miscFontSize = AppSettings::instance().getMiscDisplayFontSize();
+    m_stationInfoLabel->setFont(QFont("Monospace", miscFontSize));
+    m_stationInfoLabel->setStyleSheet("QLabel { color: #006600; }");  // Dark green
+    m_stationInfoLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    m_stationInfoLabel->setWordWrap(false);
+    m_stationInfoLabel->setMinimumHeight(20);
+    m_stationInfoLabel->setText("");  // Empty initially
+    rightLayout->addWidget(m_stationInfoLabel);
+
+    rightLayout->addStretch();  // Push content to top
+    topLayout->addLayout(rightLayout, 1);  // Stretch factor 1
 
     mainLayout->addLayout(topLayout);
 
@@ -2350,8 +2369,75 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
         m_scpMatchesLabel->show();  // Keep visible even when empty
     }
 
+    // Update station info display (prefix, bearing, distance)
+    if (callsign.length() >= 2) {
+        updateStationInfo(callsign);
+    } else {
+        m_stationInfoLabel->setText("");
+    }
+
     // Exchange auto-population now happens on Enter key press, not while typing
     // Duplicate checking happens on Enter key press
+}
+
+void MainWindow::updateStationInfo(const QString& callsign) {
+    // Lookup country data from CTY.DAT
+    CountryData countryData = m_countryFile.lookup(callsign);
+    if (!countryData.isValid()) {
+        m_stationInfoLabel->setText("");
+        return;
+    }
+
+    // Get my station's grid square from settings
+    AppSettings& settings = AppSettings::instance();
+    QString myGrid = settings.getMyGridSquare();
+    if (myGrid.isEmpty()) {
+        // No grid square configured, just show prefix (cannot calculate distance)
+        m_stationInfoLabel->setText(countryData.primaryPrefix);
+        return;
+    }
+
+    // Convert my grid square to lat/lon
+    double myLat, myLon;
+    if (!GeographicUtils::gridToLatLon(myGrid, myLat, myLon)) {
+        // Invalid grid square, just show prefix
+        m_stationInfoLabel->setText(countryData.primaryPrefix);
+        return;
+    }
+
+    // Calculate distance and bearing from my grid to target location
+    double distance = 0.0;
+    double bearing = 0.0;
+    bool useKilometers = settings.getUseMetricDistance();
+
+    // For US callsigns, use call area coordinates (more precise than country center)
+    double targetLat, targetLon;
+    if (CountryFile::getUSCallAreaCoordinates(callsign, targetLat, targetLon)) {
+        // US callsign - use call area center (W1, W2, etc.)
+        distance = GeographicUtils::haversineDistance(myLat, myLon,
+                                                      targetLat, targetLon,
+                                                      useKilometers);
+        bearing = GeographicUtils::calculateBearing(myLat, myLon,
+                                                    targetLat, targetLon);
+    } else {
+        // Non-US callsign - use country center from CTY.DAT
+        distance = GeographicUtils::haversineDistance(myLat, myLon,
+                                                      countryData.latitude, countryData.longitude,
+                                                      useKilometers);
+        bearing = GeographicUtils::calculateBearing(myLat, myLon,
+                                                    countryData.latitude, countryData.longitude);
+    }
+
+    // Format: "PREFIX  BEARING  DISTANCE"
+    // Example: "KP4  121  1263mi" or "KP4  121  1263km"
+    QString distUnit = useKilometers ? "km" : "mi";
+    QString info = QString("%1  %2  %3%4")
+        .arg(countryData.primaryPrefix, -6)  // Left-align in 6 char field
+        .arg(static_cast<int>(bearing), 3)   // Bearing (3 digits)
+        .arg(static_cast<int>(distance), 4)  // Distance (4 digits)
+        .arg(distUnit);
+
+    m_stationInfoLabel->setText(info);
 }
 
 void MainWindow::onExchangeTextChanged(const QString& text) {
@@ -3447,6 +3533,7 @@ void MainWindow::applyFontSettings() {
     m_spCountLabel->setFont(miscFont);
     m_operatorLabelStatic->setFont(miscFont);
     m_operatorLabel->setFont(miscFont);
+    m_stationInfoLabel->setFont(miscFont);
 
     // Apply SCP matches font size
     int scpFontSize = settings.getSCPFontSize();

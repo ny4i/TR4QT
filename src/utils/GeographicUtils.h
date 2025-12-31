@@ -5,6 +5,8 @@
 
 namespace TR4QT {
 
+class CountryFile;
+
 /**
  * Geographic utility functions for distance and bearing calculations
  *
@@ -40,6 +42,26 @@ public:
      * @return true if successful, false if either callsign's country cannot be determined
      */
     static bool distanceAndBearingBetweenCallsigns(const QString& callsign1,
+                                                    const QString& callsign2,
+                                                    double& distance,
+                                                    double& bearing,
+                                                    bool useKilometers = true);
+
+    /**
+     * Calculate distance and bearing between two countries by callsign (with CountryFile)
+     *
+     * Overload that accepts an existing CountryFile reference to avoid reloading cty.dat
+     *
+     * @param countryFile Reference to existing CountryFile instance
+     * @param callsign1 First callsign (country determined from prefix)
+     * @param callsign2 Second callsign (country determined from prefix)
+     * @param distance Output parameter for distance (km or miles based on useKilometers)
+     * @param bearing Output parameter for great circle bearing from callsign1 to callsign2 (degrees)
+     * @param useKilometers If true, return distance in km; if false, return miles
+     * @return true if successful, false if either callsign's country cannot be determined
+     */
+    static bool distanceAndBearingBetweenCallsigns(const CountryFile& countryFile,
+                                                    const QString& callsign1,
                                                     const QString& callsign2,
                                                     double& distance,
                                                     double& bearing,

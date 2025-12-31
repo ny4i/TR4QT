@@ -205,6 +205,9 @@ private:
     QList<BandType> getWorkedBandsForMultiplier(const QString& multValue, MultiplierType type) const;
     QString getMultiplierValueForCallsign(const QString& callsign) const;
 
+    // Station info display
+    void updateStationInfo(const QString& callsign);
+
     // Data integrity helpers
     bool quickIntegrityCheck();         // Quick count-based check
     QString fullIntegrityCheck();       // Detailed check with report
@@ -229,6 +232,7 @@ private:
     QTableView* m_qsoTableView;
     QSOTableModel* m_qsoTableModel;
     QLabel* m_scpMatchesLabel;  // Display SCP callsign matches (Column 3)
+    QLabel* m_stationInfoLabel;  // Display station info (prefix, bearing, distance, sunrise/sunset)
 
     // Stats panel (bottom right)
     QLabel* m_rateLabel;
