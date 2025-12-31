@@ -41,9 +41,19 @@ signals:
                      const QString& comment);
 
     /**
-     * User wants to QSY to a frequency
+     * User wants to QSY to a frequency (simplex)
      */
     void qsyRequested(double frequency);
+
+    /**
+     * User wants to QSY with split operation
+     * @param txFrequency - Transmit frequency (where we transmit)
+     * @param rxFrequency - Receive frequency (where we listen to DX)
+     */
+    void splitQsyRequested(double txFrequency, double rxFrequency);
+
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override;
 
 private slots:
     void onConnectClicked();
@@ -52,7 +62,6 @@ private slots:
     void onClearClicked();
     void onCommandsClicked();
     void onSendClicked();
-    void onTextDisplayClicked();
 
     // Telnet client signals
     void onTelnetConnected();
@@ -72,6 +81,13 @@ private:
     void updateConnectionStatus(bool connected);
     void appendText(const QString& text, const QColor& color = Qt::black);
     void applyTheme();
+
+    /**
+     * Parse split operation info from comment
+     * Returns listening frequency in Hz, or 0 if not a split spot
+     * Handles: "QSX 14205", "UP 10", "DOWN 5", "UP10", etc.
+     */
+    double parseSplitInfo(const QString& comment, double spotFrequency);
 
     // UI elements
     QComboBox* m_serverCombo;
@@ -96,6 +112,15 @@ private:
     QTimer* m_reconnectTimer;
     int m_reconnectAttempts;
     static constexpr int MAX_RECONNECT_ATTEMPTS = 10;
+
+    // Split operation tracking
+    // Maps displayed line text -> struct with split info
+    struct SplitSpotInfo {
+        double spotFrequency;      // DX transmit frequency (Hz)
+        double listenFrequency;    // DX listening frequency (Hz)
+        QString callsign;
+    };
+    QMap<QString, SplitSpotInfo> m_splitSpots;
 };
 
 } // namespace TR4QT

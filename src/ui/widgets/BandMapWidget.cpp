@@ -383,11 +383,9 @@ void BandMapWidget::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         int spotIndex = findSpotAtPosition(event->pos());
         if (spotIndex >= 0 && spotIndex < m_displaySpots.size()) {
+            // Single click: Just select/highlight the spot (no QSY, no callsign population)
             m_selectedIndex = spotIndex;
             m_selectedCallsign = m_displaySpots[spotIndex].callsign;  // Track by callsign
-            // Single click: QSY to frequency AND populate callsign
-            emit qsyRequested(m_displaySpots[spotIndex].frequency);
-            emit callsignSelected(m_displaySpots[spotIndex].callsign);
             viewport()->update();
         }
     }
@@ -397,6 +395,8 @@ void BandMapWidget::mouseDoubleClickEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         int spotIndex = findSpotAtPosition(event->pos());
         if (spotIndex >= 0 && spotIndex < m_displaySpots.size()) {
+            // Double click: QSY to frequency AND populate callsign
+            emit qsyRequested(m_displaySpots[spotIndex].frequency);
             emit callsignSelected(m_displaySpots[spotIndex].callsign);
         }
     }
