@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.8.4";  // Contest state fix, S-meter removal, WFD scoring fix
+constexpr const char* APP_VERSION = "3.9.0";  // Super Check Partial (SCP) real-time callsign matching
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
