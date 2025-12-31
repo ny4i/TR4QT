@@ -396,28 +396,28 @@ void TestWinterFieldDay::testGetMultiplierTypes() {
     QList<MultiplierDefinition> mults = contest.getMultiplierTypes();
     QCOMPARE(mults.size(), 1);
 
-    // Should have State (Section) multipliers only
-    QVERIFY(mults[0].type == MultiplierType::State);
+    // Should have Section multipliers only (ARRL/RAC sections)
+    QVERIFY(mults[0].type == MultiplierType::Section);
 }
 
 void TestWinterFieldDay::testGetMultiplierValue_CQZone() {
-    // NOTE: WFD uses Sections (State), not CQ Zones
-    // This test is renamed to testGetMultiplierValue_Section
+    // NOTE: WFD uses Sections, not CQ Zones
+    // This test actually tests Section multiplier values
     WinterFieldDayContest contest(testStation());
 
     QSO qso;
     qso.arrlSection = "WMA";  // Populated by parseReceivedExchange
 
-    QString multValue = contest.getMultiplierValue(qso, MultiplierType::State, QStringList());
+    QString multValue = contest.getMultiplierValue(qso, MultiplierType::Section, QStringList());
     QCOMPARE(multValue, QString("WMA"));
 
     // Already worked
-    QString multValue2 = contest.getMultiplierValue(qso, MultiplierType::State, QStringList() << "WMA");
+    QString multValue2 = contest.getMultiplierValue(qso, MultiplierType::Section, QStringList() << "WMA");
     QVERIFY(multValue2.isEmpty());
 }
 
 void TestWinterFieldDay::testGetMultiplierValue_Country() {
-    // NOTE: WFD uses Sections (State), not Countries
+    // NOTE: WFD uses Sections, not Countries
     // Testing another section (using arrlSection fallback)
     WinterFieldDayContest contest(testStation());
 
@@ -425,11 +425,11 @@ void TestWinterFieldDay::testGetMultiplierValue_Country() {
     // Test fallback: only set arrlSection, not parsedExchange
     qso.arrlSection = "STX";
 
-    QString multValue = contest.getMultiplierValue(qso, MultiplierType::State, QStringList());
+    QString multValue = contest.getMultiplierValue(qso, MultiplierType::Section, QStringList());
     QCOMPARE(multValue, QString("STX"));
 
     // Already worked
-    QString multValue2 = contest.getMultiplierValue(qso, MultiplierType::State, QStringList() << "STX");
+    QString multValue2 = contest.getMultiplierValue(qso, MultiplierType::Section, QStringList() << "STX");
     QVERIFY(multValue2.isEmpty());
 }
 

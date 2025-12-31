@@ -12,8 +12,8 @@ private slots:
         ADIFImporter importer;
         QList<QSO> qsos;
 
-        // Test with the actual N1MM file in project root
-        QString filePath = "../../2025-09-28_CQWW_RTTY_W4TA_Run2.adi";
+        // Test with the N1MM file from test fixtures
+        QString filePath = QString(TESTS_SOURCE_DIR) + "/fixtures/2025-09-28_CQWW_RTTY_W4TA_Run2.adi";
         bool success = importer.importFile(filePath, qsos);
 
         // Should succeed
