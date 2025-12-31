@@ -94,6 +94,9 @@ public:
         return DuplicateCheckingRule::PerBandMode;  // Can work same call on different bands
     }
 
+    // ===== Band Restrictions =====
+    QList<BandType> getAllowedBands() const override;  // HF + VHF/UHF (if enabled)
+
     QMap<QString, QString> getCabrilloHeaders() const override;
 
     // ===== WFD-Specific Methods =====

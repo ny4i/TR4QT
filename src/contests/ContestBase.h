@@ -184,6 +184,21 @@ public:
         return true;
     }
 
+    /**
+     * Get list of bands allowed for this contest
+     * Some contests have mode-specific restrictions (e.g., RTTY contests exclude 160m)
+     * Field Day contests may include VHF/UHF bands if enabled in preferences
+     *
+     * Note: WARC bands (60m, 30m, 17m, 12m) are NEVER used in contests
+     *
+     * @return List of allowed HF bands for this contest
+     */
+    virtual QList<BandType> getAllowedBands() const {
+        // Default: Standard HF contest bands (160m-10m)
+        return { BandType::Band160M, BandType::Band80M, BandType::Band40M,
+                 BandType::Band20M, BandType::Band15M, BandType::Band10M };
+    }
+
     // ===== Scoring =====
 
     /**

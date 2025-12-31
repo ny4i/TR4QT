@@ -18,6 +18,10 @@ BandSummaryGrid::BandSummaryGrid(QWidget* parent)
       m_zoneAllLabel(nullptr),
       m_pointsAllLabel(nullptr)
 {
+    // Default: Standard HF contest bands
+    m_visibleBands = { BandType::Band160M, BandType::Band80M, BandType::Band40M,
+                       BandType::Band20M, BandType::Band15M, BandType::Band10M };
+
     // Ensure widget fills its background (prevents transparent/black rendering)
     setAutoFillBackground(true);
 
@@ -128,6 +132,9 @@ QString BandSummaryGrid::bandToColumnLabel(BandType band) const {
     case BandType::Band20M:  return "20";
     case BandType::Band15M:  return "15";
     case BandType::Band10M:  return "10";
+    case BandType::Band6M:   return "6";
+    case BandType::Band2M:   return "2";
+    case BandType::Band70CM: return "70cm";
     default: return "";
     }
 }
@@ -214,6 +221,28 @@ void BandSummaryGrid::setMultipliersEnabled(bool enabled) {
     }
 }
 
+void BandSummaryGrid::setBandSelectionEnabled(bool enabled) {
+    // Enable/disable band header buttons (when radio disconnected)
+    // Statistics remain visible, but band selection is disabled
+    for (auto it = m_bandHeaders.begin(); it != m_bandHeaders.end(); ++it) {
+        QLabel* header = it.value();
+        header->setEnabled(enabled);
+
+        // Update cursor to indicate clickability
+        if (enabled) {
+            header->setCursor(Qt::PointingHandCursor);
+        } else {
+            header->setCursor(Qt::ArrowCursor);
+        }
+    }
+}
+
+void BandSummaryGrid::setVisibleBands(const QList<BandType>& bands) {
+    // Update visible bands and rebuild grid
+    m_visibleBands = bands;
+    rebuildGrid();
+}
+
 void BandSummaryGrid::configureForContest(bool usesModeGroupBreakdown, bool usesZoneMultipliers) {
     m_usesModeGroupBreakdown = usesModeGroupBreakdown;
     m_usesZoneMultipliers = usesZoneMultipliers;
@@ -252,33 +281,35 @@ void BandSummaryGrid::rebuildGrid() {
     int currentRow = 0;
 
     // Row 0: Band headers (clickable)
-    QList<BandType> headerBands = {
-        BandType::Band160M, BandType::Band80M, BandType::Band40M,
-        BandType::Band20M, BandType::Band15M, BandType::Band10M
-    };
-    QStringList bandHeaders = {"160", "80", "40", "20", "15", "10", "All"};
-    for (int col = 0; col < bandHeaders.size(); ++col) {
-        QLabel* header = new QLabel(bandHeaders[col], this);
+    // Use visible bands from m_visibleBands (contest-specific)
+    for (int col = 0; col < m_visibleBands.size(); ++col) {
+        BandType band = m_visibleBands[col];
+        QString bandName = bandToColumnLabel(band);
+
+        QLabel* header = new QLabel(bandName, this);
         header->setFont(headerFont);
         header->setAlignment(Qt::AlignCenter);
         header->setMinimumWidth(50);
 
-        // Make band headers clickable (except "All")
-        if (col < headerBands.size()) {
-            header->setCursor(Qt::PointingHandCursor);
-            header->installEventFilter(this);
-            m_bandHeaders[headerBands[col]] = header;
-        }
+        // Make band headers clickable
+        header->setCursor(Qt::PointingHandCursor);
+        header->installEventFilter(this);
+        m_bandHeaders[band] = header;
 
         m_gridLayout->addWidget(header, currentRow, col + 1);
     }
+
+    // "All" column header
+    QLabel* allHeader = new QLabel("All", this);
+    allHeader->setFont(headerFont);
+    allHeader->setAlignment(Qt::AlignCenter);
+    allHeader->setMinimumWidth(50);
+    m_gridLayout->addWidget(allHeader, currentRow, m_visibleBands.size() + 1);
+
     currentRow++;
 
     // Create data rows based on configuration
-    QList<BandType> bands = {
-        BandType::Band160M, BandType::Band80M, BandType::Band40M,
-        BandType::Band20M, BandType::Band15M, BandType::Band10M
-    };
+    QList<BandType> bands = m_visibleBands;
 
     if (m_usesModeGroupBreakdown) {
         // Mixed-mode: Show Phone, CW, Digital rows
@@ -308,7 +339,7 @@ void BandSummaryGrid::rebuildGrid() {
             allLabel->setFont(dataFont);
             allLabel->setAlignment(Qt::AlignCenter);
             allLabel->setMinimumWidth(50);
-            m_gridLayout->addWidget(allLabel, currentRow, 7);
+            m_gridLayout->addWidget(allLabel, currentRow, m_visibleBands.size() + 1);
             m_modeGroupAllLabels[group] = allLabel;
 
             currentRow++;
@@ -334,7 +365,7 @@ void BandSummaryGrid::rebuildGrid() {
         m_qsoAllLabel->setFont(dataFont);
         m_qsoAllLabel->setAlignment(Qt::AlignCenter);
         m_qsoAllLabel->setMinimumWidth(50);
-        m_gridLayout->addWidget(m_qsoAllLabel, currentRow, 7);
+        m_gridLayout->addWidget(m_qsoAllLabel, currentRow, m_visibleBands.size() + 1);
 
         // Total points label (right of "All" column, spans 2 columns)
         if (!m_totalPointsLabel) {
@@ -368,7 +399,7 @@ void BandSummaryGrid::rebuildGrid() {
     m_multAllLabel->setFont(dataFont);
     m_multAllLabel->setAlignment(Qt::AlignCenter);
     m_multAllLabel->setMinimumWidth(50);
-    m_gridLayout->addWidget(m_multAllLabel, currentRow, 7);
+    m_gridLayout->addWidget(m_multAllLabel, currentRow, m_visibleBands.size() + 1);
     currentRow++;
 
     // Zones row (only if contest uses zone multipliers)
@@ -392,7 +423,7 @@ void BandSummaryGrid::rebuildGrid() {
         m_zoneAllLabel->setFont(dataFont);
         m_zoneAllLabel->setAlignment(Qt::AlignCenter);
         m_zoneAllLabel->setMinimumWidth(50);
-        m_gridLayout->addWidget(m_zoneAllLabel, currentRow, 7);
+        m_gridLayout->addWidget(m_zoneAllLabel, currentRow, m_visibleBands.size() + 1);
         currentRow++;
     }
 
@@ -416,7 +447,7 @@ void BandSummaryGrid::rebuildGrid() {
     m_pointsAllLabel->setFont(dataFont);
     m_pointsAllLabel->setAlignment(Qt::AlignCenter);
     m_pointsAllLabel->setMinimumWidth(50);
-    m_gridLayout->addWidget(m_pointsAllLabel, currentRow, 7);
+    m_gridLayout->addWidget(m_pointsAllLabel, currentRow, m_visibleBands.size() + 1);
 
     // "Both:" field (right side of points row)
     QLabel* bothLabelText = new QLabel("Both:", this);

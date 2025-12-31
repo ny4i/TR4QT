@@ -228,6 +228,12 @@ QString ARRLRTTYRoundupContest::getMultiplierValue(
     return value;
 }
 
+QList<BandType> ARRLRTTYRoundupContest::getAllowedBands() const {
+    // RTTY contests exclude 160m
+    return { BandType::Band80M, BandType::Band40M, BandType::Band20M,
+             BandType::Band15M, BandType::Band10M };
+}
+
 QMap<QString, QString> ARRLRTTYRoundupContest::getCabrilloHeaders() const {
     QMap<QString, QString> headers;
     headers["CONTEST"] = CABRILLO_NAME;

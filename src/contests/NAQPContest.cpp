@@ -203,6 +203,18 @@ QString NAQPContest::getMultiplierValue(
     return "";
 }
 
+QList<BandType> NAQPContest::getAllowedBands() const {
+    // Check if RTTY mode (RTTY excludes 160m)
+    if (m_mode == ModeType::RTTY || m_mode == ModeType::RTTYR) {
+        return { BandType::Band80M, BandType::Band40M, BandType::Band20M,
+                 BandType::Band15M, BandType::Band10M };
+    }
+
+    // SSB/CW: all HF bands including 160m
+    return { BandType::Band160M, BandType::Band80M, BandType::Band40M,
+             BandType::Band20M, BandType::Band15M, BandType::Band10M };
+}
+
 QMap<QString, QString> NAQPContest::getCabrilloHeaders() const {
     QMap<QString, QString> headers;
     if (m_mode == ModeType::CW) {
