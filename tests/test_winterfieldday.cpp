@@ -67,11 +67,11 @@ private slots:
     void testParseExchange_TwoDigitTransmitter();
     void testParseExchange_UppercaseConversion();
 
-    // QSO points calculation
-    void testCalculatePoints_SameCountry();
-    void testCalculatePoints_SameContinent_NA();
-    void testCalculatePoints_SameContinent_NonNA();
-    void testCalculatePoints_DifferentContinent();
+    // QSO points calculation (mode-based scoring as of v3.8.4)
+    void testCalculatePoints_Phone();
+    void testCalculatePoints_CW();
+    void testCalculatePoints_Digital_RTTY();
+    void testCalculatePoints_Digital_PSK();
 
     // Multipliers
     void testGetMultiplierTypes();
@@ -322,66 +322,70 @@ void TestWinterFieldDay::testParseExchange_UppercaseConversion() {
     QCOMPARE(qso.arrlSection, QString("WMA"));
 }
 
-// ===== QSO Points Tests =====
+// ===== QSO Points Tests (Mode-Based Scoring v3.8.4) =====
 
-void TestWinterFieldDay::testCalculatePoints_SameCountry() {
+void TestWinterFieldDay::testCalculatePoints_Phone() {
     WinterFieldDayContest contest(testStation());
+    StationInfo myStation = testStation();
 
+    // Phone modes get 1 point (USB, LSB, FM, AM)
     QSO qso;
-    qso.dxccEntity = "United States";
-    qso.continent = "NA";
+    qso.mode = ModeType::USB;
+    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 1);
 
-    StationInfo myStation;
-    myStation.country = "United States";
-    myStation.continent = "NA";
+    qso.mode = ModeType::LSB;
+    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 1);
 
-    // Same country: 0 points (but counts as multiplier)
-    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 0);
-}
+    qso.mode = ModeType::FM;
+    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 1);
 
-void TestWinterFieldDay::testCalculatePoints_SameContinent_NA() {
-    WinterFieldDayContest contest(testStation());
-
-    QSO qso;
-    qso.dxccEntity = "Canada";
-    qso.continent = "NA";
-
-    StationInfo myStation;
-    myStation.country = "United States";
-    myStation.continent = "NA";
-
-    // Different country, same continent (NA): 2 points
-    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 2);
-}
-
-void TestWinterFieldDay::testCalculatePoints_SameContinent_NonNA() {
-    WinterFieldDayContest contest(testStation());
-
-    QSO qso;
-    qso.dxccEntity = "Germany";
-    qso.continent = "EU";
-
-    StationInfo myStation;
-    myStation.country = "France";
-    myStation.continent = "EU";
-
-    // Different country, same continent (non-NA): 1 point
+    qso.mode = ModeType::AM;
     QCOMPARE(contest.calculateQSOPoints(qso, myStation), 1);
 }
 
-void TestWinterFieldDay::testCalculatePoints_DifferentContinent() {
+void TestWinterFieldDay::testCalculatePoints_CW() {
     WinterFieldDayContest contest(testStation());
+    StationInfo myStation = testStation();
 
+    // CW modes get 2 points
     QSO qso;
-    qso.dxccEntity = "Japan";
-    qso.continent = "AS";
+    qso.mode = ModeType::CW;
+    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 2);
 
-    StationInfo myStation;
-    myStation.country = "United States";
-    myStation.continent = "NA";
+    qso.mode = ModeType::CWR;
+    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 2);
+}
 
-    // Different continent: 3 points
-    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 3);
+void TestWinterFieldDay::testCalculatePoints_Digital_RTTY() {
+    WinterFieldDayContest contest(testStation());
+    StationInfo myStation = testStation();
+
+    // RTTY gets 2 points
+    QSO qso;
+    qso.mode = ModeType::RTTY;
+    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 2);
+
+    qso.mode = ModeType::RTTYR;
+    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 2);
+}
+
+void TestWinterFieldDay::testCalculatePoints_Digital_PSK() {
+    WinterFieldDayContest contest(testStation());
+    StationInfo myStation = testStation();
+
+    // Digital modes (PSK, DATA) get 2 points
+    QSO qso;
+    qso.mode = ModeType::PSK;
+    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 2);
+
+    qso.mode = ModeType::PSKR;
+    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 2);
+
+    qso.mode = ModeType::DATA;
+    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 2);
+
+    qso.mode = ModeType::DATAR;
+    QCOMPARE(contest.calculateQSOPoints(qso, myStation), 2);
 }
 
 // ===== Multiplier Tests =====

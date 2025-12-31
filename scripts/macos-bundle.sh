@@ -80,6 +80,38 @@ if [ -f "/opt/homebrew/opt/brotli/lib/libbrotlicommon.1.dylib" ]; then
     echo "    Copied libbrotlicommon.1.dylib"
 fi
 
+# Step 4d: Fix ALL Qt frameworks bundled by macdeployqt
+# CRITICAL: macdeployqt copies frameworks but doesn't always fix their IDs
+echo "==> Step 4d: Fixing library IDs for ALL Qt frameworks..."
+for framework in "$FRAMEWORKS"/*.framework; do
+    if [ -d "$framework" ]; then
+        framework_name=$(basename "$framework" .framework)
+        binary="$framework/Versions/A/$framework_name"
+
+        if [ -f "$binary" ]; then
+            # Fix the framework's install ID to use @rpath
+            install_name_tool -id "@rpath/$framework_name.framework/Versions/A/$framework_name" "$binary" 2>/dev/null || true
+
+            # Fix any absolute Homebrew paths in its dependencies
+            DEPS=$(otool -L "$binary" 2>/dev/null | grep -E "^\s+/opt/homebrew" | awk '{print $1}' || true)
+            for dep in $DEPS; do
+                dep_name=$(basename "$dep")
+                # Check if this dependency is a framework
+                if echo "$dep" | grep -q "\.framework"; then
+                    # Extract framework name from path like /opt/homebrew/opt/qtsvg/lib/QtSvg.framework/Versions/A/QtSvg
+                    dep_framework=$(echo "$dep" | sed -E 's|.*/([^/]+\.framework).*|\1|')
+                    dep_framework_name=$(basename "$dep_framework" .framework)
+                    install_name_tool -change "$dep" "@rpath/$dep_framework_name.framework/Versions/A/$dep_framework_name" "$binary" 2>/dev/null || true
+                else
+                    # It's a dylib
+                    install_name_tool -change "$dep" "@rpath/$dep_name" "$binary" 2>/dev/null || true
+                fi
+            done
+            echo "    Fixed $framework_name.framework"
+        fi
+    fi
+done
+
 # Step 5: Fix library IDs for manually added libraries
 echo "==> Step 5: Fixing library IDs for manually added libraries..."
 

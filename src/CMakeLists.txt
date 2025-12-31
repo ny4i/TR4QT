@@ -9,6 +9,9 @@ set(SOURCES
     utils/CabrilloExporter.cpp
     utils/CountryFile.cpp
     utils/CountryFileDownloader.cpp
+    utils/SCPDownloader.cpp
+    utils/SCPCallsignExtractor.cpp
+    utils/SCPMatcher.cpp
     utils/K4Discovery.cpp
     utils/DialogHelper.cpp
     utils/DXClusterListDownloader.cpp
@@ -34,6 +37,7 @@ set(SOURCES
     data/BackupManager.cpp
     data/ExchangeMemoryRepository.cpp
     data/DXCCRepository.cpp
+    data/SCPRepository.cpp
     exchanges/InitialExchangeManager.cpp
     exchanges/SmartExchangeParser.cpp
     importers/ADIFParser.cpp
@@ -89,6 +93,9 @@ set(HEADERS
     utils/CabrilloExporter.h
     utils/CountryFile.h
     utils/CountryFileDownloader.h
+    utils/SCPDownloader.h
+    utils/SCPCallsignExtractor.h
+    utils/SCPMatcher.h
     utils/K4Discovery.h
     utils/DialogHelper.h
     utils/DXClusterListDownloader.h
@@ -114,6 +121,7 @@ set(HEADERS
     data/BackupManager.h
     data/ExchangeMemoryRepository.h
     data/DXCCRepository.h
+    data/SCPRepository.h
     exchanges/InitialExchangeManager.h
     exchanges/SmartExchangeParser.h
     importers/ADIFParser.h

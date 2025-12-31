@@ -23,6 +23,7 @@
 #include "../utils/CabrilloExporter.h"
 #include "../utils/CountryFileDownloader.h"
 #include "../utils/LOTWUserDownloader.h"
+#include "../utils/SCPDownloader.h"
 #include "../data/Database.h"
 #include "../data/QSORepository.h"
 #include "../data/LOTWUserRepository.h"
@@ -81,6 +82,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_currentContestDbId(-1)
     , m_nextSerialNumber(1)
     , m_qsoTableModel(new QSOTableModel(this))
+    , m_scpMatcher(new SCPMatcher())
     , m_udpBroadcastManager(new UdpBroadcastManager(this))
     , m_webServer(new WebServer(m_qsoTableModel, m_radio, this))
     , m_inRaiseAllWindows(false)
@@ -360,17 +362,20 @@ void MainWindow::createMenuBar() {
     backupLogAction->setShortcut(QKeySequence("Alt+F"));
     connect(backupLogAction, &QAction::triggered, this, &MainWindow::onBackupLog);
 
-    QAction* downloadCTYAction = toolsMenu->addAction("Download CTY.dat");
+    // Download submenu
+    QMenu* downloadMenu = toolsMenu->addMenu("&Download");
+
+    QAction* downloadCTYAction = downloadMenu->addAction("CTY.dat (Country File)");
     downloadCTYAction->setShortcut(QKeySequence("Alt+O"));
     connect(downloadCTYAction, &QAction::triggered, this, &MainWindow::onDownloadCTY);
 
-    QAction* downloadLOTWAction = toolsMenu->addAction("Download LOTW Users");
+    QAction* downloadLOTWAction = downloadMenu->addAction("LOTW Users");
     downloadLOTWAction->setShortcut(QKeySequence("Alt+L"));
     connect(downloadLOTWAction, &QAction::triggered, this, &MainWindow::onDownloadLOTW);
 
-    QAction* setDateTimeAction = toolsMenu->addAction("Set System Date/Time");
-    setDateTimeAction->setShortcut(QKeySequence("Alt+T"));
-    connect(setDateTimeAction, &QAction::triggered, this, &MainWindow::onSetDateTime);
+    QAction* downloadSCPAction = downloadMenu->addAction("MASTER.SCP (Callsign Database)");
+    downloadSCPAction->setShortcut(QKeySequence("Alt+S"));
+    connect(downloadSCPAction, &QAction::triggered, this, &MainWindow::onDownloadSCP);
 
     QAction* initializeAction = toolsMenu->addAction("Initialize");
     initializeAction->setShortcut(QKeySequence("Alt+W"));
@@ -719,12 +724,12 @@ QWidget* MainWindow::createBottomPanel() {
     // Log button spans both rows
     entryLayout->addWidget(m_logButton, 0, 2, 2, 1);
 
-    // Duplicate warning label (row 0, column 3 - to right of call entry)
-    m_dupeWarningLabel = new QLabel(this);
-    m_dupeWarningLabel->setStyleSheet("QLabel { color: #ff6600; font-weight: bold; font-size: 11pt; }");
-    m_dupeWarningLabel->setMinimumWidth(200);
-    m_dupeWarningLabel->hide();  // Initially hidden
-    entryLayout->addWidget(m_dupeWarningLabel, 0, 3);
+    // SCP matches label (row 0, column 3 - to right of call entry)
+    m_scpMatchesLabel = new QLabel(this);
+    m_scpMatchesLabel->setStyleSheet("QLabel { color: #0066cc; font-size: 10pt; }");
+    m_scpMatchesLabel->setMinimumWidth(200);
+    m_scpMatchesLabel->hide();  // Initially hidden
+    entryLayout->addWidget(m_scpMatchesLabel, 0, 3);
 
     bottomLayout->addWidget(entryWidget);
 
@@ -2193,6 +2198,7 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
     // Update needs display as user types
     if (callsign.length() < 2 || !m_activeContest) {
         m_needsDisplayWidget->clear();
+        m_scpMatchesLabel->hide();
         return;
     }
 
@@ -2234,6 +2240,20 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
     // Update the needs display widget
     m_needsDisplayWidget->updateForCallsign(
         callsign, m_activeContest, workedBands, workedMultBands);
+
+    // Update SCP matches display
+    if (AppSettings::instance().getSCPEnabled()) {
+        QStringList matches = m_scpMatcher->findMatches(callsign);
+        if (!matches.isEmpty()) {
+            QString displayText = matches.join("  ");
+            m_scpMatchesLabel->setText(displayText);
+            m_scpMatchesLabel->show();
+        } else {
+            m_scpMatchesLabel->hide();
+        }
+    } else {
+        m_scpMatchesLabel->hide();
+    }
 
     // Exchange auto-population now happens on Enter key press, not while typing
     // Duplicate checking happens on Enter key press
@@ -4526,11 +4546,86 @@ void MainWindow::onDownloadLOTW(bool headless) {
     downloader->downloadLatest();
 }
 
-void MainWindow::onSetDateTime() {
-    LOG_DEBUG("MainWindow", "Set System Date/Time (Alt+T) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Set System Date/Time will be implemented in a future version.\n\n"
-                           "This will allow setting the system date and time.");
+void MainWindow::onDownloadSCP(bool headless) {
+    LOG_DEBUG("MainWindow", QString("Download MASTER.SCP (Alt+S) - Starting download (headless=%1)").arg(headless));
+
+    // Create progress dialog (only if not headless)
+    QProgressDialog* progressDialog = nullptr;
+    if (!headless) {
+        progressDialog = new QProgressDialog("Downloading MASTER.SCP...", "Cancel", 0, 100, this);
+        progressDialog->setWindowTitle("Download MASTER.SCP");
+        progressDialog->setWindowModality(Qt::WindowModal);
+        progressDialog->setMinimumDuration(0);
+        progressDialog->setValue(0);
+    }
+
+    // Create downloader
+    SCPDownloader* downloader = new SCPDownloader(this);
+
+    // Connect progress signal (only if not headless)
+    if (!headless) {
+        connect(downloader, &SCPDownloader::downloadProgress,
+                this, [progressDialog](qint64 bytesReceived, qint64 bytesTotal) {
+                    if (progressDialog && bytesTotal > 0) {
+                        int percentage = (bytesReceived * 100) / bytesTotal;
+                        progressDialog->setValue(percentage);
+                        progressDialog->setLabelText(QString("Downloading MASTER.SCP... %1 KB / %2 KB")
+                                                    .arg(bytesReceived / 1024)
+                                                    .arg(bytesTotal / 1024));
+                    }
+                });
+    }
+
+    // Connect finished signal
+    connect(downloader, &SCPDownloader::downloadFinished,
+            this, [this, progressDialog, downloader, headless](bool success, int callsignCount, const QString& error) {
+                if (progressDialog) {
+                    progressDialog->close();
+                    progressDialog->deleteLater();
+                }
+
+                if (success) {
+                    LOG_DEBUG("MainWindow", QString("SCP download successful: %1 callsigns imported").arg(callsignCount));
+
+                    // Update last update timestamp
+                    AppSettings& settings = AppSettings::instance();
+                    settings.setSCPLastUpdate(QDateTime::currentDateTime());
+
+                    if (!headless) {
+                        DialogHelper::information(this, "Download Complete",
+                            QString("MASTER.SCP downloaded successfully!\n\n"
+                                   "%1 callsigns imported.").arg(callsignCount));
+                    }
+                } else {
+                    if (!headless) {
+                        DialogHelper::critical(this, "Download Failed",
+                            QString("Failed to download MASTER.SCP.\n\n%1\n\n"
+                                   "Please check your internet connection and try again.").arg(error));
+                    } else {
+                        LOG_WARN("MainWindow", QString("Failed to download MASTER.SCP (headless): %1").arg(error));
+                    }
+                }
+
+                downloader->deleteLater();
+            });
+
+    // Connect error signal (only if not headless)
+    if (!headless) {
+        connect(downloader, &SCPDownloader::errorOccurred,
+                this, [progressDialog](const QString& error) {
+                    LOG_DEBUG("MainWindow", QString("SCP download error: %1").arg(error));
+                    if (progressDialog) {
+                        progressDialog->setLabelText("Error: " + error);
+                    }
+                });
+
+        // Connect cancel button
+        connect(progressDialog, &QProgressDialog::canceled,
+                downloader, &SCPDownloader::cancel);
+    }
+
+    // Start download
+    downloader->downloadLatest();
 }
 
 void MainWindow::onInitialize() {

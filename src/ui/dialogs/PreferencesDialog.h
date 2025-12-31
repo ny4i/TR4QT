@@ -88,6 +88,7 @@ private:
     QWidget* createStationTab();
     QWidget* createRadioTab();
     QWidget* createDXClusterTab();
+    QWidget* createSCPTab();
     QWidget* createUDPBroadcastTab();
     QWidget* createAppearanceTab();
     QWidget* createLoggingTab();
@@ -137,6 +138,13 @@ private:
     QCheckBox* m_enableLotwLookupCheck;
     QSpinBox* m_lotwMinUploadMonthsSpin;
     QPushButton* m_downloadClusterListButton;
+
+    // SCP tab widgets
+    QCheckBox* m_scpEnabledCheck;
+    QLabel* m_scpStatusLabel;
+    QPushButton* m_downloadSCPButton;
+    QPushButton* m_updateLocalSCPButton;
+    QCheckBox* m_scpIncludeLocalLogsCheck;
 
     // UDP Broadcast tab widgets
     QCheckBox* m_udpBroadcastEnabledCheck;

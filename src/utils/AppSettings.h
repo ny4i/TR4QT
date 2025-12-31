@@ -252,6 +252,19 @@ public:
     void setWebServerAddress(const QString& address);
     QString getWebServerAddress() const;  // Default: "127.0.0.1" (localhost)
 
+    // Super Check Partial (SCP) settings
+    void setSCPEnabled(bool enabled);
+    bool getSCPEnabled() const;  // Default: true
+
+    void setSCPVersion(const QString& version);
+    QString getSCPVersion() const;
+
+    void setSCPLastUpdate(const QDateTime& dt);
+    QDateTime getSCPLastUpdate() const;
+
+    void setSCPIncludeLocalLogs(bool include);
+    bool getSCPIncludeLocalLogs() const;  // Default: true
+
 private:
     AppSettings();
     ~AppSettings() = default;

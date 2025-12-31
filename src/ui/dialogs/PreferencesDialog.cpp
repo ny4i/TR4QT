@@ -2,6 +2,9 @@
 #include "../../utils/AppSettings.h"
 #include "../../utils/ThemeManager.h"
 #include "../../utils/DXClusterListDownloader.h"
+#include "../../utils/SCPDownloader.h"
+#include "../../utils/SCPCallsignExtractor.h"
+#include "../../data/SCPRepository.h"
 #include "../../utils/RadioEnumerator.h"
 #include "../../network/UdpBroadcaster.h"
 #include "../../logging/Logger.h"
@@ -66,6 +69,7 @@ void PreferencesDialog::setupUI() {
     m_categoryList->addItem("Station");
     m_categoryList->addItem("Radio");
     m_categoryList->addItem("DX Cluster");
+    m_categoryList->addItem("SCP");
     m_categoryList->addItem("UDP Broadcast");
     m_categoryList->addItem("Appearance");
     m_categoryList->addItem("Logging");
@@ -83,6 +87,8 @@ void PreferencesDialog::setupUI() {
     m_settingsStack->addWidget(createRadioTab());
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating DX Cluster page ***");
     m_settingsStack->addWidget(createDXClusterTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating SCP page ***");
+    m_settingsStack->addWidget(createSCPTab());
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating UDP Broadcast page ***");
     m_settingsStack->addWidget(createUDPBroadcastTab());
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Appearance page ***");
@@ -460,6 +466,154 @@ QWidget* PreferencesDialog::createDXClusterTab() {
     layout->addStretch();
 
     return dxClusterTab;
+}
+
+QWidget* PreferencesDialog::createSCPTab() {
+    QWidget* scpTab = new QWidget(this);
+    scpTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
+    QVBoxLayout* mainLayout = new QVBoxLayout(scpTab);
+
+    // SCP Settings Group
+    QGroupBox* scpGroup = new QGroupBox("Super Check Partial (SCP) Settings", this);
+    QFormLayout* scpLayout = new QFormLayout(scpGroup);
+
+    // Enable SCP
+    m_scpEnabledCheck = new QCheckBox("Enable real-time callsign matching", this);
+    scpLayout->addRow("", m_scpEnabledCheck);
+
+    // Include local logs
+    m_scpIncludeLocalLogsCheck = new QCheckBox("Include callsigns from local contest logs", this);
+    m_scpIncludeLocalLogsCheck->setChecked(true);
+    scpLayout->addRow("", m_scpIncludeLocalLogsCheck);
+
+    mainLayout->addWidget(scpGroup);
+
+    // Database Status Group
+    QGroupBox* statusGroup = new QGroupBox("Database Status", this);
+    QVBoxLayout* statusLayout = new QVBoxLayout(statusGroup);
+
+    m_scpStatusLabel = new QLabel(this);
+    m_scpStatusLabel->setWordWrap(true);
+    m_scpStatusLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; padding: 10px; }");
+
+    // Get current stats from database
+    SCPRepository repo;
+    int masterCount = repo.getCallsignCountBySource("master_scp");
+    int localCount = repo.getCallsignCountBySource("local_log");
+
+    m_scpStatusLabel->setText(QString(
+        "Master Database: %1 callsigns\n"
+        "Local Logs: %2 callsigns\n"
+        "Total: %3 callsigns available for matching"
+    ).arg(masterCount).arg(localCount).arg(masterCount + localCount));
+
+    statusLayout->addWidget(m_scpStatusLabel);
+    mainLayout->addWidget(statusGroup);
+
+    // Actions Group
+    QGroupBox* actionsGroup = new QGroupBox("Database Management", this);
+    QVBoxLayout* actionsLayout = new QVBoxLayout(actionsGroup);
+
+    // Download MASTER.SCP button
+    m_downloadSCPButton = new QPushButton("Download MASTER.SCP from Internet", this);
+    connect(m_downloadSCPButton, &QPushButton::clicked, this, [this]() {
+        SCPDownloader* downloader = new SCPDownloader(this);
+
+        QProgressDialog* progress = new QProgressDialog(
+            "Downloading MASTER.SCP...", "Cancel", 0, 100, this);
+        progress->setWindowTitle("Download MASTER.SCP");
+        progress->setWindowModality(Qt::WindowModal);
+        progress->setMinimumDuration(0);
+
+        connect(downloader, &SCPDownloader::downloadProgress,
+                this, [progress](qint64 received, qint64 total) {
+            if (total > 0) {
+                progress->setValue((received * 100) / total);
+            }
+        });
+
+        connect(downloader, &SCPDownloader::downloadFinished,
+                this, [this, progress, downloader](bool success, int count, const QString& error) {
+            progress->close();
+            progress->deleteLater();
+
+            if (success) {
+                // Update status display
+                SCPRepository repo;
+                int masterCount = repo.getCallsignCountBySource("master_scp");
+                int localCount = repo.getCallsignCountBySource("local_log");
+
+                m_scpStatusLabel->setText(QString(
+                    "Master Database: %1 callsigns\n"
+                    "Local Logs: %2 callsigns\n"
+                    "Total: %3 callsigns available for matching"
+                ).arg(masterCount).arg(localCount).arg(masterCount + localCount));
+
+                DialogHelper::information(this, "Download Complete",
+                    QString("MASTER.SCP downloaded successfully!\n\n%1 callsigns imported.").arg(count));
+            } else {
+                DialogHelper::critical(this, "Download Failed",
+                    QString("Failed to download MASTER.SCP.\n\n%1").arg(error));
+            }
+
+            downloader->deleteLater();
+        });
+
+        connect(progress, &QProgressDialog::canceled, downloader, &SCPDownloader::cancel);
+        downloader->downloadLatest();
+    });
+    actionsLayout->addWidget(m_downloadSCPButton);
+
+    // Update from local logs button
+    m_updateLocalSCPButton = new QPushButton("Update from Local Contest Logs", this);
+    connect(m_updateLocalSCPButton, &QPushButton::clicked, this, [this]() {
+        SCPCallsignExtractor extractor;
+        QStringList callsigns = extractor.extractFromAllContests();
+
+        if (callsigns.isEmpty()) {
+            DialogHelper::information(this, "No Callsigns Found",
+                "No contest logs found in ~/.tr4qt/logs/\n\n"
+                "Create some contest logs first, then update the SCP database.");
+            return;
+        }
+
+        SCPRepository repo;
+        repo.clearBySource("local_log");
+        int count = repo.bulkInsert(callsigns, "local_log");
+
+        // Update status display
+        int masterCount = repo.getCallsignCountBySource("master_scp");
+        int localCount = repo.getCallsignCountBySource("local_log");
+
+        m_scpStatusLabel->setText(QString(
+            "Master Database: %1 callsigns\n"
+            "Local Logs: %2 callsigns\n"
+            "Total: %3 callsigns available for matching"
+        ).arg(masterCount).arg(localCount).arg(masterCount + localCount));
+
+        DialogHelper::information(this, "Update Complete",
+            QString("Extracted %1 unique callsigns from local contest logs.").arg(count));
+    });
+    actionsLayout->addWidget(m_updateLocalSCPButton);
+
+    mainLayout->addWidget(actionsGroup);
+
+    // Info Section
+    QLabel* infoLabel = new QLabel(this);
+    infoLabel->setWordWrap(true);
+    infoLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; padding: 10px; }");
+    infoLabel->setText(
+        "Super Check Partial (SCP) provides real-time callsign matching as you type.\n\n"
+        "Top 5 matches are displayed to the right of the callsign field to help identify\n"
+        "stations when partial callsigns are copied from weak signals.\n\n"
+        "Download MASTER.SCP for worldwide coverage, and augment with callsigns from\n"
+        "your local contest logs for better regional matching."
+    );
+    mainLayout->addWidget(infoLabel);
+
+    mainLayout->addStretch();
+
+    return scpTab;
 }
 
 QWidget* PreferencesDialog::createUDPBroadcastTab() {
@@ -1074,6 +1228,10 @@ void PreferencesDialog::loadSettings() {
     m_enableLotwLookupCheck->setChecked(settings.getEnableLotwLookup());
     m_lotwMinUploadMonthsSpin->setValue(settings.getLotwMinUploadMonths());
 
+    // SCP tab
+    m_scpEnabledCheck->setChecked(settings.getSCPEnabled());
+    m_scpIncludeLocalLogsCheck->setChecked(settings.getSCPIncludeLocalLogs());
+
     // UDP Broadcast tab
     m_udpBroadcastEnabledCheck->setChecked(settings.getUDPBroadcastEnabled());
     m_udpRadioInfoEnabledCheck->setChecked(settings.getUDPRadioInfoEnabled());
@@ -1196,6 +1354,10 @@ void PreferencesDialog::saveSettings() {
     settings.setDXClusterAutoConnect(m_dxClusterAutoConnectCheck->isChecked());
     settings.setEnableLotwLookup(m_enableLotwLookupCheck->isChecked());
     settings.setLotwMinUploadMonths(m_lotwMinUploadMonthsSpin->value());
+
+    // SCP tab
+    settings.setSCPEnabled(m_scpEnabledCheck->isChecked());
+    settings.setSCPIncludeLocalLogs(m_scpIncludeLocalLogsCheck->isChecked());
 
     // UDP Broadcast tab
     settings.setUDPBroadcastEnabled(m_udpBroadcastEnabledCheck->isChecked());
