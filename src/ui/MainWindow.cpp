@@ -545,6 +545,9 @@ void MainWindow::createCentralWidget() {
     // Left: Band summary grid (takes 75% of width)
     m_bandSummaryGrid = new BandSummaryGrid(this);
     m_bandSummaryGrid->setEnabled(true);  // Always enabled for manual band selection
+    // TODO: Band buttons should be disabled at startup (before radio status is known)
+    //       Call m_bandSummaryGrid->setBandSelectionEnabled(false) here, then enable
+    //       when radio connects (already done in onRadioConnectionChanged)
     connect(m_bandSummaryGrid, &BandSummaryGrid::bandClicked,
             this, &MainWindow::onBandClicked);
     topLayout->addWidget(m_bandSummaryGrid, 3);  // Stretch factor 3
@@ -3647,6 +3650,8 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     myStation.continent = AppSettings::instance().getMyContinent();
     myStation.cqZone = AppSettings::instance().getMyCQZone();
     myStation.ituZone = AppSettings::instance().getMyITUZone();
+    myStation.state = AppSettings::instance().getMyState();
+    // TODO: Add getMyCounty() to AppSettings for QSO Parties
 
     // Lookup country and other geographic data from cty.dat
     CountryData myCountryData = m_countryFile.lookup(myStation.callsign);

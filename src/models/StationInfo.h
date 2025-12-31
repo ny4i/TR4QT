@@ -36,6 +36,7 @@ struct StationInfo {
 
     // Administrative divisions (if applicable)
     QString state;              // US state or Canadian province
+    QString county;             // US county (for QSO parties)
     QString section;            // ARRL/RAC section (for WFD, etc.)
 
     // Grid locator
@@ -43,7 +44,9 @@ struct StationInfo {
 
     // Contest-specific info
     QString contestClass;       // Class for WFD (e.g., "3O")
-    int power{0};               // Power level in watts
+    int power{100};             // Power level in watts (default: 100W = High power)
+                                // TODO: Add Power field to Preferences → Station Info UI
+                                // TODO: Add getMyPower()/setMyPower() to AppSettings
 
     /**
      * Check if basic station info is configured
