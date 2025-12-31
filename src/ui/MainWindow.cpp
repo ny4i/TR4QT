@@ -244,11 +244,11 @@ void MainWindow::triggerCountryFileDownload() {
 
 void MainWindow::setupUI() {
     createMenuBar();
-    createCentralWidget();
+    createCentralWidget();  // Also sets minimum width dynamically
     createStatusBar();
 
-    // Set minimum size to prevent UI from becoming unusable
-    setMinimumSize(800, 600);
+    // Set minimum height
+    setMinimumHeight(600);
 
     // Set initial size (user can resize larger or smaller, but not below minimum)
     resize(1024, 768);
@@ -621,6 +621,14 @@ void MainWindow::createCentralWidget() {
     mainLayout->addWidget(bottomPanel);
 
     setCentralWidget(central);
+
+    // Calculate minimum window width based on bottom panel's sizeHint
+    // This ensures all widgets fit without overlap
+    int bottomPanelMinWidth = bottomPanel->minimumSizeHint().width();
+    if (bottomPanelMinWidth < 900) {
+        bottomPanelMinWidth = 900;  // Ensure reasonable minimum
+    }
+    setMinimumWidth(bottomPanelMinWidth + 40);  // Add margins
 }
 
 QWidget* MainWindow::createBottomPanel() {
@@ -689,6 +697,15 @@ QWidget* MainWindow::createBottomPanel() {
     radioLayout->addWidget(m_radioWpmLabel);
     radioLayout->addLayout(dateTimeLayout);
 
+    // Calculate minimum width for radio status widget based on child components
+    int radioStatusMinWidth = m_radioFreqLabel->minimumWidth() +  // 100px
+                              m_radioWpmLabel->minimumWidth() +   // 80px
+                              m_radioDateLabel->minimumWidth() +  // 120px
+                              radioLayout->spacing() * 2 +        // Spacing between 3 items
+                              radioLayout->contentsMargins().left() +
+                              radioLayout->contentsMargins().right();
+    radioStatusWidget->setMinimumWidth(radioStatusMinWidth);
+
     bottomLayout->addWidget(radioStatusWidget);
 
     // Smaller stretch to move Call/Exch closer to radio info
@@ -697,6 +714,7 @@ QWidget* MainWindow::createBottomPanel() {
     // CENTER: Entry fields (vertical layout)
     QWidget* entryWidget = new QWidget(this);
     entryWidget->setAutoFillBackground(true);  // Prevent transparent/blank rendering
+    entryWidget->setMinimumWidth(350);  // Prevent SCP label from overlapping entry fields
     QGridLayout* entryLayout = new QGridLayout(entryWidget);
     entryLayout->setSpacing(4);
     entryLayout->setContentsMargins(0, 0, 0, 0);
@@ -742,6 +760,20 @@ QWidget* MainWindow::createBottomPanel() {
     m_scpMatchesLabel->setWordWrap(true);
     m_scpMatchesLabel->setText("");  // Always visible, just empty when no matches
     entryLayout->addWidget(m_scpMatchesLabel, 0, 3, 2, 1);  // Span both rows, column 3
+
+    // Calculate minimum width for entry widget based on child components
+    // Column 0: labels (estimate ~50px), Column 1: entry fields (150px min),
+    // Column 2: spacing (20px), Column 3: SCP label (120px)
+    QLabel tempLabel("Exch:");  // Temporary label to measure width
+    int labelWidth = tempLabel.sizeHint().width() + 10;  // Add padding
+    int entryMinWidth = labelWidth +                      // Column 0: labels
+                        m_callsignEntry->minimumWidth() + // Column 1: entry field
+                        20 +                               // Column 2: spacing
+                        m_scpMatchesLabel->minimumWidth() + // Column 3: SCP label
+                        entryLayout->horizontalSpacing() * 3 + // Spacing between columns
+                        entryLayout->contentsMargins().left() +
+                        entryLayout->contentsMargins().right();
+    entryWidget->setMinimumWidth(entryMinWidth);
 
     bottomLayout->addWidget(entryWidget);
 
