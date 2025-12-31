@@ -109,6 +109,18 @@ add_tr4qt_test(test_cqwpx
     ../src/logging/FileAppender.cpp
 )
 
+add_tr4qt_test(test_flqp
+    test_flqp.cpp
+    ../src/contests/QSOPartyContestBase.cpp
+    ../src/contests/FloridaQSOPartyContest.cpp
+    ../src/contests/ContestRegistry.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
 # Phase 3 tests - infrastructure
 add_tr4qt_test(test_thememanager
     test_thememanager.cpp

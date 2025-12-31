@@ -71,6 +71,13 @@ RadioController::~RadioController() {
     }
 
     // Stop worker thread
+    // TODO: Worker thread can hang during shutdown if blocked on network operation
+    //       (e.g., TCP connect to radio). This causes the application to hang when
+    //       closing. Need to implement proper cancellation mechanism:
+    //       - Add atomic bool m_shutdownRequested that worker checks periodically
+    //       - Use non-blocking socket operations with timeout
+    //       - Check m_shutdownRequested before/during long operations
+    //       This will allow graceful shutdown instead of forced termination
     m_workerThread.quit();
     m_workerThread.wait(3000);  // Wait up to 3 seconds
 

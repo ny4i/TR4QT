@@ -80,6 +80,7 @@ enum class MultiplierType {
     Section,    // ARRL/RAC sections
     Prefix,     // Callsign prefix (for WPX)
     Grid,       // Maidenhead grid squares
+    County,     // US counties (for QSO Parties)
     Custom      // Contest-specific multiplier
 };
 

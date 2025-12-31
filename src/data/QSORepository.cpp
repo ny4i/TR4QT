@@ -658,6 +658,7 @@ QString QSORepository::multiplierTypeToString(MultiplierType type) const {
         case MultiplierType::Section: return "Section";
         case MultiplierType::Prefix: return "Prefix";
         case MultiplierType::Grid: return "Grid";
+        case MultiplierType::County: return "County";
         case MultiplierType::Custom: return "Custom";
     }
     return "Unknown";
@@ -671,6 +672,7 @@ MultiplierType QSORepository::stringToMultiplierType(const QString& str) const {
     if (str == "Section") return MultiplierType::Section;
     if (str == "Prefix") return MultiplierType::Prefix;
     if (str == "Grid") return MultiplierType::Grid;
+    if (str == "County") return MultiplierType::County;
     if (str == "Custom") return MultiplierType::Custom;
 
     return MultiplierType::Country;  // Default fallback
