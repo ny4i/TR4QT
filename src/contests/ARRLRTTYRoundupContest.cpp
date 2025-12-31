@@ -36,12 +36,13 @@ ContestMetadata ARRLRTTYRoundupContest::getMetadata() {
     return meta;
 }
 
-ContestBase* ARRLRTTYRoundupContest::create(ModeType mode) {
+ContestBase* ARRLRTTYRoundupContest::create(ModeType mode, const StationInfo& myStation) {
     Q_UNUSED(mode);
-    return new ARRLRTTYRoundupContest();
+    return new ARRLRTTYRoundupContest(myStation);
 }
 
-ARRLRTTYRoundupContest::ARRLRTTYRoundupContest()
+ARRLRTTYRoundupContest::ARRLRTTYRoundupContest(const StationInfo& myStation)
+    : ContestBase(myStation)
 {
 }
 
@@ -143,8 +144,7 @@ bool ARRLRTTYRoundupContest::validateReceivedExchange(const QString& exchange, Q
     return true;
 }
 
-QMap<QString, QString> ARRLRTTYRoundupContest::parseReceivedExchange(const QString& exchange) const {
-    QMap<QString, QString> result;
+void ARRLRTTYRoundupContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     QString rst = "RSTValidator::getDefault(getContestMode())";
@@ -157,18 +157,17 @@ QMap<QString, QString> ARRLRTTYRoundupContest::parseReceivedExchange(const QStri
         stateOrSerial = parts[1];
     }
 
-    result["RST"] = rst;
+    // Populate QSO fields directly
+    qso.rstReceived = rst;
 
     // Detect if it's a serial number or state/province
     if (QRegularExpression("^\\d{1,3}$").match(stateOrSerial).hasMatch()) {
-        result["Serial"] = stateOrSerial;
-        result["State"] = "";
+        qso.serialNumberReceived = stateOrSerial.toInt();
+        qso.state = "";
     } else {
-        result["State"] = stateOrSerial.toUpper();
-        result["Serial"] = "";
+        qso.state = stateOrSerial.toUpper();
+        qso.serialNumberReceived = 0;
     }
-
-    return result;
 }
 
 int ARRLRTTYRoundupContest::calculateQSOPoints(

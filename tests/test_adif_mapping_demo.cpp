@@ -57,7 +57,7 @@ private slots:
 
         qDebug().noquote() << QString("APP_N1MM_ID:32 = \"31d9...\"   → qso.guid                = \"%1\"").arg(qso.guid);
         qDebug().noquote() << QString("APP_N1MM_CONTINENT:2 = \"NA\"  → qso.continent           = \"%1\"").arg(qso.continent);
-        qDebug().noquote() << QString("APP_N1MM_ISRUNQSO:1 = \"0\"    → qso.parsedExchange[\"isRunQSO\"] = \"%1\"").arg(qso.parsedExchange.value("isRunQSO"));
+        qDebug().noquote() << QString("APP_N1MM_ISRUNQSO:1 = \"0\"    → qso.isRunQSO            = %1").arg(qso.isRunQSO ? "true" : "false");
         qDebug().noquote() << QString("APP_N1MM_POINTS:1 = \"1\"      → qso.qsoPoints           = %1").arg(qso.qsoPoints);
         qDebug().noquote() << QString("OPERATOR:6 = \"KA4IOX\"        → qso.operatorCall        = \"%1\"").arg(qso.operatorCall);
         qDebug() << "";

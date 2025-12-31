@@ -12,6 +12,18 @@ using namespace TR4QT;
 class TestSmartExchangeParser : public QObject {
     Q_OBJECT
 
+private:
+    // Helper to create a test station
+    StationInfo testStation() {
+        StationInfo station;
+        station.callsign = "W1AW";
+        station.country = "United States";
+        station.continent = "NA";
+        station.cqZone = 5;
+        station.ituZone = 8;
+        return station;
+    }
+
 private slots:
     // Winter Field Day parsing
     void testParse_WFD_ClassFirst();
@@ -59,7 +71,7 @@ private slots:
 // ===== Winter Field Day Parsing Tests =====
 
 void TestSmartExchangeParser::testParse_WFD_ClassFirst() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result = SmartExchangeParser::parse("1O WMA", fields, &contest);
@@ -69,7 +81,7 @@ void TestSmartExchangeParser::testParse_WFD_ClassFirst() {
 }
 
 void TestSmartExchangeParser::testParse_WFD_SectionFirst() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     // Parser should detect Section first, Class second
@@ -80,7 +92,7 @@ void TestSmartExchangeParser::testParse_WFD_SectionFirst() {
 }
 
 void TestSmartExchangeParser::testParse_WFD_AllCategories() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     // Test all 4 WFD categories
@@ -104,7 +116,7 @@ void TestSmartExchangeParser::testParse_WFD_AllCategories() {
 }
 
 void TestSmartExchangeParser::testParse_WFD_TwoDigitTransmitter() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     // User's test case: 22O
@@ -115,7 +127,7 @@ void TestSmartExchangeParser::testParse_WFD_TwoDigitTransmitter() {
 }
 
 void TestSmartExchangeParser::testParse_WFD_MaxTransmitter() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     // Maximum 99 transmitters
@@ -126,7 +138,7 @@ void TestSmartExchangeParser::testParse_WFD_MaxTransmitter() {
 }
 
 void TestSmartExchangeParser::testParse_WFD_UppercaseConversion() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     // Lowercase input
@@ -139,7 +151,7 @@ void TestSmartExchangeParser::testParse_WFD_UppercaseConversion() {
 // ===== ARRL Sweepstakes Parsing Tests =====
 
 void TestSmartExchangeParser::testParse_SS_TraditionalOrder() {
-    ARRLSweepstakesContest contest(ModeType::CW);
+    ARRLSweepstakesContest contest(ModeType::CW, testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     // Traditional: Serial Precedence Check Section
@@ -152,7 +164,7 @@ void TestSmartExchangeParser::testParse_SS_TraditionalOrder() {
 }
 
 void TestSmartExchangeParser::testParse_SS_PrecedenceFirst() {
-    ARRLSweepstakesContest contest(ModeType::CW);
+    ARRLSweepstakesContest contest(ModeType::CW, testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     // Precedence first
@@ -165,7 +177,7 @@ void TestSmartExchangeParser::testParse_SS_PrecedenceFirst() {
 }
 
 void TestSmartExchangeParser::testParse_SS_SectionFirst() {
-    ARRLSweepstakesContest contest(ModeType::CW);
+    ARRLSweepstakesContest contest(ModeType::CW, testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     // Section first
@@ -178,7 +190,7 @@ void TestSmartExchangeParser::testParse_SS_SectionFirst() {
 }
 
 void TestSmartExchangeParser::testParse_SS_MixedOrder() {
-    ARRLSweepstakesContest contest(ModeType::CW);
+    ARRLSweepstakesContest contest(ModeType::CW, testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     // Random order
@@ -191,7 +203,7 @@ void TestSmartExchangeParser::testParse_SS_MixedOrder() {
 }
 
 void TestSmartExchangeParser::testParse_SS_PartialExchange() {
-    ARRLSweepstakesContest contest(ModeType::CW);
+    ARRLSweepstakesContest contest(ModeType::CW, testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     // Just serial and precedence
@@ -204,7 +216,7 @@ void TestSmartExchangeParser::testParse_SS_PartialExchange() {
 // ===== Section Detection Tests =====
 
 void TestSmartExchangeParser::testSectionDetection_CommonSections() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result;
@@ -220,7 +232,7 @@ void TestSmartExchangeParser::testSectionDetection_CommonSections() {
 }
 
 void TestSmartExchangeParser::testSectionDetection_Canadian() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result;
@@ -236,7 +248,7 @@ void TestSmartExchangeParser::testSectionDetection_Canadian() {
 }
 
 void TestSmartExchangeParser::testSectionDetection_ThreeLetterSections() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result;
@@ -254,7 +266,7 @@ void TestSmartExchangeParser::testSectionDetection_ThreeLetterSections() {
 // ===== Class Detection Tests =====
 
 void TestSmartExchangeParser::testClassDetection_WFD_AllCategories() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result;
@@ -273,7 +285,7 @@ void TestSmartExchangeParser::testClassDetection_WFD_AllCategories() {
 }
 
 void TestSmartExchangeParser::testClassDetection_WFD_Ranges() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result;
@@ -292,7 +304,7 @@ void TestSmartExchangeParser::testClassDetection_WFD_Ranges() {
 }
 
 void TestSmartExchangeParser::testClassDetection_InvalidFormats() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result;
@@ -314,7 +326,7 @@ void TestSmartExchangeParser::testClassDetection_InvalidFormats() {
 // ===== Precedence Detection Tests =====
 
 void TestSmartExchangeParser::testPrecedenceDetection_AllValues() {
-    ARRLSweepstakesContest contest(ModeType::CW);
+    ARRLSweepstakesContest contest(ModeType::CW, testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QStringList precedences = {"Q", "A", "B", "M", "U", "S"};
@@ -327,7 +339,7 @@ void TestSmartExchangeParser::testPrecedenceDetection_AllValues() {
 }
 
 void TestSmartExchangeParser::testPrecedenceDetection_Lowercase() {
-    ARRLSweepstakesContest contest(ModeType::CW);
+    ARRLSweepstakesContest contest(ModeType::CW, testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result = SmartExchangeParser::parse("m 95 WMA 123", fields, &contest);
@@ -337,7 +349,7 @@ void TestSmartExchangeParser::testPrecedenceDetection_Lowercase() {
 // ===== Check Detection Tests =====
 
 void TestSmartExchangeParser::testCheckDetection_Valid() {
-    ARRLSweepstakesContest contest(ModeType::CW);
+    ARRLSweepstakesContest contest(ModeType::CW, testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result;
@@ -353,7 +365,7 @@ void TestSmartExchangeParser::testCheckDetection_Valid() {
 }
 
 void TestSmartExchangeParser::testCheckDetection_Invalid() {
-    ARRLSweepstakesContest contest(ModeType::CW);
+    ARRLSweepstakesContest contest(ModeType::CW, testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     // Single digit should not be detected as check
@@ -364,7 +376,7 @@ void TestSmartExchangeParser::testCheckDetection_Invalid() {
 // ===== Serial Number Detection Tests =====
 
 void TestSmartExchangeParser::testSerialDetection_Valid() {
-    ARRLSweepstakesContest contest(ModeType::CW);
+    ARRLSweepstakesContest contest(ModeType::CW, testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result;
@@ -377,7 +389,7 @@ void TestSmartExchangeParser::testSerialDetection_Valid() {
 }
 
 void TestSmartExchangeParser::testSerialDetection_Ambiguous() {
-    ARRLSweepstakesContest contest(ModeType::CW);
+    ARRLSweepstakesContest contest(ModeType::CW, testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     // "599" looks like RST but Sweepstakes doesn't use RST in exchange
@@ -390,7 +402,7 @@ void TestSmartExchangeParser::testSerialDetection_Ambiguous() {
 // ===== Edge Cases =====
 
 void TestSmartExchangeParser::testParse_EmptyExchange() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result = SmartExchangeParser::parse("", fields, &contest);
@@ -398,7 +410,7 @@ void TestSmartExchangeParser::testParse_EmptyExchange() {
 }
 
 void TestSmartExchangeParser::testParse_SingleField() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result = SmartExchangeParser::parse("WMA", fields, &contest);
@@ -407,7 +419,7 @@ void TestSmartExchangeParser::testParse_SingleField() {
 }
 
 void TestSmartExchangeParser::testParse_ExtraSpaces() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QList<ExchangeField> fields = contest.getReceivedExchangeFields();
 
     QMap<QString, QString> result = SmartExchangeParser::parse("  WMA   1O  ", fields, &contest);

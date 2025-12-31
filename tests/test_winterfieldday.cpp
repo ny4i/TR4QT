@@ -13,6 +13,18 @@ using namespace TR4QT;
 class TestWinterFieldDay : public QObject {
     Q_OBJECT
 
+private:
+    // Helper to create a test station
+    StationInfo testStation() {
+        StationInfo station;
+        station.callsign = "W1AW";
+        station.country = "United States";
+        station.continent = "NA";
+        station.cqZone = 5;
+        station.ituZone = 8;
+        return station;
+    }
+
 private slots:
     // Contest identity tests
     void testGetContestId();
@@ -70,17 +82,17 @@ private slots:
 // ===== Contest Identity Tests =====
 
 void TestWinterFieldDay::testGetContestId() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QCOMPARE(contest.getContestId(), QString("WFD"));
 }
 
 void TestWinterFieldDay::testGetContestName() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QCOMPARE(contest.getContestName(), QString("Winter Field Day"));
 }
 
 void TestWinterFieldDay::testUsesSerialNumbers() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QVERIFY(!contest.usesSerialNumbers());
 }
 
@@ -178,7 +190,7 @@ void TestWinterFieldDay::testValidateSection_Invalid() {
 // ===== Exchange Validation Tests - Order Agnostic =====
 
 void TestWinterFieldDay::testValidateExchange_ClassFirst() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QString errorMsg;
 
     // Traditional order: Class + Section
@@ -188,7 +200,7 @@ void TestWinterFieldDay::testValidateExchange_ClassFirst() {
 }
 
 void TestWinterFieldDay::testValidateExchange_SectionFirst() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QString errorMsg;
 
     // Reversed order: Section + Class
@@ -199,7 +211,7 @@ void TestWinterFieldDay::testValidateExchange_SectionFirst() {
 }
 
 void TestWinterFieldDay::testValidateExchange_AllCategories_OrderAgnostic() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QString errorMsg;
 
     // All 4 categories, both orders
@@ -217,7 +229,7 @@ void TestWinterFieldDay::testValidateExchange_AllCategories_OrderAgnostic() {
 }
 
 void TestWinterFieldDay::testValidateExchange_InvalidFormat_OnePart() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QString errorMsg;
 
     QVERIFY(!contest.validateReceivedExchange("1O", errorMsg));
@@ -225,7 +237,7 @@ void TestWinterFieldDay::testValidateExchange_InvalidFormat_OnePart() {
 }
 
 void TestWinterFieldDay::testValidateExchange_InvalidFormat_ThreeParts() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QString errorMsg;
 
     QVERIFY(!contest.validateReceivedExchange("1O WMA EXTRA", errorMsg));
@@ -233,7 +245,7 @@ void TestWinterFieldDay::testValidateExchange_InvalidFormat_ThreeParts() {
 }
 
 void TestWinterFieldDay::testValidateExchange_InvalidClass() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QString errorMsg;
 
     QVERIFY(!contest.validateReceivedExchange("100O WMA", errorMsg));  // Over 99
@@ -242,7 +254,7 @@ void TestWinterFieldDay::testValidateExchange_InvalidClass() {
 }
 
 void TestWinterFieldDay::testValidateExchange_InvalidSection() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
     QString errorMsg;
 
     QVERIFY(!contest.validateReceivedExchange("1O ZZZ", errorMsg));
@@ -252,62 +264,68 @@ void TestWinterFieldDay::testValidateExchange_InvalidSection() {
 // ===== Exchange Parsing Tests - Field Reordering =====
 
 void TestWinterFieldDay::testParseExchange_ClassFirst() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
 
-    QMap<QString, QString> result = contest.parseReceivedExchange("1O WMA");
-    QCOMPARE(result["Class"], QString("1O"));
-    QCOMPARE(result["Section"], QString("WMA"));
+    QSO qso;
+    contest.parseReceivedExchange("1O WMA", qso);
+    QCOMPARE(qso.contestClass, QString("1O"));
+    QCOMPARE(qso.arrlSection, QString("WMA"));
 }
 
 void TestWinterFieldDay::testParseExchange_SectionFirst() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
 
     // Parser should detect field types and assign correctly
-    QMap<QString, QString> result = contest.parseReceivedExchange("WMA 1O");
-    QCOMPARE(result["Class"], QString("1O"));
-    QCOMPARE(result["Section"], QString("WMA"));
+    QSO qso;
+    contest.parseReceivedExchange("WMA 1O", qso);
+    QCOMPARE(qso.contestClass, QString("1O"));
+    QCOMPARE(qso.arrlSection, QString("WMA"));
 }
 
 void TestWinterFieldDay::testParseExchange_AllCombinations() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
 
     // Test all 4 categories in both orders
-    QMap<QString, QString> result;
+    QSO qso;
 
-    result = contest.parseReceivedExchange("SCV 1H");  // User's test case
-    QCOMPARE(result["Class"], QString("1H"));
-    QCOMPARE(result["Section"], QString("SCV"));
+    contest.parseReceivedExchange("SCV 1H", qso);  // User's test case
+    QCOMPARE(qso.contestClass, QString("1H"));
+    QCOMPARE(qso.arrlSection, QString("SCV"));
 
-    result = contest.parseReceivedExchange("22O WCF");  // User's test case
-    QCOMPARE(result["Class"], QString("22O"));
-    QCOMPARE(result["Section"], QString("WCF"));
+    qso = QSO();  // Reset
+    contest.parseReceivedExchange("22O WCF", qso);  // User's test case
+    QCOMPARE(qso.contestClass, QString("22O"));
+    QCOMPARE(qso.arrlSection, QString("WCF"));
 
-    result = contest.parseReceivedExchange("STX 1H");
-    QCOMPARE(result["Class"], QString("1H"));
-    QCOMPARE(result["Section"], QString("STX"));
+    qso = QSO();  // Reset
+    contest.parseReceivedExchange("STX 1H", qso);
+    QCOMPARE(qso.contestClass, QString("1H"));
+    QCOMPARE(qso.arrlSection, QString("STX"));
 }
 
 void TestWinterFieldDay::testParseExchange_TwoDigitTransmitter() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
 
-    QMap<QString, QString> result = contest.parseReceivedExchange("STX 22O");
-    QCOMPARE(result["Class"], QString("22O"));
-    QCOMPARE(result["Section"], QString("STX"));
+    QSO qso;
+    contest.parseReceivedExchange("STX 22O", qso);
+    QCOMPARE(qso.contestClass, QString("22O"));
+    QCOMPARE(qso.arrlSection, QString("STX"));
 }
 
 void TestWinterFieldDay::testParseExchange_UppercaseConversion() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
 
     // Lowercase input should be converted to uppercase
-    QMap<QString, QString> result = contest.parseReceivedExchange("wma 1h");
-    QCOMPARE(result["Class"], QString("1H"));
-    QCOMPARE(result["Section"], QString("WMA"));
+    QSO qso;
+    contest.parseReceivedExchange("wma 1h", qso);
+    QCOMPARE(qso.contestClass, QString("1H"));
+    QCOMPARE(qso.arrlSection, QString("WMA"));
 }
 
 // ===== QSO Points Tests =====
 
 void TestWinterFieldDay::testCalculatePoints_SameCountry() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
 
     QSO qso;
     qso.dxccEntity = "United States";
@@ -322,7 +340,7 @@ void TestWinterFieldDay::testCalculatePoints_SameCountry() {
 }
 
 void TestWinterFieldDay::testCalculatePoints_SameContinent_NA() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
 
     QSO qso;
     qso.dxccEntity = "Canada";
@@ -337,7 +355,7 @@ void TestWinterFieldDay::testCalculatePoints_SameContinent_NA() {
 }
 
 void TestWinterFieldDay::testCalculatePoints_SameContinent_NonNA() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
 
     QSO qso;
     qso.dxccEntity = "Germany";
@@ -352,7 +370,7 @@ void TestWinterFieldDay::testCalculatePoints_SameContinent_NonNA() {
 }
 
 void TestWinterFieldDay::testCalculatePoints_DifferentContinent() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
 
     QSO qso;
     qso.dxccEntity = "Japan";
@@ -369,43 +387,45 @@ void TestWinterFieldDay::testCalculatePoints_DifferentContinent() {
 // ===== Multiplier Tests =====
 
 void TestWinterFieldDay::testGetMultiplierTypes() {
-    WinterFieldDayContest contest;
+    WinterFieldDayContest contest(testStation());
 
     QList<MultiplierDefinition> mults = contest.getMultiplierTypes();
-    QCOMPARE(mults.size(), 2);
+    QCOMPARE(mults.size(), 1);
 
-    // Should have CQ Zone and Country multipliers
-    QVERIFY(mults[0].type == MultiplierType::CQZone || mults[1].type == MultiplierType::CQZone);
-    QVERIFY(mults[0].type == MultiplierType::Country || mults[1].type == MultiplierType::Country);
+    // Should have State (Section) multipliers only
+    QVERIFY(mults[0].type == MultiplierType::State);
 }
 
 void TestWinterFieldDay::testGetMultiplierValue_CQZone() {
-    WinterFieldDayContest contest;
+    // NOTE: WFD uses Sections (State), not CQ Zones
+    // This test is renamed to testGetMultiplierValue_Section
+    WinterFieldDayContest contest(testStation());
 
     QSO qso;
-    qso.cqZone = 14;
-    qso.dxccPrefix = "W";
+    qso.arrlSection = "WMA";  // Populated by parseReceivedExchange
 
-    QString multValue = contest.getMultiplierValue(qso, MultiplierType::CQZone, QStringList());
-    QCOMPARE(multValue, QString("14"));
+    QString multValue = contest.getMultiplierValue(qso, MultiplierType::State, QStringList());
+    QCOMPARE(multValue, QString("WMA"));
 
     // Already worked
-    QString multValue2 = contest.getMultiplierValue(qso, MultiplierType::CQZone, QStringList() << "14");
+    QString multValue2 = contest.getMultiplierValue(qso, MultiplierType::State, QStringList() << "WMA");
     QVERIFY(multValue2.isEmpty());
 }
 
 void TestWinterFieldDay::testGetMultiplierValue_Country() {
-    WinterFieldDayContest contest;
+    // NOTE: WFD uses Sections (State), not Countries
+    // Testing another section (using arrlSection fallback)
+    WinterFieldDayContest contest(testStation());
 
     QSO qso;
-    qso.cqZone = 14;
-    qso.dxccPrefix = "W";
+    // Test fallback: only set arrlSection, not parsedExchange
+    qso.arrlSection = "STX";
 
-    QString multValue = contest.getMultiplierValue(qso, MultiplierType::Country, QStringList());
-    QCOMPARE(multValue, QString("W"));
+    QString multValue = contest.getMultiplierValue(qso, MultiplierType::State, QStringList());
+    QCOMPARE(multValue, QString("STX"));
 
     // Already worked
-    QString multValue2 = contest.getMultiplierValue(qso, MultiplierType::Country, QStringList() << "W");
+    QString multValue2 = contest.getMultiplierValue(qso, MultiplierType::State, QStringList() << "STX");
     QVERIFY(multValue2.isEmpty());
 }
 

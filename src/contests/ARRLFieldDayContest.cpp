@@ -35,12 +35,13 @@ ContestMetadata ARRLFieldDayContest::getMetadata() {
     return meta;
 }
 
-ContestBase* ARRLFieldDayContest::create(ModeType mode) {
+ContestBase* ARRLFieldDayContest::create(ModeType mode, const StationInfo& myStation) {
     Q_UNUSED(mode);  // ARRL Field Day is mixed mode
-    return new ARRLFieldDayContest();
+    return new ARRLFieldDayContest(myStation);
 }
 
-ARRLFieldDayContest::ARRLFieldDayContest()
+ARRLFieldDayContest::ARRLFieldDayContest(const StationInfo& myStation)
+    : ContestBase(myStation)
 {
 }
 
@@ -126,7 +127,12 @@ bool ARRLFieldDayContest::validateReceivedExchange(const QString& exchange, QStr
     }
 
     // Use smart parser to detect which field is which (order-agnostic)
-    QMap<QString, QString> parsed = parseReceivedExchange(exchange);
+    QList<ExchangeField> expectedFields = getReceivedExchangeFields();
+    QMap<QString, QString> parsed = SmartExchangeParser::parse(
+        exchange,
+        expectedFields,
+        const_cast<ARRLFieldDayContest*>(this)
+    );
 
     // Check if we got both required fields
     if (!parsed.contains("Class")) {
@@ -156,22 +162,22 @@ bool ARRLFieldDayContest::validateReceivedExchange(const QString& exchange, QStr
     return true;
 }
 
-QMap<QString, QString> ARRLFieldDayContest::parseReceivedExchange(const QString& exchange) const {
+void ARRLFieldDayContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
     // Use smart parser to allow fields in any order
-    // Examples that now work:
-    // - "1O WMA" (traditional: class first, section second)
-    // - "WMA 1O" (reversed: section first, class second)
-    // - "3H CT" or "CT 3H" (both work)
-    // - "HOME WCF" or "WCF HOME" (both work)
-
     QList<ExchangeField> expectedFields = getReceivedExchangeFields();
-    QMap<QString, QString> result = SmartExchangeParser::parse(
+    QMap<QString, QString> parsed = SmartExchangeParser::parse(
         exchange,
         expectedFields,
-        const_cast<ARRLFieldDayContest*>(this)  // For section validation
+        const_cast<ARRLFieldDayContest*>(this)
     );
 
-    return result;
+    // Populate dedicated QSO fields
+    if (parsed.contains("Class")) {
+        qso.contestClass = parsed["Class"];
+    }
+    if (parsed.contains("Section")) {
+        qso.arrlSection = parsed["Section"];
+    }
 }
 
 int ARRLFieldDayContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) const {

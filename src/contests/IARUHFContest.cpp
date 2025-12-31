@@ -34,12 +34,13 @@ ContestMetadata IARUHFContest::getMetadata() {
     return meta;
 }
 
-ContestBase* IARUHFContest::create(ModeType mode) {
-    return new IARUHFContest(mode);
+ContestBase* IARUHFContest::create(ModeType mode, const StationInfo& myStation) {
+    return new IARUHFContest(mode, myStation);
 }
 
-IARUHFContest::IARUHFContest(ModeType mode)
-    : m_mode(mode)
+IARUHFContest::IARUHFContest(ModeType mode, const StationInfo& myStation)
+    : ContestBase(myStation)
+    , m_mode(mode)
 {
 }
 
@@ -212,15 +213,16 @@ bool IARUHFContest::validateReceivedExchange(const QString& exchange, QString& e
     return true;
 }
 
-QMap<QString, QString> IARUHFContest::parseReceivedExchange(const QString& exchange) const {
-    QMap<QString, QString> parsed;
-
+void IARUHFContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
+
+    QString rst;
+    QString zoneStr;
 
     if (parts.size() == 1) {
         // Only zone/HQ provided - auto-fill RST
-        parsed["RST"] = RSTValidator::getDefault(m_mode);
-        parsed["Zone"] = parts[0].toUpper();
+        rst = RSTValidator::getDefault(m_mode);
+        zoneStr = parts[0].toUpper();
     } else if (parts.size() >= 2) {
         // Two fields: detect which is RST and which is Zone/HQ (order-agnostic)
         QString first = parts[0];
@@ -232,12 +234,12 @@ QMap<QString, QString> IARUHFContest::parseReceivedExchange(const QString& excha
 
         if (firstIsSpecial) {
             // First is HQ/AC/R1/R2/R3, second should be RST (unusual but possible)
-            parsed["Zone"] = first.toUpper();
-            parsed["RST"] = second;
+            zoneStr = first.toUpper();
+            rst = second;
         } else if (secondIsSpecial) {
             // Normal case: RST + HQ
-            parsed["RST"] = first;
-            parsed["Zone"] = second.toUpper();
+            rst = first;
+            zoneStr = second.toUpper();
         } else {
             // Neither is special, check for RST pattern
             QRegularExpression rstPattern;
@@ -256,36 +258,47 @@ QMap<QString, QString> IARUHFContest::parseReceivedExchange(const QString& excha
 
             if (firstIsRST && !secondIsRST) {
                 // First is RST, second is zone (e.g., "599 46")
-                parsed["RST"] = first;
-                parsed["Zone"] = second;
+                rst = first;
+                zoneStr = second;
             } else if (!firstIsRST && secondIsRST) {
                 // Second is RST, first is zone (e.g., "46 599")
-                parsed["RST"] = second;
-                parsed["Zone"] = first;
+                rst = second;
+                zoneStr = first;
             } else if (firstIsRST && secondIsRST) {
                 // Both match RST pattern - use zone range to decide
                 if (firstIsValidZone && !secondIsValidZone) {
                     // First is valid zone → first=zone, second=RST (e.g., "46 59")
-                    parsed["Zone"] = first;
-                    parsed["RST"] = second;
+                    zoneStr = first;
+                    rst = second;
                 } else if (!firstIsValidZone && secondIsValidZone) {
                     // Second is valid zone → first=RST, second=zone (e.g., "599 46")
-                    parsed["RST"] = first;
-                    parsed["Zone"] = second;
+                    rst = first;
+                    zoneStr = second;
                 } else {
                     // Both or neither in valid zone range - assume first is RST
-                    parsed["RST"] = first;
-                    parsed["Zone"] = second;
+                    rst = first;
+                    zoneStr = second;
                 }
             } else {
                 // Neither is valid RST - use defaults
-                parsed["RST"] = RSTValidator::getDefault(m_mode);
-                parsed["Zone"] = first;  // Assume first is zone
+                rst = RSTValidator::getDefault(m_mode);
+                zoneStr = first;  // Assume first is zone
             }
         }
     }
 
-    return parsed;
+    // Populate QSO fields directly
+    qso.rstReceived = rst;
+    qso.ituZoneExchange = zoneStr;
+
+    // If it's a numeric zone, also populate ituZone integer field
+    if (!isSpecialStation(zoneStr)) {
+        bool ok;
+        int zone = zoneStr.toInt(&ok);
+        if (ok) {
+            qso.ituZone = zone;
+        }
+    }
 }
 
 int IARUHFContest::calculateQSOPoints(
@@ -359,8 +372,8 @@ QString IARUHFContest::getMultiplierValue(
 {
     QString value;
 
-    // Get the zone/HQ from parsed exchange
-    QString zoneExchange = qso.parsedExchange.value("Zone", "").toUpper();
+    // Get the zone/HQ from dedicated exchange field
+    QString zoneExchange = qso.ituZoneExchange.toUpper();
 
     switch (multType) {
     case MultiplierType::ITUZone:

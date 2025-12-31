@@ -35,12 +35,13 @@ ContestMetadata ARRLDXContest::getMetadata() {
     return meta;
 }
 
-ContestBase* ARRLDXContest::create(ModeType mode) {
-    return new ARRLDXContest(mode);
+ContestBase* ARRLDXContest::create(ModeType mode, const StationInfo& myStation) {
+    return new ARRLDXContest(mode, myStation);
 }
 
-ARRLDXContest::ARRLDXContest(ModeType mode)
-    : m_mode(mode)
+ARRLDXContest::ARRLDXContest(ModeType mode, const StationInfo& myStation)
+    : ContestBase(myStation)
+    , m_mode(mode)
 {
 }
 
@@ -143,8 +144,7 @@ bool ARRLDXContest::validateReceivedExchange(const QString& exchange, QString& e
     return true;
 }
 
-QMap<QString, QString> ARRLDXContest::parseReceivedExchange(const QString& exchange) const {
-    QMap<QString, QString> result;
+void ARRLDXContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     QString rst = RSTValidator::getDefault(m_mode);
@@ -157,18 +157,17 @@ QMap<QString, QString> ARRLDXContest::parseReceivedExchange(const QString& excha
         stateOrPower = parts[1];
     }
 
-    result["RST"] = rst;
+    // Populate QSO fields directly
+    qso.rstReceived = rst;
 
     // Detect if it's a state/province or power
     if (Arrl::isValidSection(stateOrPower.toUpper())) {
-        result["State"] = stateOrPower.toUpper();
-        result["Power"] = "";
+        qso.state = stateOrPower.toUpper();
+        qso.power = "";
     } else {
-        result["State"] = "";
-        result["Power"] = stateOrPower;
+        qso.state = "";
+        qso.power = stateOrPower;
     }
-
-    return result;
 }
 
 int ARRLDXContest::calculateQSOPoints(
@@ -194,12 +193,18 @@ int ARRLDXContest::calculateTotalScore(
 }
 
 QList<MultiplierDefinition> ARRLDXContest::getMultiplierTypes() const {
-    // W/VE stations work DX countries (DXCC)
-    // DX stations work W/VE states/provinces
-    return {
-        {MultiplierType::Country, MultiplierScope::PerBand, "Countries"},
-        {MultiplierType::State, MultiplierScope::PerBand, "States/Provinces"}
-    };
+    // Location-dependent multipliers:
+    // - W/VE stations work DX countries (DXCC)
+    // - DX stations work W/VE states/provinces
+    bool imWVE = isWVEStation(m_myStation);
+
+    if (imWVE) {
+        // W/VE: Work DX countries
+        return {{MultiplierType::Country, MultiplierScope::PerBand, "Countries"}};
+    } else {
+        // DX: Work W/VE states/provinces
+        return {{MultiplierType::State, MultiplierScope::PerBand, "States/Provinces"}};
+    }
 }
 
 QString ARRLDXContest::getMultiplierValue(

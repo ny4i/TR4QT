@@ -5,6 +5,7 @@
 #include <QList>
 #include <functional>
 #include "../core/Types.h"
+#include "../models/StationInfo.h"
 
 namespace TR4QT {
 
@@ -81,7 +82,7 @@ struct ContestMetadata {
  */
 struct ContestEntry {
     ContestMetadata metadata;
-    std::function<ContestBase*(ModeType)> factory;
+    std::function<ContestBase*(ModeType, const StationInfo&)> factory;
 };
 
 } // namespace TR4QT

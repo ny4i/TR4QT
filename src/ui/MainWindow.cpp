@@ -1872,31 +1872,14 @@ void MainWindow::onLogQSO() {
     qso.rstSent = (qso.mode == ModeType::CW) ? "599" : "59";
     qso.exchangeReceived = exchange;
 
-    // Parse exchange into components
+    // Parse exchange into QSO fields
     if (m_activeContest) {
-        qso.parsedExchange = m_activeContest->parseReceivedExchange(exchange);
+        // Contest populates dedicated QSO fields directly
+        m_activeContest->parseReceivedExchange(exchange, qso);
 
-        // Extract RST from parsed exchange if present
-        if (qso.parsedExchange.contains("RST")) {
-            qso.rstReceived = qso.parsedExchange["RST"];
-        } else {
-            // Use default if RST not in exchange
+        // Set default RST if not populated by contest
+        if (qso.rstReceived.isEmpty()) {
             qso.rstReceived = (qso.mode == ModeType::CW) ? "599" : "59";
-        }
-
-        // Extract received serial number from parsed exchange if present
-        if (qso.parsedExchange.contains("Serial")) {
-            qso.serialNumber = qso.parsedExchange["Serial"].toInt();
-        }
-
-        // Extract ARRL section from parsed exchange if present
-        if (qso.parsedExchange.contains("Section")) {
-            qso.arrlSection = qso.parsedExchange["Section"];
-        }
-
-        // Extract contest class from parsed exchange if present
-        if (qso.parsedExchange.contains("Class")) {
-            qso.contestClass = qso.parsedExchange["Class"];
         }
     } else {
         // No active contest - use default RST
@@ -3629,8 +3612,23 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         contestMode = ModeType::None;  // Mixed mode
     }
 
+    // Build StationInfo from application settings
+    StationInfo myStation;
+    myStation.callsign = AppSettings::instance().getMyCallsign();
+    myStation.continent = AppSettings::instance().getMyContinent();
+    myStation.cqZone = AppSettings::instance().getMyCQZone();
+    myStation.ituZone = AppSettings::instance().getMyITUZone();
+
+    // Lookup country and other geographic data from cty.dat
+    CountryData myCountryData = m_countryFile.lookup(myStation.callsign);
+    if (myCountryData.isValid()) {
+        myStation.country = myCountryData.name;
+        myStation.dxccPrefix = myCountryData.primaryPrefix;
+        myStation.dxccEntity = myCountryData.dxccEntity;
+    }
+
     // Try to create contest from registry
-    m_activeContest = ContestRegistry::instance().createContest(contestInfo.contestType, contestMode);
+    m_activeContest = ContestRegistry::instance().createContest(contestInfo.contestType, contestMode, myStation);
 
     if (!m_activeContest) {
         LOG_WARN("MainWindow", QString("Failed to create contest: %1").arg(contestInfo.contestType));

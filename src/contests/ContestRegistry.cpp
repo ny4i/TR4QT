@@ -11,17 +11,17 @@ ContestRegistry& ContestRegistry::instance() {
 void ContestRegistry::registerContest(
     const QString& id,
     const ContestMetadata& metadata,
-    std::function<ContestBase*(ModeType)> factory)
+    std::function<ContestBase*(ModeType, const StationInfo&)> factory)
 {
     if (m_contests.contains(id)) {
         LOG_WARN("ContestRegistry", QString("Contest already registered: %1").arg(id));
         return;
     }
-    
+
     ContestEntry entry;
     entry.metadata = metadata;
     entry.factory = factory;
-    
+
     m_contests[id] = entry;
 
     LOG_DEBUG("ContestRegistry", QString("Registered contest: %1 - %2").arg(id, metadata.displayName));
@@ -50,13 +50,13 @@ ContestMetadata ContestRegistry::getMetadata(const QString& id) const {
     return ContestMetadata();
 }
 
-ContestBase* ContestRegistry::createContest(const QString& id, ModeType mode) {
+ContestBase* ContestRegistry::createContest(const QString& id, ModeType mode, const StationInfo& myStation) {
     if (!m_contests.contains(id)) {
         LOG_WARN("ContestRegistry", QString("Contest not found: %1").arg(id));
         return nullptr;
     }
 
-    return m_contests[id].factory(mode);
+    return m_contests[id].factory(mode, myStation);
 }
 
 void ContestRegistry::printRegistry() const {

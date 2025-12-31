@@ -35,12 +35,13 @@ ContestMetadata WinterFieldDayContest::getMetadata() {
     return meta;
 }
 
-ContestBase* WinterFieldDayContest::create(ModeType mode) {
+ContestBase* WinterFieldDayContest::create(ModeType mode, const StationInfo& myStation) {
     Q_UNUSED(mode);  // Winter Field Day is mixed mode
-    return new WinterFieldDayContest();
+    return new WinterFieldDayContest(myStation);
 }
 
-WinterFieldDayContest::WinterFieldDayContest()
+WinterFieldDayContest::WinterFieldDayContest(const StationInfo& myStation)
+    : ContestBase(myStation)
 {
 }
 
@@ -126,37 +127,36 @@ bool WinterFieldDayContest::validateReceivedExchange(const QString& exchange, QS
     }
 
     // Use smart parser to detect which field is which (order-agnostic)
-    QMap<QString, QString> parsed = parseReceivedExchange(exchange);
+    QSO tempQSO;
+    parseReceivedExchange(exchange, tempQSO);
 
     // Check if we got both required fields
-    if (!parsed.contains("Class")) {
+    if (tempQSO.contestClass.isEmpty()) {
         errorMsg = "Missing Class field. Expected format like: 1O, 2I, 3H, etc.";
         return false;
     }
 
-    if (!parsed.contains("Section")) {
+    if (tempQSO.arrlSection.isEmpty()) {
         errorMsg = "Missing Section field. Expected valid ARRL/RAC section.";
         return false;
     }
 
     // Validate class
-    QString classStr = parsed["Class"];
-    if (!isValidClass(classStr)) {
-        errorMsg = QString("Invalid class '%1'. Must be [1-99][I/O/H/M]. Examples: 1O, 2I, 3H, 22M").arg(classStr);
+    if (!isValidClass(tempQSO.contestClass)) {
+        errorMsg = QString("Invalid class '%1'. Must be [1-99][I/O/H/M]. Examples: 1O, 2I, 3H, 22M").arg(tempQSO.contestClass);
         return false;
     }
 
     // Validate section
-    QString section = parsed["Section"];
-    if (!isValidSection(section)) {
-        errorMsg = QString("Invalid section '%1'. Must be valid ARRL or RAC section.").arg(section);
+    if (!isValidSection(tempQSO.arrlSection)) {
+        errorMsg = QString("Invalid section '%1'. Must be valid ARRL or RAC section.").arg(tempQSO.arrlSection);
         return false;
     }
 
     return true;
 }
 
-QMap<QString, QString> WinterFieldDayContest::parseReceivedExchange(const QString& exchange) const {
+void WinterFieldDayContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
     // Use smart parser to allow fields in any order
     // Examples that now work:
     // - "1O WMA" (traditional: class first, section second)
@@ -165,13 +165,19 @@ QMap<QString, QString> WinterFieldDayContest::parseReceivedExchange(const QStrin
     // - "HOME WCF" or "WCF HOME" (both work)
 
     QList<ExchangeField> expectedFields = getReceivedExchangeFields();
-    QMap<QString, QString> result = SmartExchangeParser::parse(
+    QMap<QString, QString> parsed = SmartExchangeParser::parse(
         exchange,
         expectedFields,
         const_cast<WinterFieldDayContest*>(this)  // For section validation
     );
 
-    return result;
+    // Populate dedicated QSO fields directly
+    if (parsed.contains("Class")) {
+        qso.contestClass = parsed["Class"];
+    }
+    if (parsed.contains("Section")) {
+        qso.arrlSection = parsed["Section"];
+    }
 }
 
 bool WinterFieldDayContest::isValidMode(ModeType mode, QString& errorMsg) const {
@@ -231,21 +237,15 @@ int WinterFieldDayContest::calculateTotalScore(
 QList<MultiplierDefinition> WinterFieldDayContest::getMultiplierTypes() const {
     QList<MultiplierDefinition> mults;
 
-    // WFD multiplier rules from WA7BNM:
-    // - Each CQ zone once per band
-    // - Each country once per band
+    // WFD multiplier rules:
+    // - ARRL/RAC Sections (all-band)
+    // Per official rules: Each section counts once across all bands
 
-    MultiplierDefinition cqZoneMult;
-    cqZoneMult.type = MultiplierType::CQZone;
-    cqZoneMult.scope = MultiplierScope::PerBand;
-    cqZoneMult.displayName = "CQ Zones";
-    mults.append(cqZoneMult);
-
-    MultiplierDefinition countryMult;
-    countryMult.type = MultiplierType::Country;
-    countryMult.scope = MultiplierScope::PerBand;
-    countryMult.displayName = "Countries";
-    mults.append(countryMult);
+    MultiplierDefinition sectionMult;
+    sectionMult.type = MultiplierType::State;  // State type is used for ARRL sections
+    sectionMult.scope = MultiplierScope::AllBands;
+    sectionMult.displayName = "Sections";
+    mults.append(sectionMult);
 
     return mults;
 }
@@ -257,24 +257,17 @@ QString WinterFieldDayContest::getMultiplierValue(
 {
     QString multValue;
 
-    switch (multType) {
-        case MultiplierType::CQZone:
-            // CQ Zone from QSO
-            if (qso.cqZone > 0) {
-                multValue = QString::number(qso.cqZone);
-            }
-            break;
-
-        case MultiplierType::Country:
-            // Country (DXCC entity)
-            multValue = qso.dxccPrefix;  // Use DXCC prefix as country identifier
-            break;
-
-        default:
-            return QString();  // Not a multiplier for this contest
+    if (multType == MultiplierType::State) {
+        // ARRL/RAC sections - read from dedicated field
+        QString section = qso.arrlSection.toUpper();
+        if (!section.isEmpty() && Arrl::isValidSection(section)) {
+            multValue = section;
+        }
+    } else {
+        return QString();  // Not a multiplier for this contest
     }
 
-    // Check if this multiplier value has already been worked (on this band)
+    // Check if this multiplier value has already been worked (all-band scope)
     if (multValue.isEmpty() || alreadyWorkedValues.contains(multValue)) {
         return QString();  // Not a new multiplier
     }

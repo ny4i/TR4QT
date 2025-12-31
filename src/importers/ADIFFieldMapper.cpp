@@ -152,8 +152,7 @@ bool ADIFFieldMapper::mapToQSO(const QMap<QString, QString>& adifFields, QSO& qs
 
     // N1MM Run/S&P indicator
     if (adifFields.contains("APP_N1MM_ISRUNQSO")) {
-        bool isRunQSO = (adifFields["APP_N1MM_ISRUNQSO"] == "1");
-        qso.parsedExchange["isRunQSO"] = isRunQSO ? "true" : "false";
+        qso.isRunQSO = (adifFields["APP_N1MM_ISRUNQSO"] == "1");
     }
 
     // N1MM points (might differ from TR4QT scoring)

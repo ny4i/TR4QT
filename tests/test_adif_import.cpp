@@ -48,7 +48,7 @@ private slots:
 
         // Verify N1MM custom fields
         QCOMPARE(firstQSO.guid, QString("31d91675021f4dcea03a8b37b21b3ca6"));
-        QCOMPARE(firstQSO.parsedExchange["isRunQSO"], QString("false"));
+        QCOMPARE(firstQSO.isRunQSO, false);  // N1MM Run/S&P indicator
         QCOMPARE(firstQSO.qsoPoints, 1);
 
         // Verify date/time parsing (2025-09-27 00:24:48 UTC)
