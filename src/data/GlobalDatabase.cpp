@@ -343,6 +343,63 @@ bool GlobalDatabase::migrateSchema() {
         }
     }
 
+    // Migration: Add Super Check Partial (SCP) tables (v3.9.0)
+    // Check if scp_callsigns table exists
+    QSqlQuery checkSCPTable(m_db);
+    checkSCPTable.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='scp_callsigns'");
+    bool hasSCPTable = checkSCPTable.next();
+
+    if (!hasSCPTable) {
+        LOG_INFO("GlobalDatabase", "Creating Super Check Partial (SCP) tables...");
+
+        // Create scp_callsigns table
+        QSqlQuery createSCPTable(m_db);
+        QString createSCPSQL = R"(
+            CREATE TABLE IF NOT EXISTS scp_callsigns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                callsign TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                source TEXT NOT NULL,
+                contest_id TEXT,
+                added_at INTEGER NOT NULL
+            )
+        )";
+
+        if (!createSCPTable.exec(createSCPSQL)) {
+            LOG_WARN("GlobalDatabase", QString("Failed to create scp_callsigns table: %1")
+                .arg(createSCPTable.lastError().text()));
+            return true;  // Don't fail migration
+        }
+
+        // Create indices for scp_callsigns
+        QSqlQuery createSCPIndex1(m_db);
+        if (!createSCPIndex1.exec("CREATE INDEX IF NOT EXISTS idx_scp_callsign ON scp_callsigns(callsign)")) {
+            LOG_WARN("GlobalDatabase", "Failed to create idx_scp_callsign index");
+        }
+
+        QSqlQuery createSCPIndex2(m_db);
+        if (!createSCPIndex2.exec("CREATE INDEX IF NOT EXISTS idx_scp_source ON scp_callsigns(source)")) {
+            LOG_WARN("GlobalDatabase", "Failed to create idx_scp_source index");
+        }
+
+        // Create scp_metadata table
+        QSqlQuery createSCPMetaTable(m_db);
+        QString createSCPMetaSQL = R"(
+            CREATE TABLE IF NOT EXISTS scp_metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at INTEGER NOT NULL
+            )
+        )";
+
+        if (!createSCPMetaTable.exec(createSCPMetaSQL)) {
+            LOG_WARN("GlobalDatabase", QString("Failed to create scp_metadata table: %1")
+                .arg(createSCPMetaTable.lastError().text()));
+            return true;  // Don't fail migration
+        }
+
+        LOG_INFO("GlobalDatabase", "SCP tables created successfully");
+    }
+
     return true;
 }
 

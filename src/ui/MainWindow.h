@@ -11,6 +11,7 @@
 #include "../radio/RadioController.h"
 #include "../utils/AppSettings.h"
 #include "../utils/CountryFile.h"
+#include "../utils/SCPMatcher.h"
 #include "models/QSOTableModel.h"
 #include "widgets/BandSummaryGrid.h"
 #include "widgets/NeedsDisplayWidget.h"
@@ -101,7 +102,7 @@ private slots:
     void onToggleWebServer();       // Start/stop web server
     void onDownloadCTY(bool headless = false);   // Download CTY.dat (headless=true for testing)
     void onDownloadLOTW(bool headless = false);  // Download LOTW user list (headless=true for testing)
-    void onSetDateTime();           // TODO: Implement set system date/time
+    void onDownloadSCP(bool headless = false);   // Download MASTER.SCP (headless=true for testing)
     void onInitialize();            // TODO: Implement initialize
     void onResetWindowPositions();  // Reset all window positions to defaults
 
@@ -228,7 +229,7 @@ private:
     QPushButton* m_logButton;
     QTableView* m_qsoTableView;
     QSOTableModel* m_qsoTableModel;
-    QLabel* m_dupeWarningLabel;  // Warning label for duplicate QSOs
+    QLabel* m_scpMatchesLabel;  // Display SCP callsign matches (Column 3)
 
     // Stats panel (bottom right)
     QLabel* m_rateLabel;
@@ -300,6 +301,9 @@ private:
 
     // Country file for lookups
     CountryFile m_countryFile;
+
+    // Super Check Partial matcher
+    SCPMatcher* m_scpMatcher;
 
     // UDP Broadcast manager
     UdpBroadcastManager* m_udpBroadcastManager;

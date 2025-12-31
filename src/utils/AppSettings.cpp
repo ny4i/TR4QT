@@ -759,4 +759,42 @@ QString AppSettings::getWebServerAddress() const {
     return m_settings.value("WebServer/address", "127.0.0.1").toString();  // Default: localhost
 }
 
+// Super Check Partial (SCP) settings
+
+void AppSettings::setSCPEnabled(bool enabled) {
+    m_settings.setValue("SCP/enabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getSCPEnabled() const {
+    return m_settings.value("SCP/enabled", true).toBool();  // Default: enabled
+}
+
+void AppSettings::setSCPVersion(const QString& version) {
+    m_settings.setValue("SCP/version", version);
+    m_settings.sync();
+}
+
+QString AppSettings::getSCPVersion() const {
+    return m_settings.value("SCP/version", "").toString();
+}
+
+void AppSettings::setSCPLastUpdate(const QDateTime& dt) {
+    m_settings.setValue("SCP/lastUpdate", dt);
+    m_settings.sync();
+}
+
+QDateTime AppSettings::getSCPLastUpdate() const {
+    return m_settings.value("SCP/lastUpdate", QDateTime()).toDateTime();
+}
+
+void AppSettings::setSCPIncludeLocalLogs(bool include) {
+    m_settings.setValue("SCP/includeLocalLogs", include);
+    m_settings.sync();
+}
+
+bool AppSettings::getSCPIncludeLocalLogs() const {
+    return m_settings.value("SCP/includeLocalLogs", true).toBool();  // Default: include local logs
+}
+
 } // namespace TR4QT

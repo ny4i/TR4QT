@@ -63,3 +63,30 @@ CREATE TABLE IF NOT EXISTS dxcc_entities (
 
 -- Index for reverse lookup (entity name -> code)
 CREATE INDEX IF NOT EXISTS idx_dxcc_name ON dxcc_entities(entity_name);
+
+-- Super Check Partial (SCP) callsign database
+-- Stores callsigns from MASTER.SCP download + local QSO history
+-- Used for real-time callsign matching as operator types in callsign field
+-- Downloaded from http://www.supercheckpartial.com/MASTER.SCP
+CREATE TABLE IF NOT EXISTS scp_callsigns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    callsign TEXT NOT NULL UNIQUE COLLATE NOCASE,  -- Normalized uppercase callsign
+    source TEXT NOT NULL,                           -- 'master_scp' or 'local_log'
+    contest_id TEXT,                                -- Contest ID if from local log (NULL for master)
+    added_at INTEGER NOT NULL                       -- Unix timestamp when added
+);
+
+-- Index for prefix/suffix matching (critical for performance)
+-- SQLite LIKE 'W1%' can use this index for prefix matching
+CREATE INDEX IF NOT EXISTS idx_scp_callsign ON scp_callsigns(callsign);
+
+-- Index for source filtering (to separate master vs local)
+CREATE INDEX IF NOT EXISTS idx_scp_source ON scp_callsigns(source);
+
+-- SCP metadata tracking (version, last update time, etc.)
+-- Stores metadata about MASTER.SCP database (version, download date, etc.)
+CREATE TABLE IF NOT EXISTS scp_metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at INTEGER NOT NULL          -- Unix timestamp
+);
