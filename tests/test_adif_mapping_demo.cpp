@@ -13,8 +13,8 @@ private slots:
         ADIFImporter importer;
         QList<QSO> qsos;
 
-        // Import the N1MM file
-        QString filePath = "../../2025-09-28_CQWW_RTTY_W4TA_Run2.adi";
+        // Import the N1MM file from test fixtures
+        QString filePath = QString(TESTS_SOURCE_DIR) + "/fixtures/2025-09-28_CQWW_RTTY_W4TA_Run2.adi";
         bool success = importer.importFile(filePath, qsos);
 
         QVERIFY(success);

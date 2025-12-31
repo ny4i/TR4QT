@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.10.3";  // Station info display with US call area coordinates + CTY.DAT longitude fix + test linking fix
+constexpr const char* APP_VERSION = "3.10.4";  // Fix test failures (WFD multiplier type + ADIF fixture paths)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -34,3 +34,7 @@ qrc_*.cpp
 *.adif
 *.adi
 cty.dat
+
+# Exception: Allow test fixtures
+!tests/fixtures/*.adi
+!tests/fixtures/*.adif
