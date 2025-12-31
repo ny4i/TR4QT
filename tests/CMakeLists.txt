@@ -152,6 +152,7 @@ add_tr4qt_test(test_winterfieldday
     ../src/contests/ContestRegistry.cpp
     ../src/exchanges/SmartExchangeParser.cpp
     ../src/utils/ArrlSectionHelper.cpp
+    ../src/utils/AppSettings.cpp
     ../src/core/Types.cpp
     ../src/logging/Logger.cpp
     ../src/logging/LogLevel.cpp
@@ -166,6 +167,7 @@ add_tr4qt_test(test_smartexchangeparser
     ../src/contests/ARRLSweepstakesContest.cpp
     ../src/contests/ContestRegistry.cpp
     ../src/utils/ArrlSectionHelper.cpp
+    ../src/utils/AppSettings.cpp
     ../src/core/Types.cpp
     ../src/logging/Logger.cpp
     ../src/logging/LogLevel.cpp
