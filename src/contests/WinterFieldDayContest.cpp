@@ -248,7 +248,7 @@ QList<MultiplierDefinition> WinterFieldDayContest::getMultiplierTypes() const {
     // Per official rules: Each section counts once across all bands
 
     MultiplierDefinition sectionMult;
-    sectionMult.type = MultiplierType::State;  // State type is used for ARRL sections
+    sectionMult.type = MultiplierType::Section;  // ARRL/RAC sections for WFD
     sectionMult.scope = MultiplierScope::AllBands;
     sectionMult.displayName = "Sections";
     mults.append(sectionMult);
@@ -263,7 +263,7 @@ QString WinterFieldDayContest::getMultiplierValue(
 {
     QString multValue;
 
-    if (multType == MultiplierType::State) {
+    if (multType == MultiplierType::Section) {
         // ARRL/RAC sections - read from dedicated field
         QString section = qso.arrlSection.toUpper();
         if (!section.isEmpty() && Arrl::isValidSection(section)) {
