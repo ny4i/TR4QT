@@ -15,6 +15,9 @@
 #include <QTimer>
 #include <QRegularExpression>
 #include <QTextCursor>
+#include <QTextOption>
+#include <QMouseEvent>
+#include <QEvent>
 
 namespace TR4QT {
 
@@ -157,14 +160,24 @@ void DXClusterWindow::setupUI() {
     // Text display
     m_textDisplay = new QTextEdit(this);
     m_textDisplay->setReadOnly(true);
-    m_textDisplay->setFont(QFont("Monospace", 9));
+
+    // Use fixed-width font for proper alignment
+    QFont monoFont("Courier", 10);
+    monoFont.setStyleHint(QFont::Monospace);
+    monoFont.setFixedPitch(true);
+    m_textDisplay->setFont(monoFont);
+
+    // Disable word wrap for proper column alignment
+    m_textDisplay->setLineWrapMode(QTextEdit::NoWrap);
+    m_textDisplay->setWordWrapMode(QTextOption::NoWrap);
+
     // Background style will be set by applyTheme()
     m_textDisplay->viewport()->setCursor(Qt::PointingHandCursor);  // Show it's clickable
-    mainLayout->addWidget(m_textDisplay);
 
-    // Make text display clickable for QSY
-    connect(m_textDisplay, &QTextEdit::selectionChanged,
-            this, &DXClusterWindow::onTextDisplayClicked);
+    // Install event filter to handle mouse clicks
+    m_textDisplay->viewport()->installEventFilter(this);
+
+    mainLayout->addWidget(m_textDisplay);
 
     // Command input
     QHBoxLayout* commandLayout = new QHBoxLayout();
@@ -439,6 +452,11 @@ void DXClusterWindow::onTelnetDataReceived(const QString& data) {
         return;
     }
 
+    // Skip DX spot lines - they'll be formatted by onTelnetSpotReceived()
+    if (data.startsWith("DX de ", Qt::CaseInsensitive)) {
+        return;
+    }
+
     // Append data to display
     appendText(data);
 
@@ -453,6 +471,53 @@ void DXClusterWindow::onTelnetSpotReceived(const QString& callsign,
                                           const QString& spotter,
                                           const QString& comment,
                                           const QString& timestamp) {
+    // Don't update display if frozen
+    if (m_isFrozen) {
+        // Still forward to band map even if display is frozen
+        emit spotReceived(callsign, frequency, spotter, comment);
+        return;
+    }
+
+    // Check for split operation (QSX/UP/DOWN in comment)
+    double listenFrequency = parseSplitInfo(comment, frequency);
+    bool isSplit = (listenFrequency > 0);
+
+    // Format spot into fixed-width columns for better readability
+    // Format: [SPLIT] Spotter(12) Freq(10) Callsign(12) Time(5) Comment(remaining)
+
+    // Convert frequency from Hz to kHz for display
+    double freqKHz = frequency / 1000.0;
+    QString freqStr = QString::number(freqKHz, 'f', 1);  // 1 decimal place
+
+    // Add split indicator if this is a split spot
+    QString splitIndicator = isSplit ? "[SPLIT] " : "        ";
+
+    QString formattedSpot = QString("%1%2 %3 %4 %5Z %6")
+        .arg(splitIndicator)      // Split indicator (8 chars)
+        .arg(spotter, -12)        // Left-aligned, 12 chars
+        .arg(freqStr, 10)         // Right-aligned, 10 chars
+        .arg(callsign, -12)       // Left-aligned, 12 chars
+        .arg(timestamp, 4)        // 4 chars (HHMM)
+        .arg(comment);            // No padding, remainder
+
+    // Store split info for click-to-QSY handling
+    if (isSplit) {
+        SplitSpotInfo info;
+        info.spotFrequency = frequency;
+        info.listenFrequency = listenFrequency;
+        info.callsign = callsign;
+        m_splitSpots[formattedSpot.trimmed()] = info;
+    }
+
+    // Highlight split spots with different color
+    QColor spotColor = isSplit ? Qt::darkCyan : Qt::black;
+    appendText(formattedSpot, spotColor);
+
+    // Auto-scroll to bottom
+    QTextCursor cursor = m_textDisplay->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_textDisplay->setTextCursor(cursor);
+
     // Forward spot to band map (signal will be connected by MainWindow)
     emit spotReceived(callsign, frequency, spotter, comment);
 }
@@ -486,42 +551,109 @@ void DXClusterWindow::appendText(const QString& text, const QColor& color) {
     cursor.insertText(text + "\n");
 }
 
-void DXClusterWindow::onTextDisplayClicked() {
-    // Get the selected text or current line
-    QTextCursor cursor = m_textDisplay->textCursor();
-    cursor.select(QTextCursor::LineUnderCursor);
-    QString line = cursor.selectedText().trimmed();
+bool DXClusterWindow::eventFilter(QObject* obj, QEvent* event) {
+    if (obj == m_textDisplay->viewport()) {
+        if (event->type() == QEvent::MouseButtonPress) {
+            // Single click - show spot info in status label
+            QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->button() == Qt::LeftButton) {
+                // Get the line under cursor
+                QTextCursor cursor = m_textDisplay->cursorForPosition(mouseEvent->pos());
+                cursor.select(QTextCursor::LineUnderCursor);
+                QString line = cursor.selectedText().trimmed();
 
-    if (line.isEmpty()) {
-        return;
-    }
+                if (!line.isEmpty()) {
+                    // Parse formatted spot line:
+                    // Format: [SPLIT] Spotter(12) Freq(10) Callsign(12) Time(5) Comment
 
-    // Parse DX spot line format:
-    // DX de CALL:     14025.0  W1AW       Comment here
-    // or
-    // DX de W1AW:     14.025.0  K1ABC      ...
-    //
-    // Frequency is typically after "DX de CALL:" and before the DX callsign
+                    // Check if this is a split spot
+                    bool isSplit = line.startsWith("[SPLIT]");
+                    QString spotLine = isSplit ? line.mid(8).trimmed() : line;
 
-    // Look for frequency pattern (digits with optional decimal point)
-    QRegularExpression freqRegex(R"(\b(\d{1,6}\.?\d{0,3})\s+[A-Z0-9]+)");
-    QRegularExpressionMatch match = freqRegex.match(line);
+                    // Extract frequency (after spotter, before callsign)
+                    QRegularExpression freqRegex(R"(\s+(\d+\.\d+)\s+)");
+                    QRegularExpressionMatch freqMatch = freqRegex.match(spotLine);
 
-    if (match.hasMatch()) {
-        QString freqStr = match.captured(1);
-        bool ok;
-        double frequency = freqStr.toDouble(&ok);
+                    if (freqMatch.hasMatch()) {
+                        QString freqStr = freqMatch.captured(1);
+                        double freqKHz = freqStr.toDouble();
 
-        if (ok && frequency > 0) {
-            // Convert to Hz if needed (DX cluster uses kHz)
-            if (frequency < 1000) {
-                frequency *= 1000;  // Convert kHz to Hz
+                        // Extract callsign (after frequency)
+                        int freqEnd = freqMatch.capturedEnd();
+                        QString remainder = spotLine.mid(freqEnd).trimmed();
+                        QStringList parts = remainder.split(QRegularExpression("\\s+"));
+                        QString callsign = parts.isEmpty() ? "" : parts[0];
+
+                        // Build status message
+                        QString statusMsg;
+                        if (isSplit) {
+                            // Look up split info from m_splitSpots
+                            if (m_splitSpots.contains(line)) {
+                                SplitSpotInfo info = m_splitSpots[line];
+                                double txKHz = info.spotFrequency / 1000.0;
+                                double rxKHz = info.listenFrequency / 1000.0;
+                                statusMsg = QString("SPLIT - %1 - TX: %2 kHz, RX: %3 kHz - Double-click to QSY")
+                                    .arg(callsign)
+                                    .arg(QString::number(txKHz, 'f', 1))
+                                    .arg(QString::number(rxKHz, 'f', 1));
+                            } else {
+                                statusMsg = QString("SPLIT - %1 @ %2 kHz - Double-click to QSY")
+                                    .arg(callsign)
+                                    .arg(freqStr);
+                            }
+                        } else {
+                            statusMsg = QString("%1 @ %2 kHz - Double-click to QSY")
+                                .arg(callsign)
+                                .arg(freqStr);
+                        }
+
+                        m_statusLabel->setText(statusMsg);
+                        LOG_DEBUG("DXClusterWindow", QString("Single-click: %1").arg(statusMsg));
+                    }
+                }
             }
+        } else if (event->type() == QEvent::MouseButtonDblClick) {
+            // Double click - QSY to spot
+            QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->button() == Qt::LeftButton) {
+                // Get the line under cursor
+                QTextCursor cursor = m_textDisplay->cursorForPosition(mouseEvent->pos());
+                cursor.select(QTextCursor::LineUnderCursor);
+                QString line = cursor.selectedText().trimmed();
 
-            LOG_DEBUG("DXClusterWindow", QString("Click-to-QSY: %1 Hz from line: %2").arg(QString::number(frequency, 'f', 0)).arg(line));
-            emit qsyRequested(frequency);
+                if (!line.isEmpty()) {
+                    // Check if this is a split spot
+                    bool isSplit = line.startsWith("[SPLIT]");
+
+                    if (isSplit && m_splitSpots.contains(line)) {
+                        // Emit split QSY signal
+                        SplitSpotInfo info = m_splitSpots[line];
+                        LOG_DEBUG("DXClusterWindow", QString("Double-click split QSY: TX=%1 Hz, RX=%2 Hz")
+                            .arg(QString::number(info.spotFrequency, 'f', 0))
+                            .arg(QString::number(info.listenFrequency, 'f', 0)));
+                        emit splitQsyRequested(info.spotFrequency, info.listenFrequency);
+                    } else {
+                        // Parse frequency for simplex QSY
+                        QString spotLine = isSplit ? line.mid(8).trimmed() : line;
+                        QRegularExpression freqRegex(R"(\s+(\d+\.\d+)\s+)");
+                        QRegularExpressionMatch freqMatch = freqRegex.match(spotLine);
+
+                        if (freqMatch.hasMatch()) {
+                            QString freqStr = freqMatch.captured(1);
+                            double freqKHz = freqStr.toDouble();
+                            double freqHz = freqKHz * 1000.0;  // Convert kHz to Hz
+
+                            LOG_DEBUG("DXClusterWindow", QString("Double-click simplex QSY: %1 Hz")
+                                .arg(QString::number(freqHz, 'f', 0)));
+                            emit qsyRequested(freqHz);
+                        }
+                    }
+                }
+            }
         }
     }
+
+    return QWidget::eventFilter(obj, event);
 }
 
 void DXClusterWindow::applyTheme() {
@@ -540,6 +672,45 @@ void DXClusterWindow::applyTheme() {
         m_freezeButton->setStyleSheet(QString("QPushButton { background-color: %1; font-weight: bold; }")
             .arg(theme.color(ColorRole::FrozenIndicator).name()));
     }
+}
+
+double DXClusterWindow::parseSplitInfo(const QString& comment, double spotFrequency) {
+    // Parse split operation from comment:
+    // - "QSX 14205" or "QSX14205" - DX listening on 14205 kHz (absolute)
+    // - "UP 10" or "UP10" - DX listening 10 kHz up from spot frequency
+    // - "DOWN 5" or "DN5" - DX listening 5 kHz down from spot frequency
+
+    QString upperComment = comment.toUpper();
+
+    // Check for QSX (absolute frequency)
+    QRegularExpression qsxRegex(R"(QSX\s*(\d+(?:\.\d+)?))");
+    QRegularExpressionMatch qsxMatch = qsxRegex.match(upperComment);
+    if (qsxMatch.hasMatch()) {
+        double listenKHz = qsxMatch.captured(1).toDouble();
+        // Convert kHz to Hz
+        return listenKHz * 1000.0;
+    }
+
+    // Check for UP (relative offset, positive)
+    QRegularExpression upRegex(R"(\bUP\s*(\d+(?:\.\d+)?))");
+    QRegularExpressionMatch upMatch = upRegex.match(upperComment);
+    if (upMatch.hasMatch()) {
+        double offsetKHz = upMatch.captured(1).toDouble();
+        // Add offset to spot frequency
+        return spotFrequency + (offsetKHz * 1000.0);
+    }
+
+    // Check for DOWN/DN (relative offset, negative)
+    QRegularExpression downRegex(R"(\b(?:DOWN|DN)\s*(\d+(?:\.\d+)?))");
+    QRegularExpressionMatch downMatch = downRegex.match(upperComment);
+    if (downMatch.hasMatch()) {
+        double offsetKHz = downMatch.captured(1).toDouble();
+        // Subtract offset from spot frequency
+        return spotFrequency - (offsetKHz * 1000.0);
+    }
+
+    // Not a split spot
+    return 0;
 }
 
 } // namespace TR4QT

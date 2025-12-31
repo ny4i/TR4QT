@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.8.2";  // Add Slack webhook notifications for public releases
+constexpr const char* APP_VERSION = "3.8.3";  // DX Cluster/Band Map click improvements
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
