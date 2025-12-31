@@ -116,10 +116,6 @@ void RadioControlWidget::setupUI() {
     m_wpmLabel->setEnabled(false);  // Grayed out by default
     mainLayout->addWidget(m_wpmLabel);
 
-    // S-Meter display - custom widget with traditional radio meter styling
-    m_sMeter = new SMeterWidget(this);
-    mainLayout->addWidget(m_sMeter);
-
     // Control buttons
     QWidget* buttonWidget = new QWidget(this);
     buttonWidget->setAutoFillBackground(true);  // Prevent transparent/blank rendering
@@ -309,9 +305,6 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
 
     // SPLIT is active when split mode is enabled
     m_splitButton->setChecked(state.isSplitEnabled);
-
-    // Update S-meter display
-    updateSMeter(state.signalStrength);
 }
 
 void RadioControlWidget::clearDisplay() {
@@ -319,9 +312,6 @@ void RadioControlWidget::clearDisplay() {
     m_vfoAFreqLabel->setText("----.-----");
     m_vfoBFreqLabel->setText("----.-----");
     m_modeLabel->setText("---");
-
-    // Clear S-meter (set to minimum value)
-    m_sMeter->setValue(-127);
 
     // Clear current state first (so style updates use cleared state)
     m_currentState = RadioState();
@@ -494,14 +484,6 @@ void RadioControlWidget::updateXitWidgetStyle() {
         m_xitTitleLabel->setStyleSheet("QLabel { color: black; }");
         m_xitOffsetLabel->setStyleSheet("QLabel { color: black; }");
     }
-}
-
-void RadioControlWidget::updateSMeter(int signalStrength) {
-    // Update custom S-meter widget with signal strength in dBm
-    m_sMeter->setValue(signalStrength);
-
-    LOG_TRACE("RadioControlWidget", QString("S-meter update: %1 dBm = %2")
-        .arg(signalStrength).arg(SMeterWidget::dbmToSMeter(signalStrength)));
 }
 
 } // namespace TR4QT

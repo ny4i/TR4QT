@@ -3493,6 +3493,11 @@ void MainWindow::reopenLastContest() {
 }
 
 void MainWindow::activateContest(const ContestInfo& contestInfo) {
+    // CRITICAL: Reset contest state FIRST to prevent corrupted state if activation fails
+    // This ensures that if ANY step below fails and returns early, we're left in a clean state
+    m_hasActiveContest = false;
+    m_currentContestDbId = -1;
+
     // Clean up previous contest if any
     if (m_activeContest) {
         delete m_activeContest;

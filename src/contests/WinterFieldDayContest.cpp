@@ -196,29 +196,35 @@ bool WinterFieldDayContest::isValidMode(ModeType mode, QString& errorMsg) const 
 }
 
 int WinterFieldDayContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) const {
-    // Winter Field Day scoring rules (geography-based):
-    // - Same country: 0 points (but counts as multiplier)
-    // - Different country, same continent (North America): 2 points
-    // - Different country, same continent (non-North America): 1 point
-    // - Different continent: 3 points
+    Q_UNUSED(myStation);  // Not used in WFD scoring
 
-    // Same country - no points
-    if (qso.dxccEntity == myStation.country) {
-        return 0;
+    // Winter Field Day scoring rules (mode-based):
+    // - Phone/SSB: 1 point per contact
+    // - CW: 2 points per contact
+    // - Digital: 2 points per contact
+    //
+    // Note: FT4 and FT8 are NOT allowed in WFD (validated in isValidMode)
+
+    // CW gets 2 points (includes CW and CWR)
+    if (qso.mode == ModeType::CW || qso.mode == ModeType::CWR) {
+        return 2;
     }
 
-    // Different country, same continent
-    if (qso.continent == myStation.continent) {
-        // North America gets 2 points
-        if (myStation.continent == "NA") {
-            return 2;
-        }
-        // Other continents get 1 point
-        return 1;
+    // Digital modes get 2 points
+    // Includes RTTY, PSK, and generic DATA modes
+    // Note: FT8 and FT4 are NOT allowed (validated in isValidMode)
+    if (qso.mode == ModeType::RTTY ||
+        qso.mode == ModeType::RTTYR ||
+        qso.mode == ModeType::PSK ||
+        qso.mode == ModeType::PSKR ||
+        qso.mode == ModeType::DATA ||
+        qso.mode == ModeType::DATAR) {
+        return 2;
     }
 
-    // Different continent - 3 points
-    return 3;
+    // Phone modes get 1 point (USB, LSB, AM, FM)
+    // This includes SSB, AM, FM, DMR, C4FM, etc.
+    return 1;
 }
 
 int WinterFieldDayContest::calculateTotalScore(
