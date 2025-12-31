@@ -145,9 +145,19 @@ bool GeographicUtils::distanceAndBearingBetweenCallsigns(const QString& callsign
                                                          double& distance,
                                                          double& bearing,
                                                          bool useKilometers) {
-    // Load country file
+    // Load country file (deprecated - use overload with CountryFile& for better performance)
     CountryFile countryFile;
 
+    // Delegate to the overload that accepts a CountryFile reference
+    return distanceAndBearingBetweenCallsigns(countryFile, callsign1, callsign2, distance, bearing, useKilometers);
+}
+
+bool GeographicUtils::distanceAndBearingBetweenCallsigns(const CountryFile& countryFile,
+                                                         const QString& callsign1,
+                                                         const QString& callsign2,
+                                                         double& distance,
+                                                         double& bearing,
+                                                         bool useKilometers) {
     // Look up countries for both callsigns
     CountryData country1 = countryFile.lookup(callsign1);
     CountryData country2 = countryFile.lookup(callsign2);
