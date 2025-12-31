@@ -4,6 +4,7 @@
 #include <QFuture>
 #include <QThread>
 #include "../src/utils/CountryFile.h"
+#include "../src/utils/GeographicUtils.h"
 
 using namespace TR4QT;
 
@@ -80,6 +81,12 @@ private slots:
 
     // Thread safety tests
     void testConcurrentLookupAndReload();
+
+    // US Call Area Coordinates tests (grid-based)
+    void testGetUSCallAreaCoordinates_AllAreas();
+    void testGetUSCallAreaCoordinates_DifferentPrefixes();
+    void testGetUSCallAreaCoordinates_NonUSDXCC();
+    void testGetUSCallAreaCoordinates_InvalidCallsign();
 
 private:
     CountryFile m_countryFile;
@@ -552,6 +559,108 @@ void TestCountryFile::testConcurrentLookupAndReload() {
     QVERIFY(result.isValid());
     QCOMPARE(result.name, QString("United States"));
     QCOMPARE(result.cqZone, 5);
+}
+
+// US Call Area Coordinates tests (grid-based)
+void TestCountryFile::testGetUSCallAreaCoordinates_AllAreas() {
+    // Test all 10 US call areas (0-9) with DXCC 291
+    // Verify that coordinates match grid-to-latlon conversion
+
+    struct CallAreaGrid {
+        int area;
+        QString grid;
+    };
+
+    QVector<CallAreaGrid> callAreaGrids = {
+        {1, "FN43"},   // New England
+        {2, "FN22"},   // NY/NJ
+        {3, "FN10"},   // Mid-Atlantic
+        {4, "EL83"},   // Southeast
+        {5, "EM13"},   // South Central
+        {6, "DM06"},   // California
+        {7, "DN42"},   // Pacific NW
+        {8, "EN80"},   // Great Lakes East
+        {9, "EN52"},   // Great Lakes West
+        {0, "EN04"},   // Central
+    };
+
+    for (const auto& areaGrid : callAreaGrids) {
+        QString callsign = QString("W%1TEST").arg(areaGrid.area);
+        double lat, lon;
+
+        bool success = CountryFile::getUSCallAreaCoordinates(callsign, 291, lat, lon);
+
+        QVERIFY2(success, qPrintable(QString("Failed for call area %1").arg(areaGrid.area)));
+
+        // Get expected coordinates by converting grid to lat/lon
+        double expectedLat, expectedLon;
+        bool gridSuccess = GeographicUtils::gridToLatLon(areaGrid.grid, expectedLat, expectedLon);
+        QVERIFY2(gridSuccess, qPrintable(QString("Grid conversion failed for %1").arg(areaGrid.grid)));
+
+        // Verify returned coordinates match grid-to-latlon conversion exactly
+        QCOMPARE(lat, expectedLat);
+        QCOMPARE(lon, expectedLon);
+    }
+}
+
+void TestCountryFile::testGetUSCallAreaCoordinates_DifferentPrefixes() {
+    // Test that K, W, N, and A prefixes all work for DXCC 291
+    QStringList prefixes = {"K", "W", "N", "A"};
+
+    // Get expected coordinates for call area 1 (FN43)
+    double expectedLat, expectedLon;
+    bool gridSuccess = GeographicUtils::gridToLatLon("FN43", expectedLat, expectedLon);
+    QVERIFY2(gridSuccess, "Grid conversion failed for FN43");
+
+    for (const QString& prefix : prefixes) {
+        QString callsign = prefix + "1TEST";
+        double lat, lon;
+
+        bool success = CountryFile::getUSCallAreaCoordinates(callsign, 291, lat, lon);
+
+        QVERIFY2(success, qPrintable(QString("Failed for prefix %1").arg(prefix)));
+
+        // All prefixes should return same coordinates for call area 1
+        QCOMPARE(lat, expectedLat);
+        QCOMPARE(lon, expectedLon);
+    }
+}
+
+void TestCountryFile::testGetUSCallAreaCoordinates_NonUSDXCC() {
+    // Test that non-US DXCC entities return false
+    double lat, lon;
+
+    // Alaska (DXCC 6)
+    QVERIFY(!CountryFile::getUSCallAreaCoordinates("KL7AA", 6, lat, lon));
+
+    // Hawaii (DXCC 110)
+    QVERIFY(!CountryFile::getUSCallAreaCoordinates("KH6BB", 110, lat, lon));
+
+    // Japan (DXCC 339)
+    QVERIFY(!CountryFile::getUSCallAreaCoordinates("JA1ABC", 339, lat, lon));
+
+    // Germany (DXCC 230)
+    QVERIFY(!CountryFile::getUSCallAreaCoordinates("DL1XYZ", 230, lat, lon));
+
+    // Even if callsign looks like US, wrong DXCC should fail
+    QVERIFY(!CountryFile::getUSCallAreaCoordinates("W1AW", 110, lat, lon));
+}
+
+void TestCountryFile::testGetUSCallAreaCoordinates_InvalidCallsign() {
+    // Test invalid callsigns return false
+    double lat, lon;
+
+    // Too short
+    QVERIFY(!CountryFile::getUSCallAreaCoordinates("W", 291, lat, lon));
+
+    // No digit in second position
+    QVERIFY(!CountryFile::getUSCallAreaCoordinates("WW", 291, lat, lon));
+
+    // Wrong prefix
+    QVERIFY(!CountryFile::getUSCallAreaCoordinates("G1ABC", 291, lat, lon));
+
+    // Empty callsign
+    QVERIFY(!CountryFile::getUSCallAreaCoordinates("", 291, lat, lon));
 }
 
 QTEST_MAIN(TestCountryFile)

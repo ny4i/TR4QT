@@ -21,6 +21,32 @@
 
 namespace TR4QT {
 
+// DX Cluster band colors
+// Consistent color definitions for all bands (avoids magic RGB values)
+static const QColor COLOR_BAND_160M(102, 51, 153);  // Purple
+static const QColor COLOR_BAND_80M(153, 76, 0);     // Brown
+static const QColor COLOR_BAND_40M(204, 0, 102);    // Magenta
+static const QColor COLOR_BAND_20M(0, 102, 204);    // Blue
+static const QColor COLOR_BAND_15M(0, 153, 0);      // Green
+static const QColor COLOR_BAND_10M(204, 102, 0);    // Orange
+static const QColor COLOR_BAND_DEFAULT(102, 102, 102);  // Gray for unhandled bands
+
+/**
+ * Map band to display color for DX cluster spots
+ * Uses distinct colors to visually differentiate bands
+ */
+static QColor getBandColor(BandType band) {
+    switch (band) {
+        case BandType::Band160M: return COLOR_BAND_160M;
+        case BandType::Band80M:  return COLOR_BAND_80M;
+        case BandType::Band40M:  return COLOR_BAND_40M;
+        case BandType::Band20M:  return COLOR_BAND_20M;
+        case BandType::Band15M:  return COLOR_BAND_15M;
+        case BandType::Band10M:  return COLOR_BAND_10M;
+        default:                 return COLOR_BAND_DEFAULT;
+    }
+}
+
 DXClusterWindow::DXClusterWindow(QWidget* parent)
     : QWidget(parent)
     , m_telnetThread(new TelnetThread(this))
@@ -29,6 +55,7 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
     , m_autoReconnect(false)
     , m_reconnectTimer(new QTimer(this))
     , m_reconnectAttempts(0)
+    , m_spotRowCount(0)
 {
     setupUI();
     loadSettings();
@@ -160,6 +187,7 @@ void DXClusterWindow::setupUI() {
     // Text display
     m_textDisplay = new QTextEdit(this);
     m_textDisplay->setReadOnly(true);
+    m_textDisplay->setAcceptRichText(true);  // Enable rich text for modern styling
 
     // Use fixed-width font for proper alignment
     QFont monoFont("Courier", 10);
@@ -379,6 +407,7 @@ void DXClusterWindow::onFreezeClicked() {
 
 void DXClusterWindow::onClearClicked() {
     m_textDisplay->clear();
+    m_spotRowCount = 0;  // Reset alternating row counter
 }
 
 void DXClusterWindow::onCommandsClicked() {
@@ -489,16 +518,22 @@ void DXClusterWindow::onTelnetSpotReceived(const QString& callsign,
     double freqKHz = frequency / 1000.0;
     QString freqStr = QString::number(freqKHz, 'f', 1);  // 1 decimal place
 
-    // Add split indicator if this is a split spot
-    QString splitIndicator = isSplit ? "[SPLIT] " : "        ";
+    // Spot formatting constants
+    const int SPLIT_INDICATOR_WIDTH = 2;  // Width of split indicator ("● " or "  ")
+    const int CALLSIGN_INDENT = 3;         // Spaces between frequency and callsign
 
-    QString formattedSpot = QString("%1%2 %3 %4 %5Z %6")
-        .arg(splitIndicator)      // Split indicator (8 chars)
-        .arg(spotter, -12)        // Left-aligned, 12 chars
-        .arg(freqStr, 10)         // Right-aligned, 10 chars
-        .arg(callsign, -12)       // Left-aligned, 12 chars
-        .arg(timestamp, 4)        // 4 chars (HHMM)
-        .arg(comment);            // No padding, remainder
+    // Split indicator (consistent 2-character width for both display and formatting)
+    QString splitIcon = isSplit ? "● " : "  ";
+
+    // Build plain text version for split spot lookup and display
+    QString plainSpot = QString("%1%2 %3%4%5 %6Z %7")
+        .arg(splitIcon)
+        .arg(spotter, -12)
+        .arg(freqStr, 10)
+        .arg(QString(CALLSIGN_INDENT, ' '))
+        .arg(callsign, -12)
+        .arg(timestamp, 4)
+        .arg(comment);
 
     // Store split info for click-to-QSY handling
     if (isSplit) {
@@ -506,12 +541,64 @@ void DXClusterWindow::onTelnetSpotReceived(const QString& callsign,
         info.spotFrequency = frequency;
         info.listenFrequency = listenFrequency;
         info.callsign = callsign;
-        m_splitSpots[formattedSpot.trimmed()] = info;
+        m_splitSpots[plainSpot.trimmed()] = info;
     }
 
-    // Highlight split spots with different color
-    QColor spotColor = isSplit ? Qt::darkCyan : Qt::black;
-    appendText(formattedSpot, spotColor);
+    // Determine frequency color based on band (using central band determination logic)
+    BandType band = frequencyToBand(static_cast<unsigned long>(frequency));
+    QColor freqColor = getBandColor(band);
+
+    // Build format info for character-based formatting (preserves alignment)
+    QList<FormatRange> formats;
+
+    // Calculate character positions in the line
+    // Format: [● ] Spotter(12) Freq(10) [3 spaces] Callsign(12) TimeZ(5) Comment
+    int pos = 0;
+
+    // Split indicator (already defined above as splitIcon)
+    if (isSplit) {
+        formats.append({pos, SPLIT_INDICATOR_WIDTH, QColor(0, 206, 209), false});  // Cyan dot
+    }
+    pos += SPLIT_INDICATOR_WIDTH;
+
+    // Spotter (12 chars) - gray
+    formats.append({pos, 12, QColor(102, 102, 102), false});
+    pos += 12;
+
+    // Space
+    pos += 1;
+
+    // Frequency (10 chars, right-aligned) - color-coded by band
+    const int FREQUENCY_FIELD_WIDTH = 10;
+    int freqPadding = FREQUENCY_FIELD_WIDTH - freqStr.length();
+    int freqStart = pos + freqPadding;  // Adjust for right-alignment
+    formats.append({freqStart, static_cast<int>(freqStr.length()), freqColor, false});
+    pos += FREQUENCY_FIELD_WIDTH;
+
+    // Indent (3 spaces)
+    pos += CALLSIGN_INDENT;
+
+    // Callsign (12 chars) - bold black
+    int callsignPos = pos;
+    int callsignLen = callsign.length();
+    formats.append({callsignPos, callsignLen, Qt::black, true});
+    pos += 12;
+
+    // Space
+    pos += 1;
+
+    // Timestamp (4 chars + Z) - light gray
+    formats.append({pos, 5, QColor(153, 153, 153), false});
+    pos += 5;
+
+    // Space
+    pos += 1;
+
+    // Comment - dark gray
+    formats.append({pos, static_cast<int>(comment.length()), QColor(51, 51, 51), false});
+
+    // Use the plain text version we already built
+    appendRichText(plainSpot, formats, isSplit);
 
     // Auto-scroll to bottom
     QTextCursor cursor = m_textDisplay->textCursor();
@@ -549,6 +636,44 @@ void DXClusterWindow::appendText(const QString& text, const QColor& color) {
 
     cursor.setCharFormat(format);
     cursor.insertText(text + "\n");
+}
+
+void DXClusterWindow::appendRichText(const QString& text, const QList<FormatRange>& formats, bool isSplit) {
+    QTextCursor cursor = m_textDisplay->textCursor();
+    cursor.movePosition(QTextCursor::End);
+
+    // Alternating row backgrounds (very subtle)
+    // Note: QTextBlockFormat applies to entire line including leading/trailing whitespace
+    bool isEvenRow = (m_spotRowCount % 2 == 0);
+    QColor bgColor = isEvenRow ? QColor(255, 255, 255) : QColor(248, 248, 248);
+
+    QTextBlockFormat blockFormat;
+    blockFormat.setBackground(bgColor);
+    cursor.setBlockFormat(blockFormat);
+
+    // Insert the plain text first (preserves exact character spacing)
+    int textStart = cursor.position();
+    cursor.insertText(text);
+
+    // Now apply character formatting to specific ranges
+    for (const FormatRange& range : formats) {
+        QTextCharFormat format;
+        format.setForeground(range.color);
+        if (range.bold) {
+            format.setFontWeight(QFont::Bold);
+        }
+
+        // Select the range and apply format
+        cursor.setPosition(textStart + range.start);
+        cursor.setPosition(textStart + range.start + range.length, QTextCursor::KeepAnchor);
+        cursor.setCharFormat(format);
+    }
+
+    // Move to end and insert newline
+    cursor.movePosition(QTextCursor::End);
+    cursor.insertText("\n");
+
+    m_spotRowCount++;
 }
 
 bool DXClusterWindow::eventFilter(QObject* obj, QEvent* event) {

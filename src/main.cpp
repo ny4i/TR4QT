@@ -5,6 +5,8 @@
 #include <QCommandLineParser>
 #include <QMessageBox>
 #include <QTimer>
+#include <QLockFile>
+#include <QStandardPaths>
 #include <hamlib/rig.h>
 #include "core/Constants.h"
 #include "utils/CountryFile.h"
@@ -36,6 +38,25 @@ int main(int argc, char *argv[]) {
     qInstallMessageHandler(TR4QT::Logger::messageHandler);
 
     QApplication app(argc, argv);
+
+    // Check for existing instance using lock file
+    QString lockFilePath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/tr4qt.lock";
+    QLockFile lockFile(lockFilePath);
+    lockFile.setStaleLockTime(0);  // Never consider lock file stale
+
+    if (!lockFile.tryLock(100)) {  // 100ms timeout
+        QMessageBox::warning(
+            nullptr,
+            "TR4QT Already Running",
+            "Another instance of TR4QT is already running.\n\n"
+            "Only one instance of TR4QT can run at a time.\n\n"
+            "If you believe this is an error, delete the lock file at:\n" + lockFilePath
+        );
+        LOG_WARN("TR4QTMain", "Another instance is already running - exiting");
+        return 1;
+    }
+
+    LOG_INFO("TR4QTMain", QString("Instance lock acquired: %1").arg(lockFilePath));
 
     // Parse command line arguments
     QCommandLineParser parser;
