@@ -4,6 +4,7 @@
 #include "../models/QSO.h"
 #include "../exchanges/SmartExchangeParser.h"
 #include "../utils/ArrlSectionHelper.h"
+#include "../utils/AppSettings.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
@@ -233,6 +234,21 @@ QString ARRLFieldDayContest::getMultiplierValue(
 
     // ARRL Field Day does not use multipliers
     return QString();
+}
+
+QList<BandType> ARRLFieldDayContest::getAllowedBands() const {
+    // Standard HF contest bands
+    QList<BandType> bands = { BandType::Band160M, BandType::Band80M, BandType::Band40M,
+                              BandType::Band20M, BandType::Band15M, BandType::Band10M };
+
+    // Add VHF/UHF bands if enabled in preferences
+    if (AppSettings::instance().getVHFBandsEnabled()) {
+        bands.append(BandType::Band6M);
+        bands.append(BandType::Band2M);
+        bands.append(BandType::Band70CM);
+    }
+
+    return bands;
 }
 
 QMap<QString, QString> ARRLFieldDayContest::getCabrilloHeaders() const {

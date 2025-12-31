@@ -70,22 +70,8 @@ void NeedsDisplayWidget::updateForCallsign(const QString& callsign,
     }
 
     // Get valid bands for this contest
-    // Standard HF bands (160m through 10m)
-    QList<BandType> allBands = {
-        BandType::Band160M,
-        BandType::Band80M,
-        BandType::Band40M,
-        BandType::Band20M,
-        BandType::Band15M,
-        BandType::Band10M
-    };
-
-    // Add VHF bands if enabled in settings
-    AppSettings& settings = AppSettings::instance();
-    if (settings.getVHFBandsEnabled()) {
-        allBands.append(BandType::Band6M);
-        allBands.append(BandType::Band2M);
-    }
+    // Use contest's allowed bands (respects RTTY exclusions, VHF settings, etc.)
+    QList<BandType> allBands = contest->getAllowedBands();
 
     // Update headers
     m_qsoNeedsHeaderLabel->setText(QString("QSO needs for %1:").arg(callsign));

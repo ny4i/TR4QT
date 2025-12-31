@@ -684,8 +684,8 @@ QWidget* MainWindow::createBottomPanel() {
 
     bottomLayout->addWidget(radioStatusWidget);
 
-    // Stretch to push Call/Exch to center
-    bottomLayout->addStretch(1);
+    // Smaller stretch to move Call/Exch closer to radio info
+    bottomLayout->addStretch(0);  // Changed from 1 to 0 (half distance)
 
     // CENTER: Entry fields (vertical layout)
     QWidget* entryWidget = new QWidget(this);
@@ -710,9 +710,6 @@ QWidget* MainWindow::createBottomPanel() {
     m_exchangeEntry->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_exchangeEntry->setFont(QFont("Monospace", 12));
 
-    m_logButton = new QPushButton("Log", this);
-    m_logButton->setMinimumHeight(60);  // Span both rows
-
     // Row 0: Call label and entry
     entryLayout->addWidget(callLabel, 0, 0);
     entryLayout->addWidget(m_callsignEntry, 0, 1);
@@ -721,15 +718,16 @@ QWidget* MainWindow::createBottomPanel() {
     entryLayout->addWidget(exchLabel, 1, 0);
     entryLayout->addWidget(m_exchangeEntry, 1, 1);
 
-    // Log button spans both rows
-    entryLayout->addWidget(m_logButton, 0, 2, 2, 1);
-
-    // SCP matches label (row 0, column 3 - to right of call entry)
+    // SCP matches label (column 2, spans both rows - 2-column grid)
     m_scpMatchesLabel = new QLabel(this);
-    m_scpMatchesLabel->setStyleSheet("QLabel { color: #0066cc; font-size: 10pt; }");
-    m_scpMatchesLabel->setMinimumWidth(200);
-    m_scpMatchesLabel->hide();  // Initially hidden
-    entryLayout->addWidget(m_scpMatchesLabel, 0, 3);
+    m_scpMatchesLabel->setStyleSheet("QLabel { color: #0066cc; font-size: 9pt; }");
+    m_scpMatchesLabel->setMinimumWidth(120);
+    m_scpMatchesLabel->setMaximumWidth(120);
+    m_scpMatchesLabel->setMinimumHeight(50);  // Fixed height
+    m_scpMatchesLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    m_scpMatchesLabel->setWordWrap(true);
+    m_scpMatchesLabel->setText("");  // Always visible, just empty when no matches
+    entryLayout->addWidget(m_scpMatchesLabel, 0, 2, 2, 1);  // Span both rows
 
     bottomLayout->addWidget(entryWidget);
 
@@ -801,8 +799,6 @@ QWidget* MainWindow::createBottomPanel() {
     connect(m_exchangeEntry, &QLineEdit::textChanged,
             this, &MainWindow::onExchangeTextChanged);
     connect(m_exchangeEntry, &QLineEdit::returnPressed,
-            this, &MainWindow::onLogQSO);
-    connect(m_logButton, &QPushButton::clicked,
             this, &MainWindow::onLogQSO);
 
     return bottomPanel;
@@ -1698,9 +1694,9 @@ void MainWindow::onRadioConnected(bool connected) {
         m_radioFlashState = false;
         updateRadioStatusFlash();  // Update to normal color
 
-        // Enable band buttons when radio connected
+        // Enable band selection buttons when radio connected
         if (m_bandSummaryGrid) {
-            m_bandSummaryGrid->setEnabled(true);
+            m_bandSummaryGrid->setBandSelectionEnabled(true);
         }
     } else {
         m_statusLabel->setText("Radio disconnected");
@@ -1713,9 +1709,10 @@ void MainWindow::onRadioConnected(bool connected) {
             m_radioControlWindow->clearDisplay();
         }
 
-        // Disable band buttons when radio disconnected
+        // Disable band selection buttons when radio disconnected
+        // Statistics remain visible
         if (m_bandSummaryGrid) {
-            m_bandSummaryGrid->setEnabled(false);
+            m_bandSummaryGrid->setBandSelectionEnabled(false);
         }
 
         // Start auto-reconnect timer if enabled
@@ -2241,18 +2238,25 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
     m_needsDisplayWidget->updateForCallsign(
         callsign, m_activeContest, workedBands, workedMultBands);
 
-    // Update SCP matches display
+    // Update SCP matches display (2-column grid format)
     if (AppSettings::instance().getSCPEnabled()) {
         QStringList matches = m_scpMatcher->findMatches(callsign);
         if (!matches.isEmpty()) {
-            QString displayText = matches.join("  ");
-            m_scpMatchesLabel->setText(displayText);
-            m_scpMatchesLabel->show();
+            // Format matches in 2 columns (e.g., "W1ABC  W1DEF\nW1GHI  W1JKL\nW1MNO")
+            QStringList rows;
+            for (int i = 0; i < matches.size(); i += 2) {
+                QString row = matches[i];
+                if (i + 1 < matches.size()) {
+                    row += "  " + matches[i + 1];
+                }
+                rows.append(row);
+            }
+            m_scpMatchesLabel->setText(rows.join("\n"));
         } else {
-            m_scpMatchesLabel->hide();
+            m_scpMatchesLabel->setText("");  // Clear but don't hide
         }
     } else {
-        m_scpMatchesLabel->hide();
+        m_scpMatchesLabel->setText("");  // Clear but don't hide
     }
 
     // Exchange auto-population now happens on Enter key press, not while typing
@@ -3674,6 +3678,9 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     if (m_bandSummaryGrid) {
         m_bandSummaryGrid->setMultipliersEnabled(m_activeContest->usesMultipliers());
 
+        // Set visible bands based on contest restrictions (e.g., RTTY excludes 160m)
+        m_bandSummaryGrid->setVisibleBands(m_activeContest->getAllowedBands());
+
         // Configure grid for mode group breakdown and zone tracking
         bool usesZones = false;
         for (const MultiplierDefinition& multDef : m_activeContest->getMultiplierTypes()) {
@@ -3716,11 +3723,12 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         }
     }
 
-    // Update window title to include contest name
-    setWindowTitle(QString("%1 v%2 - %3")
+    // Update window title to include contest name and type
+    setWindowTitle(QString("%1 v%2 - %3 (%4)")
                       .arg(APP_NAME)
                       .arg(APP_VERSION)
-                      .arg(contestInfo.contestName));
+                      .arg(contestInfo.contestName)
+                      .arg(m_activeContest->getContestName()));
 
     // Set default band and mode from contest if radio not connected
     if (!m_radioConnected) {
@@ -4913,41 +4921,47 @@ freq_t MainWindow::getFrequencyForBand(BandType band, ModeType mode) const {
 }
 
 BandType MainWindow::getNextBand(BandType currentBand) const {
-    // Contest bands in order from low to high frequency
-    static const QList<BandType> contestBands = {
-        BandType::Band160M,
-        BandType::Band80M,
-        BandType::Band40M,
-        BandType::Band20M,
-        BandType::Band15M,
-        BandType::Band10M
-    };
+    // Get allowed bands from active contest (or default HF bands)
+    QList<BandType> allowedBands;
+    if (m_activeContest) {
+        allowedBands = m_activeContest->getAllowedBands();
+    } else {
+        // Default: standard HF contest bands
+        allowedBands = { BandType::Band160M, BandType::Band80M, BandType::Band40M,
+                         BandType::Band20M, BandType::Band15M, BandType::Band10M };
+    }
 
-    int currentIndex = contestBands.indexOf(currentBand);
-    if (currentIndex == -1 || currentIndex >= contestBands.size() - 1) {
+    // Sort bands from low to high frequency (should already be sorted, but ensure)
+    // Standard order: 160M, 80M, 40M, 20M, 15M, 10M, 6M, 2M, 70CM
+
+    int currentIndex = allowedBands.indexOf(currentBand);
+    if (currentIndex == -1 || currentIndex >= allowedBands.size() - 1) {
         return currentBand;  // Already at highest or invalid band
     }
 
-    return contestBands[currentIndex + 1];
+    return allowedBands[currentIndex + 1];
 }
 
 BandType MainWindow::getPreviousBand(BandType currentBand) const {
-    // Contest bands in order from low to high frequency
-    static const QList<BandType> contestBands = {
-        BandType::Band160M,
-        BandType::Band80M,
-        BandType::Band40M,
-        BandType::Band20M,
-        BandType::Band15M,
-        BandType::Band10M
-    };
+    // Get allowed bands from active contest (or default HF bands)
+    QList<BandType> allowedBands;
+    if (m_activeContest) {
+        allowedBands = m_activeContest->getAllowedBands();
+    } else {
+        // Default: standard HF contest bands
+        allowedBands = { BandType::Band160M, BandType::Band80M, BandType::Band40M,
+                         BandType::Band20M, BandType::Band15M, BandType::Band10M };
+    }
 
-    int currentIndex = contestBands.indexOf(currentBand);
+    // Sort bands from low to high frequency (should already be sorted, but ensure)
+    // Standard order: 160M, 80M, 40M, 20M, 15M, 10M, 6M, 2M, 70CM
+
+    int currentIndex = allowedBands.indexOf(currentBand);
     if (currentIndex <= 0) {
         return currentBand;  // Already at lowest or invalid band
     }
 
-    return contestBands[currentIndex - 1];
+    return allowedBands[currentIndex - 1];
 }
 
 void MainWindow::saveQSOTableColumnWidths() {

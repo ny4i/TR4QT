@@ -226,7 +226,6 @@ private:
     // Logging UI
     QLineEdit* m_callsignEntry;
     QLineEdit* m_exchangeEntry;
-    QPushButton* m_logButton;
     QTableView* m_qsoTableView;
     QSOTableModel* m_qsoTableModel;
     QLabel* m_scpMatchesLabel;  // Display SCP callsign matches (Column 3)

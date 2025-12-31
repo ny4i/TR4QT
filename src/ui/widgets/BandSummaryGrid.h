@@ -58,6 +58,12 @@ public:
     // Enable/disable multiplier row (gray out for contests that don't use mults)
     void setMultipliersEnabled(bool enabled);
 
+    // Enable/disable band selection buttons (when radio disconnected)
+    void setBandSelectionEnabled(bool enabled);
+
+    // Set which bands are visible (for contest-specific band restrictions)
+    void setVisibleBands(const QList<BandType>& bands);
+
 signals:
     /**
      * Emitted when user clicks on a band header to change bands
@@ -80,6 +86,7 @@ private:
     // Configuration
     bool m_usesModeGroupBreakdown;
     bool m_usesZoneMultipliers;
+    QList<BandType> m_visibleBands;  // Bands allowed by contest
 
     // Band columns (160, 80, 40, 20, 15, 10, All)
     QMap<BandType, QLabel*> m_qsoLabels;

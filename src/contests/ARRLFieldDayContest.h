@@ -103,6 +103,9 @@ public:
         return DuplicateCheckingRule::PerBandMode;
     }
 
+    // ===== Band Restrictions =====
+    QList<BandType> getAllowedBands() const override;  // HF + VHF/UHF (if enabled)
+
     QMap<QString, QString> getCabrilloHeaders() const override;
 
     // ===== Field Day-Specific Methods =====
