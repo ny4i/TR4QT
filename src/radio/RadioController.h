@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QThread>
 #include <QMutex>
+#include <atomic>
 #include "RadioInterface.h"
 #include "HamlibRadio.h"
 
@@ -59,6 +60,7 @@ private:
     RadioState m_lastState;
     bool m_connected;
     QString m_radioModel;
+    std::atomic<bool> m_shutdownRequested{false};  // Signal to worker thread during shutdown
 };
 
 } // namespace TR4QT

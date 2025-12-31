@@ -52,6 +52,10 @@ bool HamlibRadio::connect(const RadioConfig& config) {
     // Disable hamlib's internal polling - we'll use Qt timer instead
     m_rig->state.poll_interval = 0;
 
+    // Set network timeout to 1 second (instead of default 10+ seconds)
+    // This allows faster shutdown if connection attempt happens during application exit
+    m_rig->state.rigport.timeout = 1000;  // 1000ms = 1 second
+
     // Open connection
     int retcode = rig_open(m_rig);
     if (retcode != RIG_OK) {
