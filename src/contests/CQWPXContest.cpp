@@ -34,12 +34,13 @@ ContestMetadata CQWPXContest::getMetadata() {
     return meta;
 }
 
-ContestBase* CQWPXContest::create(ModeType mode) {
-    return new CQWPXContest(mode);
+ContestBase* CQWPXContest::create(ModeType mode, const StationInfo& myStation) {
+    return new CQWPXContest(mode, myStation);
 }
 
-CQWPXContest::CQWPXContest(ModeType mode)
-    : m_mode(mode)
+CQWPXContest::CQWPXContest(ModeType mode, const StationInfo& myStation)
+    : ContestBase(myStation)
+    , m_mode(mode)
 {
 }
 
@@ -172,14 +173,13 @@ bool CQWPXContest::validateReceivedExchange(const QString& exchange, QString& er
     return true;
 }
 
-QMap<QString, QString> CQWPXContest::parseReceivedExchange(const QString& exchange) const {
-    QMap<QString, QString> result;
+void CQWPXContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     if (parts.size() == 1) {
         // Only serial provided - auto-fill RST based on mode
-        result["RST"] = RSTValidator::getDefault(m_mode);
-        result["Serial"] = parts[0];
+        qso.rstReceived = RSTValidator::getDefault(m_mode);
+        qso.serialNumberReceived = parts[0].toInt();
     } else if (parts.size() >= 2) {
         // Two fields: detect which is RST and which is Serial (order-agnostic)
         QString first = parts[0];
@@ -190,24 +190,22 @@ QMap<QString, QString> CQWPXContest::parseReceivedExchange(const QString& exchan
 
         if (firstIsRST && !secondIsRST) {
             // First is RST, second is serial (e.g., "599 3")
-            result["RST"] = first;
-            result["Serial"] = second;
+            qso.rstReceived = first;
+            qso.serialNumberReceived = second.toInt();
         } else if (!firstIsRST && secondIsRST) {
             // Second is RST, first is serial (e.g., "4 59")
-            result["RST"] = second;
-            result["Serial"] = first;
+            qso.rstReceived = second;
+            qso.serialNumberReceived = first.toInt();
         } else if (firstIsRST && secondIsRST) {
             // Both could be RST - assume first is RST, second is serial
-            result["RST"] = first;
-            result["Serial"] = second;
+            qso.rstReceived = first;
+            qso.serialNumberReceived = second.toInt();
         } else {
             // Neither is valid RST - use defaults
-            result["RST"] = RSTValidator::getDefault(m_mode);
-            result["Serial"] = first;  // Assume first is serial
+            qso.rstReceived = RSTValidator::getDefault(m_mode);
+            qso.serialNumberReceived = first.toInt();  // Assume first is serial
         }
     }
-
-    return result;
 }
 
 int CQWPXContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) const {

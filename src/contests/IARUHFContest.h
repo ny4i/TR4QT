@@ -35,7 +35,7 @@ struct ContestMetadata;
  */
 class IARUHFContest : public ContestBase {
 public:
-    explicit IARUHFContest(ModeType mode);
+    IARUHFContest(ModeType mode, const StationInfo& myStation);
     ~IARUHFContest() override = default;
 
     // ===== Contest Identifiers =====
@@ -50,7 +50,7 @@ public:
 
     // ===== Factory Methods =====
     static ContestMetadata getMetadata();
-    static ContestBase* create(ModeType mode);
+    static ContestBase* create(ModeType mode, const StationInfo& myStation);
 
     // ===== Contest Identity =====
     QString getContestId() const override;
@@ -64,7 +64,7 @@ public:
     QList<TableColumn> getTableColumns() const override;
     QString formatSentExchange(int serialNumber, const QString& rst = "599") const override;
     bool validateReceivedExchange(const QString& exchange, QString& errorMsg) const override;
-    QMap<QString, QString> parseReceivedExchange(const QString& exchange) const override;
+    void parseReceivedExchange(const QString& exchange, QSO& qso) const override;
 
     // ===== Scoring =====
     int calculateQSOPoints(

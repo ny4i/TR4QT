@@ -283,34 +283,50 @@ QString QSOTableModel::getExchangeFieldValue(const QSO& qso, int fieldIndex) con
     if (fieldIndex >= 0 && fieldIndex < m_tableColumns.size()) {
         QString fieldName = m_tableColumns[fieldIndex].fieldName;
 
-        // Map field name to QSO data
-        // First check well-known fields that have dedicated QSO members
+        // Map field name to dedicated QSO fields
+        // All exchange data is now stored in dedicated fields (no more parsedExchange)
         if (fieldName == "Zone") {
-            return qso.cqZone > 0 ? QString::number(qso.cqZone) : QString();
+            return qso.cqZone > 0 ? QString::number(qso.cqZone) :
+                   (!qso.ituZoneExchange.isEmpty() ? qso.ituZoneExchange : QString());
         } else if (fieldName == "ITU Zone") {
             return qso.ituZone > 0 ? QString::number(qso.ituZone) : QString();
         } else if (fieldName == "Serial") {
-            return qso.serialNumber > 0 ? QString::number(qso.serialNumber) : QString();
+            return qso.serialNumberReceived > 0 ? QString::number(qso.serialNumberReceived) : QString();
         } else if (fieldName == "Section") {
-            // Try ARRL section field first, then state, then parsed exchange
+            // Try ARRL section field first, then state
             if (!qso.arrlSection.isEmpty()) {
                 return qso.arrlSection;
             } else if (!qso.state.isEmpty()) {
                 return qso.state;
-            } else {
-                return qso.parsedExchange.value("Section", QString());
             }
+            return QString();
         } else if (fieldName == "Class") {
-            // Try contest class field first, then parsed exchange
-            if (!qso.contestClass.isEmpty()) {
-                return qso.contestClass;
-            } else {
-                return qso.parsedExchange.value("Class", QString());
+            return qso.contestClass;
+        } else if (fieldName == "Precedence") {
+            return qso.precedence;
+        } else if (fieldName == "Check") {
+            return qso.check;
+        } else if (fieldName == "Power") {
+            return qso.power;
+        } else if (fieldName == "Name") {
+            return qso.operatorName;
+        } else if (fieldName == "State") {
+            return qso.state;
+        } else if (fieldName == "State/Power") {
+            // ARRL DX: state OR power
+            return !qso.state.isEmpty() ? qso.state : qso.power;
+        } else if (fieldName == "State/Serial") {
+            // ARRL RTTY: state OR serial
+            if (!qso.state.isEmpty()) {
+                return qso.state;
+            } else if (qso.serialNumberReceived > 0) {
+                return QString::number(qso.serialNumberReceived);
             }
-        } else {
-            // Default: look up in parsed exchange map
-            return qso.parsedExchange.value(fieldName, QString());
+            return QString();
         }
+
+        // If no mapping found, return empty
+        return QString();
     }
 
     // Default values if no contest set

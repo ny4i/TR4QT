@@ -13,6 +13,18 @@ using namespace TR4QT;
 class TestCQWW : public QObject {
     Q_OBJECT
 
+private:
+    // Helper to create a test station
+    StationInfo testStation() {
+        StationInfo station;
+        station.callsign = "W1AW";
+        station.country = "United States";
+        station.continent = "NA";
+        station.cqZone = 5;
+        station.ituZone = 8;
+        return station;
+    }
+
 private slots:
     // Contest identity tests
     void testGetContestId_CW();
@@ -65,38 +77,38 @@ private slots:
 // Contest identity tests
 
 void TestCQWW::testGetContestId_CW() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
     QCOMPARE(contest.getContestId(), QString("CQWW_CW"));
 }
 
 void TestCQWW::testGetContestId_SSB() {
-    CQWWContest contest(ModeType::USB);
+    CQWWContest contest(ModeType::USB, testStation());
     QCOMPARE(contest.getContestId(), QString("CQWW_SSB"));
 }
 
 void TestCQWW::testGetContestName_CW() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
     QString name = contest.getContestName();
     QVERIFY(name.contains("CQ World Wide"));
     QVERIFY(name.contains("CW"));
 }
 
 void TestCQWW::testGetContestName_SSB() {
-    CQWWContest contest(ModeType::USB);
+    CQWWContest contest(ModeType::USB, testStation());
     QString name = contest.getContestName();
     QVERIFY(name.contains("CQ World Wide"));
     QVERIFY(name.contains("SSB"));
 }
 
 void TestCQWW::testUsesSerialNumbers() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
     QVERIFY(!contest.usesSerialNumbers());
 }
 
 // Exchange validation tests
 
 void TestCQWW::testValidateExchange_Valid_CW() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
     QString errorMsg;
 
     QVERIFY(contest.validateReceivedExchange("599 05", errorMsg));
@@ -106,7 +118,7 @@ void TestCQWW::testValidateExchange_Valid_CW() {
 }
 
 void TestCQWW::testValidateExchange_Valid_SSB() {
-    CQWWContest contest(ModeType::USB);
+    CQWWContest contest(ModeType::USB, testStation());
     QString errorMsg;
 
     QVERIFY(contest.validateReceivedExchange("59 05", errorMsg));
@@ -115,7 +127,7 @@ void TestCQWW::testValidateExchange_Valid_SSB() {
 }
 
 void TestCQWW::testValidateExchange_InvalidFormat() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
     QString errorMsg;
 
     // Single number is accepted as zone (RST auto-filled)
@@ -132,7 +144,7 @@ void TestCQWW::testValidateExchange_InvalidFormat() {
 }
 
 void TestCQWW::testValidateExchange_InvalidRST_CW() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
     QString errorMsg;
 
     // CW requires 3-digit RST
@@ -143,7 +155,7 @@ void TestCQWW::testValidateExchange_InvalidRST_CW() {
 }
 
 void TestCQWW::testValidateExchange_InvalidRST_SSB() {
-    CQWWContest contest(ModeType::USB);
+    CQWWContest contest(ModeType::USB, testStation());
     QString errorMsg;
 
     // SSB requires 2-3 digit RST with pattern [1-5][1-9][1-9]?
@@ -157,7 +169,7 @@ void TestCQWW::testValidateExchange_InvalidRST_SSB() {
 }
 
 void TestCQWW::testValidateExchange_InvalidZone_Low() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
     QString errorMsg;
 
     QVERIFY(!contest.validateReceivedExchange("599 0", errorMsg));
@@ -165,7 +177,7 @@ void TestCQWW::testValidateExchange_InvalidZone_Low() {
 }
 
 void TestCQWW::testValidateExchange_InvalidZone_High() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
     QString errorMsg;
 
     QVERIFY(!contest.validateReceivedExchange("599 41", errorMsg));
@@ -175,7 +187,7 @@ void TestCQWW::testValidateExchange_InvalidZone_High() {
 }
 
 void TestCQWW::testValidateExchange_InvalidZone_NonNumeric() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
     QString errorMsg;
 
     QVERIFY(!contest.validateReceivedExchange("599 AB", errorMsg));
@@ -185,50 +197,56 @@ void TestCQWW::testValidateExchange_InvalidZone_NonNumeric() {
 // Exchange parsing tests
 
 void TestCQWW::testParseExchange_Valid() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
-    auto parsed = contest.parseReceivedExchange("599 14");
-    QCOMPARE(parsed["RST"], QString("599"));
-    QCOMPARE(parsed["Zone"], QString("14"));
+    QSO qso;
+    contest.parseReceivedExchange("599 14", qso);
+    QCOMPARE(qso.rstReceived, QString("599"));
+    QCOMPARE(qso.cqZone, 14);
 
-    parsed = contest.parseReceivedExchange("599 5");
-    QCOMPARE(parsed["RST"], QString("599"));
-    QCOMPARE(parsed["Zone"], QString("5"));
+    qso = QSO();  // Reset
+    contest.parseReceivedExchange("599 5", qso);
+    QCOMPARE(qso.rstReceived, QString("599"));
+    QCOMPARE(qso.cqZone, 5);
 }
 
 void TestCQWW::testParseExchange_MultipleSpaces() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
     // Should handle multiple spaces
-    auto parsed = contest.parseReceivedExchange("599   14");
-    QCOMPARE(parsed["RST"], QString("599"));
-    QCOMPARE(parsed["Zone"], QString("14"));
+    QSO qso;
+    contest.parseReceivedExchange("599   14", qso);
+    QCOMPARE(qso.rstReceived, QString("599"));
+    QCOMPARE(qso.cqZone, 14);
 }
 
 void TestCQWW::testParseExchange_OrderAgnostic() {
-    CQWWContest ssbContest(ModeType::USB);
-    CQWWContest cwContest(ModeType::CW);
+    CQWWContest ssbContest(ModeType::USB, testStation());
+    CQWWContest cwContest(ModeType::CW, testStation());
 
     // Single number treated as zone (RST auto-filled)
-    auto parsed1 = ssbContest.parseReceivedExchange("14");
-    QCOMPARE(parsed1["Zone"], QString("14"));
-    QCOMPARE(parsed1["RST"], QString("59"));
+    QSO qso1;
+    ssbContest.parseReceivedExchange("14", qso1);
+    QCOMPARE(qso1.cqZone, 14);
+    QCOMPARE(qso1.rstReceived, QString("59"));
 
     // Zone first, RST second (non-traditional order)
-    auto parsed2 = ssbContest.parseReceivedExchange("14 59");
-    QCOMPARE(parsed2["Zone"], QString("14"));
-    QCOMPARE(parsed2["RST"], QString("59"));
+    QSO qso2;
+    ssbContest.parseReceivedExchange("14 59", qso2);
+    QCOMPARE(qso2.cqZone, 14);
+    QCOMPARE(qso2.rstReceived, QString("59"));
 
     // RST first, Zone second (traditional order)
-    auto parsed3 = cwContest.parseReceivedExchange("599 14");
-    QCOMPARE(parsed3["RST"], QString("599"));
-    QCOMPARE(parsed3["Zone"], QString("14"));
+    QSO qso3;
+    cwContest.parseReceivedExchange("599 14", qso3);
+    QCOMPARE(qso3.rstReceived, QString("599"));
+    QCOMPARE(qso3.cqZone, 14);
 }
 
 // QSO points - CW mode
 
 void TestCQWW::testCalculatePoints_CW_SameContinent() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
     // Setup: Germany working France (both EU, different countries)
     StationInfo myStation;
@@ -244,7 +262,7 @@ void TestCQWW::testCalculatePoints_CW_SameContinent() {
 }
 
 void TestCQWW::testCalculatePoints_CW_DifferentContinent() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
     // Setup: US station working Japan (different continents)
     StationInfo myStation;
@@ -260,7 +278,7 @@ void TestCQWW::testCalculatePoints_CW_DifferentContinent() {
 }
 
 void TestCQWW::testCalculatePoints_CW_WVE_Rule() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
     // Setup: US station working Canada (W/VE special rule)
     StationInfo myStation;
@@ -283,7 +301,7 @@ void TestCQWW::testCalculatePoints_CW_WVE_Rule() {
 }
 
 void TestCQWW::testCalculatePoints_CW_SameCountry() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
     // Setup: Germany station working Germany (same country)
     StationInfo myStation;
@@ -301,7 +319,7 @@ void TestCQWW::testCalculatePoints_CW_SameCountry() {
 // QSO points - SSB mode
 
 void TestCQWW::testCalculatePoints_SSB_SameContinent() {
-    CQWWContest contest(ModeType::USB);
+    CQWWContest contest(ModeType::USB, testStation());
 
     // Setup: EU station working EU (same continent, different country)
     StationInfo myStation;
@@ -317,7 +335,7 @@ void TestCQWW::testCalculatePoints_SSB_SameContinent() {
 }
 
 void TestCQWW::testCalculatePoints_SSB_DifferentContinent() {
-    CQWWContest contest(ModeType::USB);
+    CQWWContest contest(ModeType::USB, testStation());
 
     // Setup: US station working Japan (different continents)
     StationInfo myStation;
@@ -333,7 +351,7 @@ void TestCQWW::testCalculatePoints_SSB_DifferentContinent() {
 }
 
 void TestCQWW::testCalculatePoints_SSB_WVE_Rule() {
-    CQWWContest contest(ModeType::USB);
+    CQWWContest contest(ModeType::USB, testStation());
 
     // Setup: US station working Canada (W/VE special rule applies to SSB too)
     StationInfo myStation;
@@ -351,7 +369,7 @@ void TestCQWW::testCalculatePoints_SSB_WVE_Rule() {
 // Total score calculation
 
 void TestCQWW::testCalculateTotalScore_Formula() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
     // Formula: QSO points × (Countries + Zones)
     QMap<MultiplierType, int> mults;
@@ -366,7 +384,7 @@ void TestCQWW::testCalculateTotalScore_Formula() {
 }
 
 void TestCQWW::testCalculateTotalScore_NoMultipliers() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
     QMap<MultiplierType, int> mults;
     // No multipliers
@@ -380,7 +398,7 @@ void TestCQWW::testCalculateTotalScore_NoMultipliers() {
 // Multiplier tests
 
 void TestCQWW::testGetMultiplierTypes() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
     auto mults = contest.getMultiplierTypes();
 
@@ -406,7 +424,7 @@ void TestCQWW::testGetMultiplierTypes() {
 }
 
 void TestCQWW::testGetMultiplierValue_Country_New() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
     QSO qso;
     qso.dxccPrefix = "JA";  // Japan
@@ -419,7 +437,7 @@ void TestCQWW::testGetMultiplierValue_Country_New() {
 }
 
 void TestCQWW::testGetMultiplierValue_Country_Duplicate() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
     QSO qso;
     qso.dxccPrefix = "JA";  // Japan
@@ -433,7 +451,7 @@ void TestCQWW::testGetMultiplierValue_Country_Duplicate() {
 }
 
 void TestCQWW::testGetMultiplierValue_Zone_New() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
     QSO qso;
     qso.dxccPrefix = "JA";
@@ -446,7 +464,7 @@ void TestCQWW::testGetMultiplierValue_Zone_New() {
 }
 
 void TestCQWW::testGetMultiplierValue_Zone_Duplicate() {
-    CQWWContest contest(ModeType::CW);
+    CQWWContest contest(ModeType::CW, testStation());
 
     QSO qso;
     qso.dxccPrefix = "JA";

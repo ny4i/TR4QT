@@ -20,6 +20,18 @@ using namespace TR4QT;
 class TestCQWPX : public QObject {
     Q_OBJECT
 
+private:
+    // Helper to create a test station
+    StationInfo testStation() {
+        StationInfo station;
+        station.callsign = "W1AW";
+        station.country = "United States";
+        station.continent = "NA";
+        station.cqZone = 5;
+        station.ituZone = 8;
+        return station;
+    }
+
 private slots:
     // Contest identity and factory tests
     void testGetContestId_CW();
@@ -77,40 +89,40 @@ private slots:
 // Contest identity and factory tests
 
 void TestCQWPX::testGetContestId_CW() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
     QCOMPARE(contest.getContestId(), QString("CQWPX_CW"));
 }
 
 void TestCQWPX::testGetContestId_SSB() {
-    CQWPXContest contest(ModeType::USB);
+    CQWPXContest contest(ModeType::USB, testStation());
     QCOMPARE(contest.getContestId(), QString("CQWPX_SSB"));
 }
 
 void TestCQWPX::testGetContestName() {
-    CQWPXContest contestCW(ModeType::CW);
+    CQWPXContest contestCW(ModeType::CW, testStation());
     QString nameCW = contestCW.getContestName();
     QVERIFY(nameCW.contains("CQ WPX"));
     QVERIFY(nameCW.contains("CW"));
 
-    CQWPXContest contestSSB(ModeType::USB);
+    CQWPXContest contestSSB(ModeType::USB, testStation());
     QString nameSSB = contestSSB.getContestName();
     QVERIFY(nameSSB.contains("CQ WPX"));
     QVERIFY(nameSSB.contains("SSB"));
 }
 
 void TestCQWPX::testUsesSerialNumbers() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
     QVERIFY(contest.usesSerialNumbers());
 }
 
 void TestCQWPX::testCreate_Factory() {
     // Test factory method
-    ContestBase* contestCW = CQWPXContest::create(ModeType::CW);
+    ContestBase* contestCW = CQWPXContest::create(ModeType::CW, testStation());
     QVERIFY(contestCW != nullptr);
     QCOMPARE(contestCW->getContestId(), QString("CQWPX_CW"));
     delete contestCW;
 
-    ContestBase* contestSSB = CQWPXContest::create(ModeType::USB);
+    ContestBase* contestSSB = CQWPXContest::create(ModeType::USB, testStation());
     QVERIFY(contestSSB != nullptr);
     QCOMPARE(contestSSB->getContestId(), QString("CQWPX_SSB"));
     delete contestSSB;
@@ -178,8 +190,8 @@ void TestCQWPX::testExtractPrefix_NoDigit() {
 // Exchange validation tests
 
 void TestCQWPX::testValidateExchange_Valid() {
-    CQWPXContest cwContest(ModeType::CW);
-    CQWPXContest ssbContest(ModeType::USB);
+    CQWPXContest cwContest(ModeType::CW, testStation());
+    CQWPXContest ssbContest(ModeType::USB, testStation());
     QString errorMsg;
 
     // CW mode: Requires 3-digit RST
@@ -199,7 +211,7 @@ void TestCQWPX::testValidateExchange_Valid() {
 }
 
 void TestCQWPX::testValidateExchange_InvalidFormat() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
     QString errorMsg;
 
     // Single number is accepted as serial (RST auto-filled)
@@ -212,7 +224,7 @@ void TestCQWPX::testValidateExchange_InvalidFormat() {
 }
 
 void TestCQWPX::testValidateExchange_InvalidRST() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
     QString errorMsg;
 
     // Too short
@@ -224,7 +236,7 @@ void TestCQWPX::testValidateExchange_InvalidRST() {
 }
 
 void TestCQWPX::testValidateExchange_InvalidSerial_Low() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
     QString errorMsg;
 
     QVERIFY(!contest.validateReceivedExchange("599 0", errorMsg));
@@ -232,7 +244,7 @@ void TestCQWPX::testValidateExchange_InvalidSerial_Low() {
 }
 
 void TestCQWPX::testValidateExchange_InvalidSerial_High() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
     QString errorMsg;
 
     QVERIFY(!contest.validateReceivedExchange("599 10000", errorMsg));
@@ -240,7 +252,7 @@ void TestCQWPX::testValidateExchange_InvalidSerial_High() {
 }
 
 void TestCQWPX::testValidateExchange_InvalidSerial_NonNumeric() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
     QString errorMsg;
 
     QVERIFY(!contest.validateReceivedExchange("599 ABC", errorMsg));
@@ -250,43 +262,48 @@ void TestCQWPX::testValidateExchange_InvalidSerial_NonNumeric() {
 // Exchange parsing tests
 
 void TestCQWPX::testParseExchange_Valid() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
-    auto parsed = contest.parseReceivedExchange("599 123");
-    QCOMPARE(parsed["RST"], QString("599"));
-    QCOMPARE(parsed["Serial"], QString("123"));
+    QSO qso;
+    contest.parseReceivedExchange("599 123", qso);
+    QCOMPARE(qso.rstReceived, QString("599"));
+    QCOMPARE(qso.serialNumberReceived, 123);
 }
 
 void TestCQWPX::testParseExchange_MultipleSpaces() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
-    auto parsed = contest.parseReceivedExchange("599   123");
-    QCOMPARE(parsed["RST"], QString("599"));
-    QCOMPARE(parsed["Serial"], QString("123"));
+    QSO qso;
+    contest.parseReceivedExchange("599   123", qso);
+    QCOMPARE(qso.rstReceived, QString("599"));
+    QCOMPARE(qso.serialNumberReceived, 123);
 }
 
 void TestCQWPX::testParseExchange_OrderAgnostic() {
-    CQWPXContest ssbContest(ModeType::USB);
-    CQWPXContest cwContest(ModeType::CW);
+    CQWPXContest ssbContest(ModeType::USB, testStation());
+    CQWPXContest cwContest(ModeType::CW, testStation());
 
     // SSB: Serial first, RST second
-    auto parsed1 = ssbContest.parseReceivedExchange("4 59");
-    QCOMPARE(parsed1["Serial"], QString("4"));
-    QCOMPARE(parsed1["RST"], QString("59"));
+    QSO qso1;
+    ssbContest.parseReceivedExchange("4 59", qso1);
+    QCOMPARE(qso1.serialNumberReceived, 4);
+    QCOMPARE(qso1.rstReceived, QString("59"));
 
     // CW: Serial first, RST second
-    auto parsed2 = cwContest.parseReceivedExchange("7 599");
-    QCOMPARE(parsed2["Serial"], QString("7"));
-    QCOMPARE(parsed2["RST"], QString("599"));
+    QSO qso2;
+    cwContest.parseReceivedExchange("7 599", qso2);
+    QCOMPARE(qso2.serialNumberReceived, 7);
+    QCOMPARE(qso2.rstReceived, QString("599"));
 
     // SSB: RST first, Serial second (traditional order)
-    auto parsed3 = ssbContest.parseReceivedExchange("59 123");
-    QCOMPARE(parsed3["RST"], QString("59"));
-    QCOMPARE(parsed3["Serial"], QString("123"));
+    QSO qso3;
+    ssbContest.parseReceivedExchange("59 123", qso3);
+    QCOMPARE(qso3.rstReceived, QString("59"));
+    QCOMPARE(qso3.serialNumberReceived, 123);
 }
 
 void TestCQWPX::testFormatSentExchange_Padding() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
     // Serial numbers should be zero-padded to 3 digits
     QString exchange1 = contest.formatSentExchange(1, "599");
@@ -302,7 +319,7 @@ void TestCQWPX::testFormatSentExchange_Padding() {
 // QSO points - CW mode
 
 void TestCQWPX::testCalculatePoints_CW_SameContinent() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
     StationInfo myStation;
     myStation.continent = "EU";
@@ -316,7 +333,7 @@ void TestCQWPX::testCalculatePoints_CW_SameContinent() {
 }
 
 void TestCQWPX::testCalculatePoints_CW_DifferentContinent() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
     StationInfo myStation;
     myStation.continent = "NA";
@@ -330,7 +347,7 @@ void TestCQWPX::testCalculatePoints_CW_DifferentContinent() {
 }
 
 void TestCQWPX::testCalculatePoints_CW_160m_Double() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
     StationInfo myStation;
     myStation.continent = "NA";
@@ -344,7 +361,7 @@ void TestCQWPX::testCalculatePoints_CW_160m_Double() {
 }
 
 void TestCQWPX::testCalculatePoints_CW_10m_Double() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
     StationInfo myStation;
     myStation.continent = "NA";
@@ -358,7 +375,7 @@ void TestCQWPX::testCalculatePoints_CW_10m_Double() {
 }
 
 void TestCQWPX::testCalculatePoints_CW_20m_Normal() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
     StationInfo myStation;
     myStation.continent = "EU";
@@ -374,7 +391,7 @@ void TestCQWPX::testCalculatePoints_CW_20m_Normal() {
 // QSO points - SSB mode
 
 void TestCQWPX::testCalculatePoints_SSB_SameContinent() {
-    CQWPXContest contest(ModeType::USB);
+    CQWPXContest contest(ModeType::USB, testStation());
 
     StationInfo myStation;
     myStation.continent = "EU";
@@ -388,7 +405,7 @@ void TestCQWPX::testCalculatePoints_SSB_SameContinent() {
 }
 
 void TestCQWPX::testCalculatePoints_SSB_DifferentContinent() {
-    CQWPXContest contest(ModeType::USB);
+    CQWPXContest contest(ModeType::USB, testStation());
 
     StationInfo myStation;
     myStation.continent = "NA";
@@ -402,7 +419,7 @@ void TestCQWPX::testCalculatePoints_SSB_DifferentContinent() {
 }
 
 void TestCQWPX::testCalculatePoints_SSB_160m_Double() {
-    CQWPXContest contest(ModeType::USB);
+    CQWPXContest contest(ModeType::USB, testStation());
 
     StationInfo myStation;
     myStation.continent = "NA";
@@ -418,7 +435,7 @@ void TestCQWPX::testCalculatePoints_SSB_160m_Double() {
 // Total score calculation
 
 void TestCQWPX::testCalculateTotalScore_Formula() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
     // Formula: QSO points × Total Prefixes
     QMap<MultiplierType, int> mults;
@@ -432,7 +449,7 @@ void TestCQWPX::testCalculateTotalScore_Formula() {
 }
 
 void TestCQWPX::testCalculateTotalScore_NoPrefixes() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
     QMap<MultiplierType, int> mults;
     // No prefixes
@@ -446,7 +463,7 @@ void TestCQWPX::testCalculateTotalScore_NoPrefixes() {
 // Multiplier tests
 
 void TestCQWPX::testGetMultiplierTypes() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
     auto mults = contest.getMultiplierTypes();
 
@@ -458,7 +475,7 @@ void TestCQWPX::testGetMultiplierTypes() {
 }
 
 void TestCQWPX::testGetMultiplierValue_Prefix_New() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
     QSO qso;
     qso.callsign = "W1AW";
@@ -470,7 +487,7 @@ void TestCQWPX::testGetMultiplierValue_Prefix_New() {
 }
 
 void TestCQWPX::testGetMultiplierValue_Prefix_Duplicate() {
-    CQWPXContest contest(ModeType::CW);
+    CQWPXContest contest(ModeType::CW, testStation());
 
     QSO qso;
     qso.callsign = "W1AW";

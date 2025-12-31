@@ -34,12 +34,13 @@ ContestMetadata CQWWContest::getMetadata() {
     return meta;
 }
 
-ContestBase* CQWWContest::create(ModeType mode) {
-    return new CQWWContest(mode);
+ContestBase* CQWWContest::create(ModeType mode, const StationInfo& myStation) {
+    return new CQWWContest(mode, myStation);
 }
 
-CQWWContest::CQWWContest(ModeType mode)
-    : m_mode(mode)
+CQWWContest::CQWWContest(ModeType mode, const StationInfo& myStation)
+    : ContestBase(myStation)
+    , m_mode(mode)
 {
 }
 
@@ -186,15 +187,13 @@ bool CQWWContest::validateReceivedExchange(const QString& exchange, QString& err
     return true;
 }
 
-QMap<QString, QString> CQWWContest::parseReceivedExchange(const QString& exchange) const {
-    QMap<QString, QString> parsed;
-
+void CQWWContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     if (parts.size() == 1) {
         // Only zone provided - auto-fill RST
-        parsed["RST"] = RSTValidator::getDefault(m_mode);
-        parsed["Zone"] = parts[0];
+        qso.rstReceived = RSTValidator::getDefault(m_mode);
+        qso.cqZone = parts[0].toInt();
     } else if (parts.size() >= 2) {
         // Two fields: detect which is RST and which is Zone (order-agnostic)
         QString first = parts[0];
@@ -212,35 +211,33 @@ QMap<QString, QString> CQWWContest::parseReceivedExchange(const QString& exchang
 
         if (firstIsRST && !secondIsRST) {
             // First is RST, second is zone (e.g., "599 14")
-            parsed["RST"] = first;
-            parsed["Zone"] = second;
+            qso.rstReceived = first;
+            qso.cqZone = second.toInt();
         } else if (!firstIsRST && secondIsRST) {
             // Second is RST, first is zone (e.g., "14 59" or "5 14")
-            parsed["RST"] = second;
-            parsed["Zone"] = first;
+            qso.rstReceived = second;
+            qso.cqZone = first.toInt();
         } else if (firstIsRST && secondIsRST) {
             // Both match RST pattern - use zone range to decide
             if (firstIsValidZone && !secondIsValidZone) {
                 // First is valid zone → first=zone, second=RST (e.g., "14 59")
-                parsed["Zone"] = first;
-                parsed["RST"] = second;
+                qso.cqZone = first.toInt();
+                qso.rstReceived = second;
             } else if (!firstIsValidZone && secondIsValidZone) {
                 // Second is valid zone → first=RST, second=zone (e.g., "59 14")
-                parsed["RST"] = first;
-                parsed["Zone"] = second;
+                qso.rstReceived = first;
+                qso.cqZone = second.toInt();
             } else {
                 // Both or neither in valid zone range - assume first is RST
-                parsed["RST"] = first;
-                parsed["Zone"] = second;
+                qso.rstReceived = first;
+                qso.cqZone = second.toInt();
             }
         } else {
             // Neither is valid RST - use defaults
-            parsed["RST"] = RSTValidator::getDefault(m_mode);
-            parsed["Zone"] = first;  // Assume first is zone
+            qso.rstReceived = RSTValidator::getDefault(m_mode);
+            qso.cqZone = first.toInt();  // Assume first is zone
         }
     }
-
-    return parsed;
 }
 
 int CQWWContest::calculateQSOPoints(

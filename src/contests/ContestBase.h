@@ -62,12 +62,32 @@ struct MultiplierDefinition {
  * 2. Implement all pure virtual methods
  * 3. Register in ContestFactory
  *
- * The contest class is stateless - it receives all necessary
- * information via method parameters and returns results.
+ * The contest class stores operating station information (callsign, location, etc.)
+ * passed at construction. This enables location-dependent contest configuration
+ * (e.g., ARRL DX shows different multipliers for W/VE vs DX stations).
  */
 class ContestBase {
+protected:
+    StationInfo m_myStation;  // Operating station information
+
 public:
+    /**
+     * Constructor - requires station information
+     * @param myStation Operating station info (callsign, location, etc.)
+     */
+    explicit ContestBase(const StationInfo& myStation)
+        : m_myStation(myStation) {}
+
     virtual ~ContestBase() = default;
+
+    /**
+     * Update station information if it changes mid-contest
+     * (e.g., user updates their callsign or location in preferences)
+     * @param station Updated station information
+     */
+    virtual void updateStationInfo(const StationInfo& station) {
+        m_myStation = station;
+    }
 
     // ===== Contest Identity =====
 
@@ -138,11 +158,13 @@ public:
     virtual bool validateReceivedExchange(const QString& exchange, QString& errorMsg) const = 0;
 
     /**
-     * Parse received exchange into components
+     * Parse received exchange and populate QSO fields
+     * Populates dedicated QSO fields (arrlSection, serialNumber, contestClass, state, rstReceived)
+     * and qso.parsedExchange only for contest-specific fields without dedicated members
      * @param exchange Raw exchange string
-     * @return Map of field name -> value
+     * @param qso QSO object to populate
      */
-    virtual QMap<QString, QString> parseReceivedExchange(const QString& exchange) const = 0;
+    virtual void parseReceivedExchange(const QString& exchange, QSO& qso) const = 0;
 
     /**
      * Validate if a mode is allowed for this contest
@@ -198,6 +220,9 @@ public:
     /**
      * Get list of multiplier types for this contest
      * Each type includes its scope (per-band or all-band)
+     *
+     * Can use m_myStation to return location-dependent multipliers.
+     * Example: ARRL DX returns Countries for W/VE, States for DX
      */
     virtual QList<MultiplierDefinition> getMultiplierTypes() const = 0;
 

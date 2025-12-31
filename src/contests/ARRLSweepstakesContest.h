@@ -39,7 +39,7 @@ struct ContestMetadata;
  */
 class ARRLSweepstakesContest : public ContestBase {
 public:
-    explicit ARRLSweepstakesContest(ModeType mode);
+    ARRLSweepstakesContest(ModeType mode, const StationInfo& myStation);
     ~ARRLSweepstakesContest() override = default;
 
     // ===== Contest Identifiers =====
@@ -57,7 +57,7 @@ public:
 
     // ===== Factory Methods =====
     static ContestMetadata getMetadata();
-    static ContestBase* create(ModeType mode);
+    static ContestBase* create(ModeType mode, const StationInfo& myStation);
 
     // ===== Contest Identity =====
     QString getContestId() const override;
@@ -71,7 +71,7 @@ public:
     QList<TableColumn> getTableColumns() const override;  // 4 columns for SS exchange
     QString formatSentExchange(int serialNumber, const QString& rst = "599") const override;
     bool validateReceivedExchange(const QString& exchange, QString& errorMsg) const override;
-    QMap<QString, QString> parseReceivedExchange(const QString& exchange) const override;
+    void parseReceivedExchange(const QString& exchange, QSO& qso) const override;
 
     // ===== Serial Numbers =====
     bool usesSerialNumbers() const override { return true; }

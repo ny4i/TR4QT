@@ -57,9 +57,14 @@ struct QSO {
 
     QString contestClass;       // Contest class (e.g., "2A" for Field Day, "M" for multi-op)
 
-    // Contest-specific parsed fields (from exchangeReceived)
-    // Populated by contest's parseReceivedExchange() method
-    QMap<QString, QString> parsedExchange;
+    // Contest exchange fields
+    // All contests use a flat structure - space overhead is negligible for <10,000 QSOs
+    int serialNumberReceived{0};    // Serial number received from other station
+    QString precedence;             // Sweepstakes precedence (Q/A/B/M/U/S)
+    QString check;                  // Sweepstakes check (last 2 digits of year)
+    QString power;                  // Power level (e.g., "100" for ARRL DX)
+    QString operatorName;           // Operator name (NAQP)
+    QString ituZoneExchange;        // Raw ITU zone exchange (number or HQ/AC/R1/R2/R3 for IARU HF)
 
     // Scoring
     int qsoPoints{0};           // Points for this QSO (calculated by contest)
@@ -70,6 +75,7 @@ struct QSO {
     // Metadata
     int serialNumber{0};        // Our sent serial number (if contest uses them)
     QString operatorCall;       // Operator who made this QSO (for multi-op contests)
+    bool isRunQSO{false};       // Run vs S&P indicator (N1MM compatibility)
     bool deleted{false};        // Soft delete flag
     QString notes;              // Optional notes
 

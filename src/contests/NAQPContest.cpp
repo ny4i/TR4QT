@@ -34,12 +34,13 @@ ContestMetadata NAQPContest::getMetadata() {
     return meta;
 }
 
-ContestBase* NAQPContest::create(ModeType mode) {
-    return new NAQPContest(mode);
+ContestBase* NAQPContest::create(ModeType mode, const StationInfo& myStation) {
+    return new NAQPContest(mode, myStation);
 }
 
-NAQPContest::NAQPContest(ModeType mode)
-    : m_mode(mode)
+NAQPContest::NAQPContest(ModeType mode, const StationInfo& myStation)
+    : ContestBase(myStation)
+    , m_mode(mode)
 {
 }
 
@@ -138,13 +139,12 @@ bool NAQPContest::validateReceivedExchange(const QString& exchange, QString& err
     return true;
 }
 
-QMap<QString, QString> NAQPContest::parseReceivedExchange(const QString& exchange) const {
-    QMap<QString, QString> result;
+void NAQPContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     if (parts.size() >= 2) {
-        result["Name"] = parts[0];
-        result["State"] = parts[1].toUpper();
+        qso.operatorName = parts[0];
+        qso.state = parts[1].toUpper();
 
         // If there are more parts, they're part of the name
         if (parts.size() > 2) {
@@ -152,12 +152,10 @@ QMap<QString, QString> NAQPContest::parseReceivedExchange(const QString& exchang
             for (int i = 0; i < parts.size() - 1; i++) {
                 nameParts.append(parts[i]);
             }
-            result["Name"] = nameParts.join(" ");
-            result["State"] = parts.last().toUpper();
+            qso.operatorName = nameParts.join(" ");
+            qso.state = parts.last().toUpper();
         }
     }
-
-    return result;
 }
 
 int NAQPContest::calculateQSOPoints(

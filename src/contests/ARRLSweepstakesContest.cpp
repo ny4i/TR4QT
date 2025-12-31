@@ -8,8 +8,9 @@
 
 namespace TR4QT {
 
-ARRLSweepstakesContest::ARRLSweepstakesContest(ModeType mode)
-    : m_mode(mode)
+ARRLSweepstakesContest::ARRLSweepstakesContest(ModeType mode, const StationInfo& myStation)
+    : ContestBase(myStation)
+    , m_mode(mode)
 {
 }
 
@@ -41,8 +42,8 @@ ContestMetadata ARRLSweepstakesContest::getMetadata() {
     return meta;
 }
 
-ContestBase* ARRLSweepstakesContest::create(ModeType mode) {
-    return new ARRLSweepstakesContest(mode);
+ContestBase* ARRLSweepstakesContest::create(ModeType mode, const StationInfo& myStation) {
+    return new ARRLSweepstakesContest(mode, myStation);
 }
 
 // ===== Contest Identity =====
@@ -132,7 +133,7 @@ bool ARRLSweepstakesContest::validateReceivedExchange(const QString& exchange, Q
     return true;
 }
 
-QMap<QString, QString> ARRLSweepstakesContest::parseReceivedExchange(const QString& exchange) const {
+void ARRLSweepstakesContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
     // Use smart parser to allow fields in any order
     // Examples that now work:
     // - "123 A 95 WMA" (traditional order)
@@ -141,13 +142,25 @@ QMap<QString, QString> ARRLSweepstakesContest::parseReceivedExchange(const QStri
     // - "1 M" (partial - just serial and precedence)
 
     QList<ExchangeField> expectedFields = getReceivedExchangeFields();
-    QMap<QString, QString> result = SmartExchangeParser::parse(
+    QMap<QString, QString> parsed = SmartExchangeParser::parse(
         exchange,
         expectedFields,
         const_cast<ARRLSweepstakesContest*>(this)  // For section validation
     );
 
-    return result;
+    // Populate dedicated QSO fields directly
+    if (parsed.contains("Serial")) {
+        qso.serialNumberReceived = parsed["Serial"].toInt();
+    }
+    if (parsed.contains("Precedence")) {
+        qso.precedence = parsed["Precedence"];
+    }
+    if (parsed.contains("Check")) {
+        qso.check = parsed["Check"];
+    }
+    if (parsed.contains("Section")) {
+        qso.arrlSection = parsed["Section"];
+    }
 }
 
 // ===== Scoring =====
@@ -194,14 +207,10 @@ QString ARRLSweepstakesContest::getMultiplierValue(
     Q_UNUSED(alreadyWorkedValues);
 
     if (multType == MultiplierType::Section) {
-        // Extract section from parsed exchange
-        QString section = qso.parsedExchange.value("Section");
+        // Extract section from dedicated field
+        QString section = qso.arrlSection.toUpper();
         if (!section.isEmpty() && isValidSection(section)) {
             return section;
-        }
-        // Fallback to arrlSection field if populated
-        if (!qso.arrlSection.isEmpty()) {
-            return qso.arrlSection;
         }
     }
 
