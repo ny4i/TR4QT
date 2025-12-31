@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.10.1";  // ESC key handling and SCP font size fix
+constexpr const char* APP_VERSION = "3.10.2";  // Dynamic minimum window width calculation
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
