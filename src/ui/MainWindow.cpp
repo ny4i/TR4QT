@@ -544,10 +544,10 @@ void MainWindow::createCentralWidget() {
 
     // Left: Band summary grid (takes 75% of width)
     m_bandSummaryGrid = new BandSummaryGrid(this);
-    m_bandSummaryGrid->setEnabled(true);  // Always enabled for manual band selection
-    // TODO: Band buttons should be disabled at startup (before radio status is known)
-    //       Call m_bandSummaryGrid->setBandSelectionEnabled(false) here, then enable
-    //       when radio connects (already done in onRadioConnectionChanged)
+    m_bandSummaryGrid->setEnabled(true);  // Widget always enabled for visibility
+    // Disable band selection buttons until radio connects
+    // (will be enabled in onRadioConnectionChanged when radio connects)
+    m_bandSummaryGrid->setBandSelectionEnabled(false);
     connect(m_bandSummaryGrid, &BandSummaryGrid::bandClicked,
             this, &MainWindow::onBandClicked);
     topLayout->addWidget(m_bandSummaryGrid, 3);  // Stretch factor 3

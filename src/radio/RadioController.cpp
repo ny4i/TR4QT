@@ -63,6 +63,9 @@ RadioController::RadioController(QObject* parent)
 }
 
 RadioController::~RadioController() {
+    // Signal shutdown to worker thread (prevents new connection attempts)
+    m_shutdownRequested.store(true);
+
     // Disconnect radio if still connected
     if (m_connected) {
         disconnectFromRadio();
@@ -71,13 +74,8 @@ RadioController::~RadioController() {
     }
 
     // Stop worker thread
-    // TODO: Worker thread can hang during shutdown if blocked on network operation
-    //       (e.g., TCP connect to radio). This causes the application to hang when
-    //       closing. Need to implement proper cancellation mechanism:
-    //       - Add atomic bool m_shutdownRequested that worker checks periodically
-    //       - Use non-blocking socket operations with timeout
-    //       - Check m_shutdownRequested before/during long operations
-    //       This will allow graceful shutdown instead of forced termination
+    // With shutdown flag + 1s Hamlib timeout, thread should stop within 1-2 seconds
+    // If still blocked on network operation, we'll terminate after 3 seconds
     m_workerThread.quit();
     m_workerThread.wait(3000);  // Wait up to 3 seconds
 
@@ -121,6 +119,13 @@ void RadioController::connectToRadio(const RadioConfig& config) {
     // Invoke connect method in worker thread using lambda
     bool queued = QMetaObject::invokeMethod(m_radio, [this, config]() {
         LOG_DEBUG("RadioController", "Lambda executing in worker thread");
+
+        // Check if shutdown was requested (prevents blocking on rig_open during shutdown)
+        if (m_shutdownRequested.load()) {
+            LOG_DEBUG("RadioController", "Shutdown requested, aborting connection attempt");
+            return;
+        }
+
         // Call the RadioInterface::connect method (not QObject::connect)
         bool success = static_cast<RadioInterface*>(m_radio)->connect(config);
         LOG_DEBUG("RadioController", QString("connect() returned %1").arg(success ? "true" : "false"));
