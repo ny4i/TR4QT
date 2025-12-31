@@ -5,7 +5,6 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QFrame>
-#include "SMeterWidget.h"
 #include "../../radio/RadioInterface.h"
 
 namespace TR4QT {
@@ -86,7 +85,6 @@ private:
     void applyTheme();
     void updateRitWidgetStyle();
     void updateXitWidgetStyle();
-    void updateSMeter(int signalStrength);
 
     // VFO widgets (for theme updates)
     QWidget* m_vfoAWidget;
@@ -100,9 +98,6 @@ private:
     QLabel* m_vfoBFreqLabel;
     QLabel* m_modeLabel;
     QLabel* m_wpmLabel;
-
-    // S-meter widget
-    SMeterWidget* m_sMeter;         // Custom S-meter display
 
     // Control widgets
     QFrame* m_ritWidget;        // Clickable frame with RIT label + offset
