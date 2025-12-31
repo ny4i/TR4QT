@@ -190,6 +190,9 @@ public:
     void setMiscDisplayFontSize(int size);
     int getMiscDisplayFontSize() const;
 
+    void setSCPFontSize(int size);
+    int getSCPFontSize() const;
+
     // Band Needs Display settings
     void setNeedsDisplayWorkedColor(const QString& color);
     QString getNeedsDisplayWorkedColor() const;  // Default: #808080 (gray)
