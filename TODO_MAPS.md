@@ -1,9 +1,16 @@
 # Geographic Map Support - TODO
 
-## Current Status (v2.98.1)
-- ✅ ARRL/RAC Sections Map - Chloropleth with GeoJSON polygons
-- ✅ 91 sections with full geographic boundaries
+**STATUS**: ✅ MOSTLY SUPERSEDED - Native map viewer implemented (NativeMapViewer)
+
+## Current Status (v3.15.0)
+- ✅ ARRL/RAC Sections Map - Native Qt implementation (QGraphicsView)
+- ✅ US States Map - Native Qt implementation (View → States Map)
+- ✅ 91 sections + 50 states with full geographic boundaries
 - ✅ Color scheme: Blue (1 QSO) → Red (2) → Green gradients (3-500+)
+- ✅ In-app viewer (no external browser needed)
+- ✅ Self-contained dialog architecture (NativeMapViewer class)
+- ⏳ DXCC Map - Stubbed but not implemented yet
+- ❌ Static export to PNG/JPG - Not implemented yet
 
 ## Future Enhancements
 
@@ -123,31 +130,30 @@ python3 scripts/convert_shp_to_geojson.py --input shapes/dxcc/ --output resource
 
 ## Priority
 
-1. **High**: ✅ US States Map (COMPLETED v3.4.0)
+1. ✅ **COMPLETED**: US States Map (v3.4.0)
    - Most requested feature
    - Data readily available
    - Many states already in hand from ARRL sections
    - Simpler than DXCC (no prefix mapping needed)
-   - **Status**: Implemented and committed
+   - **Status**: Implemented with NativeMapViewer
 
-2. **High**: In-App Map Viewer Window
-   - Create standalone Qt widget to view maps inside TR4QT
+2. ✅ **COMPLETED**: In-App Map Viewer Window (v3.x)
+   - **Chose Option B**: Native QGraphicsView rendering GeoJSON polygons
    - **Does NOT depend on web server** - works even if server disabled
    - Better UX than opening external browser
-   - Two implementation approaches:
-     - **Option A**: QWebEngineView loading HTML from Qt resources (qrc://)
-     - **Option B**: Native QGraphicsView rendering GeoJSON polygons
-   - Add menu items: View → Sections Map, View → States Map
-   - Could be dockable window or separate dialog
-   - Fetches QSO data directly from QSOTableModel, not via HTTP API
+   - ✅ Menu items added: View → Sections Map, View → States Map
+   - ✅ Self-contained dialog (NativeMapViewer class)
+   - ✅ Fetches QSO data directly from QSOTableModel
+   - **Implementation**: `src/ui/NativeMapViewer.h/cpp`
+   - **Benefits**: No Qt WebEngine, works on MinGW, smaller distribution
 
-3. **Medium**: DXCC Entities Map
+3. **Medium** (REMAINING): DXCC Entities Map
    - More complex (multi-entity countries)
    - Requires DXCC prefix mapping
    - Larger dataset (world coverage)
    - Higher value for DX contesters
 
-4. **Medium**: Static Map Export (JPG/PNG)
+4. **Low** (REMAINING): Static Map Export (JPG/PNG)
    - Generate static image files of maps for sharing/reports
    - Export current state of sections/states/DXCC maps
    - Useful for contest reports, presentations, social media
@@ -392,10 +398,10 @@ Option B would only be needed if targeting embedded systems with severe size con
 ## Estimated Implementation Time
 
 - ✅ US States Map: ~2-3 hours (download data, convert, implement) - **COMPLETED**
-- In-App Map Viewer: ~2-3 hours (QWebEngineView widget, menu items, window management)
-- Static Map Export: ~2-3 hours (QWebEngineView screenshot, export dialog, file handling)
-- DXCC Map: ~4-6 hours (download data, mapping logic, implement)
-- Contest auto-switching: ~1 hour (simple routing logic)
+- ✅ In-App Map Viewer: ~2-3 hours (Native QGraphicsView implementation) - **COMPLETED**
+- DXCC Map: ~4-6 hours (download data, mapping logic, implement) - **REMAINING**
+- Static Map Export: ~1-2 hours (simplified with native approach) - **REMAINING**
+- Contest auto-switching: ~1 hour (simple routing logic) - **REMAINING**
 
-**Total Completed**: 2-3 hours
-**Total Remaining**: ~9-15 hours of development work
+**Total Completed**: ~4-6 hours
+**Total Remaining**: ~6-9 hours of development work

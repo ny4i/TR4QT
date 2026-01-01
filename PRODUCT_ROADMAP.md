@@ -145,52 +145,37 @@ Database singleton is thread-safe for single-operator use but needs work before 
 
 ---
 
-### 5. In-App Map Viewer Window 🗺️
-**Priority**: HIGH
-**Effort**: 2-3 hours
-**Impact**: User experience (no external browser needed)
+### 5. ✅ In-App Map Viewer Window - COMPLETED 🗺️
+**Priority**: ~~HIGH~~ **COMPLETED**
+**Status**: ✅ Implemented using native Qt graphics (NativeMapViewer)
 
-#### Goal
-Embed maps directly in TR4QT using QWebEngineView (Option A - recommended)
+#### Implementation Details
+Chose **Option B** (Native Qt Graphics) instead of web-based approach:
+- QGraphicsView-based rendering (no Qt WebEngine dependency)
+- GeoJSON polygon display with Mercator projection
+- Chloropleth coloring based on QSO counts
+- Auto-refresh when QSO model changes
+- Zoom and pan controls
+- Self-contained dialog architecture
 
-#### Architecture (Avoid God Class)
-```cpp
-// NEW: Self-contained dialog class
-class MapViewerDialog : public QDialog {
-    enum MapType { Sections, States, DXCC };
-    MapViewerDialog(MapType type, QSOTableModel* qsoModel, QWidget* parent);
-};
+#### Completed Features
+- ✅ ARRL Sections map (View → Sections Map)
+- ✅ US States map for WAS tracking (View → States Map)
+- ✅ Statistics display (worked/total/completion %)
+- ✅ Worked list sidebar
+- ✅ Menu integration in MainWindow
+- ✅ Proper separation of concerns (NativeMapViewer is self-contained)
 
-// NEW: Pure utility class
-class MapDataProvider {
-    static QJsonObject getWorkedSections(QSOTableModel* model);
-    static QJsonObject getWorkedStates(QSOTableModel* model);
-};
+#### Implementation Files
+- `src/ui/NativeMapViewer.h/cpp` - Self-contained map viewer dialog
+- `src/ui/MainWindow.h/cpp` - Menu actions and integration
 
-// MainWindow: ONLY creates and shows dialog (2 lines!)
-void MainWindow::onShowSectionsMap() {
-    auto* dialog = new MapViewerDialog(MapType::Sections, m_qsoModel, this);
-    dialog->show();
-}
-```
-
-#### Tasks
-- [ ] Create standalone HTML files with embedded CSS/JS
-- [ ] Embed Leaflet library in Qt resources (`resources/maps/leaflet.js`)
-- [ ] Create `MapViewerDialog` class with QWebEngineView
-- [ ] Create `MapDataProvider` utility class
-- [ ] Load via `qrc://` URLs (no HTTP dependency)
-- [ ] Use QWebChannel to pass QSO data from C++ to JavaScript
-- [ ] Add menu items: View → Sections Map, View → States Map
-- [ ] Update `CMakeLists.txt` - add Qt6::WebEngineWidgets dependency
-
-**Benefits**:
-- ✅ Reuses existing Leaflet/web map code
-- ✅ No web server dependency (works offline)
-- ✅ Beautiful, interactive maps
-- ✅ Reduces MainWindow coupling (good architecture example)
-
-**Reference**: `TODO_MAPS.md` - In-App Map Viewer section
+**Benefits Achieved**:
+- ✅ No web server or browser dependency
+- ✅ Works on all platforms (including MinGW Windows)
+- ✅ Smaller distribution (no Qt WebEngine)
+- ✅ Truly native Qt
+- ✅ Good architecture (self-contained dialog)
 
 ---
 
@@ -225,8 +210,8 @@ Plan complete, implementation ready to start
 ---
 
 ### 7. Static Map Export (PNG/JPG) 📸
-**Priority**: MEDIUM
-**Effort**: 2-3 hours
+**Priority**: LOW
+**Effort**: 1-2 hours
 **Impact**: Contest reports, social media sharing
 
 #### Use Cases
@@ -235,19 +220,18 @@ Plan complete, implementation ready to start
 - Print-friendly format
 - Archive snapshots of progress
 
-#### Implementation (Option 1 - Recommended)
-Use QWebEngineView to render map, call `grab()` to capture as QPixmap
+#### Implementation (Simpler with Native Maps)
+Since we're using QGraphicsView (not web-based), export is much simpler:
 
 #### Tasks
-- [ ] Create `MapExporter` class with `exportMapImage()` method
-- [ ] Render map in hidden QWebEngineView
-- [ ] Wait for map to fully load (detect via JS callback)
-- [ ] Call `grab()` to capture as QPixmap
+- [ ] Add "Export as Image..." button to NativeMapViewer dialog
+- [ ] Use `QGraphicsView::grab()` or `QGraphicsScene::render()` to capture
 - [ ] Save to user-selected file path (PNG/JPG)
-- [ ] Add menu action: File → Export Map as Image...
-- [ ] Export options dialog (size, format, legend, statistics overlay)
+- [ ] Optional: Export options dialog (size, format, include legend/stats)
 
-**Reference**: `TODO_MAPS.md` - Static Map Export section
+**Simplified approach** - No need for QWebEngine, hidden rendering, or JS callbacks.
+
+**Reference**: Native implementation makes this trivial compared to original plan
 
 ---
 
@@ -366,14 +350,24 @@ Plan exists (task a4b23e4 completed)
 **Priority**: MEDIUM
 **Effort**: 4-6 hours
 **Impact**: World map visualization for DXCC progress
+**Status**: Partially stubbed in NativeMapViewer
+
+#### Current State
+- ✅ `MapType::DXCC` enum exists in NativeMapViewer
+- ✅ Title and basic structure ready
+- ❌ No GeoJSON data loaded yet
+- ❌ No DXCC entity mapping
 
 #### Tasks
-- [ ] Download Natural Earth Data (1:50m countries)
-- [ ] Create DXCC entity → GeoJSON mapping
-- [ ] Handle multi-DXCC countries (US = K, KH6, KL7, etc.)
-- [ ] Create `/api/dxcc-geojson` endpoint
-- [ ] Create `/dxcc-map` page with chloropleth
+- [ ] Download Natural Earth Data (1:50m countries shapefile)
+- [ ] Convert to GeoJSON format
+- [ ] Create DXCC entity → country mapping logic
+- [ ] Handle multi-DXCC countries (US = K, KH6, KL7, KP2, KP4, etc.)
+- [ ] Add to NativeMapViewer's `loadGeoJSON()` switch statement
 - [ ] Track QSOs per DXCC from `QSO.dxccEntity` field
+- [ ] Add menu item: View → DXCC Map
+
+**Note**: Uses existing NativeMapViewer infrastructure (no new class needed)
 
 **Reference**: `TODO_MAPS.md` - DXCC Entities Map section
 
@@ -568,6 +562,7 @@ Auto-select appropriate map based on active contest type:
 - ✅ **CountryFile Thread Safety** - QReadWriteLock implemented (2025-12-30)
 - ✅ **Database Backup System** - BackupManager with auto-backup and rotation
 - ✅ **Geographic Maps** - ARRL Sections map (v2.98.1), US States map (v3.4.0)
+- ✅ **Native Map Viewer** - QGraphicsView-based in-app map display (v3.x)
 
 ### Platform Support
 - ✅ **Linux Build Disabled** - Permanently disabled in CI (2026-01-01)
