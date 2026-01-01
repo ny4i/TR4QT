@@ -13,6 +13,7 @@
 #include <QShowEvent>
 #include <QHideEvent>
 #include "../../radio/RadioInterface.h"
+#include "../widgets/CivAddressWidget.h"
 
 namespace TR4QT {
 
@@ -52,7 +53,6 @@ private slots:
     void onTestConnection();
     void onRefreshPorts();
     void onPortAutoRefresh();
-    void onCivAddressModeChanged();
 
 private:
     void setupUI();
@@ -79,9 +79,7 @@ private:
     QLineEdit* m_ipAddressEdit;
     QSpinBox* m_portSpin;
 
-    QRadioButton* m_civDefaultRadio;
-    QRadioButton* m_civCustomRadio;
-    QLineEdit* m_civAddressEdit;  // Changed from QSpinBox for better UX (allow "0", blank, or hex)
+    CivAddressWidget* m_civAddressWidget;
     QSpinBox* m_pollIntervalSpin;
 
     QGroupBox* m_serialGroup;
