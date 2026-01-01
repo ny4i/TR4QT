@@ -51,6 +51,7 @@ private slots:
     void onConnectionTypeChanged();
     void onRadioModelChanged(int index);
     void onRadioStatusFilterChanged();
+    void onCivAddressModeChanged();
 
     // UDP Broadcast slots
     void onUdpAddDestination();
@@ -126,6 +127,8 @@ private:
     QComboBox* m_parityCombo;
     QLineEdit* m_ipAddressEdit;
     QSpinBox* m_portSpin;
+    QRadioButton* m_civDefaultRadio;
+    QRadioButton* m_civCustomRadio;
     QLineEdit* m_civAddressEdit;  // Changed from QSpinBox for better UX
     QSpinBox* m_pollIntervalSpin;
     QCheckBox* m_autoConnectCheck;
