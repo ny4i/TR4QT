@@ -84,6 +84,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_nextSerialNumber(1)
     , m_qsoTableModel(new QSOTableModel(this))
     , m_scpMatcher(new SCPMatcher())
+    , m_countryFileDownloader(new CountryFileDownloader(this))
     , m_udpBroadcastManager(new UdpBroadcastManager(this))
     , m_webServer(new WebServer(m_qsoTableModel, m_radio, this))
     , m_inRaiseAllWindows(false)
@@ -181,6 +182,16 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_radioFlashTimer, &QTimer::timeout, this, [this]() {
         m_radioFlashState = !m_radioFlashState;
         updateRadioStatusFlash();
+    });
+
+    // Connect CTY.DAT update notification
+    connect(m_countryFileDownloader, &CountryFileDownloader::updateAvailable,
+            this, &MainWindow::onCTYUpdateAvailable);
+
+    // Check for CTY.DAT updates 2 seconds after startup (async, non-blocking)
+    QTimer::singleShot(2000, this, [this]() {
+        LOG_DEBUG("MainWindow", "Checking for CTY.DAT updates...");
+        m_countryFileDownloader->checkLatestVersion();
     });
 
     // Initialize radio status display (date/time, band/mode/freq defaults)
@@ -4593,6 +4604,22 @@ void MainWindow::onResetWindowPositions() {
     setStatusMessage("Window positions reset to defaults");
 }
 
+void MainWindow::onCTYUpdateAvailable(int currentVersion, int latestVersion, const QString& versionString) {
+    Q_UNUSED(versionString);
+
+    LOG_INFO("MainWindow", QString("CTY.DAT update available: CTY-%1 (current: CTY-%2)")
+        .arg(latestVersion).arg(currentVersion));
+
+    // Show clickable status bar message
+    QString message = QString("CTY.DAT update available: CTY-%1. Click Tools → Download CTY.DAT or press Alt+O to update.")
+        .arg(latestVersion);
+
+    statusBar()->showMessage(message);
+
+    // Keep the message visible indefinitely (until user downloads or manually clears)
+    // Don't use timeout - we want this to stay visible
+}
+
 void MainWindow::onDownloadCTY(bool headless) {
     LOG_DEBUG("MainWindow", QString("Download CTY.dat (Alt+O) - Starting download (headless=%1)").arg(headless));
 
@@ -4654,14 +4681,22 @@ void MainWindow::onDownloadCTY(bool headless) {
                                 m_countryFile.setVersion(version);
                                 LOG_DEBUG("MainWindow", QString("Country file reloaded successfully. Version: %1")
                                     .arg(m_countryFile.getVersion()));
+
+                                // Update status bar to show successful load
+                                statusBar()->showMessage(QString("CTY.DAT %1 loaded successfully").arg(version), 5000);
+
                                 DialogHelper::information(this, "Success",
                                     QString("Country file reloaded successfully!\n\n"
                                            "Version: %1").arg(m_countryFile.getVersion()));
                             } else {
+                                statusBar()->showMessage("Failed to reload CTY.DAT", 5000);
                                 DialogHelper::warning(this, "Reload Failed",
                                     "Failed to reload the country file.\n\n"
                                     "Please restart the application.");
                             }
+                        } else {
+                            // User chose not to reload - clear update notification
+                            statusBar()->showMessage(QString("CTY.DAT %1 downloaded (restart to load)").arg(version), 5000);
                         }
                     } else {
                         // Headless mode: auto-reload without prompts
@@ -4669,8 +4704,10 @@ void MainWindow::onDownloadCTY(bool headless) {
                             m_countryFile.setVersion(version);
                             LOG_DEBUG("MainWindow", QString("Country file reloaded successfully (headless). Version: %1")
                                 .arg(m_countryFile.getVersion()));
+                            statusBar()->showMessage(QString("CTY.DAT %1 loaded successfully").arg(version), 5000);
                         } else {
                             LOG_WARN("MainWindow", "Failed to reload country file (headless)");
+                            statusBar()->showMessage("Failed to reload CTY.DAT", 5000);
                         }
                     }
                 } else {

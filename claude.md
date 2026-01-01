@@ -717,6 +717,17 @@ From code comments:
 - [ ] Check for new multipliers (line 1386)
 - [ ] Improve exchange prediction architecture (per plan file)
 
+UI Enhancements:
+- [ ] **DialogHelper Cmd-C Support**: Add keyboard copy (Cmd-C/Ctrl-C) support for dialog text
+  - Current: Right-click → Copy works (text selectable)
+  - Desired: Cmd-C/Ctrl-C keyboard shortcut for copying dialog text
+  - Challenge: QLabel doesn't support keyboard copy shortcuts natively
+  - Potential solutions:
+    1. Replace QLabel with QTextEdit in custom QMessageBox subclass
+    2. Event filter approach (attempted but caused stability issues)
+    3. Use Qt's TextBrowserInteraction (attempted but didn't work reliably)
+  - Status: Deferred - not a show-stopper, right-click copy is functional
+
 ## macOS App Deployment Guide
 
 **CRITICAL**: This section documents the complete process for creating distributable macOS app bundles. These lessons apply to ANY Mac app, not just TR4QT.

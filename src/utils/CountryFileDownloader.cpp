@@ -22,6 +22,7 @@ CountryFileDownloader::~CountryFileDownloader() {
 
 void CountryFileDownloader::downloadLatest(const QString& saveDir) {
     m_saveDir = saveDir;
+    m_shouldDownload = true;  // This is a download request, not just a version check
 
     // Ensure save directory exists
     QDir dir;
@@ -35,6 +36,9 @@ void CountryFileDownloader::downloadLatest(const QString& saveDir) {
 }
 
 void CountryFileDownloader::checkLatestVersion() {
+    // NOTE: m_shouldDownload is set by the caller (downloadLatest sets it to true)
+    // Don't modify it here - just check the version
+
     if (m_currentReply) {
         m_currentReply->abort();
         m_currentReply->deleteLater();
@@ -105,7 +109,24 @@ void CountryFileDownloader::onVersionCheckFinished() {
             numericalVersion = numMatch.captured(1).toInt();
         }
 
+        // Check if update is available (emit signal for status bar notification)
+        if (numericalVersion > CURRENT_CTY_VERSION) {
+            LOG_INFO("CountryFileDownloader", QString("CTY.DAT update available: CTY-%1 (current: CTY-%2)")
+                .arg(numericalVersion).arg(CURRENT_CTY_VERSION));
+            emit updateAvailable(CURRENT_CTY_VERSION, numericalVersion, m_latestVersion);
+        } else {
+            LOG_DEBUG("CountryFileDownloader", QString("CTY.DAT is up to date: CTY-%1").arg(CURRENT_CTY_VERSION));
+        }
+
+        // Only download if this was a download request (not just a version check)
+        if (!m_shouldDownload) {
+            LOG_DEBUG("CountryFileDownloader", "Version check complete (no download requested)");
+            m_currentReply = nullptr;
+            return;
+        }
+
         // Now download the actual file (ZIP format)
+        LOG_DEBUG("CountryFileDownloader", "Proceeding with download...");
         QString downloadUrl = QString("https://www.country-files.com/cty/download/%1/cty-%1.zip")
                                       .arg(numericalVersion);
 

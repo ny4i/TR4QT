@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.10.5";  // Band Map filter improvements - instant updates and band-based filtering
+constexpr const char* APP_VERSION = "3.10.6";  // CTY.DAT update notification at startup
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
