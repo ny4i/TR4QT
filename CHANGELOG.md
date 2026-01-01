@@ -1134,6 +1134,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Radio status grid at bottom of form
 
+## [1.5.0] - 2025-12-23
+
+### Added
+- Initial release: TR4QT Phase 2 Complete
+- Contest logging system with CQ WW contest support
+- Radio control via Hamlib integration
+- SQLite database with QSO persistence
+- Band summary grid and QSO table display
+- Station configuration and preferences dialog
+- Country file support (CTY.DAT integration)
+- Comprehensive radio enumeration and control
+- Exchange validation and scoring system
+- ADIF and Cabrillo export capabilities
+
+### Notes
+- This was the initial commit with 6,043 lines of code
+- Represents "Phase 2 Complete" - earlier development (Phase 1) was not tracked in git
+- First version of TR4QT to be committed to version control
+
 ---
 
 ## Maintenance Notes
