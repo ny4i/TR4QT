@@ -12,6 +12,7 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QLabel>
+#include <QTimer>
 #include "../../radio/RadioInterface.h"
 #include "../../utils/DXClusterListDownloader.h"
 #include "../../utils/K4Discovery.h"
@@ -45,6 +46,12 @@ public:
      * @param categoryName The category to show (e.g., "Radio", "Station", "Appearance")
      */
     void selectCategory(const QString& categoryName);
+
+    /**
+     * Set the radio connection status (disables Test Connection when connected)
+     * @param connected true if radio is currently connected
+     */
+    void setRadioConnected(bool connected);
 
 signals:
     /**
@@ -86,6 +93,13 @@ private slots:
     void onK4RadioFound(const K4RadioInfo& radio);
     void onK4DiscoveryFinished(int count);
 
+    // Serial port discovery slots
+    void refreshSerialPorts();
+
+protected:
+    void showEvent(QShowEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
+
 private:
     void setupUI();
     void loadSettings();
@@ -126,7 +140,10 @@ private:
     QCheckBox* m_showUntestedRadiosCheck;
     QRadioButton* m_serialRadio;
     QRadioButton* m_networkRadio;
-    QLineEdit* m_serialPortEdit;
+    QComboBox* m_serialPortCombo;       // Dropdown with detected serial ports
+    QLineEdit* m_serialPortEdit;        // Manual entry fallback
+    QPushButton* m_refreshPortsButton;  // Manual refresh button
+    QTimer* m_portRefreshTimer;         // Auto-refresh timer (5 seconds)
     QComboBox* m_baudRateCombo;
     QComboBox* m_dataBitsCombo;
     QComboBox* m_stopBitsCombo;
@@ -140,6 +157,8 @@ private:
     QGroupBox* m_networkGroup;
     QSpinBox* m_morseWpmSpin;
     QSpinBox* m_morseWpmIncrementSpin;
+    QPushButton* m_testConnectionButton;
+    QLabel* m_connectionStatusLabel;
 
     // DX Cluster tab widgets
     QLineEdit* m_dxClusterCallsignEdit;

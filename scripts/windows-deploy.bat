@@ -16,7 +16,7 @@ echo.
 
 REM Step 1: Copy Qt Core DLLs explicitly
 echo =^> Step 1: Copying Qt core DLLs...
-set QT_DLLS=Qt6Core Qt6Gui Qt6Widgets Qt6Network Qt6Sql Qt6HttpServer Qt6PrintSupport Qt6Concurrent Qt6WebSockets
+set QT_DLLS=Qt6Core Qt6Gui Qt6Widgets Qt6Network Qt6Sql Qt6HttpServer Qt6PrintSupport Qt6Concurrent Qt6WebSockets Qt6SerialPort
 
 for %%D in (%QT_DLLS%) do (
     echo     Copying %%D.dll...

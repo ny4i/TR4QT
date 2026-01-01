@@ -1384,6 +1384,7 @@ void MainWindow::onRadioConfigure() {
     LOG_DEBUG("MainWindow", "*** onRadioConfigure() called - opening Preferences with Radio tab ***");
     PreferencesDialog dialog(this);
     dialog.selectCategory("Radio");
+    dialog.setRadioConnected(m_radioConnected);
 
     if (dialog.exec() == QDialog::Accepted) {
         m_statusLabel->setText("Radio configuration saved");
@@ -1506,6 +1507,7 @@ void MainWindow::onPreferences() {
     bool oldAutoConnect = settings.getRadioAutoConnect();
 
     PreferencesDialog dialog(this);
+    dialog.setRadioConnected(m_radioConnected);
 
     // Connect LOTW settings change to refresh Band Map in real-time
     connect(&dialog, &PreferencesDialog::lotwSettingsChanged,

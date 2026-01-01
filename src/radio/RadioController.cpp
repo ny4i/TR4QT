@@ -203,6 +203,10 @@ bool RadioController::supportsCWSending() const {
 void RadioController::connectToRadio(const RadioConfig& config) {
     LOG_DEBUG("RadioController", QString("connectToRadio called with model %1 port %2").arg(config.hamlibModelId).arg(config.port));
 
+    // CRITICAL: Reset shutdown flag before new connection attempt
+    // This flag is set during disconnectFromRadio() and must be cleared for new connections
+    m_shutdownRequested.store(false);
+
     // Pre-flight check: If this is a network connection (host:port format),
     // verify the radio is reachable BEFORE attempting Hamlib connection.
     // This prevents worker thread from blocking in connect() syscall for 75-120 seconds.
