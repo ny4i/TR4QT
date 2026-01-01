@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.16.3] - 2026-01-01
+
+### Fixed
+- More aggressive thread termination with 3-attempt retry loop
+- Immediately call terminate() without quit() (thread is stuck anyway)
+- Multiple terminate/wait cycles to ensure thread death before QThread destructor
+
+### Known Limitation
+- macOS connect() syscall can take 75-120s to timeout when no route to host
+- QThread::terminate() may not interrupt blocking syscalls on macOS
+- If thread won't die, QThread destructor will hang (OS limitation, not fixable in Qt)
+- Workaround: Don't enable auto-reconnect if radio frequently unavailable
+
 ## [3.16.2] - 2026-01-01
 
 ### Fixed
