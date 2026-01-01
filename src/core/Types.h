@@ -50,6 +50,12 @@ enum class ModeGroup {
     Digital   // RTTY, PSK, FT8, FT4, DATA
 };
 
+// Operating mode (calling CQ vs searching and pouncing)
+enum class OperatingMode {
+    CQ,       // Running/calling CQ
+    SP        // Search and Pounce
+};
+
 // VFO selection
 enum class VFO {
     VFO_A,

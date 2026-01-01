@@ -486,6 +486,25 @@ int AppSettings::getLotwMinUploadMonths() const {
     return m_settings.value("LOTW/MinUploadMonths", 24).toInt();  // Default: 24 months (2 years)
 }
 
+// AUTO S&P automation settings
+void AppSettings::setAutoSPEnable(bool enable) {
+    m_settings.setValue("Automation/AutoSPEnable", enable);
+    m_settings.sync();
+}
+
+bool AppSettings::getAutoSPEnable() const {
+    return m_settings.value("Automation/AutoSPEnable", false).toBool();
+}
+
+void AppSettings::setAutoSPSensitivity(int hzPerSec) {
+    m_settings.setValue("Automation/AutoSPSensitivity", hzPerSec);
+    m_settings.sync();
+}
+
+int AppSettings::getAutoSPSensitivity() const {
+    return m_settings.value("Automation/AutoSPSensitivity", 500).toInt();  // Default: 500 Hz/sec
+}
+
 // Appearance settings
 void AppSettings::setEntryFontSize(int size) {
     m_settings.setValue("Appearance/entryFontSize", size);

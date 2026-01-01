@@ -177,6 +177,13 @@ public:
     void setLotwMinUploadMonths(int months);
     int getLotwMinUploadMonths() const;
 
+    // AUTO S&P automation settings
+    void setAutoSPEnable(bool enable);
+    bool getAutoSPEnable() const;  // Default: false
+
+    void setAutoSPSensitivity(int hzPerSec);
+    int getAutoSPSensitivity() const;  // Default: 500 Hz/sec
+
     // Appearance settings
     void setEntryFontSize(int size);
     int getEntryFontSize() const;
