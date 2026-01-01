@@ -26,6 +26,7 @@
 #include "../utils/LOTWUserDownloader.h"
 #include "../utils/SCPDownloader.h"
 #include "../utils/GeographicUtils.h"
+#include "../utils/PathManager.h"
 #include "../data/Database.h"
 #include "../data/QSORepository.h"
 #include "../data/LOTWUserRepository.h"
@@ -1824,7 +1825,7 @@ void MainWindow::onClearLog() {
     if (backupReply == QMessageBox::Yes) {
         BackupManager& backupMgr = BackupManager::instance();
         QString backupPath;
-        QString backupDir = QDir::homePath() + "/.tr4qt/backups";
+        QString backupDir = PathManager::getBackupsDir();
 
         if (!backupMgr.createBackup(m_currentContest.databasePath, backupDir, backupPath)) {
             QMessageBox::StandardButton continueReply = DialogHelper::warning(
@@ -2273,7 +2274,7 @@ void MainWindow::onLogQSO() {
             }
             else if (clicked == emergencyBtn) {
                 // Write QSO to emergency ADIF file immediately
-                QString emergencyPath = QDir(QDir::homePath()).filePath(QString("%1/emergency_log.adi").arg(CONFIG_DIR));
+                QString emergencyPath = PathManager::getAppDataDir() + "/emergency_log.adi";
                 QDir().mkpath(QFileInfo(emergencyPath).dir().path());
 
                 QFile emergencyFile(emergencyPath);
@@ -4728,8 +4729,8 @@ void MainWindow::onCTYUpdateAvailable(int currentVersion, int latestVersion, con
 void MainWindow::onDownloadCTY(bool headless) {
     LOG_DEBUG("MainWindow", QString("Download CTY.dat (Alt+O) - Starting download (headless=%1)").arg(headless));
 
-    // Get the save directory (e.g., ~/.tr4qt)
-    QString saveDir = QDir::homePath() + "/.tr4qt";
+    // Get the save directory (platform-native app data directory)
+    QString saveDir = PathManager::getAppDataDir();
 
     // Create progress dialog (only if not headless)
     QProgressDialog* progressDialog = nullptr;

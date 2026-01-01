@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.18.0] - 2026-01-01
+
+### Added
+- Platform-native file storage locations following OS conventions
+- PathManager utility class for cross-platform path management
+- Automatic data migration from legacy ~/.tr4qt to platform-native locations (Windows only)
+- Comprehensive user documentation: docs/File-Storage-Locations.md
+
+### Changed
+- **Windows:** Data now stored in `%LOCALAPPDATA%\TR4QT` instead of `C:\Users\<user>\.tr4qt`
+- **macOS:** Data now stored in `~/Library/Application Support/TR4QT` instead of `~/.tr4qt`
+- **Linux:** Data now stored in `~/.local/share/TR4QT` instead of `~/.tr4qt`
+- All file operations use QStandardPaths API for platform-appropriate locations
+- Legacy path constants in Constants.h marked as deprecated
+
+### Migration Notes
+- Windows users: Data automatically migrated on first run of v3.18.0
+- Legacy `~/.tr4qt` directory preserved after migration (safe to delete manually)
+- macOS/Linux users: Can optionally manually migrate (old location still works)
+
+### Technical Details
+- PathManager::getAppDataDir() - Platform-native application data root
+- PathManager::getLogsDir() - Contest database storage location
+- PathManager::getBackupsDir() - Backup storage location
+- PathManager::getCountryFilePath() - CTY.DAT location
+- PathManager::getLOTWUserFilePath() - LoTW user data location
+- PathManager::getGlobalDatabasePath() - Global database location
+- Migration called in main.cpp before any file operations
+- Updated all code using old hardcoded paths (ContestChooserDialog, MainWindow, BackupRestoreDialog, AppSettings, SCPCallsignExtractor)
+
+### Benefits
+- Follows Windows design guidelines (AppData model)
+- Better organization on macOS (Application Support)
+- Compatible with system backup tools (Time Machine, File History)
+- Hidden from user's home directory (less clutter)
+- Proper multi-user support on Windows
+
 ## [3.17.0] - 2026-01-01
 
 ### Added

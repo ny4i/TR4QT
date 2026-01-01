@@ -19,6 +19,7 @@ set(SOURCES
     utils/GeographicUtils.cpp
     utils/LOTWUserDownloader.cpp
     utils/MapDataProvider.cpp
+    utils/PathManager.cpp
     utils/RadioEnumerator.cpp
     utils/ThemeManager.cpp
     radio/HamlibRadio.cpp
@@ -105,6 +106,7 @@ set(HEADERS
     utils/SelectableMessageBox.h
     utils/GeographicUtils.h
     utils/LOTWUserDownloader.h
+    utils/PathManager.h
     utils/RadioEnumerator.h
     utils/ThemeManager.h
     radio/RadioInterface.h
@@ -196,8 +198,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.17.0"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.17.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.18.0"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.18.0"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

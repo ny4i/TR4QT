@@ -3,6 +3,7 @@
 #include "../../contests/ContestRegistry.h"
 #include "../../contests/ContestMetadata.h"
 #include "../../utils/DialogHelper.h"
+#include "../../utils/PathManager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -131,7 +132,7 @@ void ContestChooserDialog::loadExistingContests() {
     m_existingContestsList->clear();
 
     // Get database directory
-    QString dbDir = QDir::homePath() + "/" + QString(DB_DIR);
+    QString dbDir = PathManager::getLogsDir();
     QDir dir(dbDir);
 
     if (!dir.exists()) {
@@ -281,11 +282,8 @@ void ContestChooserDialog::onNewContest() {
     QString contestId = generateContestId(contestType, startDate);
 
     // Create database path
-    QString dbDir = QDir::homePath() + "/" + QString(DB_DIR);
-    QDir dir;
-    if (!dir.exists(dbDir)) {
-        dir.mkpath(dbDir);
-    }
+    QString dbDir = PathManager::getLogsDir();
+    // Directory is created automatically by PathManager
 
     QString dbPath = dbDir + "/" + contestId + ".db";
 
