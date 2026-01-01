@@ -196,8 +196,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.15.1"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.15.1"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.16.0"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.16.0"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
@@ -227,6 +227,7 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::HttpServer
     Qt6::PrintSupport
     Qt6::Concurrent
+    Qt6::SerialPort
 )
 
 # Note: Qt6::EntryPoint is not needed for console applications

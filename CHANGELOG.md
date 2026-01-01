@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.16.0] - 2026-01-01
+
+### Added
+- Serial port dropdown with auto-detection in Radio Configuration dialog
+- Automatic scanning of available serial ports using Qt SerialPort
+- "Refresh" button to manually rescan for new USB devices
+- Auto-refresh timer (every 5 seconds) when dialog is visible
+- Port descriptions shown in dropdown (e.g., "COM3 (USB Serial Port)")
+- Manual entry field as fallback for ports not auto-detected
+
+### Changed
+- Radio Configuration dialog now prefers dropdown selection over manual entry
+- Serial port field updated with dual input: dropdown + manual entry
+- Platform-specific placeholder text for better UX
+- Auto-start/stop refresh timer on dialog show/hide
+
+### Dependencies
+- Added Qt6::SerialPort module to project
+- Updated Windows CI to include qtserialport module
+
 ## [3.15.1] - 2026-01-01
 
 ### Fixed

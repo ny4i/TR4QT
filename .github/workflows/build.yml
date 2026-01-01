@@ -53,7 +53,7 @@ jobs:
         target: desktop
         arch: win64_mingw
         tools: 'tools_mingw1310'
-        modules: 'qtwebsockets qthttpserver'  # HttpServer for web UI, WebSockets dependency
+        modules: 'qtwebsockets qthttpserver qtserialport'  # HttpServer for web UI, WebSockets dependency, SerialPort for radio config
         cache: true
 
     - name: Download Hamlib

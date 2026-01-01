@@ -12,6 +12,8 @@
 #include <QGroupBox>
 #include <QMessageBox>
 #include <QDialogButtonBox>
+#include <QSerialPortInfo>
+#include <QIcon>
 
 namespace TR4QT {
 
@@ -64,14 +66,41 @@ void RadioConfigDialog::setupUI() {
     m_serialGroup = new QGroupBox("Serial Port Settings", this);
     QFormLayout* serialLayout = new QFormLayout(m_serialGroup);
 
+    // Serial port dropdown + refresh button
+    QWidget* portWidget = new QWidget(this);
+    QVBoxLayout* portLayout = new QVBoxLayout(portWidget);
+    portLayout->setContentsMargins(0, 0, 0, 0);
+    portLayout->setSpacing(4);
+
+    // Port selection row: dropdown + refresh button
+    QWidget* portSelectWidget = new QWidget(this);
+    QHBoxLayout* portSelectLayout = new QHBoxLayout(portSelectWidget);
+    portSelectLayout->setContentsMargins(0, 0, 0, 0);
+    portSelectLayout->setSpacing(4);
+
+    m_serialPortCombo = new QComboBox(this);
+    m_serialPortCombo->setEditable(false);
+    m_serialPortCombo->setToolTip("Select a detected serial port from the list");
+    portSelectLayout->addWidget(m_serialPortCombo, 1);
+
+    m_refreshPortsButton = new QPushButton("Refresh", this);
+    m_refreshPortsButton->setToolTip("Scan for available serial ports");
+    m_refreshPortsButton->setMaximumWidth(80);
+    connect(m_refreshPortsButton, &QPushButton::clicked, this, &RadioConfigDialog::onRefreshPorts);
+    portSelectLayout->addWidget(m_refreshPortsButton);
+
+    portLayout->addWidget(portSelectWidget);
+
+    // Manual entry field (for ports not auto-detected)
     m_serialPortEdit = new QLineEdit(this);
 #ifdef Q_OS_WIN
-    m_serialPortEdit->setPlaceholderText("COM1 or just 1 (auto-formats to COM1)");
-    m_serialPortEdit->setToolTip("Enter COM port name (e.g., COM4) or just the port number (e.g., 4).\nPort numbers are automatically formatted as COMn.");
+    m_serialPortEdit->setPlaceholderText("Or enter manually: COM1 or just 1");
+    m_serialPortEdit->setToolTip("Manual entry: Enter COM port name (e.g., COM4) or just the port number (e.g., 4).\nPort numbers are automatically formatted as COMn.");
 #else
-    m_serialPortEdit->setPlaceholderText("/dev/ttyUSB0 or /dev/cu.usbserial");
-    m_serialPortEdit->setToolTip("Enter the serial device path (e.g., /dev/ttyUSB0)");
+    m_serialPortEdit->setPlaceholderText("Or enter manually: /dev/ttyUSB0");
+    m_serialPortEdit->setToolTip("Manual entry: Enter the serial device path (e.g., /dev/ttyUSB0)");
 #endif
+    portLayout->addWidget(m_serialPortEdit);
 
     m_baudRateCombo = new QComboBox(this);
     m_baudRateCombo->addItems({"4800", "9600", "19200", "38400", "57600", "115200"});
@@ -92,7 +121,7 @@ void RadioConfigDialog::setupUI() {
     m_parityCombo->setCurrentIndex(0);  // None
     m_parityCombo->setToolTip("Parity checking (default: None)\nLeave at default unless radio requires specific setting");
 
-    serialLayout->addRow("Port:", m_serialPortEdit);
+    serialLayout->addRow("Port:", portWidget);
     serialLayout->addRow("Baud Rate:", m_baudRateCombo);
     serialLayout->addRow("Data Bits:", m_dataBitsCombo);
     serialLayout->addRow("Stop Bits:", m_stopBitsCombo);
@@ -160,6 +189,14 @@ void RadioConfigDialog::setupUI() {
 
     setLayout(mainLayout);
     resize(500, 600);
+
+    // Initialize port refresh timer (auto-refresh every 5 seconds when dialog visible)
+    m_portRefreshTimer = new QTimer(this);
+    m_portRefreshTimer->setInterval(5000);  // 5 seconds
+    connect(m_portRefreshTimer, &QTimer::timeout, this, &RadioConfigDialog::onPortAutoRefresh);
+
+    // Initial population of serial ports
+    populateSerialPorts();
 }
 
 void RadioConfigDialog::populateRadioModels() {
@@ -288,20 +325,38 @@ RadioConfig RadioConfigDialog::getConfig() const {
 
     // Get connection info
     if (m_serialRadio->isChecked()) {
-        QString portText = m_serialPortEdit->text().trimmed();
+        QString portText;
 
-        // Windows COM port auto-formatting
-        // If user enters just a number (e.g., "4"), format as "COM4"
-#ifdef Q_OS_WIN
-        bool isNumericOnly = false;
-        int portNum = portText.toInt(&isNumericOnly);
-        if (isNumericOnly && portNum > 0 && portNum <= 256) {
-            // User entered just a number - format as COMn
-            portText = QString("COM%1").arg(portNum);
-            LOG_DEBUG("RadioConfigDialog", QString("Auto-formatted port '%1' to '%2'")
-                .arg(m_serialPortEdit->text()).arg(portText));
+        // Prefer combobox selection over manual entry
+        if (m_serialPortCombo->isEnabled() && m_serialPortCombo->currentIndex() >= 0) {
+            // Get port name from combobox data (not display text)
+            portText = m_serialPortCombo->currentData().toString();
+
+            if (!portText.isEmpty() && portText != "(No serial ports detected)") {
+                LOG_DEBUG("RadioConfigDialog", QString("Using selected port from dropdown: %1").arg(portText));
+            } else {
+                // Fall back to manual entry if combobox selection is invalid
+                portText = m_serialPortEdit->text().trimmed();
+            }
+        } else {
+            // Combobox disabled or no ports - use manual entry
+            portText = m_serialPortEdit->text().trimmed();
         }
+
+        // Windows COM port auto-formatting (for manual entry)
+        // If user enters just a number (e.g., "4"), format as "COM4"
+        if (portText == m_serialPortEdit->text().trimmed()) {
+#ifdef Q_OS_WIN
+            bool isNumericOnly = false;
+            int portNum = portText.toInt(&isNumericOnly);
+            if (isNumericOnly && portNum > 0 && portNum <= 256) {
+                // User entered just a number - format as COMn
+                portText = QString("COM%1").arg(portNum);
+                LOG_DEBUG("RadioConfigDialog", QString("Auto-formatted manual entry '%1' to '%2'")
+                    .arg(m_serialPortEdit->text()).arg(portText));
+            }
 #endif
+        }
 
         config.port = portText;
         config.baudRate = m_baudRateCombo->currentText().toInt();
@@ -366,7 +421,19 @@ void RadioConfigDialog::setConfig(const RadioConfig& config) {
     } else {
         // Serial port
         m_serialRadio->setChecked(true);
-        m_serialPortEdit->setText(config.port);
+
+        // Try to select port in combobox first
+        int portIndex = m_serialPortCombo->findData(config.port);
+        if (portIndex >= 0) {
+            m_serialPortCombo->setCurrentIndex(portIndex);
+            m_serialPortEdit->clear();  // Clear manual entry when using dropdown
+            LOG_DEBUG("RadioConfigDialog", QString("Selected port '%1' from dropdown").arg(config.port));
+        } else {
+            // Port not in dropdown - use manual entry
+            m_serialPortEdit->setText(config.port);
+            LOG_DEBUG("RadioConfigDialog", QString("Port '%1' not in dropdown, using manual entry").arg(config.port));
+        }
+
         m_baudRateCombo->setCurrentText(QString::number(config.baudRate));
         m_dataBitsCombo->setCurrentText(QString::number(config.dataBits));
         m_stopBitsCombo->setCurrentText(QString::number(config.stopBits));
@@ -390,6 +457,83 @@ void RadioConfigDialog::setConfig(const RadioConfig& config) {
 
 bool RadioConfigDialog::getAutoConnect() const {
     return m_autoConnectCheck->isChecked();
+}
+
+void RadioConfigDialog::populateSerialPorts() {
+    QString currentPort = m_serialPortCombo->currentText();
+    m_serialPortCombo->clear();
+
+    // Scan for available serial ports
+    const QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
+
+    if (ports.isEmpty()) {
+        m_serialPortCombo->addItem("(No serial ports detected)");
+        m_serialPortCombo->setEnabled(false);
+        LOG_DEBUG("RadioConfigDialog", "No serial ports detected");
+    } else {
+        m_serialPortCombo->setEnabled(true);
+
+        for (const QSerialPortInfo& port : ports) {
+            QString displayText;
+
+            // Build display text with port name and description
+            if (!port.description().isEmpty() && port.description() != port.portName()) {
+                displayText = QString("%1 (%2)").arg(port.portName(), port.description());
+            } else {
+                displayText = port.portName();
+            }
+
+            // Store port name as user data
+            m_serialPortCombo->addItem(displayText, port.portName());
+
+            LOG_DEBUG("RadioConfigDialog", QString("Found serial port: %1 [%2] - %3")
+                .arg(port.portName())
+                .arg(port.systemLocation())
+                .arg(port.description()));
+        }
+
+        // Restore previous selection if it still exists
+        int index = m_serialPortCombo->findData(currentPort);
+        if (index >= 0) {
+            m_serialPortCombo->setCurrentIndex(index);
+        }
+
+        LOG_DEBUG("RadioConfigDialog", QString("Populated %1 serial ports").arg(ports.size()));
+    }
+}
+
+void RadioConfigDialog::onRefreshPorts() {
+    LOG_DEBUG("RadioConfigDialog", "Manual port refresh requested");
+    populateSerialPorts();
+}
+
+void RadioConfigDialog::onPortAutoRefresh() {
+    // Only refresh if dialog is visible and serial connection is selected
+    if (!isVisible() || !m_serialRadio->isChecked()) {
+        return;
+    }
+
+    LOG_DEBUG("RadioConfigDialog", "Auto-refreshing serial ports");
+    populateSerialPorts();
+}
+
+void RadioConfigDialog::showEvent(QShowEvent* event) {
+    QDialog::showEvent(event);
+
+    // Start auto-refresh timer when dialog is shown
+    LOG_DEBUG("RadioConfigDialog", "Dialog shown - starting port auto-refresh timer");
+    m_portRefreshTimer->start();
+
+    // Do an immediate refresh
+    populateSerialPorts();
+}
+
+void RadioConfigDialog::hideEvent(QHideEvent* event) {
+    QDialog::hideEvent(event);
+
+    // Stop auto-refresh timer when dialog is hidden
+    LOG_DEBUG("RadioConfigDialog", "Dialog hidden - stopping port auto-refresh timer");
+    m_portRefreshTimer->stop();
 }
 
 } // namespace TR4QT

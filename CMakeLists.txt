@@ -36,6 +36,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     HttpServer
     PrintSupport
     Concurrent
+    SerialPort
     Test
 )
 
