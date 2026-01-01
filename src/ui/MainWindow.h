@@ -44,6 +44,7 @@ class MultiplierWidget;
 class StatisticsWindow;
 class UdpBroadcastManager;
 class WebServer;
+class CountryFileDownloader;
 
 /**
  * Main application window
@@ -118,6 +119,7 @@ private slots:
     void onDownloadCTY(bool headless = false);   // Download CTY.dat (headless=true for testing)
     void onDownloadLOTW(bool headless = false);  // Download LOTW user list (headless=true for testing)
     void onDownloadSCP(bool headless = false);   // Download MASTER.SCP (headless=true for testing)
+    void onCTYUpdateAvailable(int currentVersion, int latestVersion, const QString& versionString);
     void onInitialize();            // TODO: Implement initialize
     void onResetWindowPositions();  // Reset all window positions to defaults
 
@@ -319,6 +321,7 @@ private:
 
     // Country file for lookups
     CountryFile m_countryFile;
+    CountryFileDownloader* m_countryFileDownloader;  // For version checking
 
     // Super Check Partial matcher
     SCPMatcher* m_scpMatcher;
