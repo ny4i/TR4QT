@@ -139,6 +139,11 @@ private:
     QSpinBox* m_lotwMinUploadMonthsSpin;
     QPushButton* m_downloadClusterListButton;
 
+    // Band Map timeout settings
+    QSpinBox* m_spotExpirySpin;          // Spot expiry time (seconds)
+    QSpinBox* m_newSpotThresholdSpin;    // New spot threshold (seconds)
+    QSpinBox* m_agingSpotThresholdSpin;  // Aging spot threshold (seconds)
+
     // SCP tab widgets
     QCheckBox* m_scpEnabledCheck;
     QLabel* m_scpStatusLabel;

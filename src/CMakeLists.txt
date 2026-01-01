@@ -73,6 +73,7 @@ set(SOURCES
     ui/dialogs/ExportPreviewDialog.cpp
     ui/dialogs/SendMorseDialog.cpp
     ui/dialogs/MacroEditDialog.cpp
+    ui/dialogs/FunctionKeysWindow.cpp
     ui/dialogs/ADIFImportDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
@@ -164,6 +165,7 @@ set(HEADERS
     ui/dialogs/ExportPreviewDialog.h
     ui/dialogs/SendMorseDialog.h
     ui/dialogs/MacroEditDialog.h
+    ui/dialogs/FunctionKeysWindow.h
     ui/dialogs/ADIFImportDialog.h
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
