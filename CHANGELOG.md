@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.15.1] - 2026-01-01
+
+### Fixed
+- Windows serial port configuration - auto-format numeric port entries (e.g., "4" → "COM4")
+- Windows users can now enter just the port number and it will be automatically formatted as COMn
+
 ### Changed
 - Permanently disabled Linux ARM64 build in CI/CD workflow
+- Updated serial port field placeholder text with platform-specific hints (Windows: "COM1 or just 1", Unix: "/dev/ttyUSB0")
 
 ## [3.15.0] - 2026-01-01
 

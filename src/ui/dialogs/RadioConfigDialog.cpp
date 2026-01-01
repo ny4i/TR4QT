@@ -65,7 +65,13 @@ void RadioConfigDialog::setupUI() {
     QFormLayout* serialLayout = new QFormLayout(m_serialGroup);
 
     m_serialPortEdit = new QLineEdit(this);
-    m_serialPortEdit->setPlaceholderText("/dev/ttyUSB0 or COM1");
+#ifdef Q_OS_WIN
+    m_serialPortEdit->setPlaceholderText("COM1 or just 1 (auto-formats to COM1)");
+    m_serialPortEdit->setToolTip("Enter COM port name (e.g., COM4) or just the port number (e.g., 4).\nPort numbers are automatically formatted as COMn.");
+#else
+    m_serialPortEdit->setPlaceholderText("/dev/ttyUSB0 or /dev/cu.usbserial");
+    m_serialPortEdit->setToolTip("Enter the serial device path (e.g., /dev/ttyUSB0)");
+#endif
 
     m_baudRateCombo = new QComboBox(this);
     m_baudRateCombo->addItems({"4800", "9600", "19200", "38400", "57600", "115200"});
@@ -282,7 +288,22 @@ RadioConfig RadioConfigDialog::getConfig() const {
 
     // Get connection info
     if (m_serialRadio->isChecked()) {
-        config.port = m_serialPortEdit->text();
+        QString portText = m_serialPortEdit->text().trimmed();
+
+        // Windows COM port auto-formatting
+        // If user enters just a number (e.g., "4"), format as "COM4"
+#ifdef Q_OS_WIN
+        bool isNumericOnly = false;
+        int portNum = portText.toInt(&isNumericOnly);
+        if (isNumericOnly && portNum > 0 && portNum <= 256) {
+            // User entered just a number - format as COMn
+            portText = QString("COM%1").arg(portNum);
+            LOG_DEBUG("RadioConfigDialog", QString("Auto-formatted port '%1' to '%2'")
+                .arg(m_serialPortEdit->text()).arg(portText));
+        }
+#endif
+
+        config.port = portText;
         config.baudRate = m_baudRateCombo->currentText().toInt();
         config.dataBits = m_dataBitsCombo->currentText().toInt();
         config.stopBits = m_stopBitsCombo->currentText().toInt();
