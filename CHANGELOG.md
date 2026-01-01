@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.17.0] - 2026-01-01
+
+### Added
+- Pre-flight TCP connectivity check before attempting Hamlib network connection
+- Radio reachability test using QTcpSocket with 500ms timeout
+- Prevents worker thread from blocking in connect() syscall for 75-120 seconds
+
+### Fixed
+- **CRITICAL**: Shutdown hang when closing application with unreachable radio
+- Fast-fail on unreachable radio (500ms vs 75-120 seconds)
+- Clean shutdown even during radio connection attempts
+- No more frozen application when radio offline
+
+### Technical Details
+- Pre-flight check runs in main thread BEFORE worker thread connection
+- Parses host:port from network radio configuration
+- QEventLoop-based timeout using QTimer for clean non-blocking test
+- Aborts Hamlib connection attempt if radio unreachable
+- Emits error signal to UI so user knows connection failed immediately
+- Only applies to network connections (host:port format), serial ports unaffected
+
+### Implementation Notes
+- isRadioReachable() helper function in src/radio/RadioController.cpp:12
+- Integration in connectToRadio() method at line 206
+- QTcpSocket::connectToHost() with proper cleanup and timeout handling
+- This is the "belt and suspenders" solution to macOS connect() blocking issue
+
 ## [3.16.3] - 2026-01-01
 
 ### Fixed

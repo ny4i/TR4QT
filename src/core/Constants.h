@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.16.3";  // Aggressive thread termination with retry loop
+constexpr const char* APP_VERSION = "3.17.0";  // Pre-flight TCP connectivity check before Hamlib connection
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

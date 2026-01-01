@@ -1,8 +1,73 @@
 #include "RadioController.h"
 #include "../logging/LogMacros.h"
 #include <QMutexLocker>
+#include <QTcpSocket>
+#include <QEventLoop>
+#include <QTimer>
 
 namespace TR4QT {
+
+// Helper function to check if radio is reachable before attempting Hamlib connection
+// Returns true if radio responds to TCP connection attempt within timeout
+static bool isRadioReachable(const QString& host, quint16 port, int timeoutMs = 500) {
+    QTcpSocket socket;
+
+    LOG_DEBUG("RadioController", QString("Pre-flight check: Testing connectivity to %1:%2 (timeout %3ms)")
+        .arg(host).arg(port).arg(timeoutMs));
+
+    // Create event loop to wait for connection with timeout
+    QEventLoop loop;
+    QTimer timeoutTimer;
+    timeoutTimer.setSingleShot(true);
+
+    bool connected = false;
+    bool timedOut = false;
+
+    // Connect signals
+    QObject::connect(&socket, &QTcpSocket::connected, [&]() {
+        connected = true;
+        loop.quit();
+    });
+
+    QObject::connect(&socket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::errorOccurred), [&]() {
+        loop.quit();
+    });
+
+    QObject::connect(&timeoutTimer, &QTimer::timeout, [&]() {
+        timedOut = true;
+        loop.quit();
+    });
+
+    // Start connection attempt
+    socket.connectToHost(host, port);
+    timeoutTimer.start(timeoutMs);
+
+    // Wait for connection or timeout
+    loop.exec();
+
+    // Clean up
+    if (socket.state() == QAbstractSocket::ConnectedState) {
+        socket.disconnectFromHost();
+        if (socket.state() != QAbstractSocket::UnconnectedState) {
+            socket.waitForDisconnected(100);
+        }
+    } else {
+        socket.abort();
+    }
+
+    if (connected) {
+        LOG_DEBUG("RadioController", QString("Pre-flight check: SUCCESS - %1:%2 is reachable").arg(host).arg(port));
+        return true;
+    } else if (timedOut) {
+        LOG_WARN("RadioController", QString("Pre-flight check: TIMEOUT - %1:%2 not reachable within %3ms").arg(host).arg(port).arg(timeoutMs));
+        return false;
+    } else {
+        LOG_WARN("RadioController", QString("Pre-flight check: FAILED - %1:%2 error: %3")
+            .arg(host).arg(port).arg(socket.errorString()));
+        return false;
+    }
+}
+
 
 RadioController::RadioController(QObject* parent)
     : QObject(parent)
@@ -137,6 +202,36 @@ bool RadioController::supportsCWSending() const {
 
 void RadioController::connectToRadio(const RadioConfig& config) {
     LOG_DEBUG("RadioController", QString("connectToRadio called with model %1 port %2").arg(config.hamlibModelId).arg(config.port));
+
+    // Pre-flight check: If this is a network connection (host:port format),
+    // verify the radio is reachable BEFORE attempting Hamlib connection.
+    // This prevents worker thread from blocking in connect() syscall for 75-120 seconds.
+    if (config.port.contains(':')) {
+        // Parse host:port from config
+        QStringList parts = config.port.split(':');
+        if (parts.size() == 2) {
+            QString host = parts[0];
+            bool ok = false;
+            quint16 port = parts[1].toUShort(&ok);
+
+            if (ok && !host.isEmpty()) {
+                // Run pre-flight connectivity check (500ms timeout)
+                if (!isRadioReachable(host, port, 500)) {
+                    // Radio not reachable - abort connection attempt
+                    QString errorMsg = QString("Radio not reachable at %1:%2 (pre-flight check failed)").arg(host).arg(port);
+                    LOG_WARN("RadioController", errorMsg);
+
+                    // Emit error signal so UI knows connection failed
+                    emit errorOccurred(errorMsg);
+
+                    // DO NOT proceed to Hamlib connection
+                    return;
+                }
+                // Pre-flight check passed - proceed with Hamlib connection
+                LOG_DEBUG("RadioController", QString("Pre-flight check passed for %1:%2").arg(host).arg(port));
+            }
+        }
+    }
 
     // Invoke connect method in worker thread using lambda
     bool queued = QMetaObject::invokeMethod(m_radio, [this, config]() {
