@@ -21,11 +21,12 @@ on:
         required: false
         default: 'true'
         type: boolean
-      build_linux:
-        description: 'Build Linux ARM64'
-        required: false
-        default: 'true'
-        type: boolean
+      # Linux ARM64 build permanently disabled per user request 2026-01-01
+      # build_linux:
+      #   description: 'Build Linux ARM64'
+      #   required: false
+      #   default: 'true'
+      #   type: boolean
 
 env:
   QT_VERSION: '6.7.2'
@@ -653,200 +654,202 @@ jobs:
   #       name: TR4QT-Linux-x86_64
   #       path: TR4QT*.AppImage
 
-  build-linux-arm64:
-    name: Linux (ARM64/RPi)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && inputs.build_linux == true
-    continue-on-error: true  # Qt HttpServer not in Ubuntu repos yet
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
-      with:
-        platforms: arm64
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Build ARM64 in Docker
-      run: |
-        docker run --rm --platform linux/arm64 \
-          -v $PWD:/workspace \
-          -w /workspace \
-          arm64v8/ubuntu:24.04 \
-          bash -c "
-            set -e
-            echo '==> Explicit Linux ARM64 Deployment (no linuxdeploy)'
-
-            # Install dependencies
-            apt-get update
-            DEBIAN_FRONTEND=noninteractive apt-get install -y \
-              build-essential cmake libgl1-mesa-dev libhamlib-dev \
-              qt6-base-dev qt6-websockets-dev qt6-httpserver-dev \
-              libqt6sql6-sqlite libqt6network6 libfuse2 wget file patchelf
-
-            # Build
-            echo '==> Building TR4QT...'
-            cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-            cmake --build build --config Release -j\$(nproc)
-
-            # Create AppDir structure
-            echo '==> Creating AppDir structure...'
-            mkdir -p appdir/usr/bin appdir/usr/lib appdir/usr/share/applications
-            mkdir -p appdir/usr/plugins/platforms appdir/usr/plugins/sqldrivers appdir/usr/plugins/tls
-
-            # Copy executable
-            cp build/src/tr4qt appdir/usr/bin/
-
-            # Copy Qt libraries explicitly
-            echo '==> Copying Qt libraries...'
-            QT_LIBS=(
-              libQt6Core.so.6 libQt6Gui.so.6 libQt6Widgets.so.6
-              libQt6Network.so.6 libQt6Sql.so.6 libQt6HttpServer.so.6
-              libQt6WebSockets.so.6 libQt6PrintSupport.so.6
-              libQt6Concurrent.so.6 libQt6DBus.so.6
-            )
-            for lib in \${QT_LIBS[@]}; do
-              cp /usr/lib/aarch64-linux-gnu/\$lib appdir/usr/lib/ || echo \"WARNING: \$lib not found\"
-            done
-
-            # Copy Qt plugins
-            echo '==> Copying Qt plugins...'
-            cp /usr/lib/aarch64-linux-gnu/qt6/plugins/platforms/libqxcb.so appdir/usr/plugins/platforms/
-            cp /usr/lib/aarch64-linux-gnu/qt6/plugins/sqldrivers/libqsqlite.so appdir/usr/plugins/sqldrivers/
-
-            # Copy TLS plugins (CRITICAL - required for HTTPS connections)
-            echo '==> Copying TLS plugins...'
-            if [ -d /usr/lib/aarch64-linux-gnu/qt6/plugins/tls ]; then
-              cp /usr/lib/aarch64-linux-gnu/qt6/plugins/tls/*.so appdir/usr/plugins/tls/ 2>/dev/null || echo 'WARNING: No TLS plugins found'
-              if ls appdir/usr/plugins/tls/*.so >/dev/null 2>&1; then
-                echo 'SUCCESS: TLS plugins copied'
-                ls -lh appdir/usr/plugins/tls/
-              else
-                echo 'WARNING: No TLS plugins available - HTTPS may not work'
-              fi
-            else
-              echo 'WARNING: TLS plugins directory not found'
-            fi
-
-            # Copy Hamlib and other system libs
-            echo '==> Copying system libraries...'
-            cp /usr/lib/aarch64-linux-gnu/libhamlib.so.4 appdir/usr/lib/ || true
-
-            # Create desktop entry
-            printf '%s\n' \
-              '[Desktop Entry]' \
-              'Type=Application' \
-              'Name=TR4QT' \
-              'Comment=Amateur Radio Contest Logger' \
-              'Exec=tr4qt' \
-              'Icon=tr4qt' \
-              'Categories=HamRadio;Network;' \
-              > appdir/usr/share/applications/tr4qt.desktop
-
-            # Create AppRun script
-            printf '%s\n' \
-              '#!/bin/bash' \
-              'SELF=\$(readlink -f \"\$0\")' \
-              'HERE=\${SELF%/*}' \
-              'export LD_LIBRARY_PATH=\"\${HERE}/usr/lib:\$LD_LIBRARY_PATH\"' \
-              'export QT_PLUGIN_PATH=\"\${HERE}/usr/plugins\"' \
-              'exec \"\${HERE}/usr/bin/tr4qt\" \"\$@\"' \
-              > appdir/AppRun
-            chmod +x appdir/AppRun
-
-            # Create AppImage using appimagetool
-            echo '==> Creating AppImage...'
-            # Download appimagetool AppImage
-            wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage
-            chmod +x appimagetool-aarch64.AppImage
-
-            # Extract using --appimage-extract with special env var (works without FUSE)
-            APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool-aarch64.AppImage --appimage-extract >/dev/null 2>&1 || true
-
-            # If extraction failed, try alternative method
-            if [ ! -d "squashfs-root" ]; then
-              echo "Trying alternative extraction method..."
-              apt-get install -y squashfs-tools
-              # AppImage format: ELF header + squashfs. Find squashfs start with offset.
-              # Skip to squashfs magic bytes (hsqs in little-endian = 73 71 73 68)
-              OFFSET=\$(grep -aobm1 'hsqs' appimagetool-aarch64.AppImage | cut -d: -f1)
-              dd if=appimagetool-aarch64.AppImage of=appimagetool.squashfs bs=1 skip=\$OFFSET 2>/dev/null
-              unsquashfs -d squashfs-root appimagetool.squashfs
-            fi
-
-            # Run appimagetool from extracted directory
-            ARCH=aarch64 ./squashfs-root/AppRun appdir TR4QT-ARM64.AppImage
-
-            echo '==> Deployment complete'
-            ls -lh TR4QT-ARM64.AppImage
-
-            # Verify AppImage was created and has reasonable size
-            echo ''
-            echo '==> Verifying AppImage'
-            if [ ! -f 'TR4QT-ARM64.AppImage' ]; then
-              echo '✗ ERROR: AppImage was not created!'
-              exit 1
-            fi
-
-            SIZE=\$(stat -c%s TR4QT-ARM64.AppImage 2>/dev/null || stat -f%z TR4QT-ARM64.AppImage)
-            SIZE_MB=\$((SIZE / 1024 / 1024))
-            echo \"✓ AppImage created: \${SIZE_MB}MB\"
-
-            if [ \$SIZE_MB -lt 10 ]; then
-              echo '✗ ERROR: AppImage suspiciously small (< 10MB)'
-              exit 1
-            fi
-
-            # Verify SQL driver was copied into appdir before packaging
-            echo ''
-            echo '=== Verifying SQL driver was included ==='
-            if [ -f 'appdir/usr/plugins/sqldrivers/libqsqlite.so' ]; then
-              echo '✓ SUCCESS: libqsqlite.so found in appdir before packaging'
-            else
-              echo '✗ ERROR: libqsqlite.so NOT found in appdir!'
-              echo 'This is a FATAL error - AppImage will not work without SQL driver'
-              exit 1
-            fi
-
-            echo ''
-            echo '✓ AppImage verification complete'
-            echo 'Note: Cannot extract AppImage for deep inspection (requires FUSE, unavailable in Docker)'
-            echo 'Note: SQL driver presence verified in source appdir before packaging'
-          "
-
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: TR4QT-Linux-ARM64
-        path: TR4QT*.AppImage
-
-    - name: Notify Slack - Linux ARM64 Complete
-      if: always()
-      run: |
-        if [ "${{ job.status }}" == "success" ]; then
-          STATUS="✅ SUCCESS"
-          COLOR="good"
-        else
-          STATUS="❌ FAILED"
-          COLOR="danger"
-        fi
-        curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
-          -H 'Content-Type: application/json' \
-          -d "{
-            \"attachments\": [{
-              \"color\": \"$COLOR\",
-              \"title\": \"Linux ARM64 Build $STATUS\",
-              \"fields\": [
-                {\"title\": \"Status\", \"value\": \"${{ job.status }}\", \"short\": true},
-                {\"title\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
-                {\"title\": \"Build URL\", \"value\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Build>\", \"short\": false}
-              ]
-            }]
-          }"
+  # Linux ARM64 build permanently disabled per user request 2026-01-01
+  # Reason: Not a priority platform, was only conditionally built on manual trigger
+  # build-linux-arm64:
+  #   name: Linux (ARM64/RPi)
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'workflow_dispatch' && inputs.build_linux == true
+  #   continue-on-error: true  # Qt HttpServer not in Ubuntu repos yet
+  #
+  #   steps:
+  #   - name: Checkout
+  #     uses: actions/checkout@v4
+  #
+  #   - name: Set up QEMU
+  #     uses: docker/setup-qemu-action@v3
+  #     with:
+  #       platforms: arm64
+  #
+  #   - name: Set up Docker Buildx
+  #     uses: docker/setup-buildx-action@v3
+  #
+  #   - name: Build ARM64 in Docker
+  #     run: |
+  #       docker run --rm --platform linux/arm64 \
+  #         -v $PWD:/workspace \
+  #         -w /workspace \
+  #         arm64v8/ubuntu:24.04 \
+  #         bash -c "
+  #            set -e
+  #            echo '==> Explicit Linux ARM64 Deployment (no linuxdeploy)'
+  #
+  #            # Install dependencies
+  #            apt-get update
+  #            DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  #              build-essential cmake libgl1-mesa-dev libhamlib-dev \
+  #              qt6-base-dev qt6-websockets-dev qt6-httpserver-dev \
+  #              libqt6sql6-sqlite libqt6network6 libfuse2 wget file patchelf
+  #
+  #            # Build
+  #            echo '==> Building TR4QT...'
+  #            cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+  #            cmake --build build --config Release -j\$(nproc)
+  #
+  #            # Create AppDir structure
+  #            echo '==> Creating AppDir structure...'
+  #            mkdir -p appdir/usr/bin appdir/usr/lib appdir/usr/share/applications
+  #            mkdir -p appdir/usr/plugins/platforms appdir/usr/plugins/sqldrivers appdir/usr/plugins/tls
+  #
+  #            # Copy executable
+  #            cp build/src/tr4qt appdir/usr/bin/
+  #
+  #            # Copy Qt libraries explicitly
+  #            echo '==> Copying Qt libraries...'
+  #            QT_LIBS=(
+  #              libQt6Core.so.6 libQt6Gui.so.6 libQt6Widgets.so.6
+  #              libQt6Network.so.6 libQt6Sql.so.6 libQt6HttpServer.so.6
+  #              libQt6WebSockets.so.6 libQt6PrintSupport.so.6
+  #              libQt6Concurrent.so.6 libQt6DBus.so.6
+  #            )
+  #            for lib in \${QT_LIBS[@]}; do
+  #              cp /usr/lib/aarch64-linux-gnu/\$lib appdir/usr/lib/ || echo \"WARNING: \$lib not found\"
+  #            done
+  #
+  #            # Copy Qt plugins
+  #            echo '==> Copying Qt plugins...'
+  #            cp /usr/lib/aarch64-linux-gnu/qt6/plugins/platforms/libqxcb.so appdir/usr/plugins/platforms/
+  #            cp /usr/lib/aarch64-linux-gnu/qt6/plugins/sqldrivers/libqsqlite.so appdir/usr/plugins/sqldrivers/
+  #
+  #            # Copy TLS plugins (CRITICAL - required for HTTPS connections)
+  #            echo '==> Copying TLS plugins...'
+  #            if [ -d /usr/lib/aarch64-linux-gnu/qt6/plugins/tls ]; then
+  #              cp /usr/lib/aarch64-linux-gnu/qt6/plugins/tls/*.so appdir/usr/plugins/tls/ 2>/dev/null || echo 'WARNING: No TLS plugins found'
+  #              if ls appdir/usr/plugins/tls/*.so >/dev/null 2>&1; then
+  #                echo 'SUCCESS: TLS plugins copied'
+  #                ls -lh appdir/usr/plugins/tls/
+  #              else
+  #                echo 'WARNING: No TLS plugins available - HTTPS may not work'
+  #              fi
+  #            else
+  #              echo 'WARNING: TLS plugins directory not found'
+  #            fi
+  #
+  #            # Copy Hamlib and other system libs
+  #            echo '==> Copying system libraries...'
+  #            cp /usr/lib/aarch64-linux-gnu/libhamlib.so.4 appdir/usr/lib/ || true
+  #
+  #            # Create desktop entry
+  #            printf '%s\n' \
+  #              '[Desktop Entry]' \
+  #              'Type=Application' \
+  #              'Name=TR4QT' \
+  #              'Comment=Amateur Radio Contest Logger' \
+  #              'Exec=tr4qt' \
+  #              'Icon=tr4qt' \
+  #              'Categories=HamRadio;Network;' \
+  #              > appdir/usr/share/applications/tr4qt.desktop
+  #
+  #            # Create AppRun script
+  #            printf '%s\n' \
+  #              '#!/bin/bash' \
+  #              'SELF=\$(readlink -f \"\$0\")' \
+  #              'HERE=\${SELF%/*}' \
+  #              'export LD_LIBRARY_PATH=\"\${HERE}/usr/lib:\$LD_LIBRARY_PATH\"' \
+  #              'export QT_PLUGIN_PATH=\"\${HERE}/usr/plugins\"' \
+  #              'exec \"\${HERE}/usr/bin/tr4qt\" \"\$@\"' \
+  #              > appdir/AppRun
+  #            chmod +x appdir/AppRun
+  #
+  #            # Create AppImage using appimagetool
+  #            echo '==> Creating AppImage...'
+  #            # Download appimagetool AppImage
+  #            wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage
+  #            chmod +x appimagetool-aarch64.AppImage
+  #
+  #            # Extract using --appimage-extract with special env var (works without FUSE)
+  #            APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool-aarch64.AppImage --appimage-extract >/dev/null 2>&1 || true
+  #
+  #            # If extraction failed, try alternative method
+  #            if [ ! -d "squashfs-root" ]; then
+  #              echo "Trying alternative extraction method..."
+  #              apt-get install -y squashfs-tools
+  #              # AppImage format: ELF header + squashfs. Find squashfs start with offset.
+  #              # Skip to squashfs magic bytes (hsqs in little-endian = 73 71 73 68)
+  #              OFFSET=\$(grep -aobm1 'hsqs' appimagetool-aarch64.AppImage | cut -d: -f1)
+  #              dd if=appimagetool-aarch64.AppImage of=appimagetool.squashfs bs=1 skip=\$OFFSET 2>/dev/null
+  #              unsquashfs -d squashfs-root appimagetool.squashfs
+  #            fi
+  #
+  #            # Run appimagetool from extracted directory
+  #            ARCH=aarch64 ./squashfs-root/AppRun appdir TR4QT-ARM64.AppImage
+  #
+  #            echo '==> Deployment complete'
+  #            ls -lh TR4QT-ARM64.AppImage
+  #
+  #            # Verify AppImage was created and has reasonable size
+  #            echo ''
+  #            echo '==> Verifying AppImage'
+  #            if [ ! -f 'TR4QT-ARM64.AppImage' ]; then
+  #              echo '✗ ERROR: AppImage was not created!'
+  #              exit 1
+  #            fi
+  #
+  #            SIZE=\$(stat -c%s TR4QT-ARM64.AppImage 2>/dev/null || stat -f%z TR4QT-ARM64.AppImage)
+  #            SIZE_MB=\$((SIZE / 1024 / 1024))
+  #            echo \"✓ AppImage created: \${SIZE_MB}MB\"
+  #
+  #            if [ \$SIZE_MB -lt 10 ]; then
+  #              echo '✗ ERROR: AppImage suspiciously small (< 10MB)'
+  #              exit 1
+  #            fi
+  #
+  #            # Verify SQL driver was copied into appdir before packaging
+  #            echo ''
+  #            echo '=== Verifying SQL driver was included ==='
+  #            if [ -f 'appdir/usr/plugins/sqldrivers/libqsqlite.so' ]; then
+  #              echo '✓ SUCCESS: libqsqlite.so found in appdir before packaging'
+  #            else
+  #              echo '✗ ERROR: libqsqlite.so NOT found in appdir!'
+  #              echo 'This is a FATAL error - AppImage will not work without SQL driver'
+  #              exit 1
+  #            fi
+  #
+  #            echo ''
+  #            echo '✓ AppImage verification complete'
+  #            echo 'Note: Cannot extract AppImage for deep inspection (requires FUSE, unavailable in Docker)'
+  #            echo 'Note: SQL driver presence verified in source appdir before packaging'
+  #          "
+  #
+  #    - name: Upload Artifact
+  #      uses: actions/upload-artifact@v4
+  #      with:
+  #        name: TR4QT-Linux-ARM64
+  #        path: TR4QT*.AppImage
+  #
+  #    - name: Notify Slack - Linux ARM64 Complete
+  #      if: always()
+  #      run: |
+  #        if [ "${{ job.status }}" == "success" ]; then
+  #          STATUS="✅ SUCCESS"
+  #          COLOR="good"
+  #        else
+  #          STATUS="❌ FAILED"
+  #          COLOR="danger"
+  #        fi
+  #        curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+  #          -H 'Content-Type: application/json' \
+  #          -d "{
+  #            \"attachments\": [{
+  #              \"color\": \"$COLOR\",
+  #              \"title\": \"Linux ARM64 Build $STATUS\",
+  #              \"fields\": [
+  #                {\"title\": \"Status\", \"value\": \"${{ job.status }}\", \"short\": true},
+  #                {\"title\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+  #                {\"title\": \"Build URL\", \"value\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Build>\", \"short\": false}
+  #              ]
+  #            }]
+  #          }"
 
   # Create release when a tag is pushed
   release:
@@ -928,7 +931,7 @@ jobs:
 
   notify:
     name: Slack Notification
-    needs: [build-windows, build-macos, build-linux-arm64]
+    needs: [build-windows, build-macos]
     runs-on: ubuntu-latest
     if: always()  # Run even if builds fail
 
@@ -936,16 +939,9 @@ jobs:
     - name: Determine build status
       id: status
       run: |
-        # Linux is optional (manual only), so only require Windows + macOS
-        LINUX_OK=true
-        if [ "${{ needs.build-linux-arm64.result }}" != "skipped" ] && \
-           [ "${{ needs.build-linux-arm64.result }}" != "success" ]; then
-          LINUX_OK=false
-        fi
-
+        # Only Windows and macOS builds required
         if [ "${{ needs.build-windows.result }}" == "success" ] && \
-           [ "${{ needs.build-macos.result }}" == "success" ] && \
-           [ "$LINUX_OK" == "true" ]; then
+           [ "${{ needs.build-macos.result }}" == "success" ]; then
           echo "status=✅ SUCCESS" >> $GITHUB_OUTPUT
           echo "color=good" >> $GITHUB_OUTPUT
         else
@@ -971,11 +967,6 @@ jobs:
                 {
                   "title": "macOS",
                   "value": "${{ needs.build-macos.result }}",
-                  "short": true
-                },
-                {
-                  "title": "Linux ARM64",
-                  "value": "${{ needs.build-linux-arm64.result }}",
                   "short": true
                 },
                 {
