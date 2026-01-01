@@ -66,24 +66,30 @@ RadioController::~RadioController() {
     // Signal shutdown to worker thread (prevents new connection attempts)
     m_shutdownRequested.store(true);
 
-    // Disconnect radio if still connected
-    if (m_connected) {
-        disconnectFromRadio();
-        // Give it a moment to disconnect
-        QThread::msleep(100);
-    }
-
-    // Stop worker thread
-    // With shutdown flag + 1s Hamlib timeout, thread should stop within 1-2 seconds
-    // If still blocked on network operation, we'll terminate after 3 seconds
+    // Stop worker thread immediately - don't try to disconnect gracefully
+    // If thread is stuck in rig_open()/connect(), it won't respond to disconnect anyway
+    // Just terminate it and let Hamlib cleanup handle the rest
+    LOG_DEBUG("RadioController", "Destructor: Stopping worker thread");
     m_workerThread.quit();
-    m_workerThread.wait(3000);  // Wait up to 3 seconds
 
-    if (m_workerThread.isRunning()) {
-        LOG_WARN("RadioController", "Worker thread did not stop gracefully, terminating");
+    // Give thread 1 second to finish gracefully (very short timeout)
+    // If it's stuck in connect(), it won't finish, so terminate quickly
+    if (!m_workerThread.wait(1000)) {
+        LOG_WARN("RadioController", "Worker thread stuck (likely in blocking connect/rig_open), terminating forcefully");
         m_workerThread.terminate();
-        m_workerThread.wait();
+
+        // Must wait after terminate to ensure thread is actually dead
+        if (!m_workerThread.wait(2000)) {
+            LOG_ERROR("RadioController", "Worker thread failed to terminate even after 2 seconds - this should never happen!");
+        } else {
+            LOG_DEBUG("RadioController", "Worker thread terminated forcefully");
+        }
+    } else {
+        LOG_DEBUG("RadioController", "Worker thread stopped gracefully");
     }
+
+    // Thread is now stopped - safe to delete radio object
+    // This happens automatically since m_radio is a child QObject
 }
 
 bool RadioController::isConnected() const {
