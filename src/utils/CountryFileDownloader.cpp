@@ -1,6 +1,7 @@
 #include "CountryFileDownloader.h"
 #include "../core/Constants.h"
 #include "../logging/LogMacros.h"
+#include "../utils/AppSettings.h"
 #include "../3rdparty/miniz/miniz.h"
 #include <QFile>
 #include <QDir>
@@ -110,12 +111,16 @@ void CountryFileDownloader::onVersionCheckFinished() {
         }
 
         // Check if update is available (emit signal for status bar notification)
-        if (numericalVersion > CURRENT_CTY_VERSION) {
+        // Use saved version from AppSettings if available, otherwise fall back to constant
+        int savedVersion = AppSettings::instance().getCountryFileVersion();
+        int currentVersion = (savedVersion > 0) ? savedVersion : CURRENT_CTY_VERSION;
+
+        if (numericalVersion > currentVersion) {
             LOG_INFO("CountryFileDownloader", QString("CTY.DAT update available: CTY-%1 (current: CTY-%2)")
-                .arg(numericalVersion).arg(CURRENT_CTY_VERSION));
-            emit updateAvailable(CURRENT_CTY_VERSION, numericalVersion, m_latestVersion);
+                .arg(numericalVersion).arg(currentVersion));
+            emit updateAvailable(currentVersion, numericalVersion, m_latestVersion);
         } else {
-            LOG_DEBUG("CountryFileDownloader", QString("CTY.DAT is up to date: CTY-%1").arg(CURRENT_CTY_VERSION));
+            LOG_DEBUG("CountryFileDownloader", QString("CTY.DAT is up to date: CTY-%1").arg(currentVersion));
         }
 
         // Only download if this was a download request (not just a version check)

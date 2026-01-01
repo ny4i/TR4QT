@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.10.8";  // Fixed download dialogs - single dialog waits for user OK
+constexpr const char* APP_VERSION = "3.10.9";  // Fixed persistent CTY update notification using saved version
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
