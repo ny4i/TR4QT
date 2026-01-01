@@ -13,6 +13,9 @@ struct RadioConfig {
     int hamlibModelId{0};      // Hamlib RIG_MODEL_* constant
     QString port;               // Serial port or network address
     int baudRate{38400};        // Serial baud rate
+    int dataBits{8};            // Serial data bits (5, 6, 7, 8) - default 8
+    int stopBits{1};            // Serial stop bits (1, 2) - default 1
+    int parity{0};              // Serial parity (0=None, 1=Odd, 2=Even) - default None
     int civAddress{0};          // CI-V address (for Icom radios)
     int pollInterval{100};      // Polling interval in ms
 };

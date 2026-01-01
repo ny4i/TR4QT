@@ -71,8 +71,26 @@ void RadioConfigDialog::setupUI() {
     m_baudRateCombo->addItems({"4800", "9600", "19200", "38400", "57600", "115200"});
     m_baudRateCombo->setCurrentText("38400");
 
+    m_dataBitsCombo = new QComboBox(this);
+    m_dataBitsCombo->addItems({"5", "6", "7", "8"});
+    m_dataBitsCombo->setCurrentText("8");
+    m_dataBitsCombo->setToolTip("Number of data bits (default: 8)\nLeave at default unless radio requires specific setting");
+
+    m_stopBitsCombo = new QComboBox(this);
+    m_stopBitsCombo->addItems({"1", "2"});
+    m_stopBitsCombo->setCurrentText("1");
+    m_stopBitsCombo->setToolTip("Number of stop bits (default: 1)\nLeave at default unless radio requires specific setting");
+
+    m_parityCombo = new QComboBox(this);
+    m_parityCombo->addItems({"None", "Odd", "Even"});
+    m_parityCombo->setCurrentIndex(0);  // None
+    m_parityCombo->setToolTip("Parity checking (default: None)\nLeave at default unless radio requires specific setting");
+
     serialLayout->addRow("Port:", m_serialPortEdit);
     serialLayout->addRow("Baud Rate:", m_baudRateCombo);
+    serialLayout->addRow("Data Bits:", m_dataBitsCombo);
+    serialLayout->addRow("Stop Bits:", m_stopBitsCombo);
+    serialLayout->addRow("Parity:", m_parityCombo);
     mainLayout->addWidget(m_serialGroup);
 
     // Network settings
@@ -266,12 +284,18 @@ RadioConfig RadioConfigDialog::getConfig() const {
     if (m_serialRadio->isChecked()) {
         config.port = m_serialPortEdit->text();
         config.baudRate = m_baudRateCombo->currentText().toInt();
+        config.dataBits = m_dataBitsCombo->currentText().toInt();
+        config.stopBits = m_stopBitsCombo->currentText().toInt();
+        config.parity = m_parityCombo->currentIndex();  // 0=None, 1=Odd, 2=Even
     } else {
         // Network connection: format as "ip:port"
         config.port = QString("%1:%2")
                           .arg(m_ipAddressEdit->text())
                           .arg(m_portSpin->value());
         config.baudRate = 0;  // Not used for network
+        config.dataBits = 8;  // Defaults for network (not used)
+        config.stopBits = 1;
+        config.parity = 0;
     }
 
     // Parse CI-V address from text (support blank, "0", hex with/without 0x prefix)
@@ -323,6 +347,9 @@ void RadioConfigDialog::setConfig(const RadioConfig& config) {
         m_serialRadio->setChecked(true);
         m_serialPortEdit->setText(config.port);
         m_baudRateCombo->setCurrentText(QString::number(config.baudRate));
+        m_dataBitsCombo->setCurrentText(QString::number(config.dataBits));
+        m_stopBitsCombo->setCurrentText(QString::number(config.stopBits));
+        m_parityCombo->setCurrentIndex(config.parity);
     }
 
     // Display CI-V address (0 = blank, otherwise hex without 0x prefix)
