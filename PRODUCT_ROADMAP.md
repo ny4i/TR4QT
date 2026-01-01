@@ -237,23 +237,46 @@ Since we're using QGraphicsView (not web-based), export is much simpler:
 
 ### 8. Super Check Partial (SCP) Database 🔍
 **Priority**: MEDIUM
-**Effort**: 4-6 hours
+**Effort**: 4-6 days (6 phases)
 **Impact**: Callsign auto-completion
+**Status**: ✅ Detailed plan complete, ❌ Implementation not started
 
 #### Goal
 Real-time callsign lookup/autocomplete from master database (like TR4W)
 
-#### Status
-Plan exists (task a4b23e4 completed)
+#### Plan Summary (from task a4b23e4)
+Comprehensive 12-section implementation plan created, covering:
+- Database schema (`scp_callsigns` table in GlobalDatabase)
+- SCPRepository (smart prefix+suffix matching <50ms)
+- SCPDownloader (from supercheckpartial.com)
+- SCPCallsignExtractor (augment from local logs)
+- SCPMatcher (matching engine)
+- UI integration (reuse duplicate warning label)
+- Preferences tab (download, settings)
 
-#### Tasks
-- [ ] Download SCP database (MASTER.SCP or similar)
-- [ ] Create `SCPDatabase` class with trie-based lookup
-- [ ] Integrate with callsign entry field
-- [ ] Show matches in popup/dropdown
-- [ ] Update database periodically
+#### Implementation Phases (6 days)
+- [ ] **Day 1**: Database foundation (schema, SCPRepository)
+- [ ] **Day 2**: Download infrastructure (SCPDownloader, extractor)
+- [ ] **Day 3**: Matching engine (SCPMatcher, UI integration)
+- [ ] **Day 4**: Preferences integration (settings, SCP tab)
+- [ ] **Day 5**: Local log augmentation
+- [ ] **Day 6**: Polish & testing
 
-**Reference**: Task a4b23e4 in system reminders
+#### Files to Create (12 new files)
+- `src/data/SCPRepository.h/cpp`
+- `src/utils/SCPDownloader.h/cpp`
+- `src/utils/SCPCallsignExtractor.h/cpp`
+- `src/utils/SCPMatcher.h/cpp`
+- 4 test files
+
+#### Files to Modify (8 files)
+- `src/data/global_schema.sql` - Add scp_callsigns table
+- `src/ui/MainWindow.h/cpp` - Integrate into onCallsignChanged()
+- `src/ui/dialogs/PreferencesDialog.h/cpp` - Add SCP tab
+- `src/utils/AppSettings.h/cpp` - Add SCP settings
+- `src/CMakeLists.txt` - Add source files
+
+**Reference**: Detailed plan in task a4b23e4 output (12 sections, production-ready design)
 
 ---
 
