@@ -40,6 +40,12 @@ public:
     // Accept/Apply settings
     void accept() override;
 
+    /**
+     * Select a specific category/tab by name
+     * @param categoryName The category to show (e.g., "Radio", "Station", "Appearance")
+     */
+    void selectCategory(const QString& categoryName);
+
 signals:
     /**
      * Emitted when LOTW settings change and Band Map needs refresh

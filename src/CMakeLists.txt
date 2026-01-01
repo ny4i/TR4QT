@@ -65,7 +65,6 @@ set(SOURCES
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp
-    ui/dialogs/RadioConfigDialog.cpp
     ui/dialogs/PreferencesDialog.cpp
     ui/dialogs/OperatorDialog.cpp
     ui/dialogs/ContestChooserDialog.cpp
@@ -159,7 +158,6 @@ set(HEADERS
     models/StationInfo.h
     ui/MainWindow.h
     ui/models/QSOTableModel.h
-    ui/dialogs/RadioConfigDialog.h
     ui/dialogs/PreferencesDialog.h
     ui/dialogs/OperatorDialog.h
     ui/dialogs/ContestChooserDialog.h

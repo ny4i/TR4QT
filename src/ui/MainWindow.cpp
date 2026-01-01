@@ -1,5 +1,4 @@
 #include "MainWindow.h"
-#include "dialogs/RadioConfigDialog.h"
 #include "dialogs/PreferencesDialog.h"
 #include "dialogs/BackupRestoreDialog.h"
 #include "dialogs/OperatorDialog.h"
@@ -1382,25 +1381,12 @@ void MainWindow::setStatusMessage(const QString& message) {
 }
 
 void MainWindow::onRadioConfigure() {
-    LOG_DEBUG("MainWindow", "*** onRadioConfigure() called - opening RadioConfigDialog ***");
-    RadioConfigDialog dialog(this);
-
-    // Load existing config if available
-    AppSettings& settings = AppSettings::instance();
-    if (settings.hasRadioConfig()) {
-        dialog.setConfig(settings.loadRadioConfig());
-    }
+    LOG_DEBUG("MainWindow", "*** onRadioConfigure() called - opening Preferences with Radio tab ***");
+    PreferencesDialog dialog(this);
+    dialog.selectCategory("Radio");
 
     if (dialog.exec() == QDialog::Accepted) {
-        RadioConfig config = dialog.getConfig();
-        settings.saveRadioConfig(config);
-
-        // Save auto-connect setting
-        settings.setRadioAutoConnect(dialog.getAutoConnect());
-
-        m_statusLabel->setText(QString("Radio configuration saved: Model %1, Port %2")
-                                  .arg(config.hamlibModelId)
-                                  .arg(config.port));
+        m_statusLabel->setText("Radio configuration saved");
 
         // If currently connected, ask to reconnect
         if (m_radioConnected) {
