@@ -8,6 +8,10 @@
 #include <QRadioButton>
 #include <QCheckBox>
 #include <QGroupBox>
+#include <QPushButton>
+#include <QTimer>
+#include <QShowEvent>
+#include <QHideEvent>
 #include "../../radio/RadioInterface.h"
 
 namespace TR4QT {
@@ -38,14 +42,21 @@ public:
     // Get auto-connect setting
     bool getAutoConnect() const;
 
+protected:
+    void showEvent(QShowEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
+
 private slots:
     void onConnectionTypeChanged();
     void onRadioModelChanged(int index);
     void onTestConnection();
+    void onRefreshPorts();
+    void onPortAutoRefresh();
 
 private:
     void setupUI();
     void populateRadioModels();
+    void populateSerialPorts();
     void updateFieldsForRadio();
 
     // UI widgets
@@ -55,7 +66,10 @@ private:
     QRadioButton* m_serialRadio;
     QRadioButton* m_networkRadio;
 
+    QComboBox* m_serialPortCombo;
     QLineEdit* m_serialPortEdit;
+    QPushButton* m_refreshPortsButton;
+    QTimer* m_portRefreshTimer;
     QComboBox* m_baudRateCombo;
     QComboBox* m_dataBitsCombo;
     QComboBox* m_stopBitsCombo;
