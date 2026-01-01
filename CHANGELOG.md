@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.18.1] - 2026-01-01
+
+### Changed
+- **Radio Configuration Dialog**: Improved CI-V address input with radio buttons
+- Replaced single text field with clear "Default" vs "Custom" radio button choices
+- Default CI-V address option explicitly shows user intent (0x00)
+- Custom CI-V address field only enabled when "Custom" is selected
+- Auto-selects appropriate mode when loading saved configuration
+- Prevents confusion when 0 address value appeared as blank field
+
+### Fixed
+- CI-V address "0" no longer disappears when reopening Radio Configuration dialog
+- User now clearly sees whether default or custom CI-V address is configured
+- Auto-populated CI-V addresses for known Icom radios (IC-7300, IC-7610, IC-9700, etc.)
+
+### UI Improvements
+- Radio buttons: "Use Default CI-V Address" and "Custom CI-V Address: [____]"
+- Custom address field disabled when "Default" selected (clearer state)
+- Automatic focus and selection when switching to "Custom" mode
+- Better tooltips explaining default (0x00) vs custom addresses
+
 ## [3.18.0] - 2026-01-01
 
 ### Added

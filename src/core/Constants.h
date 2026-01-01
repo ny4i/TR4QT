@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.18.0";  // Platform-native file storage with AppData/Library support
+constexpr const char* APP_VERSION = "3.18.1";  // CI-V address radio buttons for clearer UX
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
