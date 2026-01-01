@@ -322,6 +322,7 @@ private:
     // Country file for lookups
     CountryFile m_countryFile;
     CountryFileDownloader* m_countryFileDownloader;  // For version checking
+    int m_latestCTYVersion;  // Latest CTY version from update check
 
     // Super Check Partial matcher
     SCPMatcher* m_scpMatcher;

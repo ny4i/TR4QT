@@ -85,6 +85,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_qsoTableModel(new QSOTableModel(this))
     , m_scpMatcher(new SCPMatcher())
     , m_countryFileDownloader(new CountryFileDownloader(this))
+    , m_latestCTYVersion(0)
     , m_udpBroadcastManager(new UdpBroadcastManager(this))
     , m_webServer(new WebServer(m_qsoTableModel, m_radio, this))
     , m_inRaiseAllWindows(false)
@@ -4610,6 +4611,9 @@ void MainWindow::onCTYUpdateAvailable(int currentVersion, int latestVersion, con
     LOG_INFO("MainWindow", QString("CTY.DAT update available: CTY-%1 (current: CTY-%2)")
         .arg(latestVersion).arg(currentVersion));
 
+    // Store latest version for saving after download
+    m_latestCTYVersion = latestVersion;
+
     // Show clickable status bar message
     QString message = QString("CTY.DAT update available: CTY-%1. Click Tools → Download CTY.DAT or press Alt+O to update.")
         .arg(latestVersion);
@@ -4667,6 +4671,12 @@ void MainWindow::onDownloadCTY(bool headless) {
                         m_countryFile.setVersion(version);
                         LOG_DEBUG("MainWindow", QString("Country file reloaded successfully. Version: %1")
                             .arg(m_countryFile.getVersion()));
+
+                        // Save the numerical version to AppSettings to prevent re-notification
+                        if (m_latestCTYVersion > 0) {
+                            AppSettings::instance().setCountryFileVersion(m_latestCTYVersion);
+                            LOG_DEBUG("MainWindow", QString("Saved CTY version to settings: %1").arg(m_latestCTYVersion));
+                        }
 
                         // Update status bar permanently (no timeout)
                         statusBar()->showMessage(QString("CTY.DAT %1 loaded successfully").arg(version));
