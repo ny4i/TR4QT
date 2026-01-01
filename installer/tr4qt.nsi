@@ -6,7 +6,7 @@
 
 ; Application metadata
 !define APPNAME "TR4QT"
-!define APPVERSION "3.14.0"
+!define APPVERSION "3.15.0"
 !define APPURL "https://github.com/ny4i/TR4QT"
 !define APPPUBLISHER "TR4QT Project"
 

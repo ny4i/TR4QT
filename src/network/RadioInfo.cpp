@@ -38,6 +38,7 @@ QByteArray RadioInfo::toXml() const
     xml.writeTextElement("IsSplit", isSplit ? "True" : "False");
     xml.writeTextElement("IsStereo", isStereo ? "True" : "False");
     xml.writeTextElement("IsConnected", isConnected ? "True" : "False");
+    xml.writeTextElement("IsRunMode", isRunMode ? "True" : "False");
 
     // UI state (for N1MM+ compatibility)
     xml.writeTextElement("FocusEntry", QString::number(focusEntry));

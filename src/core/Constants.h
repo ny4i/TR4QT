@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.14.0";  // Serial port configuration (data bits, stop bits, parity)
+constexpr const char* APP_VERSION = "3.15.0";  // CQ/S&P mode tracking in QSO records and UDP broadcasts
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

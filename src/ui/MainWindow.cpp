@@ -2075,6 +2075,9 @@ void MainWindow::onLogQSO() {
     qso.mode = m_currentState.modeA;
     qso.band = m_currentState.bandA;
 
+    // Track operating mode (CQ vs S&P)
+    qso.isRunQSO = (m_operatingMode == OperatingMode::CQ);
+
     // Exchange
     qso.rstSent = (qso.mode == ModeType::CW) ? "599" : "59";
     qso.exchangeReceived = exchange;
@@ -5442,6 +5445,11 @@ void MainWindow::setOperatingMode(OperatingMode mode) {
             m_operatingModeLabel->setText("S&P");
             m_operatingModeLabel->setStyleSheet("color: blue; font-weight: bold; padding: 0 10px;");
         }
+    }
+
+    // Update UDP broadcast manager
+    if (m_udpBroadcastManager) {
+        m_udpBroadcastManager->setOperatingMode(mode == OperatingMode::CQ);
     }
 
     LOG_DEBUG("MainWindow", QString("Operating mode changed to: %1").arg(mode == OperatingMode::CQ ? "CQ" : "S&P"));

@@ -74,6 +74,11 @@ void UdpBroadcastManager::setDestinations(const QList<UdpDestination>& destinati
     m_broadcaster->setDestinations(destinations);
 }
 
+void UdpBroadcastManager::setOperatingMode(bool isRunMode)
+{
+    m_isRunMode = isRunMode;
+}
+
 void UdpBroadcastManager::onRadioStateChanged(const RadioState& state,
                                               const QString& stationCall)
 {
@@ -165,6 +170,7 @@ RadioInfo UdpBroadcastManager::createRadioInfo(const RadioState& state,
     info.isSplit = state.isSplitEnabled;
     info.isStereo = false;  // Not implemented yet (SO2R)
     info.isConnected = state.isValid;
+    info.isRunMode = m_isRunMode;  // CQ/Run mode vs S&P mode
 
     // UI state (mostly unused, set defaults)
     info.focusEntry = 0;

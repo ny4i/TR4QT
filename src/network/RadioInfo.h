@@ -52,6 +52,7 @@ public:
     bool isSplit{false};            // Split mode enabled
     bool isStereo{false};           // Stereo mode (for SO2R)
     bool isConnected{true};         // Radio connected
+    bool isRunMode{false};          // CQ/Run mode (true) vs S&P mode (false)
 
     // UI state (for N1MM+ compatibility, mostly unused in TR4QT)
     int focusEntry{0};
