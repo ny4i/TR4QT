@@ -33,12 +33,16 @@
 #include <QDir>
 #include <QProgressDialog>
 #include <QRegularExpression>
+#include <QSerialPortInfo>
+#include <QShowEvent>
+#include <QHideEvent>
 
 namespace TR4QT {
 
 PreferencesDialog::PreferencesDialog(QWidget* parent)
     : QDialog(parent)
     , m_k4Discovery(new K4Discovery(this))
+    , m_portRefreshTimer(new QTimer(this))
 {
     LOG_DEBUG("PreferencesDialog", "*** PreferencesDialog constructor called ***");
     LOG_DEBUG("PreferencesDialog", "*** Setting window title ***");
@@ -54,6 +58,10 @@ PreferencesDialog::PreferencesDialog(QWidget* parent)
     // Connect K4 Discovery signals
     connect(m_k4Discovery, &K4Discovery::radioFound, this, &PreferencesDialog::onK4RadioFound);
     connect(m_k4Discovery, &K4Discovery::discoveryFinished, this, &PreferencesDialog::onK4DiscoveryFinished);
+
+    // Setup serial port refresh timer (5 second interval)
+    m_portRefreshTimer->setInterval(5000);
+    connect(m_portRefreshTimer, &QTimer::timeout, this, &PreferencesDialog::refreshSerialPorts);
 }
 
 void PreferencesDialog::setupUI() {
@@ -286,8 +294,26 @@ QWidget* PreferencesDialog::createRadioTab() {
     m_serialGroup = new QGroupBox("Serial Port Settings", this);
     QFormLayout* serialLayout = new QFormLayout(m_serialGroup);
 
+    // Serial port dropdown with detected ports
+    QHBoxLayout* portLayout = new QHBoxLayout();
+    m_serialPortCombo = new QComboBox(this);
+    m_serialPortCombo->setToolTip("Select a detected serial port, or type a custom port name below");
+    m_serialPortCombo->setMinimumWidth(200);
+    portLayout->addWidget(m_serialPortCombo, 1);
+
+    m_refreshPortsButton = new QPushButton("Refresh", this);
+    m_refreshPortsButton->setToolTip("Rescan for serial ports");
+    m_refreshPortsButton->setMaximumWidth(80);
+    connect(m_refreshPortsButton, &QPushButton::clicked, this, &PreferencesDialog::refreshSerialPorts);
+    portLayout->addWidget(m_refreshPortsButton);
+
+    serialLayout->addRow("Port:", portLayout);
+
+    // Manual entry fallback
     m_serialPortEdit = new QLineEdit(this);
-    m_serialPortEdit->setPlaceholderText("/dev/ttyUSB0 or COM1");
+    m_serialPortEdit->setPlaceholderText("Manual entry (e.g., COM10 or /dev/ttyUSB0)");
+    m_serialPortEdit->setToolTip("Type a port name manually if not in dropdown");
+    serialLayout->addRow("Or manual:", m_serialPortEdit);
 
     m_baudRateCombo = new QComboBox(this);
     m_baudRateCombo->addItems({"4800", "9600", "19200", "38400", "57600", "115200"});
@@ -308,12 +334,14 @@ QWidget* PreferencesDialog::createRadioTab() {
     m_parityCombo->setCurrentIndex(0);  // None
     m_parityCombo->setToolTip("Parity checking (default: None)\nLeave at default unless radio requires specific setting");
 
-    serialLayout->addRow("Port:", m_serialPortEdit);
     serialLayout->addRow("Baud Rate:", m_baudRateCombo);
     serialLayout->addRow("Data Bits:", m_dataBitsCombo);
     serialLayout->addRow("Stop Bits:", m_stopBitsCombo);
     serialLayout->addRow("Parity:", m_parityCombo);
     layout->addWidget(m_serialGroup);
+
+    // Initial population of serial ports
+    refreshSerialPorts();
 
     // Network settings
     m_networkGroup = new QGroupBox("Network Settings", this);
@@ -376,11 +404,17 @@ QWidget* PreferencesDialog::createRadioTab() {
 
     layout->addWidget(advancedGroup);
 
-    // Test connection button
+    // Test connection button and status label
     QHBoxLayout* testLayout = new QHBoxLayout();
-    QPushButton* testButton = new QPushButton("Test Connection", this);
-    connect(testButton, &QPushButton::clicked, this, &PreferencesDialog::onTestRadioConnection);
-    testLayout->addWidget(testButton);
+    m_testConnectionButton = new QPushButton("Test Connection", this);
+    connect(m_testConnectionButton, &QPushButton::clicked, this, &PreferencesDialog::onTestRadioConnection);
+    testLayout->addWidget(m_testConnectionButton);
+
+    m_connectionStatusLabel = new QLabel(this);
+    m_connectionStatusLabel->setStyleSheet("color: #666; font-style: italic;");
+    m_connectionStatusLabel->hide();  // Hidden by default
+    testLayout->addWidget(m_connectionStatusLabel);
+
     testLayout->addStretch();
     layout->addLayout(testLayout);
 
@@ -1310,7 +1344,15 @@ void PreferencesDialog::loadSettings() {
             }
         } else {
             m_serialRadio->setChecked(true);
-            m_serialPortEdit->setText(config.port);
+            // Try to select port in dropdown first
+            int portIndex = m_serialPortCombo->findData(config.port);
+            if (portIndex >= 0) {
+                m_serialPortCombo->setCurrentIndex(portIndex);
+                m_serialPortEdit->clear();  // Clear manual entry if found in dropdown
+            } else {
+                // Not found in dropdown - use manual entry
+                m_serialPortEdit->setText(config.port);
+            }
             m_baudRateCombo->setCurrentText(QString::number(config.baudRate));
             m_dataBitsCombo->setCurrentText(QString::number(config.dataBits));
             m_stopBitsCombo->setCurrentText(QString::number(config.stopBits));
@@ -1451,7 +1493,12 @@ void PreferencesDialog::saveSettings() {
     }
 
     if (m_serialRadio->isChecked()) {
-        config.port = m_serialPortEdit->text();
+        // Prefer dropdown selection, fall back to manual entry
+        QString selectedPort = m_serialPortCombo->currentData().toString();
+        if (selectedPort.isEmpty() || !m_serialPortCombo->isEnabled()) {
+            selectedPort = m_serialPortEdit->text().trimmed();
+        }
+        config.port = selectedPort;
         config.baudRate = m_baudRateCombo->currentText().toInt();
         config.dataBits = m_dataBitsCombo->currentText().toInt();
         config.stopBits = m_stopBitsCombo->currentText().toInt();
@@ -1602,6 +1649,19 @@ void PreferencesDialog::selectCategory(const QString& categoryName) {
     }
 }
 
+void PreferencesDialog::setRadioConnected(bool connected) {
+    if (connected) {
+        m_testConnectionButton->setEnabled(false);
+        m_testConnectionButton->setToolTip("Cannot test - radio is already connected");
+        m_connectionStatusLabel->setText("(Radio is connected - disconnect to test)");
+        m_connectionStatusLabel->show();
+    } else {
+        m_testConnectionButton->setEnabled(true);
+        m_testConnectionButton->setToolTip("Test connection to the configured radio");
+        m_connectionStatusLabel->hide();
+    }
+}
+
 void PreferencesDialog::onApply() {
     saveSettings();
 }
@@ -1610,6 +1670,13 @@ void PreferencesDialog::onConnectionTypeChanged() {
     bool isSerial = m_serialRadio->isChecked();
     m_serialGroup->setVisible(isSerial);
     m_networkGroup->setVisible(!isSerial);
+
+    // Manage port refresh timer based on connection type
+    if (isSerial && isVisible()) {
+        m_portRefreshTimer->start();
+    } else {
+        m_portRefreshTimer->stop();
+    }
 }
 
 void PreferencesDialog::onRadioModelChanged(int index) {
@@ -1640,7 +1707,12 @@ void PreferencesDialog::onTestRadioConnection() {
     }
 
     if (m_serialRadio->isChecked()) {
-        config.port = m_serialPortEdit->text();
+        // Prefer dropdown selection, fall back to manual entry
+        QString selectedPort = m_serialPortCombo->currentData().toString();
+        if (selectedPort.isEmpty() || !m_serialPortCombo->isEnabled()) {
+            selectedPort = m_serialPortEdit->text().trimmed();
+        }
+        config.port = selectedPort;
         config.baudRate = m_baudRateCombo->currentText().toInt();
         config.dataBits = m_dataBitsCombo->currentText().toInt();
         config.stopBits = m_stopBitsCombo->currentText().toInt();
@@ -2443,6 +2515,63 @@ void PreferencesDialog::onK4DiscoveryFinished(int count) {
             DialogHelper::information(this, "K4 Discovery", message);
         }
     }
+}
+
+void PreferencesDialog::refreshSerialPorts() {
+    // Remember current selection
+    QString currentPort = m_serialPortCombo->currentData().toString();
+    if (currentPort.isEmpty() && m_serialPortCombo->currentIndex() >= 0) {
+        currentPort = m_serialPortCombo->currentText();
+    }
+
+    // Clear and repopulate
+    m_serialPortCombo->clear();
+
+    QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
+
+    if (ports.isEmpty()) {
+        m_serialPortCombo->addItem("(No serial ports detected)", "");
+        m_serialPortCombo->setEnabled(false);
+    } else {
+        m_serialPortCombo->setEnabled(true);
+
+        for (const QSerialPortInfo& port : ports) {
+            QString displayName = port.portName();
+            if (!port.description().isEmpty()) {
+                displayName += QString(" (%1)").arg(port.description());
+            }
+            m_serialPortCombo->addItem(displayName, port.portName());
+        }
+
+        // Try to restore previous selection
+        if (!currentPort.isEmpty()) {
+            int index = m_serialPortCombo->findData(currentPort);
+            if (index >= 0) {
+                m_serialPortCombo->setCurrentIndex(index);
+            }
+        }
+    }
+
+    LOG_DEBUG("PreferencesDialog", QString("Refreshed serial ports: %1 found").arg(ports.count()));
+}
+
+void PreferencesDialog::showEvent(QShowEvent* event) {
+    QDialog::showEvent(event);
+
+    // Refresh ports when dialog becomes visible
+    refreshSerialPorts();
+
+    // Start auto-refresh timer if serial mode is selected
+    if (m_serialRadio && m_serialRadio->isChecked()) {
+        m_portRefreshTimer->start();
+    }
+}
+
+void PreferencesDialog::hideEvent(QHideEvent* event) {
+    // Stop auto-refresh timer when dialog is hidden
+    m_portRefreshTimer->stop();
+
+    QDialog::hideEvent(event);
 }
 
 } // namespace TR4QT
