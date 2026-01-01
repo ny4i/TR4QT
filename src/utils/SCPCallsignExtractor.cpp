@@ -2,6 +2,7 @@
 #include "../data/SCPRepository.h"
 #include "../core/Constants.h"
 #include "../logging/LogMacros.h"
+#include "PathManager.h"
 #include <QDir>
 #include <QSqlDatabase>
 #include <QSqlQuery>
@@ -15,7 +16,7 @@ SCPCallsignExtractor::SCPCallsignExtractor() {
 
 QStringList SCPCallsignExtractor::extractFromAllContests() {
     // Get contest logs directory
-    QString logsDir = QDir::homePath() + "/" + CONFIG_DIR + "/logs";
+    QString logsDir = PathManager::getLogsDir();
     QDir dir(logsDir);
 
     if (!dir.exists()) {

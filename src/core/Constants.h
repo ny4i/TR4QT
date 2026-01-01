@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.17.0";  // Pre-flight TCP connectivity check before Hamlib connection
+constexpr const char* APP_VERSION = "3.18.0";  // Platform-native file storage with AppData/Library support
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
@@ -16,8 +16,10 @@ constexpr const char* COUNTRY_FILE_NAME = "cty.dat";
 constexpr int CURRENT_CTY_VERSION = 3540;  // Update as needed
 
 // Database
-constexpr const char* DB_DIR = ".tr4qt/logs";
-constexpr const char* CONFIG_DIR = ".tr4qt";
+// DEPRECATED: Use PathManager::getLogsDir() for platform-native paths
+// These constants are kept for reference only
+constexpr const char* DB_DIR = ".tr4qt/logs";           // Legacy Unix-style path
+constexpr const char* CONFIG_DIR = ".tr4qt";            // Legacy Unix-style path
 constexpr const char* GLOBAL_DB_NAME = "tr4qt_global.db";
 
 // LoTW
@@ -25,7 +27,8 @@ constexpr const char* LOTW_USERS_FILE = "lotw-user-activity.csv";
 constexpr const char* LOTW_USERS_URL = "https://lotw.arrl.org/lotw-user-activity.csv";
 
 // Backup
-constexpr const char* BACKUP_DIR = ".tr4qt/backups";
+// DEPRECATED: Use PathManager::getBackupsDir() for platform-native paths
+constexpr const char* BACKUP_DIR = ".tr4qt/backups";    // Legacy Unix-style path
 constexpr int DEFAULT_BACKUP_INTERVAL = 10;  // QSOs between auto-backups
 constexpr int DEFAULT_MAX_BACKUPS = 50;       // Max backup files to keep
 

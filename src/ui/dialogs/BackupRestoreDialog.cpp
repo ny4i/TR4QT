@@ -3,6 +3,7 @@
 #include "../../data/QSORepository.h"
 #include "../../utils/AppSettings.h"
 #include "../../utils/DialogHelper.h"
+#include "../../utils/PathManager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -66,7 +67,7 @@ QWidget* BackupRestoreDialog::createBackupTab() {
     BackupManager& backup = BackupManager::instance();
     QString backupDir = backup.getBackupDirectory();
     if (backupDir.isEmpty()) {
-        backupDir = QDir::homePath() + "/.tr4qt/backups";
+        backupDir = PathManager::getBackupsDir();
     }
     m_backupLocationEdit->setText(backupDir);
 
@@ -315,7 +316,7 @@ void BackupRestoreDialog::updateBackupPreview() {
     // Generate backup filename preview
     QString backupDir = m_backupLocationEdit->text().trimmed();
     if (backupDir.isEmpty()) {
-        backupDir = QDir::homePath() + "/.tr4qt/backups";
+        backupDir = PathManager::getBackupsDir();
     }
 
     QFileInfo dbInfo(m_contestInfo.databasePath);
@@ -337,7 +338,7 @@ void BackupRestoreDialog::loadBackupList() {
 
     QString backupDir = m_backupLocationEdit->text().trimmed();
     if (backupDir.isEmpty()) {
-        backupDir = QDir::homePath() + "/.tr4qt/backups";
+        backupDir = PathManager::getBackupsDir();
     }
 
     // Get base name for filtering

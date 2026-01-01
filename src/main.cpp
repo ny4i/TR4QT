@@ -12,6 +12,7 @@
 #include "utils/CountryFile.h"
 #include "utils/CountryFileDownloader.h"
 #include "utils/AppSettings.h"
+#include "utils/PathManager.h"
 #include "data/GlobalDatabase.h"
 #include "radio/RadioInterface.h"
 #include "logging/Logger.h"
@@ -33,6 +34,10 @@ int main(int argc, char *argv[]) {
     // Log startup banner FIRST (before any other output)
     LOG_INFO("TR4QTMain", "******************** PROGRAM STARTUP ************************");
     LOG_INFO_F("TR4QTMain", "TR4QT Version %s", TR4QT::APP_VERSION);
+
+    // Migrate data from legacy ~/.tr4qt to platform-native location if needed
+    // This must happen early, before any file operations
+    TR4QT::PathManager::migrateFromLegacyPath();
 
     // Install Qt message handler (routes qDebug/qWarning/etc through our logger)
     qInstallMessageHandler(TR4QT::Logger::messageHandler);

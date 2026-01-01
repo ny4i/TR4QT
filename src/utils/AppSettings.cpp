@@ -1,6 +1,7 @@
 #include "AppSettings.h"
 #include "../core/Constants.h"
 #include "../network/UdpBroadcaster.h"
+#include "PathManager.h"
 #include <QDir>
 
 namespace TR4QT {
@@ -363,8 +364,8 @@ void AppSettings::setBackupDirectory(const QString& path) {
 }
 
 QString AppSettings::getBackupDirectory() const {
-    // Default to ~/.tr4qt/backups
-    QString defaultPath = QDir::homePath() + "/.tr4qt/backups";
+    // Default to platform-native backups directory
+    QString defaultPath = PathManager::getBackupsDir();
     return m_settings.value("Backup/backupDirectory", defaultPath).toString();
 }
 
@@ -392,7 +393,7 @@ void AppSettings::setCountryFilePath(const QString& path) {
 }
 
 QString AppSettings::getCountryFilePath() const {
-    QString defaultPath = QDir::homePath() + "/.tr4qt/cty.dat";
+    QString defaultPath = PathManager::getCountryFilePath();
     return m_settings.value("CountryFile/path", defaultPath).toString();
 }
 
@@ -724,7 +725,7 @@ void AppSettings::setLogFilePath(const QString& path) {
 }
 
 QString AppSettings::getLogFilePath() const {
-    QString defaultPath = QDir::homePath() + "/.tr4qt/logs/tr4qt.log";
+    QString defaultPath = PathManager::getLogsDir() + "/tr4qt.log";
     return m_settings.value("Logging/filePath", defaultPath).toString();
 }
 
