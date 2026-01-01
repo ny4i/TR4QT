@@ -61,7 +61,7 @@ private:
     QLineEdit* m_ipAddressEdit;
     QSpinBox* m_portSpin;
 
-    QSpinBox* m_civAddressSpin;
+    QLineEdit* m_civAddressEdit;  // Changed from QSpinBox for better UX (allow "0", blank, or hex)
     QSpinBox* m_pollIntervalSpin;
 
     QGroupBox* m_serialGroup;

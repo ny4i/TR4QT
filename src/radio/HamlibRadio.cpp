@@ -586,6 +586,24 @@ QList<ModeType> HamlibRadio::getSupportedModes() const {
     return modes;
 }
 
+bool HamlibRadio::supportsCWSending() const {
+    QMutexLocker locker(&m_rigMutex);
+
+    // Check if radio has send_morse capability
+    if (!m_rig || !m_rig->caps) {
+        return false;
+    }
+
+    // Hamlib radios with CW sending support have non-NULL send_morse function pointer
+    bool hasCapability = (m_rig->caps->send_morse != nullptr);
+
+    LOG_DEBUG("HamlibRadio", QString("supportsCWSending: %1 (model: %2)")
+        .arg(hasCapability ? "YES" : "NO")
+        .arg(m_rig->caps->model_name));
+
+    return hasCapability;
+}
+
 void HamlibRadio::pollRadio() {
     if (!isConnected()) return;
 

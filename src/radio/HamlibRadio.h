@@ -77,6 +77,9 @@ public:
     QString getRadioVersion() const;
     Q_INVOKABLE QList<ModeType> getSupportedModes() const;
 
+    // Capability checking
+    bool supportsCWSending() const;  // Check if radio supports rig_send_morse
+
 private slots:
     void pollRadio();
 

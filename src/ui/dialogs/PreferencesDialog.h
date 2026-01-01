@@ -123,7 +123,7 @@ private:
     QComboBox* m_baudRateCombo;
     QLineEdit* m_ipAddressEdit;
     QSpinBox* m_portSpin;
-    QSpinBox* m_civAddressSpin;
+    QLineEdit* m_civAddressEdit;  // Changed from QSpinBox for better UX
     QSpinBox* m_pollIntervalSpin;
     QCheckBox* m_autoConnectCheck;
     QGroupBox* m_serialGroup;

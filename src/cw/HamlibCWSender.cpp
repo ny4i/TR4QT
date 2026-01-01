@@ -41,7 +41,8 @@ CWSender::State HamlibCWSender::state() const {
 }
 
 bool HamlibCWSender::isAvailable() const {
-    return m_radio && m_radio->isConnected();
+    // Check if radio is connected AND supports CW sending via Hamlib
+    return m_radio && m_radio->isConnected() && m_radio->supportsCWSending();
 }
 
 int HamlibCWSender::wpm() const {
