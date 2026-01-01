@@ -57,6 +57,9 @@ private:
 
     QLineEdit* m_serialPortEdit;
     QComboBox* m_baudRateCombo;
+    QComboBox* m_dataBitsCombo;
+    QComboBox* m_stopBitsCombo;
+    QComboBox* m_parityCombo;
 
     QLineEdit* m_ipAddressEdit;
     QSpinBox* m_portSpin;

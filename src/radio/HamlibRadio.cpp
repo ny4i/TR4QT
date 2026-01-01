@@ -39,8 +39,26 @@ bool HamlibRadio::connect(const RadioConfig& config) {
             config.port.toStdString().c_str(),
             HAMLIB_FILPATHLEN - 1);
 
-    // Configure baud rate for serial connections
+    // Configure serial port parameters for serial connections
     m_rig->state.rigport.parm.serial.rate = config.baudRate;
+    m_rig->state.rigport.parm.serial.data_bits = config.dataBits;
+    m_rig->state.rigport.parm.serial.stop_bits = config.stopBits;
+
+    // Map parity index to Hamlib parity enum (0=None, 1=Odd, 2=Even)
+    switch (config.parity) {
+        case 0:  // None
+            m_rig->state.rigport.parm.serial.parity = RIG_PARITY_NONE;
+            break;
+        case 1:  // Odd
+            m_rig->state.rigport.parm.serial.parity = RIG_PARITY_ODD;
+            break;
+        case 2:  // Even
+            m_rig->state.rigport.parm.serial.parity = RIG_PARITY_EVEN;
+            break;
+        default:
+            m_rig->state.rigport.parm.serial.parity = RIG_PARITY_NONE;
+            break;
+    }
 
     // Configure CI-V address for Icom radios
     if (config.civAddress > 0) {
