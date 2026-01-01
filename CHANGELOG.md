@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.16.1] - 2026-01-01
+
+### Fixed
+- Critical shutdown deadlock when closing application during radio connection attempt
+- RadioController now uses non-blocking disconnect to prevent main thread hang
+- Worker thread forcefully terminated after 3-second timeout if still blocked
+
+### Technical Details
+- Changed disconnectFromRadio() from BlockingQueuedConnection to QueuedConnection
+- Sets m_shutdownRequested flag to abort pending connection attempts
+- Prevents deadlock when worker thread stuck in Hamlib rig_open() network timeout
+
 ## [3.16.0] - 2026-01-01
 
 ### Added

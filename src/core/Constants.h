@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.16.0";  // Serial port dropdown with auto-detection and refresh
+constexpr const char* APP_VERSION = "3.16.1";  // Fix shutdown deadlock when radio connection pending
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
