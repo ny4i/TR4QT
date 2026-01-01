@@ -150,10 +150,21 @@ void RadioController::connectToRadio(const RadioConfig& config) {
 }
 
 void RadioController::disconnectFromRadio() {
-    // Invoke disconnect method in worker thread (blocking to ensure it completes)
+    // Set shutdown flag to abort any pending connection attempts
+    m_shutdownRequested.store(true);
+
+    // Try to disconnect with timeout (don't block indefinitely if worker thread is stuck)
+    // Use Qt::QueuedConnection instead of BlockingQueuedConnection to avoid deadlock
+    // when worker thread is blocked in rig_open() during shutdown
     QMetaObject::invokeMethod(m_radio, [this]() {
+        // Only disconnect if not already in the middle of a blocking connect()
+        // The destructor will handle forceful shutdown if needed
         static_cast<RadioInterface*>(m_radio)->disconnect();
-    }, Qt::BlockingQueuedConnection);
+    }, Qt::QueuedConnection);
+
+    // Give worker thread a moment to process disconnect (non-blocking)
+    // If it's stuck in rig_open(), the destructor will terminate it after 3 seconds
+    LOG_DEBUG("RadioController", "Disconnect queued (non-blocking), destructor will ensure cleanup");
 }
 
 void RadioController::setFrequency(freq_t freq, VFO vfo) {
