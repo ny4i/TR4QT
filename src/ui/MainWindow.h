@@ -42,6 +42,7 @@ class BandMapWidget;
 class RadioControlWidget;
 class MultiplierWidget;
 class StatisticsWindow;
+class FunctionKeysWindow;
 class UdpBroadcastManager;
 class WebServer;
 class CountryFileDownloader;
@@ -114,6 +115,7 @@ private slots:
     // Tools menu actions (ALT- shortcuts from TR4W)
     void onWKMode();                // TODO: Implement WinKeyer re-initialization
     void onSendMorse();             // Send morse code dialog
+    void onShowFunctionKeysRef();   // Show function keys reference window
     void onBackupLog();             // TODO: Implement backup log
     void onToggleWebServer();       // Start/stop web server
     void onDownloadCTY(bool headless = false);   // Download CTY.dat (headless=true for testing)
@@ -308,6 +310,7 @@ private:
     RadioControlWidget* m_radioControlWindow;
     MultiplierWidget* m_multiplierWindow;
     StatisticsWindow* m_statisticsWindow;
+    FunctionKeysWindow* m_functionKeysWindow;
     NativeMapViewer* m_sectionsMapViewer;
     NativeMapViewer* m_statesMapViewer;
 

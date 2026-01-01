@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.12.0";  // Radio config improvements: test connection, CW capability check, CI-V UX, checkbox fixes
+constexpr const char* APP_VERSION = "3.13.0";  // Band map timeout settings, function keys reference window
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

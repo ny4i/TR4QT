@@ -7,6 +7,7 @@
 #include "dialogs/ADIFImportDialog.h"
 #include "dialogs/ExportPreviewDialog.h"
 #include "dialogs/SendMorseDialog.h"
+#include "dialogs/FunctionKeysWindow.h"
 #include "widgets/DXClusterWindow.h"
 #include "widgets/BandMapWidget.h"
 #include "widgets/RadioControlWidget.h"
@@ -75,6 +76,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_radioControlWindow(nullptr)
     , m_multiplierWindow(nullptr)
     , m_statisticsWindow(nullptr)
+    , m_functionKeysWindow(nullptr)
     , m_sectionsMapViewer(nullptr)
     , m_statesMapViewer(nullptr)
     , m_qsosThisHour(0)
@@ -549,6 +551,10 @@ void MainWindow::createMenuBar() {
     QAction* sendMorseAction = windowMenu->addAction("Send &Morse Code");
     sendMorseAction->setShortcut(QKeySequence("Alt+K"));
     connect(sendMorseAction, &QAction::triggered, this, &MainWindow::onSendMorse);
+
+    QAction* functionKeysAction = windowMenu->addAction("&Function Keys Reference");
+    functionKeysAction->setShortcut(QKeySequence("Ctrl+F1"));
+    connect(functionKeysAction, &QAction::triggered, this, &MainWindow::onShowFunctionKeysRef);
 
     m_multipliersAction = windowMenu->addAction("&Multipliers");
     m_multipliersAction->setCheckable(true);
@@ -4555,6 +4561,18 @@ void MainWindow::onSendMorse() {
 
     SendMorseDialog dialog(m_radio, this);
     dialog.exec();
+}
+
+void MainWindow::onShowFunctionKeysRef() {
+    if (!m_functionKeysWindow) {
+        m_functionKeysWindow = new FunctionKeysWindow(this);
+        m_functionKeysWindow->setWindowFlags(Qt::Window);
+        m_functionKeysWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+    }
+
+    m_functionKeysWindow->show();
+    m_functionKeysWindow->raise();
+    m_functionKeysWindow->activateWindow();
 }
 
 void MainWindow::onBackupLog() {

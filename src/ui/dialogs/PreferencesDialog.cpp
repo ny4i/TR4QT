@@ -463,6 +463,37 @@ QWidget* PreferencesDialog::createDXClusterTab() {
 
     layout->addWidget(clusterGroup);
 
+    // Band Map Settings
+    QGroupBox* bandMapGroup = new QGroupBox("Band Map Settings", this);
+    QFormLayout* bandMapLayout = new QFormLayout(bandMapGroup);
+
+    m_spotExpirySpin = new QSpinBox(this);
+    m_spotExpirySpin->setRange(60, 3600);  // 1 minute to 1 hour
+    m_spotExpirySpin->setValue(600);       // Default: 10 minutes
+    m_spotExpirySpin->setSuffix(" seconds");
+    m_spotExpirySpin->setToolTip("How long spots remain in the band map before expiring\n"
+                                   "Default: 600 seconds (10 minutes)");
+    bandMapLayout->addRow("Spot Expiry Time:", m_spotExpirySpin);
+
+    m_newSpotThresholdSpin = new QSpinBox(this);
+    m_newSpotThresholdSpin->setRange(5, 300);  // 5 seconds to 5 minutes
+    m_newSpotThresholdSpin->setValue(60);      // Default: 1 minute
+    m_newSpotThresholdSpin->setSuffix(" seconds");
+    m_newSpotThresholdSpin->setToolTip("How long spots are highlighted as 'new' after appearing\n"
+                                        "Default: 60 seconds (1 minute)");
+    bandMapLayout->addRow("New Spot Highlight:", m_newSpotThresholdSpin);
+
+    m_agingSpotThresholdSpin = new QSpinBox(this);
+    m_agingSpotThresholdSpin->setRange(30, 600);  // 30 seconds to 10 minutes
+    m_agingSpotThresholdSpin->setValue(120);      // Default: 2 minutes
+    m_agingSpotThresholdSpin->setSuffix(" seconds");
+    m_agingSpotThresholdSpin->setToolTip("How long before expiry spots start to fade/dim\n"
+                                          "This is measured from the end (e.g., last 120 seconds before expiry)\n"
+                                          "Default: 120 seconds (2 minutes)");
+    bandMapLayout->addRow("Aging Threshold:", m_agingSpotThresholdSpin);
+
+    layout->addWidget(bandMapGroup);
+
     // Help text
     QLabel* helpLabel = new QLabel(
         "The DX Cluster callsign is used for login authentication.\n"
@@ -1298,6 +1329,11 @@ void PreferencesDialog::loadSettings() {
     m_enableLotwLookupCheck->setChecked(settings.getEnableLotwLookup());
     m_lotwMinUploadMonthsSpin->setValue(settings.getLotwMinUploadMonths());
 
+    // Band Map timeout settings
+    m_spotExpirySpin->setValue(settings.getSpotExpirySeconds());
+    m_newSpotThresholdSpin->setValue(settings.getNewSpotThresholdSeconds());
+    m_agingSpotThresholdSpin->setValue(settings.getAgingSpotThresholdSeconds());
+
     // SCP tab
     m_scpEnabledCheck->setChecked(settings.getSCPEnabled());
     m_scpIncludeLocalLogsCheck->setChecked(settings.getSCPIncludeLocalLogs());
@@ -1446,6 +1482,11 @@ void PreferencesDialog::saveSettings() {
     settings.setDXClusterAutoConnect(m_dxClusterAutoConnectCheck->isChecked());
     settings.setEnableLotwLookup(m_enableLotwLookupCheck->isChecked());
     settings.setLotwMinUploadMonths(m_lotwMinUploadMonthsSpin->value());
+
+    // Band Map timeout settings
+    settings.setSpotExpirySeconds(m_spotExpirySpin->value());
+    settings.setNewSpotThresholdSeconds(m_newSpotThresholdSpin->value());
+    settings.setAgingSpotThresholdSeconds(m_agingSpotThresholdSpin->value());
 
     // SCP tab
     settings.setSCPEnabled(m_scpEnabledCheck->isChecked());
