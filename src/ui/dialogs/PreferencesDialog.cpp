@@ -1592,6 +1592,16 @@ void PreferencesDialog::accept() {
     QDialog::accept();
 }
 
+void PreferencesDialog::selectCategory(const QString& categoryName) {
+    // Find the category in the list and select it
+    for (int i = 0; i < m_categoryList->count(); ++i) {
+        if (m_categoryList->item(i)->text() == categoryName) {
+            m_categoryList->setCurrentRow(i);
+            return;
+        }
+    }
+}
+
 void PreferencesDialog::onApply() {
     saveSettings();
 }
