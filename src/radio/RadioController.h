@@ -26,6 +26,7 @@ public:
     RadioState getCurrentState() const;
     QString getRadioModel() const;
     QList<ModeType> getSupportedModes() const;
+    bool supportsCWSending() const;  // Check if radio supports CW via Hamlib
 
 public slots:
     // Commands (executed in worker thread)

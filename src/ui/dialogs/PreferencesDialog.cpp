@@ -12,7 +12,9 @@
 #include "../../logging/LogMacros.h"
 #include "../../utils/DialogHelper.h"
 #include "../../core/Constants.h"
+#include "../../core/Types.h"
 #include "../../contests/ContestRegistry.h"
+#include "../../radio/HamlibRadio.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -225,6 +227,18 @@ QWidget* PreferencesDialog::createRadioTab() {
     m_showAlphaRadiosCheck = new QCheckBox("Alpha", this);
     m_showUntestedRadiosCheck = new QCheckBox("Untested", this);
 
+    // Explicitly set visibility and size policy for Windows compatibility
+    m_showStableRadiosCheck->setVisible(true);
+    m_showBetaRadiosCheck->setVisible(true);
+    m_showAlphaRadiosCheck->setVisible(true);
+    m_showUntestedRadiosCheck->setVisible(true);
+
+    // Ensure minimum size for Windows rendering
+    m_showStableRadiosCheck->setMinimumWidth(80);
+    m_showBetaRadiosCheck->setMinimumWidth(60);
+    m_showAlphaRadiosCheck->setMinimumWidth(70);
+    m_showUntestedRadiosCheck->setMinimumWidth(90);
+
     // Default to only Stable checked
     m_showStableRadiosCheck->setChecked(true);
     m_showBetaRadiosCheck->setChecked(false);
@@ -310,12 +324,12 @@ QWidget* PreferencesDialog::createRadioTab() {
     QGroupBox* advancedGroup = new QGroupBox("Advanced Settings", this);
     QFormLayout* advancedLayout = new QFormLayout(advancedGroup);
 
-    m_civAddressSpin = new QSpinBox(this);
-    m_civAddressSpin->setRange(0, 255);
-    m_civAddressSpin->setPrefix("0x");
-    m_civAddressSpin->setDisplayIntegerBase(16);
-    m_civAddressSpin->setValue(0);
-    m_civAddressSpin->setToolTip("CI-V address for Icom radios (0 = default)");
+    m_civAddressEdit = new QLineEdit(this);
+    m_civAddressEdit->setPlaceholderText("0 (auto) or hex address (e.g., 94, 0x94, 0x98)");
+    m_civAddressEdit->setMaxLength(4);
+    m_civAddressEdit->setToolTip("CI-V address for Icom radios\n"
+                                   "Leave blank or enter 0 for auto-detection\n"
+                                   "Or enter hex address: 94, 0x94, 0x98, etc.");
 
     m_pollIntervalSpin = new QSpinBox(this);
     m_pollIntervalSpin->setRange(100, 5000);
@@ -324,7 +338,7 @@ QWidget* PreferencesDialog::createRadioTab() {
     m_pollIntervalSpin->setSuffix(" ms");
     m_pollIntervalSpin->setToolTip("How often to poll the radio for status updates");
 
-    advancedLayout->addRow("CI-V Address:", m_civAddressSpin);
+    advancedLayout->addRow("CI-V Address:", m_civAddressEdit);
     advancedLayout->addRow("Poll Interval:", m_pollIntervalSpin);
 
     m_morseWpmSpin = new QSpinBox(this);
@@ -1255,7 +1269,13 @@ void PreferencesDialog::loadSettings() {
             m_baudRateCombo->setCurrentText(QString::number(config.baudRate));
         }
 
-        m_civAddressSpin->setValue(config.civAddress);
+        // Display CI-V address (0 = blank, otherwise hex without 0x prefix)
+        if (config.civAddress == 0) {
+            m_civAddressEdit->clear();
+        } else {
+            m_civAddressEdit->setText(QString::number(config.civAddress, 16).toUpper());
+        }
+
         m_pollIntervalSpin->setValue(config.pollInterval);
     }
 
@@ -1391,7 +1411,22 @@ void PreferencesDialog::saveSettings() {
         config.baudRate = 0;
     }
 
-    config.civAddress = m_civAddressSpin->value();
+    // Parse CI-V address from text (support blank, "0", hex with/without 0x prefix)
+    QString civText = m_civAddressEdit->text().trimmed();
+    if (civText.isEmpty() || civText == "0") {
+        config.civAddress = 0;  // Default/auto
+    } else {
+        // Remove 0x prefix if present
+        if (civText.startsWith("0x", Qt::CaseInsensitive)) {
+            civText = civText.mid(2);
+        }
+        bool ok = false;
+        config.civAddress = civText.toInt(&ok, 16);  // Parse as hex
+        if (!ok) {
+            config.civAddress = 0;  // Invalid hex, default to 0
+        }
+    }
+
     config.pollInterval = m_pollIntervalSpin->value();
 
     settings.saveRadioConfig(config);
@@ -1527,24 +1562,117 @@ void PreferencesDialog::onRadioModelChanged(int index) {
 
     // Auto-configure CI-V for Icom radios
     if (modelId >= 3000 && modelId < 4000) {
-        m_civAddressSpin->setEnabled(true);
+        m_civAddressEdit->setEnabled(true);
         if (modelId == 3078) {  // IC-7610
-            m_civAddressSpin->setValue(0x98);
+            m_civAddressEdit->setText("98");
         } else if (modelId == 3092) {  // IC-7760
-            m_civAddressSpin->setValue(0x7C);
+            m_civAddressEdit->setText("7C");
         } else if (modelId == 3073) {  // IC-7300
-            m_civAddressSpin->setValue(0x94);
+            m_civAddressEdit->setText("94");
         }
     } else {
-        m_civAddressSpin->setValue(0);
-        m_civAddressSpin->setEnabled(false);
+        m_civAddressEdit->clear();  // Blank for non-Icom radios
+        m_civAddressEdit->setEnabled(false);
     }
 }
 
 void PreferencesDialog::onTestRadioConnection() {
-    DialogHelper::information(this, "Test Connection",
-                           "Radio connection testing will be implemented when integrated with MainWindow.\n\n"
-                           "For now, save these settings and use Radio → Connect to test.");
+    // Build RadioConfig from current dialog settings
+    RadioConfig config;
+
+    int modelId = m_radioModelCombo->currentData().toInt();
+    if (modelId == -1) {
+        config.hamlibModelId = m_customModelEdit->text().toInt();
+    } else {
+        config.hamlibModelId = modelId;
+    }
+
+    if (config.hamlibModelId == 0) {
+        DialogHelper::warning(this, "Invalid Configuration",
+                           "Please select a radio model.");
+        return;
+    }
+
+    if (m_serialRadio->isChecked()) {
+        config.port = m_serialPortEdit->text();
+        config.baudRate = m_baudRateCombo->currentText().toInt();
+    } else {
+        config.port = QString("%1:%2")
+                          .arg(m_ipAddressEdit->text())
+                          .arg(m_portSpin->value());
+        config.baudRate = 0;
+    }
+
+    if (config.port.isEmpty()) {
+        DialogHelper::warning(this, "Invalid Configuration",
+                           "Please specify a port or IP address.");
+        return;
+    }
+
+    // Parse CI-V address
+    QString civText = m_civAddressEdit->text().trimmed();
+    if (civText.isEmpty() || civText == "0") {
+        config.civAddress = 0;
+    } else {
+        if (civText.startsWith("0x", Qt::CaseInsensitive)) {
+            civText = civText.mid(2);
+        }
+        bool ok = false;
+        config.civAddress = civText.toInt(&ok, 16);
+        if (!ok) {
+            config.civAddress = 0;
+        }
+    }
+
+    config.pollInterval = m_pollIntervalSpin->value();
+
+    // Create temporary HamlibRadio instance for testing
+    HamlibRadio testRadio;
+
+    // Try to connect
+    LOG_DEBUG("PreferencesDialog", QString("Testing connection to model %1 on %2")
+        .arg(config.hamlibModelId).arg(config.port));
+
+    bool connected = testRadio.connect(config);
+
+    if (!connected) {
+        DialogHelper::critical(this, "Connection Failed",
+                            QString("Failed to connect to radio.\n\n"
+                                    "Model ID: %1\n"
+                                    "Port: %2\n"
+                                    "Baud: %3\n"
+                                    "CI-V: %4\n\n"
+                                    "Check your settings and ensure the radio is powered on and connected.")
+                                .arg(config.hamlibModelId)
+                                .arg(config.port)
+                                .arg(config.baudRate)
+                                .arg(config.civAddress == 0 ? "0 (auto)" : QString("0x%1").arg(config.civAddress, 2, 16, QChar('0'))));
+        return;
+    }
+
+    // Connection successful - query radio info
+    QString model = testRadio.getRadioModel();
+    QString version = testRadio.getRadioVersion();
+    freq_t freq = testRadio.getFrequency(VFO::VFO_A);
+    ModeType mode = testRadio.getMode(VFO::VFO_A);
+    bool supportsCW = testRadio.supportsCWSending();
+
+    // Disconnect
+    testRadio.disconnect();
+
+    // Show success message
+    DialogHelper::information(this, "Connection Successful",
+                           QString("Successfully connected to radio!\n\n"
+                                   "Model: %1\n"
+                                   "Firmware: %2\n"
+                                   "Frequency: %3 kHz\n"
+                                   "Mode: %4\n"
+                                   "CW Support: %5")
+                               .arg(model)
+                               .arg(version.isEmpty() ? "Unknown" : version)
+                               .arg(freq / 1000.0, 0, 'f', 3)
+                               .arg(modeToString(mode))
+                               .arg(supportsCW ? "Yes" : "No"));
 }
 
 void PreferencesDialog::onUdpAddDestination() {

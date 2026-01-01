@@ -113,6 +113,18 @@ QList<ModeType> RadioController::getSupportedModes() const {
     return modes;
 }
 
+bool RadioController::supportsCWSending() const {
+    // Call into worker thread to check CW capability
+    bool supported = false;
+    if (m_radio) {
+        // Use blocking queued connection to safely call across threads
+        QMetaObject::invokeMethod(m_radio, "supportsCWSending",
+                                 Qt::BlockingQueuedConnection,
+                                 Q_RETURN_ARG(bool, supported));
+    }
+    return supported;
+}
+
 void RadioController::connectToRadio(const RadioConfig& config) {
     LOG_DEBUG("RadioController", QString("connectToRadio called with model %1 port %2").arg(config.hamlibModelId).arg(config.port));
 
