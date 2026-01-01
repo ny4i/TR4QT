@@ -45,6 +45,7 @@
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QMessageBox>
+#include <QInputDialog>
 #include "../utils/SelectableMessageBox.h"
 #include <QCloseEvent>
 #include <QApplication>
@@ -90,6 +91,9 @@ MainWindow::MainWindow(QWidget* parent)
     , m_webServer(new WebServer(m_qsoTableModel, m_radio, this))
     , m_inRaiseAllWindows(false)
     , m_initialExchangePopulated(false)
+    , m_operatingMode(OperatingMode::CQ)
+    , m_operatingModeLabel(nullptr)
+    , m_lastFrequency(0)
 {
     setWindowTitle(QString("%1 v%2").arg(APP_NAME).arg(APP_VERSION));
     setWindowIcon(QIcon(":/icons/tr4qt.png"));
@@ -475,6 +479,57 @@ void MainWindow::createMenuBar() {
     QAction* toggleAutosendAction = operatingMenu->addAction("Toggle Autosend");
     toggleAutosendAction->setShortcut(QKeySequence("Alt+-"));
     connect(toggleAutosendAction, &QAction::triggered, this, &MainWindow::onToggleAutosend);
+
+    // Commands menu (operating mode switching)
+    QMenu* commandsMenu = menuBar->addMenu("&Commands");
+
+    QAction* cqModeAction = commandsMenu->addAction("CQ Mode");
+    cqModeAction->setShortcut(QKeySequence("Shift+Tab"));
+    connect(cqModeAction, &QAction::triggered, this, &MainWindow::onCQMode);
+
+    QAction* spModeAction = commandsMenu->addAction("Search && Pounce Mode");
+    spModeAction->setShortcut(QKeySequence("Tab"));
+    connect(spModeAction, &QAction::triggered, this, &MainWindow::onSPMode);
+
+    // Automation menu (AUTO S&P settings)
+    QMenu* automationMenu = menuBar->addMenu("&Automation");
+
+    QAction* autoSPEnableAction = automationMenu->addAction("AUTO S&&P ENABLE");
+    autoSPEnableAction->setCheckable(true);
+    autoSPEnableAction->setChecked(AppSettings::instance().getAutoSPEnable());
+    connect(autoSPEnableAction, &QAction::toggled, this, [](bool checked) {
+        AppSettings::instance().setAutoSPEnable(checked);
+        LOG_DEBUG("MainWindow", QString("AUTO S&P ENABLE %1").arg(checked ? "ON" : "OFF"));
+    });
+
+    QAction* autoSPSensitivityAction = automationMenu->addAction("Auto S&&P Sensitivity...");
+    connect(autoSPSensitivityAction, &QAction::triggered, this, [this, autoSPEnableAction]() {
+        bool ok;
+        int currentValue = AppSettings::instance().getAutoSPSensitivity();
+        int newValue = QInputDialog::getInt(this,
+            "Auto S&P Sensitivity",
+            "Controls how quickly you must move the VFO (in Hz/sec)\n"
+            "in order for the program to jump automatically into S&P Mode\n"
+            "if AUTO S&P ENABLE is TRUE.\n\n"
+            "Sensitivity (Hz/sec):",
+            currentValue,
+            50,      // minimum
+            10000,   // maximum
+            50,      // step
+            &ok);
+
+        if (ok) {
+            AppSettings::instance().setAutoSPSensitivity(newValue);
+            LOG_DEBUG("MainWindow", QString("Auto S&P Sensitivity set to %1 Hz/sec").arg(newValue));
+
+            DialogHelper::information(this,
+                "AUTO S&P Sensitivity Updated",
+                QString("Auto S&P sensitivity set to %1 Hz/sec.\n\n"
+                        "The program will switch to S&P mode when you move\n"
+                        "the VFO faster than %1 Hz per second.")
+                    .arg(newValue));
+        }
+    });
 
     // Window menu (window display functions)
     QMenu* windowMenu = menuBar->addMenu("&Window");
@@ -901,6 +956,12 @@ void MainWindow::createStatusBar() {
     m_statusLabel = new QLabel("Ready", this);
     status->addWidget(m_statusLabel);
 
+    // Operating mode indicator (CQ vs S&P)
+    m_operatingModeLabel = new QLabel("CQ", this);
+    m_operatingModeLabel->setStyleSheet("color: green; font-weight: bold; padding: 0 10px;");
+    m_operatingModeLabel->setToolTip("Operating Mode: CQ (running) or S&P (search and pounce)");
+    status->addPermanentWidget(m_operatingModeLabel);
+
     m_radioStatusLabel = new QLabel("Radio: Not Connected", this);
     m_radioStatusLabel->setStyleSheet("color: red; font-weight: bold;");
     status->addPermanentWidget(m_radioStatusLabel);
@@ -1211,12 +1272,26 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
             return true;  // Event handled, don't propagate
         }
 
+        // Tab key in callsign field: Switch to S&P mode
+        if (keyEvent->key() == Qt::Key_Tab && obj == m_callsignEntry) {
+            onSPMode();
+            LOG_DEBUG("MainWindow", "Tab pressed in callsign field - switched to S&P mode");
+            return true;  // Event handled, don't tab to next field
+        }
+
         // ESC key handling for callsign and exchange fields
         if (keyEvent->key() == Qt::Key_Escape) {
-            // ESC in callsign field: clear callsign
+            // ESC in callsign field: clear if not empty, or switch to CQ if empty & in S&P
             if (obj == m_callsignEntry) {
-                m_callsignEntry->clear();
-                LOG_DEBUG("MainWindow", "ESC pressed in callsign field - cleared");
+                if (!m_callsignEntry->text().isEmpty()) {
+                    // First ESC: Clear callsign (stay in current mode)
+                    m_callsignEntry->clear();
+                    LOG_DEBUG("MainWindow", "ESC pressed in callsign field - cleared");
+                } else if (m_operatingMode == OperatingMode::SP) {
+                    // Second ESC (empty field in S&P mode): Return to CQ mode
+                    onCQMode();
+                    LOG_DEBUG("MainWindow", "ESC pressed in empty callsign field (S&P mode) - switched to CQ mode");
+                }
                 return true;  // Event handled
             }
 
@@ -1861,6 +1936,11 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
 
     m_currentState = state;
     // Radio state is cached for use when logging QSOs
+
+    // Check for AUTO S&P mode trigger (VFO movement)
+    if (state.frequencyA > 0) {
+        checkAutoSP(state.frequencyA);
+    }
 
     // Sync CW speed from radio to program settings (when in CW mode)
     static int lastCwSpeed = 0;
@@ -5329,6 +5409,80 @@ void MainWindow::updateRadioStatusFlash() {
             m_radioFreqBandLabel->setStyleSheet(normalStyle);
         }
     }
+}
+
+// Operating mode management
+void MainWindow::setOperatingMode(OperatingMode mode) {
+    m_operatingMode = mode;
+
+    // Update visual indicator
+    if (m_operatingModeLabel) {
+        if (mode == OperatingMode::CQ) {
+            m_operatingModeLabel->setText("CQ");
+            m_operatingModeLabel->setStyleSheet("color: green; font-weight: bold; padding: 0 10px;");
+        } else {
+            m_operatingModeLabel->setText("S&P");
+            m_operatingModeLabel->setStyleSheet("color: blue; font-weight: bold; padding: 0 10px;");
+        }
+    }
+
+    LOG_DEBUG("MainWindow", QString("Operating mode changed to: %1").arg(mode == OperatingMode::CQ ? "CQ" : "S&P"));
+}
+
+void MainWindow::onCQMode() {
+    setOperatingMode(OperatingMode::CQ);
+}
+
+void MainWindow::onSPMode() {
+    setOperatingMode(OperatingMode::SP);
+}
+
+void MainWindow::checkAutoSP(freq_t newFrequency) {
+    // Only check if AUTO S&P is enabled
+    if (!AppSettings::instance().getAutoSPEnable()) {
+        return;
+    }
+
+    // Ignore if already in S&P mode
+    if (m_operatingMode == OperatingMode::SP) {
+        return;
+    }
+
+    // Need at least two frequency samples to calculate rate
+    if (m_lastFrequency == 0) {
+        m_lastFrequency = newFrequency;
+        m_lastFrequencyTime = QDateTime::currentDateTime();
+        return;
+    }
+
+    // Calculate time difference in seconds
+    QDateTime now = QDateTime::currentDateTime();
+    qint64 msecs = m_lastFrequencyTime.msecsTo(now);
+
+    // Ignore if time difference is too small (avoid division by zero and spurious triggers)
+    if (msecs < 100) {  // Less than 100ms
+        return;
+    }
+
+    double seconds = msecs / 1000.0;
+
+    // Calculate Hz/sec
+    qint64 freqDelta = qAbs(static_cast<qint64>(newFrequency) - static_cast<qint64>(m_lastFrequency));
+    double hzPerSec = freqDelta / seconds;
+
+    // Get sensitivity threshold from settings
+    int threshold = AppSettings::instance().getAutoSPSensitivity();
+
+    // Switch to S&P if movement exceeds threshold
+    if (hzPerSec >= threshold) {
+        LOG_DEBUG("MainWindow", QString("AUTO S&P triggered: %.1f Hz/sec (threshold: %2 Hz/sec)")
+            .arg(hzPerSec).arg(threshold));
+        setOperatingMode(OperatingMode::SP);
+    }
+
+    // Update tracking
+    m_lastFrequency = newFrequency;
+    m_lastFrequencyTime = now;
 }
 
 } // namespace TR4QT

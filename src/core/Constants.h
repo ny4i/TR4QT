@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.10.9";  // Fixed persistent CTY update notification using saved version
+constexpr const char* APP_VERSION = "3.11.0";  // AUTO S&P mode with VFO movement detection
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

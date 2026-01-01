@@ -141,6 +141,10 @@ private slots:
     void onToggleRigs();            // TODO: Implement toggle rigs (SO2R)
     void onEditSO2R();              // TODO: Implement edit SO2R
 
+    // Commands menu actions (operating mode switching)
+    void onCQMode();                // Switch to CQ mode (Shift+Tab)
+    void onSPMode();                // Switch to S&P mode (Tab)
+
     // DX Cluster integration
     void onDXSpotReceived(const QString& callsign,
                           double frequency,
@@ -232,6 +236,10 @@ private:
 
     // Rescore helpers
     RescoreStats rescoreContestSilent();  // Rescore without showing dialogs
+
+    // Operating mode helpers
+    void setOperatingMode(OperatingMode mode);  // Switch operating mode and update UI
+    void checkAutoSP(freq_t newFrequency);      // Check if AUTO S&P should trigger
 
     // UI Components
     QLabel* m_statusLabel;
@@ -338,6 +346,14 @@ private:
 
     // Exchange auto-population tracking
     bool m_initialExchangePopulated;
+
+    // Operating mode (CQ vs S&P)
+    OperatingMode m_operatingMode;
+    QLabel* m_operatingModeLabel;  // Visual indicator
+
+    // AUTO S&P VFO tracking
+    freq_t m_lastFrequency;
+    QDateTime m_lastFrequencyTime;
 };
 
 } // namespace TR4QT
