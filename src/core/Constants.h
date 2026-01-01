@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.10.6";  // CTY.DAT update notification at startup
+constexpr const char* APP_VERSION = "3.10.7";  // Streamlined download dialogs - status bar feedback
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
