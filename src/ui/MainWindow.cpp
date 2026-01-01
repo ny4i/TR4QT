@@ -4664,50 +4664,26 @@ void MainWindow::onDownloadCTY(bool headless) {
                 if (success) {
                     LOG_DEBUG("MainWindow", QString("Download successful: %1 Version: %2").arg(filePath).arg(version));
 
-                    if (!headless) {
-                        // Ask user if they want to reload the country file
-                        QMessageBox::StandardButton reply = DialogHelper::question(
-                            this,
-                            "Download Complete",
-                            "Country file downloaded successfully!\n\n"
-                            "Do you want to reload it now?",
-                            QMessageBox::Yes | QMessageBox::No
-                        );
+                    // Auto-reload the country file (no dialog prompt)
+                    if (m_countryFile.loadFromFile(filePath)) {
+                        // Set the version from the download
+                        m_countryFile.setVersion(version);
+                        LOG_DEBUG("MainWindow", QString("Country file reloaded successfully. Version: %1")
+                            .arg(m_countryFile.getVersion()));
 
-                        if (reply == QMessageBox::Yes) {
-                            // Reload the country file
-                            if (m_countryFile.loadFromFile(filePath)) {
-                                // Set the version from the download
-                                m_countryFile.setVersion(version);
-                                LOG_DEBUG("MainWindow", QString("Country file reloaded successfully. Version: %1")
-                                    .arg(m_countryFile.getVersion()));
-
-                                // Update status bar to show successful load
-                                statusBar()->showMessage(QString("CTY.DAT %1 loaded successfully").arg(version), 5000);
-
-                                DialogHelper::information(this, "Success",
-                                    QString("Country file reloaded successfully!\n\n"
-                                           "Version: %1").arg(m_countryFile.getVersion()));
-                            } else {
-                                statusBar()->showMessage("Failed to reload CTY.DAT", 5000);
-                                DialogHelper::warning(this, "Reload Failed",
-                                    "Failed to reload the country file.\n\n"
-                                    "Please restart the application.");
-                            }
-                        } else {
-                            // User chose not to reload - clear update notification
-                            statusBar()->showMessage(QString("CTY.DAT %1 downloaded (restart to load)").arg(version), 5000);
-                        }
+                        // Update status bar permanently (no timeout) to replace update notification
+                        statusBar()->showMessage(QString("CTY.DAT %1 loaded successfully").arg(version));
                     } else {
-                        // Headless mode: auto-reload without prompts
-                        if (m_countryFile.loadFromFile(filePath)) {
-                            m_countryFile.setVersion(version);
-                            LOG_DEBUG("MainWindow", QString("Country file reloaded successfully (headless). Version: %1")
-                                .arg(m_countryFile.getVersion()));
-                            statusBar()->showMessage(QString("CTY.DAT %1 loaded successfully").arg(version), 5000);
+                        LOG_WARN("MainWindow", "Failed to reload country file after download");
+
+                        // Show error dialog only if reload fails (important)
+                        if (!headless) {
+                            statusBar()->clearMessage();
+                            DialogHelper::warning(this, "Reload Failed",
+                                "Failed to reload the country file after download.\n\n"
+                                "Please restart the application.");
                         } else {
-                            LOG_WARN("MainWindow", "Failed to reload country file (headless)");
-                            statusBar()->showMessage("Failed to reload CTY.DAT", 5000);
+                            statusBar()->showMessage("Failed to reload CTY.DAT");
                         }
                     }
                 } else {
@@ -4787,11 +4763,8 @@ void MainWindow::onDownloadLOTW(bool headless) {
                     AppSettings& settings = AppSettings::instance();
                     settings.setLotwLastUpdateTime(QDateTime::currentDateTime());
 
-                    if (!headless) {
-                        DialogHelper::information(this, "Download Complete",
-                            QString("LOTW user list downloaded successfully!\n\n"
-                                   "%1 users imported.").arg(userCount));
-                    }
+                    // Show status bar message instead of dialog (no timeout - permanent)
+                    statusBar()->showMessage(QString("LOTW user list downloaded: %1 users imported").arg(userCount));
                 } else {
                     if (!headless) {
                         DialogHelper::critical(this, "Download Failed",
@@ -4869,11 +4842,8 @@ void MainWindow::onDownloadSCP(bool headless) {
                     AppSettings& settings = AppSettings::instance();
                     settings.setSCPLastUpdate(QDateTime::currentDateTime());
 
-                    if (!headless) {
-                        DialogHelper::information(this, "Download Complete",
-                            QString("MASTER.SCP downloaded successfully!\n\n"
-                                   "%1 callsigns imported.").arg(callsignCount));
-                    }
+                    // Show status bar message instead of dialog (no timeout - permanent)
+                    statusBar()->showMessage(QString("MASTER.SCP downloaded: %1 callsigns imported").arg(callsignCount));
                 } else {
                     if (!headless) {
                         DialogHelper::critical(this, "Download Failed",
