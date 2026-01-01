@@ -59,6 +59,21 @@ public:
     // Public method to trigger country file download
     void triggerCountryFileDownload();
 
+signals:
+    /**
+     * Emitted when the current operating frequency changes
+     * (from radio or manual band selection)
+     * @param frequency Current frequency in Hz
+     */
+    void currentFrequencyChanged(freq_t frequency);
+
+    /**
+     * Emitted when the current operating band changes
+     * (from radio or manual band selection)
+     * @param band Current band
+     */
+    void currentBandChanged(BandType band);
+
 protected:
     void closeEvent(QCloseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;

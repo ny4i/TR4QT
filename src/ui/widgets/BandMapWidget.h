@@ -78,6 +78,11 @@ public:
     void setCurrentFrequency(freq_t freq);
 
     /**
+     * Set current band (for filtering when radio not connected)
+     */
+    void setCurrentBand(BandType band);
+
+    /**
      * Get spot count (all spots, not just displayed)
      */
     int spotCount() const { return m_allSpots.size(); }
@@ -143,6 +148,7 @@ private:
     QList<Spot> m_allSpots;      // All spots in memory (master list)
     QList<Spot> m_displaySpots;  // Filtered spots for display (cache)
     freq_t m_currentFrequency;
+    BandType m_currentBand;      // Current band (for filtering when radio not connected)
     int m_selectedIndex;
     QString m_selectedCallsign;  // Track selected spot by callsign (survives sort/filter)
     int m_columnCount;       // Number of columns to display

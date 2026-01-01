@@ -203,6 +203,13 @@ public:
     void setVHFBandsEnabled(bool enabled);
     bool getVHFBandsEnabled() const;  // Default: false (HF only)
 
+    // DX Cluster spot color settings
+    void setClusterDupeColor(const QString& color);
+    QString getClusterDupeColor() const;  // Default: #808080 (gray)
+
+    void setClusterMultiplierColor(const QString& color);
+    QString getClusterMultiplierColor() const;  // Default: #ff0000 (red)
+
     // UDP Broadcast settings
     void setUDPBroadcastEnabled(bool enabled);
     bool getUDPBroadcastEnabled() const;

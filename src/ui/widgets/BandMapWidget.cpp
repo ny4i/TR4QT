@@ -28,6 +28,7 @@ namespace TR4QT {
 BandMapWidget::BandMapWidget(QWidget* parent)
     : QAbstractScrollArea(parent)
     , m_currentFrequency(0)
+    , m_currentBand(BandType::None)
     , m_selectedIndex(-1)
     , m_selectedCallsign("")
     , m_columnCount(1)
@@ -108,53 +109,28 @@ void BandMapWidget::addSpot(const Spot& spot) {
     // Calculate azimuth and distance for this spot
     calculateSpotGeography(updatedSpot);
 
-    // Apply LOTW filter if enabled
-    if (m_showOnlyLotwUsers && !updatedSpot.isLotwUser) {
-        // Remove spot if it exists but is not LOTW user when filter is active
-        LOG_DEBUG("BandMapWidget", QString("Filtering out non-LOTW spot: %1").arg(updatedSpot.callsign));
-        removeSpot(updatedSpot.callsign);
-        return;
-    }
-
-    // Apply band filter if enabled (show current band only)
-    if (!m_showAllBands && m_currentFrequency > 0) {
-        QString currentBand = getBandFromFrequency(m_currentFrequency);
-        QString spotBand = getBandFromFrequency(updatedSpot.frequency);
-        LOG_DEBUG("BandMapWidget", QString("Band filter check: m_showAllBands=%1, current freq=%2 Hz (%3), spot %4 freq=%5 Hz (%6)")
-            .arg(m_showAllBands).arg(QString::number(m_currentFrequency, 'f', 0)).arg(currentBand)
-            .arg(updatedSpot.callsign).arg(QString::number(updatedSpot.frequency, 'f', 0)).arg(spotBand));
-        if (!currentBand.isEmpty() && !spotBand.isEmpty() && currentBand != spotBand) {
-            // Remove spot if it exists but is on different band when filter is active
-            LOG_DEBUG("BandMapWidget", QString("Filtering out spot on different band: %1 on %2 (current band: %3)")
-                .arg(updatedSpot.callsign).arg(spotBand).arg(currentBand));
-            removeSpot(updatedSpot.callsign);
-            return;
-        }
-    } else {
-        double freqMHz = m_currentFrequency / 1000000.0;
-        LOG_DEBUG("BandMapWidget", QString("Band filter disabled or no current freq: m_showAllBands=%1, m_currentFrequency=%2 MHz")
-            .arg(m_showAllBands).arg(freqMHz, 0, 'f', 3));
-    }
+    // NOTE: Don't apply filters here - they're applied non-destructively in rebuildDisplayList()
+    // This ensures spots aren't permanently deleted when filters are toggled
 
     // Check if spot already exists (update it)
     for (int i = 0; i < m_allSpots.size(); ++i) {
         if (m_allSpots[i].callsign == updatedSpot.callsign) {
             m_allSpots[i] = updatedSpot;
-            rebuildDisplayList();
+            rebuildDisplayList();  // Also triggers viewport repaint
             return;
         }
     }
 
     // Add new spot
     m_allSpots.append(updatedSpot);
-    rebuildDisplayList();
+    rebuildDisplayList();  // Also triggers viewport repaint
 }
 
 void BandMapWidget::removeSpot(const QString& callsign) {
     for (int i = 0; i < m_allSpots.size(); ++i) {
         if (m_allSpots[i].callsign == callsign) {
             m_allSpots.removeAt(i);
-            rebuildDisplayList();
+            rebuildDisplayList();  // Also triggers viewport repaint
             return;
         }
     }
@@ -164,7 +140,7 @@ void BandMapWidget::clearSpots() {
     m_allSpots.clear();
     m_selectedIndex = -1;
     m_selectedCallsign.clear();
-    rebuildDisplayList();
+    rebuildDisplayList();  // Also triggers viewport repaint
 }
 
 void BandMapWidget::setCurrentFrequency(freq_t freq) {
@@ -174,7 +150,22 @@ void BandMapWidget::setCurrentFrequency(freq_t freq) {
         LOG_DEBUG("BandMapWidget", QString("Current frequency changed: %1 Hz (%2 MHz) - Band: %3")
             .arg(freq, 0, 'f', 0).arg(freq / 1000000.0, 0, 'f', 3).arg(band.isEmpty() ? "unknown" : band));
         m_currentFrequency = freq;
-        viewport()->update();
+
+        // Also update current band (derived from frequency)
+        m_currentBand = frequencyToBand(static_cast<unsigned long>(freq));
+
+        // Rebuild display list to apply band filter with new frequency
+        rebuildDisplayList();  // Also triggers viewport repaint
+    }
+}
+
+void BandMapWidget::setCurrentBand(BandType band) {
+    if (m_currentBand != band) {
+        LOG_DEBUG("BandMapWidget", QString("Current band changed: %1").arg(bandToString(band)));
+        m_currentBand = band;
+
+        // Rebuild display list to apply band filter
+        rebuildDisplayList();  // Also triggers viewport repaint
     }
 }
 
@@ -591,7 +582,7 @@ void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
         AppSettings& settings = AppSettings::instance();
         settings.setShowOnlyLotwUsers(checked);
 
-        // Rebuild display list to apply/remove filter
+        // Rebuild display list to apply/remove filter (also repaints viewport)
         rebuildDisplayList();
     });
 
@@ -607,7 +598,7 @@ void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
         AppSettings& settings = AppSettings::instance();
         settings.setShowAllBands(checked);
 
-        // Rebuild display list to apply/remove filter
+        // Rebuild display list to apply/remove filter (also repaints viewport)
         rebuildDisplayList();
     });
 
@@ -847,6 +838,15 @@ void BandMapWidget::rebuildDisplayList() {
     int expirySeconds = settings.getSpotExpirySeconds();
     QDateTime cutoffTime = QDateTime::currentDateTime().addSecs(-expirySeconds);
 
+    // Debug: Log filter state
+    LOG_DEBUG("BandMapWidget", QString("rebuildDisplayList() - m_showAllBands=%1, m_currentBand=%2")
+        .arg(m_showAllBands).arg(bandToString(m_currentBand)));
+
+    int filteredByBand = 0;
+    if (!m_showAllBands && m_currentBand != BandType::None) {
+        LOG_DEBUG("BandMapWidget", QString("Band filter active - current band: %1").arg(bandToString(m_currentBand)));
+    }
+
     // Filter spots for display
     for (const Spot& spot : m_allSpots) {
         // Skip expired spots
@@ -859,17 +859,22 @@ void BandMapWidget::rebuildDisplayList() {
             continue;
         }
 
-        // Apply band filter
-        if (!m_showAllBands && m_currentFrequency > 0) {
-            QString currentBand = getBandFromFrequency(m_currentFrequency);
-            QString spotBand = getBandFromFrequency(spot.frequency);
-            if (!currentBand.isEmpty() && !spotBand.isEmpty() && currentBand != spotBand) {
+        // Apply band filter (use m_currentBand directly, not derived from frequency)
+        if (!m_showAllBands && m_currentBand != BandType::None) {
+            BandType spotBand = frequencyToBand(static_cast<unsigned long>(spot.frequency));
+            if (spotBand != m_currentBand) {
+                filteredByBand++;
                 continue;
             }
         }
 
         // Add to display list
         m_displaySpots.append(spot);
+    }
+
+    if (filteredByBand > 0) {
+        LOG_DEBUG("BandMapWidget", QString("Filtered out %1 spots on other bands (keeping only %2)")
+            .arg(filteredByBand).arg(bandToString(m_currentBand)));
     }
 
     sortSpots();
@@ -893,7 +898,7 @@ void BandMapWidget::rebuildDisplayList() {
     }
 
     updateScrollBars();
-    update();  // Update entire widget to preserve scrollbar state
+    viewport()->update();  // Trigger repaint of viewport content
 }
 
 BandMapWidget::SpotAge BandMapWidget::getSpotAge(const Spot& spot) const {

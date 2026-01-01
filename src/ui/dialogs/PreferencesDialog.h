@@ -170,6 +170,10 @@ private:
     QPushButton* m_workedColorButton;
     QPushButton* m_neededColorButton;
     QCheckBox* m_vhfBandsEnabledCheck;
+
+    // DX Cluster color widgets
+    QPushButton* m_clusterDupeColorButton;
+    QPushButton* m_clusterMultColorButton;
     QPushButton* m_customizeColorsButton;
     QCheckBox* m_useMetricDistanceCheck;
 

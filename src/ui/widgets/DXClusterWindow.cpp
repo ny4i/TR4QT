@@ -5,6 +5,9 @@
 #include "../../utils/AppSettings.h"
 #include "../../utils/ThemeManager.h"
 #include "../../data/LOTWUserRepository.h"
+#include "../../contests/ContestBase.h"
+#include "../../data/QSORepository.h"
+#include "../../utils/CountryFile.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QToolBar>
@@ -56,6 +59,9 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
     , m_reconnectTimer(new QTimer(this))
     , m_reconnectAttempts(0)
     , m_spotRowCount(0)
+    , m_activeContest(nullptr)
+    , m_contestDbId(-1)
+    , m_countryFile(nullptr)
 {
     setupUI();
     loadSettings();
@@ -135,6 +141,80 @@ DXClusterWindow::~DXClusterWindow() {
         m_telnetThread->quit();
         m_telnetThread->wait();
     }
+}
+
+void DXClusterWindow::setActiveContest(ContestBase* contest, int contestDbId) {
+    m_activeContest = contest;
+    m_contestDbId = contestDbId;
+}
+
+void DXClusterWindow::setCountryFile(CountryFile* countryFile) {
+    m_countryFile = countryFile;
+}
+
+QColor DXClusterWindow::getSpotColor(const QString& callsign, double frequency) const {
+    // No contest active - return default color
+    if (!m_activeContest || m_contestDbId < 0) {
+        return Qt::black;
+    }
+
+    // Determine band and mode from frequency
+    BandType band = frequencyToBand(static_cast<unsigned long>(frequency));
+    ModeType mode = (frequency >= 1800000 && frequency < 10000000) ? ModeType::CW : ModeType::USB; // Simplified mode detection
+
+    // Check if it's a dupe
+    QSORepository repo;
+    bool isDupe = repo.isDuplicate(callsign, band, mode, m_contestDbId);
+
+    if (isDupe) {
+        // Return dupe color from settings
+        QString dupeColorStr = AppSettings::instance().getClusterDupeColor();
+        return QColor(dupeColorStr);
+    }
+
+    // Check if it's a new multiplier
+    // Create a temporary QSO for mult checking
+    QSO tempQso;
+    tempQso.callsign = callsign;
+    tempQso.band = band;
+    tempQso.mode = mode;
+    tempQso.frequency = frequency;
+
+    // Populate country/zone data from CountryFile (if available)
+    if (m_countryFile) {
+        CountryData countryData = m_countryFile->lookup(callsign);
+        if (countryData.isValid()) {
+            tempQso.dxccPrefix = countryData.primaryPrefix;
+            tempQso.dxccEntity = countryData.name;
+            tempQso.continent = continentToString(countryData.continent);
+            tempQso.cqZone = countryData.cqZone;
+            tempQso.ituZone = countryData.ituZone;
+        }
+    }
+
+    // Get multiplier types for this contest
+    QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
+
+    for (const MultiplierDefinition& multDef : multDefs) {
+        // Determine band parameter based on multiplier scope
+        QString bandParam = (multDef.scope == MultiplierScope::PerBand)
+                            ? bandToString(band)
+                            : QString();
+
+        // Get worked multipliers for this type
+        QStringList workedMults = repo.getWorkedMultipliers(multDef.type, bandParam, m_contestDbId);
+
+        // Check if this spot is a new mult
+        QString multValue = m_activeContest->getMultiplierValue(tempQso, multDef.type, workedMults);
+        if (!multValue.isEmpty()) {
+            // It's a new multiplier! Return multiplier color
+            QString multColorStr = AppSettings::instance().getClusterMultiplierColor();
+            return QColor(multColorStr);
+        }
+    }
+
+    // Not a dupe, not a multiplier - return normal color
+    return Qt::black;
 }
 
 void DXClusterWindow::setupUI() {
@@ -578,10 +658,11 @@ void DXClusterWindow::onTelnetSpotReceived(const QString& callsign,
     // Indent (3 spaces)
     pos += CALLSIGN_INDENT;
 
-    // Callsign (12 chars) - bold black
+    // Callsign (12 chars) - bold, color based on dupe/multiplier status
     int callsignPos = pos;
     int callsignLen = callsign.length();
-    formats.append({callsignPos, callsignLen, Qt::black, true});
+    QColor callsignColor = getSpotColor(callsign, frequency);
+    formats.append({callsignPos, callsignLen, callsignColor, true});
     pos += 12;
 
     // Space
