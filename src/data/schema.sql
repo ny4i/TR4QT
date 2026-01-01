@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS qsos (
     is_dupe BOOLEAN DEFAULT 0,          -- Duplicate?
     is_multiplier BOOLEAN DEFAULT 0,    -- Provides multiplier?
     multipliers TEXT,                   -- JSON array of mult values
+    is_run_qso BOOLEAN DEFAULT 0,       -- CQ/Run mode (1) vs S&P mode (0)
 
     -- Metadata
     serial_number INTEGER,              -- Our serial number sent

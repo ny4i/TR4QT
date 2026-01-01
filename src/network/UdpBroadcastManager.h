@@ -40,6 +40,7 @@ public:
     void setContactInfoEnabled(bool enabled);
     void setThrottleInterval(int milliseconds);  // Default 500ms
     void setDestinations(const QList<UdpDestination>& destinations);
+    void setOperatingMode(bool isRunMode);  // CQ/Run mode (true) vs S&P mode (false)
 
     bool isEnabled() const { return m_enabled; }
     bool isRadioInfoEnabled() const { return m_radioInfoEnabled; }
@@ -84,6 +85,7 @@ private:
     bool m_radioInfoEnabled{true};
     bool m_contactInfoEnabled{true};
     int m_throttleInterval{500};  // ms
+    bool m_isRunMode{false};  // CQ/Run mode (true) vs S&P mode (false)
 
     // Helper methods
 

@@ -53,13 +53,13 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
             contest_id, guid, timestamp, callsign, frequency, mode, submode, band,
             rst_sent, rst_received, exchange_sent, exchange_received,
             dxcc_entity, dxcc_prefix, dxcc_entity_code, cq_zone, itu_zone, continent, state, county, arrl_section, grid_square, iota_reference, contest_class,
-            qso_points, is_dupe, is_multiplier, multipliers,
+            qso_points, is_dupe, is_multiplier, multipliers, is_run_qso,
             serial_number, operator_call, notes
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
             ?, ?, ?
         )
     )";
@@ -93,6 +93,7 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         qso.isDupe,
         qso.isMultiplier,
         multipliersStr,
+        qso.isRunQSO,
         qso.serialNumber > 0 ? qso.serialNumber : QVariant(),
         qso.operatorCall,
         qso.notes
@@ -160,7 +161,7 @@ bool QSORepository::updateQSO(const QSO& qso) {
             timestamp = ?, callsign = ?, frequency = ?, mode = ?, submode = ?, band = ?,
             rst_sent = ?, rst_received = ?, exchange_sent = ?, exchange_received = ?,
             dxcc_entity = ?, dxcc_prefix = ?, dxcc_entity_code = ?, cq_zone = ?, itu_zone = ?, continent = ?, state = ?, county = ?, arrl_section = ?, grid_square = ?, iota_reference = ?, contest_class = ?,
-            qso_points = ?, is_dupe = ?, is_multiplier = ?, multipliers = ?,
+            qso_points = ?, is_dupe = ?, is_multiplier = ?, multipliers = ?, is_run_qso = ?,
             serial_number = ?, operator_call = ?, notes = ?
         WHERE id = ?
     )";
@@ -192,6 +193,7 @@ bool QSORepository::updateQSO(const QSO& qso) {
         qso.isDupe,
         qso.isMultiplier,
         multipliersStr,
+        qso.isRunQSO,
         qso.serialNumber > 0 ? qso.serialNumber : QVariant(),
         qso.operatorCall,
         qso.notes,
@@ -628,6 +630,7 @@ QSO QSORepository::qsoFromQuery(const QSqlQuery& query) const {
     qso.qsoPoints = query.value("qso_points").toInt();
     qso.isDupe = query.value("is_dupe").toBool();
     qso.isMultiplier = query.value("is_multiplier").toBool();
+    qso.isRunQSO = query.value("is_run_qso").toBool();
 
     // Parse multipliers JSON
     QString multipliersStr = query.value("multipliers").toString();

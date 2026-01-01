@@ -508,6 +508,31 @@ bool Database::migrateSchema() {
         LOG_INFO("Database", "Note: ADIF SUBMODE support (e.g., FT4 as submode of MFSK)");
     }
 
+    // Migration 6: Add is_run_qso column to qsos table (v3.15.0)
+    query.exec("PRAGMA table_info(qsos)");
+    bool hasIsRunQSOColumn = false;
+    while (query.next()) {
+        QString columnName = query.value(1).toString();
+        if (columnName == "is_run_qso") {
+            hasIsRunQSOColumn = true;
+            break;
+        }
+    }
+
+    if (!hasIsRunQSOColumn) {
+        LOG_INFO("Database", "Migrating schema: Adding is_run_qso column to qsos table");
+
+        // Add is_run_qso column (0 = S&P, 1 = CQ/Run)
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN is_run_qso INTEGER DEFAULT 0")) {
+            m_lastError = QString("Failed to add is_run_qso column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+
+        LOG_INFO("Database", "is_run_qso column added successfully");
+        LOG_INFO("Database", "Note: Tracks whether QSO was made in CQ (run) mode or S&P mode");
+    }
+
     LOG_DEBUG("Database", "Schema migration complete");
     return true;
 }
