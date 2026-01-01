@@ -1868,10 +1868,9 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
         m_radioControlWindow->updateRadioState(state);
     }
 
-    // Update Band Map with current frequency for band filtering
-    if (m_bandMapWindow) {
-        m_bandMapWindow->setCurrentFrequency(state.frequencyA);
-    }
+    // Emit signals so all interested components (Band Map, etc.) can update
+    emit currentFrequencyChanged(state.frequencyA);
+    emit currentBandChanged(state.bandA);
 }
 
 void MainWindow::onRadioError(const QString& error) {
@@ -3720,6 +3719,11 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     if (m_activeContest) {
         delete m_activeContest;
         m_activeContest = nullptr;
+
+        // Clear contest from DX Cluster window
+        if (m_dxClusterWindow) {
+            m_dxClusterWindow->setActiveContest(nullptr, -1);
+        }
     }
 
     // Open database
@@ -3864,6 +3868,11 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     m_currentContest = contestInfo;
     m_hasActiveContest = true;
 
+    // Update DX Cluster window with active contest (for dupe/mult checking)
+    if (m_dxClusterWindow) {
+        m_dxClusterWindow->setActiveContest(m_activeContest, m_currentContestDbId);
+    }
+
     // Update web server with contest name (myCall is pulled from AppSettings)
     m_webServer->setContestName(contestInfo.contestName);
 
@@ -3945,6 +3954,10 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
 
         // Update display
         updateRadioStatusGrid();
+
+        // Notify Band Map of the default band (in case it was already restored from settings)
+        emit currentBandChanged(m_currentState.bandA);
+        emit currentFrequencyChanged(m_currentState.frequencyA);
 
         LOG_DEBUG("MainWindow", QString("Set default band/mode/freq: %1 %2 %3 Hz (radio not connected)")
             .arg(bandToString(m_currentState.bandA))
@@ -4213,6 +4226,14 @@ void MainWindow::onShowDXCluster() {
         m_dxClusterWindow->setWindowTitle("DX Cluster");
         m_dxClusterWindow->setAttribute(Qt::WA_DeleteOnClose, false);
 
+        // Pass country file for DXCC/zone lookup
+        m_dxClusterWindow->setCountryFile(&m_countryFile);
+
+        // Pass active contest if one is loaded
+        if (m_hasActiveContest && m_activeContest) {
+            m_dxClusterWindow->setActiveContest(m_activeContest, m_currentContestDbId);
+        }
+
         // Connect spot signal to forward spots to band map
         connect(m_dxClusterWindow, &DXClusterWindow::spotReceived,
                 this, &MainWindow::onDXSpotReceived);
@@ -4241,6 +4262,14 @@ void MainWindow::onShowBandMap() {
         m_bandMapWindow->setWindowFlags(Qt::Window);
         m_bandMapWindow->setAttribute(Qt::WA_DeleteOnClose, false);
 
+        // Connect current frequency changes to Band Map (for band filtering)
+        connect(this, &MainWindow::currentFrequencyChanged,
+                m_bandMapWindow, &BandMapWidget::setCurrentFrequency);
+
+        // Connect current band changes to Band Map (for filtering when radio not connected)
+        connect(this, &MainWindow::currentBandChanged,
+                m_bandMapWindow, &BandMapWidget::setCurrentBand);
+
         // Connect band map signals
         connect(m_bandMapWindow, &BandMapWidget::qsyRequested,
                 this, [this](freq_t frequency) {
@@ -4257,6 +4286,14 @@ void MainWindow::onShowBandMap() {
                     m_callsignEntry->setFocus();
                 });
     }
+
+    // Send current band to Band Map (works for new window or restored window)
+    // This ensures the filter knows the current band even if window was restored from settings
+    if (m_currentState.bandA != BandType::None) {
+        LOG_DEBUG("MainWindow", QString("Sending current band to Band Map: %1").arg(bandToString(m_currentState.bandA)));
+        m_bandMapWindow->setCurrentBand(m_currentState.bandA);
+    }
+
     m_bandMapWindow->show();
     m_bandMapWindow->raise();
     m_bandMapWindow->activateWindow();
@@ -5055,6 +5092,12 @@ void MainWindow::onBandClicked(BandType band) {
 
         // Update radio status display
         updateRadioStatusGrid();
+
+        // Emit signals so all interested components (Band Map, etc.) can update
+        LOG_DEBUG("MainWindow", QString("Manual band selection emitting - band: %1, frequency: %2 Hz")
+            .arg(bandToString(band)).arg(m_currentState.frequencyA));
+        emit currentFrequencyChanged(m_currentState.frequencyA);
+        emit currentBandChanged(band);
 
         // Update status message
         m_statusLabel->setText(QString("Band: %1 (manual)").arg(bandToString(band)));

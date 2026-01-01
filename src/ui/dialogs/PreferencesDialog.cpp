@@ -856,6 +856,48 @@ QWidget* PreferencesDialog::createAppearanceTab() {
     needsLayout->addRow("VHF Bands:", m_vhfBandsEnabledCheck);
 
     layout->addWidget(needsGroup);
+
+    // DX Cluster Colors group
+    QGroupBox* clusterColorsGroup = new QGroupBox("DX Cluster Spot Colors", this);
+    QFormLayout* clusterColorsLayout = new QFormLayout(clusterColorsGroup);
+
+    // Dupe color (already worked)
+    QHBoxLayout* dupeColorLayout = new QHBoxLayout();
+    m_clusterDupeColorButton = new QPushButton(this);
+    m_clusterDupeColorButton->setFixedSize(80, 25);
+    m_clusterDupeColorButton->setToolTip("Color for spots already worked (dupes)");
+    connect(m_clusterDupeColorButton, &QPushButton::clicked, this, [this]() {
+        QColor current = QColor(AppSettings::instance().getClusterDupeColor());
+        QColor color = QColorDialog::getColor(current, this, "Select Dupe Spot Color");
+        if (color.isValid()) {
+            m_clusterDupeColorButton->setStyleSheet(
+                QString("background-color: %1;").arg(color.name()));
+            AppSettings::instance().setClusterDupeColor(color.name());
+        }
+    });
+    dupeColorLayout->addWidget(m_clusterDupeColorButton);
+    dupeColorLayout->addStretch();
+    clusterColorsLayout->addRow("Dupe (Worked):", dupeColorLayout);
+
+    // Multiplier color (new mult)
+    QHBoxLayout* multColorLayout = new QHBoxLayout();
+    m_clusterMultColorButton = new QPushButton(this);
+    m_clusterMultColorButton->setFixedSize(80, 25);
+    m_clusterMultColorButton->setToolTip("Color for spots that are new multipliers");
+    connect(m_clusterMultColorButton, &QPushButton::clicked, this, [this]() {
+        QColor current = QColor(AppSettings::instance().getClusterMultiplierColor());
+        QColor color = QColorDialog::getColor(current, this, "Select Multiplier Spot Color");
+        if (color.isValid()) {
+            m_clusterMultColorButton->setStyleSheet(
+                QString("background-color: %1;").arg(color.name()));
+            AppSettings::instance().setClusterMultiplierColor(color.name());
+        }
+    });
+    multColorLayout->addWidget(m_clusterMultColorButton);
+    multColorLayout->addStretch();
+    clusterColorsLayout->addRow("New Multiplier:", multColorLayout);
+
+    layout->addWidget(clusterColorsGroup);
     layout->addStretch();
 
     return appearanceTab;
@@ -1271,6 +1313,12 @@ void PreferencesDialog::loadSettings() {
     QString neededColor = settings.getNeedsDisplayNeededColor();
     m_neededColorButton->setStyleSheet(QString("background-color: %1;").arg(neededColor));
     m_vhfBandsEnabledCheck->setChecked(settings.getVHFBandsEnabled());
+
+    // DX Cluster spot colors
+    QString dupeColor = settings.getClusterDupeColor();
+    m_clusterDupeColorButton->setStyleSheet(QString("background-color: %1;").arg(dupeColor));
+    QString multColor = settings.getClusterMultiplierColor();
+    m_clusterMultColorButton->setStyleSheet(QString("background-color: %1;").arg(multColor));
 
     // Load current theme
     ThemeManager& theme = ThemeManager::instance();

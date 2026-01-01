@@ -11,6 +11,10 @@
 
 namespace TR4QT {
 
+// Forward declarations
+class ContestBase;
+class CountryFile;
+
 /**
  * DX Cluster Window
  *
@@ -30,6 +34,19 @@ class DXClusterWindow : public QWidget {
 public:
     explicit DXClusterWindow(QWidget* parent = nullptr);
     ~DXClusterWindow() override;
+
+    /**
+     * Set the active contest for dupe/multiplier checking
+     * @param contest Pointer to active contest (nullptr if no contest)
+     * @param contestDbId Database ID of the active contest
+     */
+    void setActiveContest(ContestBase* contest, int contestDbId);
+
+    /**
+     * Set the country file for DXCC/zone lookup
+     * @param countryFile Pointer to CountryFile (from MainWindow)
+     */
+    void setCountryFile(CountryFile* countryFile);
 
 signals:
     /**
@@ -95,6 +112,14 @@ private:
     void applyTheme();
 
     /**
+     * Determine color for DX spot based on dupe/multiplier status
+     * @param callsign Spotted callsign
+     * @param frequency Spotted frequency in Hz
+     * @return Color to use for the spot (dupe/mult/normal)
+     */
+    QColor getSpotColor(const QString& callsign, double frequency) const;
+
+    /**
      * Parse split operation info from comment
      * Returns listening frequency in Hz, or 0 if not a split spot
      * Handles: "QSX 14205", "UP 10", "DOWN 5", "UP10", etc.
@@ -125,6 +150,13 @@ private:
     int m_reconnectAttempts;
     static constexpr int MAX_RECONNECT_ATTEMPTS = 10;
     int m_spotRowCount;  // For alternating row backgrounds
+
+    // Contest context (for dupe/multiplier checking)
+    ContestBase* m_activeContest;
+    int m_contestDbId;
+
+    // Country file (for DXCC/zone lookup)
+    CountryFile* m_countryFile;
 
     // Split operation tracking
     // Maps displayed line text -> struct with split info
