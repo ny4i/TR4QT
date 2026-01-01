@@ -4633,6 +4633,8 @@ void MainWindow::onDownloadCTY(bool headless) {
         progressDialog->setWindowTitle("Download CTY.dat");
         progressDialog->setWindowModality(Qt::WindowModal);
         progressDialog->setMinimumDuration(0);
+        progressDialog->setAutoClose(false);  // Don't auto-close when reaching 100%
+        progressDialog->setAutoReset(false);  // Don't auto-reset when reaching 100%
         progressDialog->setValue(0);
     }
 
@@ -4656,37 +4658,49 @@ void MainWindow::onDownloadCTY(bool headless) {
     // Connect finished signal
     connect(downloader, &CountryFileDownloader::downloadFinished,
             this, [this, progressDialog, downloader, headless](bool success, const QString& filePath, const QString& version) {
-                if (progressDialog) {
-                    progressDialog->close();
-                    progressDialog->deleteLater();
-                }
-
                 if (success) {
                     LOG_DEBUG("MainWindow", QString("Download successful: %1 Version: %2").arg(filePath).arg(version));
 
-                    // Auto-reload the country file (no dialog prompt)
+                    // Auto-reload the country file
                     if (m_countryFile.loadFromFile(filePath)) {
                         // Set the version from the download
                         m_countryFile.setVersion(version);
                         LOG_DEBUG("MainWindow", QString("Country file reloaded successfully. Version: %1")
                             .arg(m_countryFile.getVersion()));
 
-                        // Update status bar permanently (no timeout) to replace update notification
+                        // Update status bar permanently (no timeout)
                         statusBar()->showMessage(QString("CTY.DAT %1 loaded successfully").arg(version));
+
+                        if (progressDialog) {
+                            // Update progress dialog to show completion (user clicks OK to dismiss)
+                            progressDialog->setLabelText(QString("Country file downloaded and loaded successfully!\n\nVersion: %1").arg(version));
+                            progressDialog->setCancelButtonText("OK");
+                            progressDialog->setValue(100);
+
+                            // Wait for user to click OK, then close
+                            connect(progressDialog, &QProgressDialog::canceled, progressDialog, &QProgressDialog::deleteLater);
+                        }
                     } else {
                         LOG_WARN("MainWindow", "Failed to reload country file after download");
+                        statusBar()->showMessage("Failed to reload CTY.DAT");
 
-                        // Show error dialog only if reload fails (important)
+                        if (progressDialog) {
+                            progressDialog->close();
+                            progressDialog->deleteLater();
+                        }
+
+                        // Show error dialog only if reload fails
                         if (!headless) {
-                            statusBar()->clearMessage();
                             DialogHelper::warning(this, "Reload Failed",
                                 "Failed to reload the country file after download.\n\n"
                                 "Please restart the application.");
-                        } else {
-                            statusBar()->showMessage("Failed to reload CTY.DAT");
                         }
                     }
                 } else {
+                    if (progressDialog) {
+                        progressDialog->close();
+                        progressDialog->deleteLater();
+                    }
                     if (!headless) {
                         DialogHelper::critical(this, "Download Failed",
                             "Failed to download country file.\n\n"
@@ -4728,6 +4742,8 @@ void MainWindow::onDownloadLOTW(bool headless) {
         progressDialog->setWindowTitle("Download LOTW Users");
         progressDialog->setWindowModality(Qt::WindowModal);
         progressDialog->setMinimumDuration(0);
+        progressDialog->setAutoClose(false);  // Don't auto-close when reaching 100%
+        progressDialog->setAutoReset(false);  // Don't auto-reset when reaching 100%
         progressDialog->setValue(0);
     }
 
@@ -4751,11 +4767,6 @@ void MainWindow::onDownloadLOTW(bool headless) {
     // Connect finished signal
     connect(downloader, &LOTWUserDownloader::downloadFinished,
             this, [this, progressDialog, downloader, headless](bool success, int userCount, const QString& error) {
-                if (progressDialog) {
-                    progressDialog->close();
-                    progressDialog->deleteLater();
-                }
-
                 if (success) {
                     LOG_DEBUG("MainWindow", QString("LOTW download successful: %1 users imported").arg(userCount));
 
@@ -4763,9 +4774,23 @@ void MainWindow::onDownloadLOTW(bool headless) {
                     AppSettings& settings = AppSettings::instance();
                     settings.setLotwLastUpdateTime(QDateTime::currentDateTime());
 
-                    // Show status bar message instead of dialog (no timeout - permanent)
+                    // Update status bar permanently (no timeout)
                     statusBar()->showMessage(QString("LOTW user list downloaded: %1 users imported").arg(userCount));
+
+                    if (progressDialog) {
+                        // Update progress dialog to show completion (user clicks OK to dismiss)
+                        progressDialog->setLabelText(QString("LOTW user list downloaded successfully!\n\n%1 users imported").arg(userCount));
+                        progressDialog->setCancelButtonText("OK");
+                        progressDialog->setValue(100);
+
+                        // Wait for user to click OK, then close
+                        connect(progressDialog, &QProgressDialog::canceled, progressDialog, &QProgressDialog::deleteLater);
+                    }
                 } else {
+                    if (progressDialog) {
+                        progressDialog->close();
+                        progressDialog->deleteLater();
+                    }
                     if (!headless) {
                         DialogHelper::critical(this, "Download Failed",
                             QString("Failed to download LOTW user list.\n\n%1\n\n"
@@ -4807,6 +4832,8 @@ void MainWindow::onDownloadSCP(bool headless) {
         progressDialog->setWindowTitle("Download MASTER.SCP");
         progressDialog->setWindowModality(Qt::WindowModal);
         progressDialog->setMinimumDuration(0);
+        progressDialog->setAutoClose(false);  // Don't auto-close when reaching 100%
+        progressDialog->setAutoReset(false);  // Don't auto-reset when reaching 100%
         progressDialog->setValue(0);
     }
 
@@ -4830,11 +4857,6 @@ void MainWindow::onDownloadSCP(bool headless) {
     // Connect finished signal
     connect(downloader, &SCPDownloader::downloadFinished,
             this, [this, progressDialog, downloader, headless](bool success, int callsignCount, const QString& error) {
-                if (progressDialog) {
-                    progressDialog->close();
-                    progressDialog->deleteLater();
-                }
-
                 if (success) {
                     LOG_DEBUG("MainWindow", QString("SCP download successful: %1 callsigns imported").arg(callsignCount));
 
@@ -4842,9 +4864,23 @@ void MainWindow::onDownloadSCP(bool headless) {
                     AppSettings& settings = AppSettings::instance();
                     settings.setSCPLastUpdate(QDateTime::currentDateTime());
 
-                    // Show status bar message instead of dialog (no timeout - permanent)
+                    // Update status bar permanently (no timeout)
                     statusBar()->showMessage(QString("MASTER.SCP downloaded: %1 callsigns imported").arg(callsignCount));
+
+                    if (progressDialog) {
+                        // Update progress dialog to show completion (user clicks OK to dismiss)
+                        progressDialog->setLabelText(QString("MASTER.SCP downloaded successfully!\n\n%1 callsigns imported").arg(callsignCount));
+                        progressDialog->setCancelButtonText("OK");
+                        progressDialog->setValue(100);
+
+                        // Wait for user to click OK, then close
+                        connect(progressDialog, &QProgressDialog::canceled, progressDialog, &QProgressDialog::deleteLater);
+                    }
                 } else {
+                    if (progressDialog) {
+                        progressDialog->close();
+                        progressDialog->deleteLater();
+                    }
                     if (!headless) {
                         DialogHelper::critical(this, "Download Failed",
                             QString("Failed to download MASTER.SCP.\n\n%1\n\n"
