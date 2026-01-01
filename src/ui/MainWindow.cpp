@@ -4661,9 +4661,9 @@ void MainWindow::onDownloadCTY(bool headless) {
 
     // Connect finished signal
     connect(downloader, &CountryFileDownloader::downloadFinished,
-            this, [this, progressDialog, downloader, headless](bool success, const QString& filePath, const QString& version) {
+            this, [this, progressDialog, downloader, headless](bool success, const QString& filePath, const QString& version, int numericalVersion) {
                 if (success) {
-                    LOG_DEBUG("MainWindow", QString("Download successful: %1 Version: %2").arg(filePath).arg(version));
+                    LOG_DEBUG("MainWindow", QString("Download successful: %1 Version: %2 (CTY-%3)").arg(filePath).arg(version).arg(numericalVersion));
 
                     // Auto-reload the country file
                     if (m_countryFile.loadFromFile(filePath)) {
@@ -4673,13 +4673,13 @@ void MainWindow::onDownloadCTY(bool headless) {
                             .arg(m_countryFile.getVersion()));
 
                         // Save the numerical version to AppSettings to prevent re-notification
-                        if (m_latestCTYVersion > 0) {
-                            AppSettings::instance().setCountryFileVersion(m_latestCTYVersion);
-                            LOG_DEBUG("MainWindow", QString("Saved CTY version to settings: %1").arg(m_latestCTYVersion));
+                        if (numericalVersion > 0) {
+                            AppSettings::instance().setCountryFileVersion(numericalVersion);
+                            LOG_DEBUG("MainWindow", QString("Saved CTY version to settings: %1").arg(numericalVersion));
                         }
 
-                        // Update status bar permanently (no timeout)
-                        statusBar()->showMessage(QString("CTY.DAT %1 loaded successfully").arg(version));
+                        // Update status bar with success message (5 second timeout, then clear)
+                        statusBar()->showMessage(QString("CTY.DAT %1 loaded successfully").arg(version), 5000);
 
                         if (progressDialog) {
                             // Update progress dialog to show completion (user clicks OK to dismiss)
