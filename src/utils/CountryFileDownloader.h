@@ -26,7 +26,7 @@ public:
 
 signals:
     void downloadProgress(qint64 bytesReceived, qint64 bytesTotal);
-    void downloadFinished(bool success, const QString& filePath, const QString& version);
+    void downloadFinished(bool success, const QString& filePath, const QString& version, int numericalVersion);
     void versionChecked(const QString& latestVersion);
     void updateAvailable(int currentVersion, int latestVersion, const QString& versionString);
     void errorOccurred(const QString& error);
@@ -41,6 +41,7 @@ private:
     QNetworkReply* m_currentReply{nullptr};
     QString m_saveDir;
     QString m_latestVersion;  // Store latest version (e.g., "VER20251218")
+    int m_numericalVersion{0};  // Store numerical CTY version (e.g., 3541)
     bool m_shouldDownload{false};  // True if version check should proceed to download
 
     // Parse version string from RSS feed (e.g., "VER20251218" from description)

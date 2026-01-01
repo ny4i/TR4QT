@@ -105,9 +105,9 @@ void CountryFileDownloader::onVersionCheckFinished() {
         // Actually, we need to parse the numerical version from the title for the URL
         QRegularExpression numRe(R"(CTY-(\d{4}))");
         QRegularExpressionMatch numMatch = numRe.match(rssXml);
-        int numericalVersion = CURRENT_CTY_VERSION;  // fallback
+        m_numericalVersion = CURRENT_CTY_VERSION;  // fallback
         if (numMatch.hasMatch()) {
-            numericalVersion = numMatch.captured(1).toInt();
+            m_numericalVersion = numMatch.captured(1).toInt();
         }
 
         // Check if update is available (emit signal for status bar notification)
@@ -115,10 +115,13 @@ void CountryFileDownloader::onVersionCheckFinished() {
         int savedVersion = AppSettings::instance().getCountryFileVersion();
         int currentVersion = (savedVersion > 0) ? savedVersion : CURRENT_CTY_VERSION;
 
-        if (numericalVersion > currentVersion) {
+        LOG_DEBUG("CountryFileDownloader", QString("Version check: RSS=%1, Saved=%2, Current=%3, Constant=%4")
+            .arg(m_numericalVersion).arg(savedVersion).arg(currentVersion).arg(CURRENT_CTY_VERSION));
+
+        if (m_numericalVersion > currentVersion) {
             LOG_INFO("CountryFileDownloader", QString("CTY.DAT update available: CTY-%1 (current: CTY-%2)")
-                .arg(numericalVersion).arg(currentVersion));
-            emit updateAvailable(currentVersion, numericalVersion, m_latestVersion);
+                .arg(m_numericalVersion).arg(currentVersion));
+            emit updateAvailable(currentVersion, m_numericalVersion, m_latestVersion);
         } else {
             LOG_DEBUG("CountryFileDownloader", QString("CTY.DAT is up to date: CTY-%1").arg(currentVersion));
         }
@@ -133,7 +136,7 @@ void CountryFileDownloader::onVersionCheckFinished() {
         // Now download the actual file (ZIP format)
         LOG_DEBUG("CountryFileDownloader", "Proceeding with download...");
         QString downloadUrl = QString("https://www.country-files.com/cty/download/%1/cty-%1.zip")
-                                      .arg(numericalVersion);
+                                      .arg(m_numericalVersion);
 
         LOG_DEBUG("CountryFileDownloader", QString("Latest CTY version from RSS feed: %1").arg(m_latestVersion));
         LOG_DEBUG("CountryFileDownloader", QString("Downloading ZIP file: %1").arg(downloadUrl));
@@ -197,7 +200,7 @@ void CountryFileDownloader::onDownloadFinished() {
             emit errorOccurred("Failed to create temporary directory");
             m_currentReply->deleteLater();
             m_currentReply = nullptr;
-            emit downloadFinished(false, "", QString());
+            emit downloadFinished(false, "", QString(), 0);
             return;
         }
 
@@ -208,7 +211,7 @@ void CountryFileDownloader::onDownloadFinished() {
             emit errorOccurred("Failed to write ZIP file: " + zipPath);
             m_currentReply->deleteLater();
             m_currentReply = nullptr;
-            emit downloadFinished(false, "", QString());
+            emit downloadFinished(false, "", QString(), 0);
             return;
         }
         zipFile.write(zipData);
@@ -226,7 +229,7 @@ void CountryFileDownloader::onDownloadFinished() {
             emit errorOccurred("Failed to open ZIP archive");
             m_currentReply->deleteLater();
             m_currentReply = nullptr;
-            emit downloadFinished(false, "", QString());
+            emit downloadFinished(false, "", QString(), 0);
             return;
         }
 
@@ -251,7 +254,7 @@ void CountryFileDownloader::onDownloadFinished() {
             emit errorOccurred("cty.dat not found in ZIP archive");
             m_currentReply->deleteLater();
             m_currentReply = nullptr;
-            emit downloadFinished(false, "", QString());
+            emit downloadFinished(false, "", QString(), 0);
             return;
         }
 
@@ -262,7 +265,7 @@ void CountryFileDownloader::onDownloadFinished() {
             emit errorOccurred("Failed to extract cty.dat from ZIP");
             m_currentReply->deleteLater();
             m_currentReply = nullptr;
-            emit downloadFinished(false, "", QString());
+            emit downloadFinished(false, "", QString(), 0);
             return;
         }
 
@@ -293,7 +296,7 @@ void CountryFileDownloader::onDownloadFinished() {
     m_currentReply->deleteLater();
     m_currentReply = nullptr;
 
-    emit downloadFinished(success, filePath, m_latestVersion);
+    emit downloadFinished(success, filePath, m_latestVersion, m_numericalVersion);
 }
 
 void CountryFileDownloader::onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal) {
