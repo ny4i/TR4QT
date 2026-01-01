@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.16.2] - 2026-01-01
+
+### Fixed
+- Critical shutdown hang - reduced worker thread timeout and added forceful termination
+- RadioController destructor now terminates stuck thread after 1 second (down from 3)
+- Removed attempt to disconnect before termination (was causing double-deadlock)
+- Thread forcefully terminated if stuck in blocking connect/rig_open syscall
+
+### Technical Details
+- Destructor now: quit() → wait(1s) → terminate() → wait(2s)
+- Previous approach tried to disconnect first, causing nested deadlock
+- Worker thread cleanup (HamlibRadio destructor) was deadlocking with active connect()
+- Forceful termination is safe - Hamlib handles interrupted connections gracefully
+
 ## [3.16.1] - 2026-01-01
 
 ### Fixed
