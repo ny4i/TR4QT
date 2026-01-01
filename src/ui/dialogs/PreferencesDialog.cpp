@@ -343,40 +343,7 @@ QWidget* PreferencesDialog::createRadioTab() {
     QFormLayout* advancedLayout = new QFormLayout(advancedGroup);
 
     // CI-V Address selection (for Icom radios)
-    QWidget* civWidget = new QWidget(this);
-    QVBoxLayout* civLayout = new QVBoxLayout(civWidget);
-    civLayout->setContentsMargins(0, 0, 0, 0);
-
-    m_civDefaultRadio = new QRadioButton("Use Default CI-V Address", this);
-    m_civDefaultRadio->setToolTip("Use radio's default CI-V address (0x00)\n"
-                                   "Radio will respond to broadcast commands");
-    m_civDefaultRadio->setChecked(true);
-
-    QWidget* civCustomWidget = new QWidget(this);
-    QHBoxLayout* civCustomLayout = new QHBoxLayout(civCustomWidget);
-    civCustomLayout->setContentsMargins(0, 0, 0, 0);
-
-    m_civCustomRadio = new QRadioButton("Custom CI-V Address:", this);
-    m_civCustomRadio->setToolTip("Specify a custom CI-V address for this radio");
-
-    m_civAddressEdit = new QLineEdit(this);
-    m_civAddressEdit->setPlaceholderText("Hex address (e.g., 94, 0x94, 0x98)");
-    m_civAddressEdit->setMaxLength(4);
-    m_civAddressEdit->setEnabled(false);  // Disabled by default
-    m_civAddressEdit->setToolTip("Enter hex CI-V address\n"
-                                   "Examples: 94, 0x94, 0x98\n"
-                                   "Common: IC-7300=94, IC-7610=98, IC-9700=A2");
-
-    civCustomLayout->addWidget(m_civCustomRadio);
-    civCustomLayout->addWidget(m_civAddressEdit);
-    civCustomLayout->addStretch();
-
-    civLayout->addWidget(m_civDefaultRadio);
-    civLayout->addWidget(civCustomWidget);
-
-    // Connect radio button signals
-    connect(m_civDefaultRadio, &QRadioButton::toggled, this, &PreferencesDialog::onCivAddressModeChanged);
-    connect(m_civCustomRadio, &QRadioButton::toggled, this, &PreferencesDialog::onCivAddressModeChanged);
+    m_civAddressWidget = new CivAddressWidget(this);
 
     m_pollIntervalSpin = new QSpinBox(this);
     m_pollIntervalSpin->setRange(100, 5000);
@@ -385,7 +352,7 @@ QWidget* PreferencesDialog::createRadioTab() {
     m_pollIntervalSpin->setSuffix(" ms");
     m_pollIntervalSpin->setToolTip("How often to poll the radio for status updates");
 
-    advancedLayout->addRow("CI-V Address:", civWidget);
+    advancedLayout->addRow("CI-V Address:", m_civAddressWidget);
     advancedLayout->addRow("Poll Interval:", m_pollIntervalSpin);
 
     m_morseWpmSpin = new QSpinBox(this);
@@ -1350,16 +1317,8 @@ void PreferencesDialog::loadSettings() {
             m_parityCombo->setCurrentIndex(config.parity);
         }
 
-        // Set CI-V address mode based on value
-        if (config.civAddress == 0) {
-            m_civDefaultRadio->setChecked(true);
-            m_civAddressEdit->clear();
-            m_civAddressEdit->setEnabled(false);
-        } else {
-            m_civCustomRadio->setChecked(true);
-            m_civAddressEdit->setText(QString::number(config.civAddress, 16).toUpper());
-            m_civAddressEdit->setEnabled(true);
-        }
+        // Set CI-V address in widget
+        m_civAddressWidget->setCivAddress(config.civAddress);
 
         m_pollIntervalSpin->setValue(config.pollInterval);
     }
@@ -1508,25 +1467,8 @@ void PreferencesDialog::saveSettings() {
     }
 
     // Parse CI-V address based on radio button selection
-    if (m_civDefaultRadio->isChecked()) {
-        config.civAddress = 0;  // Default/auto
-    } else {
-        // Custom address - parse from text field
-        QString civText = m_civAddressEdit->text().trimmed();
-        if (civText.isEmpty()) {
-            config.civAddress = 0;  // Empty = default
-        } else {
-            // Remove 0x prefix if present
-            if (civText.startsWith("0x", Qt::CaseInsensitive)) {
-                civText = civText.mid(2);
-            }
-            bool ok = false;
-            config.civAddress = civText.toInt(&ok, 16);  // Parse as hex
-            if (!ok) {
-                config.civAddress = 0;  // Invalid hex, default to 0
-            }
-        }
-    }
+    // Get CI-V address from widget
+    config.civAddress = m_civAddressWidget->getCivAddress();
 
     config.pollInterval = m_pollIntervalSpin->value();
 
@@ -1666,52 +1608,8 @@ void PreferencesDialog::onRadioModelChanged(int index) {
     // Show custom model ID field if "Custom" is selected
     m_customModelEdit->setVisible(modelId == -1);
 
-    // Auto-configure CI-V for Icom radios
-    if (modelId >= 3000 && modelId < 4000) {
-        // Icom radio - auto-select custom CI-V with known address
-        QString civAddress;
-        if (modelId == 3078) {  // IC-7610
-            civAddress = "98";
-        } else if (modelId == 3092) {  // IC-7760
-            civAddress = "7C";
-        } else if (modelId == 3073) {  // IC-7300
-            civAddress = "94";
-        } else if (modelId == 3093) {  // IC-9700
-            civAddress = "A2";
-        }
-
-        if (!civAddress.isEmpty()) {
-            // Known Icom radio - set custom address
-            m_civCustomRadio->setChecked(true);
-            m_civAddressEdit->setText(civAddress);
-            m_civAddressEdit->setEnabled(true);
-        } else {
-            // Unknown Icom radio - use default
-            m_civDefaultRadio->setChecked(true);
-            m_civAddressEdit->clear();
-            m_civAddressEdit->setEnabled(false);
-        }
-    } else {
-        // Non-Icom radio - use default (disabled)
-        m_civDefaultRadio->setChecked(true);
-        m_civAddressEdit->clear();
-        m_civAddressEdit->setEnabled(false);
-    }
-}
-
-void PreferencesDialog::onCivAddressModeChanged() {
-    // Enable/disable CI-V address text field based on radio button selection
-    bool useCustom = m_civCustomRadio->isChecked();
-    m_civAddressEdit->setEnabled(useCustom);
-
-    if (useCustom) {
-        // Custom selected - focus the text field for immediate entry
-        m_civAddressEdit->setFocus();
-        m_civAddressEdit->selectAll();
-    } else {
-        // Default selected - clear the text field
-        m_civAddressEdit->clear();
-    }
+    // Auto-configure CI-V address for known Icom radios
+    m_civAddressWidget->autoConfigureForRadio(modelId);
 }
 
 void PreferencesDialog::onTestRadioConnection() {
@@ -1753,20 +1651,8 @@ void PreferencesDialog::onTestRadioConnection() {
         return;
     }
 
-    // Parse CI-V address
-    QString civText = m_civAddressEdit->text().trimmed();
-    if (civText.isEmpty() || civText == "0") {
-        config.civAddress = 0;
-    } else {
-        if (civText.startsWith("0x", Qt::CaseInsensitive)) {
-            civText = civText.mid(2);
-        }
-        bool ok = false;
-        config.civAddress = civText.toInt(&ok, 16);
-        if (!ok) {
-            config.civAddress = 0;
-        }
-    }
+    // Get CI-V address from widget
+    config.civAddress = m_civAddressWidget->getCivAddress();
 
     config.pollInterval = m_pollIntervalSpin->value();
 
