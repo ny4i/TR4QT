@@ -368,8 +368,9 @@ Update process:
 3. **Update version in tr4qt.nsi to match**
 4. **Update version in CMakeLists.txt to match**
 5. **Update version in tr4qt.rc to match (4 places!)**
-6. Include version in commit message: "Feature description - vX.Y.Z"
-7. Rebuild: `cmake --build build`
+6. **Update CHANGELOG.md**: Move items from `[Unreleased]` to new version section with date
+7. Include version in commit message: "Feature description - vX.Y.Z"
+8. Rebuild: `cmake --build build`
 
 Example (Constants.h):
 ```cpp
