@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.28.1] - 2026-01-02
+
+### Fixed
+- **Radio Pre-flight Check**: Improved timing instrumentation and reliability
+  - Increased timeout from 500ms to 2000ms (prevents false negatives on slower networks)
+  - Added detailed timing measurements with QElapsedTimer
+  - Enhanced error logging with socket error codes and elapsed time for all outcomes (success/timeout/error)
+  - Files: `src/radio/RadioController.cpp`
+
 ## [3.28.0] - 2026-01-02
 
 ### Changed
