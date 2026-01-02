@@ -33,6 +33,7 @@
 #include "../data/BackupManager.h"
 #include "../data/ExchangeMemoryRepository.h"
 #include "../data/SCPRepository.h"
+#include "../contests/RSTValidator.h"
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
@@ -2120,9 +2121,7 @@ void MainWindow::onLogQSO() {
     qso.isRunQSO = (m_operatingMode == OperatingMode::CQ);
 
     // Exchange - set default sent RST based on mode
-    // Phone modes (SSB, FM, AM): 59
-    // CW and Digital modes (RTTY, PSK, FT8, etc.): 599
-    qso.rstSent = isPhoneMode(qso.mode) ? "59" : "599";
+    qso.rstSent = RSTValidator::getDefault(qso.mode);
     qso.exchangeReceived = exchange;
 
     // Parse exchange into QSO fields
@@ -2132,15 +2131,11 @@ void MainWindow::onLogQSO() {
 
         // Set default RST if not populated by contest
         if (qso.rstReceived.isEmpty()) {
-            // Phone modes (SSB, FM, AM): 59
-            // CW and Digital modes (RTTY, PSK, FT8, etc.): 599
-            qso.rstReceived = isPhoneMode(qso.mode) ? "59" : "599";
+            qso.rstReceived = RSTValidator::getDefault(qso.mode);
         }
     } else {
         // No active contest - use default RST based on mode
-        // Phone modes (SSB, FM, AM): 59
-        // CW and Digital modes (RTTY, PSK, FT8, etc.): 599
-        qso.rstReceived = isPhoneMode(qso.mode) ? "59" : "599";
+        qso.rstReceived = RSTValidator::getDefault(qso.mode);
     }
 
     // Sent exchange handling (for contests that use serial numbers)

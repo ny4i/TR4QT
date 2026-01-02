@@ -38,6 +38,21 @@ constexpr int DEFAULT_TABLE_FONT_SIZE = 12;
 constexpr int DEFAULT_GRID_FONT_SIZE = 11;
 constexpr int DEFAULT_MISC_DISPLAY_FONT_SIZE = 11;
 
+// Zone validation ranges
+constexpr int CQ_ZONE_MIN = 1;
+constexpr int CQ_ZONE_MAX = 40;
+constexpr int ITU_ZONE_MIN = 1;
+constexpr int ITU_ZONE_MAX = 90;
+
+// Integrity checks
+constexpr int INTEGRITY_CHECK_INTERVAL_MS = 5 * 60 * 1000;  // 5 minutes
+constexpr int INTEGRITY_CHECK_QSO_THRESHOLD = 50;            // Minimum QSOs before integrity check
+
+// CW speed limits (WPM - Words Per Minute)
+constexpr int CW_SPEED_MIN = 5;
+constexpr int CW_SPEED_MAX = 60;
+constexpr int CW_SPEED_DEFAULT = 25;
+
 } // namespace TR4QT
 
 #endif // CONSTANTS_H
