@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- **Hamlib Integration Review**: Comprehensive review of TR4QT's Hamlib implementation against best practices
+- Confirmed TR4QT follows all critical Hamlib best practices (lifecycle, error handling, threading, polling)
+- Added TODO comments for optional future enhancements:
+  - Enhanced error messages with model ID details
+  - Retry logic for transient timeout errors
+  - Pre-check radio capabilities before operations
+
 ## [3.21.0] - 2026-01-02
 
 ### Fixed

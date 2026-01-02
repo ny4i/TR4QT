@@ -30,6 +30,8 @@ bool HamlibRadio::connect(const RadioConfig& config) {
     // Initialize rig
     m_rig = rig_init(config.hamlibModelId);
     if (!m_rig) {
+        // TODO: Enhancement - provide more detailed error message with model ID
+        // Example: QString("Invalid radio model ID: %1. Check PreferencesDialog radio selection.").arg(config.hamlibModelId)
         emit errorOccurred("Failed to initialize radio (invalid model ID?)");
         return false;
     }
@@ -136,6 +138,10 @@ bool HamlibRadio::setFrequency(freq_t freq, VFO vfo) {
 
     vfo_t hamlib_vfo = toHamlibVFO(vfo);
     int retcode = rig_set_freq(m_rig, hamlib_vfo, freq);
+
+    // TODO: Enhancement - retry logic for transient errors
+    // Some radios return -RIG_ETIMEOUT when busy. Could retry 2-3 times with 50ms delay:
+    // if (retcode == -RIG_ETIMEOUT) { QThread::msleep(50); retcode = rig_set_freq(...); }
 
     if (retcode == RIG_OK) {
         emit frequencyChanged(freq, vfo);
@@ -335,6 +341,12 @@ bool HamlibRadio::waitForMorseComplete() {
 bool HamlibRadio::setRIT(int offset_hz, VFO vfo) {
     QMutexLocker locker(&m_rigMutex);
     if (!checkRigPointer("setRIT")) return false;
+
+    // TODO: Enhancement - pre-check radio capabilities before operation
+    // Example: if (!(m_rig->caps->has_set_func & RIG_FUNC_RIT)) {
+    //     LOG_WARN("HamlibRadio", "Radio does not support RIT");
+    //     return false;
+    // }
 
     vfo_t hamlib_vfo = toHamlibVFO(vfo);
     int retcode = rig_set_rit(m_rig, hamlib_vfo, offset_hz);
