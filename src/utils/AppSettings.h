@@ -75,6 +75,9 @@ public:
     void setMyARRLSection(const QString& section);
     QString getMyARRLSection() const;
 
+    void setComputerID(const QString& id);
+    QString getComputerID() const;  // Default: "A"
+
     // Current operator (for multi-op contests)
     void setCurrentOperator(const QString& callsign);
     QString getCurrentOperator() const;
@@ -256,8 +259,8 @@ public:
     int getLogMaxBackupFiles() const;
 
     // QSO table column widths
-    void saveQSOTableColumnWidths(const QList<int>& widths);
-    QList<int> loadQSOTableColumnWidths() const;
+    void saveQSOTableColumnWidths(const QString& contestId, const QList<int>& widths);
+    QList<int> loadQSOTableColumnWidths(const QString& contestId) const;
 
     // Web server settings
     void setWebServerAutoStart(bool autoStart);

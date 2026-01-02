@@ -52,7 +52,9 @@ public:
         ColExch5,         // Contest-dependent exchange field 5
         ColPts,           // QSO Points
         ColM,             // Markers (x = new mult on this band, z = new mult all-time)
+        ColId,            // Computer ID (network station identifier)
         ColMult,          // $ indicator for multiplier
+        ColDupe,          // D indicator for duplicate QSO
         ColFreq,          // Frequency in kHz
         ColOp,            // Operator callsign
         ColCount          // Total columns (with all 5 exchange fields visible)

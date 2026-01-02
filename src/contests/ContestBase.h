@@ -326,6 +326,17 @@ public:
     virtual bool usesSerialNumbers() const = 0;
 
     /**
+     * Does this contest require an exchange to be entered?
+     * Most contests require an exchange (default: true)
+     * General Logging allows empty exchange (returns false)
+     *
+     * @return true if exchange is required, false if optional
+     */
+    virtual bool requiresExchange() const {
+        return true;  // Default: most contests require an exchange
+    }
+
+    /**
      * Get duplicate checking rule for this contest
      * Determines when a QSO is considered a duplicate
      *

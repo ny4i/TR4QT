@@ -48,6 +48,7 @@ private slots:
     void onNewContest();
     void onResumeContest();
     void onDeleteContest();
+    void onShowDatabaseFolder();
     void onContestTypeChanged(int index);
     void onExistingContestSelected();
 

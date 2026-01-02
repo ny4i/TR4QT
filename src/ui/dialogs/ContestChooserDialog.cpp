@@ -4,6 +4,8 @@
 #include "../../contests/ContestMetadata.h"
 #include "../../utils/DialogHelper.h"
 #include "../../utils/PathManager.h"
+#include "../../logging/LogMacros.h"
+#include "../../data/Database.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -14,6 +16,8 @@
 #include <QFileInfo>
 #include <QDateTime>
 #include <QDialogButtonBox>
+#include <QDesktopServices>
+#include <QUrl>
 
 namespace TR4QT {
 
@@ -52,9 +56,13 @@ void ContestChooserDialog::setupUI() {
     m_deleteButton->setEnabled(false);
     connect(m_deleteButton, &QPushButton::clicked, this, &ContestChooserDialog::onDeleteContest);
 
+    QPushButton* showFolderButton = new QPushButton("Show Database Folder", this);
+    connect(showFolderButton, &QPushButton::clicked, this, &ContestChooserDialog::onShowDatabaseFolder);
+
     existingButtonLayout->addWidget(m_resumeButton);
     existingButtonLayout->addWidget(m_deleteButton);
     existingButtonLayout->addStretch();
+    existingButtonLayout->addWidget(showFolderButton);
 
     existingLayout->addLayout(existingButtonLayout);
     mainLayout->addWidget(existingGroup);
@@ -204,35 +212,49 @@ void ContestChooserDialog::onResumeContest() {
 
     QString dbPath = item->data(Qt::UserRole).toString();
 
-    // Parse contest info from filename
-    QFileInfo fileInfo(dbPath);
-    QString baseName = fileInfo.baseName();
+    // Open database and read contest info (don't guess from filename!)
+    Database& db = Database::instance();
+    if (!db.open(dbPath)) {
+        DialogHelper::critical(this, "Database Error",
+                            QString("Failed to open contest database:\n%1").arg(db.lastError()));
+        return;
+    }
 
+    // Read contest_id, contest_name, contest_type, and start_time from database
+    QSqlQuery query = db.execute("SELECT contest_id, contest_name, contest_type, start_time FROM contests LIMIT 1", {});
+    if (!query.next()) {
+        DialogHelper::warning(this, "Invalid Database",
+                           "Contest database has no contest record. The database may be corrupted.");
+        db.close();
+        return;
+    }
+
+    QString contestId = query.value(0).toString();
+    QString contestName = query.value(1).toString();
+    QString contestType = query.value(2).toString();
+    qint64 startTime = query.value(3).toLongLong();
+
+    db.close();
+
+    // Build ContestInfo from database (no filename parsing!)
     m_contestInfo.isExisting = true;
     m_contestInfo.databasePath = dbPath;
-    m_contestInfo.contestId = baseName;
-    m_contestInfo.contestName = item->text();
+    m_contestInfo.contestId = contestId;
+    m_contestInfo.contestName = contestName;
+    m_contestInfo.contestType = contestType;  // Read from database, not filename!
+    m_contestInfo.startDate = QDateTime::fromSecsSinceEpoch(startTime);
 
-    // Try to determine contest type from filename
-    if (baseName.contains("CQWW", Qt::CaseInsensitive) && baseName.contains("CW", Qt::CaseInsensitive)) {
-        m_contestInfo.contestType = "CQWW";
+    // Determine mode from contest_id for backward compatibility
+    if (contestId.contains("_CW")) {
         m_contestInfo.mode = "CW";
-    } else if (baseName.contains("CQWW", Qt::CaseInsensitive)) {
-        m_contestInfo.contestType = "CQWW";
+    } else if (contestId.contains("_SSB")) {
         m_contestInfo.mode = "SSB";
-    } else if (baseName.contains("WPX", Qt::CaseInsensitive) && baseName.contains("CW", Qt::CaseInsensitive)) {
-        m_contestInfo.contestType = "CQWPX";
-        m_contestInfo.mode = "CW";
-    } else if (baseName.contains("WPX", Qt::CaseInsensitive)) {
-        m_contestInfo.contestType = "CQWPX";
-        m_contestInfo.mode = "SSB";
-    } else if (baseName.contains("WFD", Qt::CaseInsensitive) || baseName.contains("Winter", Qt::CaseInsensitive)) {
-        m_contestInfo.contestType = "WFD";
-        m_contestInfo.mode = "Mixed";
     } else {
-        m_contestInfo.contestType = "CQWW";  // Default
-        m_contestInfo.mode = "CW";
+        m_contestInfo.mode = "Mixed";
     }
+
+    LOG_DEBUG("ContestChooserDialog", QString("Resume contest: type='%1', mode='%2', name='%3'")
+        .arg(contestType, m_contestInfo.mode, contestName));
 
     accept();
 }
@@ -263,6 +285,19 @@ void ContestChooserDialog::onDeleteContest() {
             DialogHelper::warning(this, "Delete Failed",
                                QString("Failed to delete contest database:\n%1").arg(file.errorString()));
         }
+    }
+}
+
+void ContestChooserDialog::onShowDatabaseFolder() {
+    // Get database directory
+    QString dbDir = PathManager::getLogsDir();
+
+    // Open the folder in Finder (macOS) or Explorer (Windows) or file manager (Linux)
+    QUrl url = QUrl::fromLocalFile(dbDir);
+    if (!QDesktopServices::openUrl(url)) {
+        DialogHelper::warning(this, "Failed to Open Folder",
+                           QString("Could not open the database folder:\n%1\n\nYou can navigate there manually.")
+                               .arg(dbDir));
     }
 }
 
@@ -305,12 +340,15 @@ void ContestChooserDialog::onNewContest() {
     }
 
     // Fill contest info
-    m_contestInfo.contestId = contestId;
-    m_contestInfo.contestName = contestName;
-    m_contestInfo.contestType = contestType;
+    m_contestInfo.contestId = contestId;  // Unique identifier (e.g., "GENERAL_2026_01_02")
+    m_contestInfo.contestName = contestName;  // Display name (user input)
+    m_contestInfo.contestType = contestType;  // Registry ID (e.g., "GENERAL")
     m_contestInfo.startDate = startDate;
     m_contestInfo.mode = mode;
     m_contestInfo.databasePath = dbPath;
+
+    LOG_DEBUG("ContestChooserDialog", QString("New contest: id='%1', type='%2', name='%3'")
+        .arg(contestId, contestType, contestName));
 
     accept();
 }

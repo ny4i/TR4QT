@@ -5,8 +5,9 @@
 -- Each contest gets its own log/session
 CREATE TABLE IF NOT EXISTS contests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    contest_id TEXT NOT NULL,           -- Contest type (e.g., "CQWW_CW")
-    contest_name TEXT NOT NULL,         -- Display name
+    contest_id TEXT NOT NULL,           -- Unique contest identifier (e.g., "CQWW_CW_2026_01_02")
+    contest_name TEXT NOT NULL,         -- Display name (user-provided)
+    contest_type TEXT NOT NULL,         -- Contest registry ID (e.g., "CQWW", "GENERAL")
     start_time INTEGER,                 -- Unix timestamp
     end_time INTEGER,                   -- Unix timestamp
     my_call TEXT NOT NULL,              -- Operating callsign
