@@ -46,26 +46,31 @@
 
 ## Now - Critical Items (0-2 weeks)
 
-### 1. Code Refactoring Quick Wins ⚡ HIGH PRIORITY
-**Priority**: CRITICAL
-**Effort**: 2 hours
+### 1. ✅ Code Refactoring Quick Wins - COMPLETED ⚡
+**Priority**: ~~CRITICAL~~ **COMPLETED**
+**Effort**: ~40 minutes (estimated 2 hours)
 **Impact**: Code quality, maintainability
-**Status**: Partially complete (Issue 2 done, Issue 3 at 90%)
+**Status**: ✅ **All tasks complete** (2026-01-02)
 
 #### Tasks
-- [ ] **Complete Issue 3**: Replace 4 remaining hard-coded RST values (5 minutes)
+- [x] **Complete Issue 3**: Replace 4 remaining hard-coded RST values ✅
   - Files: `MainWindow.cpp` (3 instances), `InitialExchangeManager.cpp` (1 instance)
   - Change: Use `RSTValidator::getDefault(mode)`
+  - Commit: `8015c66`
 
-- [ ] **Add Constants - Phase 1** (30 minutes): Add to `Constants.h`
-  - Zone validation constants (Issue 7): `CQ_ZONE_MIN`, `CQ_ZONE_MAX`, `ITU_ZONE_MIN`, `ITU_ZONE_MAX`
-  - Integrity check thresholds (Issue 9): `INTEGRITY_CHECK_INTERVAL_MS`, `INTEGRITY_CHECK_QSO_THRESHOLD`
-  - CW speed limits (Issue 5 partial): `CW_SPEED_MIN_WPM`, `CW_SPEED_MAX_WPM`
+- [x] **Add Constants - Phase 1** ✅: Added to `Constants.h`
+  - Zone validation constants (Issue 7): `CQ_ZONE_MIN/MAX (1-40)`, `ITU_ZONE_MIN/MAX (1-90)`
+  - Integrity check thresholds (Issue 9): `INTEGRITY_CHECK_INTERVAL_MS (5 min)`, `INTEGRITY_CHECK_QSO_THRESHOLD (50)`
+  - CW speed limits (Issue 5 partial): `CW_SPEED_MIN (5)`, `CW_SPEED_MAX (60)`, `CW_SPEED_DEFAULT (25)`
+  - Commit: `8015c66`
 
-- [ ] **DialogHelper::about()** (15 minutes): Add wrapper method for About dialogs
-  - Eliminates remaining About dialog exceptions
+- [x] **DialogHelper::about()** ✅: Already implemented and in use
+  - All About dialogs in codebase use `DialogHelper::about()`
+  - Consistent logging across all dialog interactions
+  - No migration needed
 
 **Reference**: `REFACTORING_STATUS.md` - Quick Wins section
+**Completed**: 2026-01-02
 
 ---
 
@@ -580,6 +585,11 @@ Auto-select appropriate map based on active contest type:
 
 ### Refactoring
 - ✅ **Issue 2**: Duplicate RST Validation Logic - RSTValidator created (~90 lines eliminated)
+- ✅ **Code Refactoring Quick Wins** (2026-01-02)
+  - Replaced 4 hard-coded RST values with `RSTValidator::getDefault()`
+  - Added Constants Phase 1: Zone ranges, integrity thresholds, CW speed limits
+  - DialogHelper::about() already implemented and in use
+  - Effort: 40 minutes (estimated 2 hours)
 
 ### Infrastructure
 - ✅ **CountryFile Thread Safety** - QReadWriteLock implemented (2025-12-30)
