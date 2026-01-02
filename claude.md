@@ -328,6 +328,61 @@ QString formatted = QString("%1%2 %3%4%5")
 
 **This principle applies to ALL projects, not just TR4QT.**
 
+### NEVER Use setParent(nullptr) on Qt Widgets
+
+**CRITICAL**: In Qt, calling `setParent(nullptr)` on a widget creates a TOP-LEVEL WINDOW. This is a dangerous API design that "fails open" (shows unwanted windows) rather than "fails closed".
+
+**The Problem**:
+Qt intentionally makes widgets with `parent = nullptr` into top-level windows, and it generates **no warnings**. This causes bizarre bugs where blank floating windows appear with fragments of UI text.
+
+**Real bug in TR4QT**:
+```cpp
+// ❌ BUG: This created blank floating windows showing "Both:", "0", etc.
+void BandSummaryGrid::rebuildGrid() {
+    while ((item = m_gridLayout->takeAt(0)) != nullptr) {
+        if (QWidget* widget = item->widget()) {
+            widget->setParent(nullptr);  // CREATES TOP-LEVEL WINDOW!
+        }
+        delete item;
+    }
+}
+```
+
+**Symptoms**:
+- Blank Qt windows appearing intermittently on startup
+- Windows showing small text fragments from your UI
+- Appears on both macOS and Windows
+- Intermittent (race condition - depends on paint events)
+
+**What to do instead**:
+```cpp
+// ✅ GOOD: Delete the widget
+widget->deleteLater();
+
+// ✅ GOOD: Hide the widget
+widget->hide();
+
+// ✅ GOOD: Keep as child but remove from layout
+// (Layout takes care of removal automatically)
+
+// ✅ GOOD: If you REALLY want top-level, be explicit
+widget->setParent(nullptr);
+widget->setWindowFlags(Qt::Window);  // Make intent clear
+widget->setAttribute(Qt::WA_DeleteOnClose);
+widget->show();  // Explicitly show
+```
+
+**Prevention**:
+A git pre-commit hook catches this pattern:
+- Located at `.git/hooks/pre-commit`
+- Blocks commits containing `setParent(nullptr)`
+- Can bypass with `git commit --no-verify` if intentional
+
+**Why Qt does this**:
+Qt considers `setParent(nullptr)` a valid way to "promote" a widget to top-level (e.g., turning an embedded widget into a floating dialog). But it's far too easy to do accidentally, and the failure mode is terrible.
+
+**This applies to ALL Qt projects.**
+
 ## Version Management
 
 **CRITICAL**: The version number must be updated with every release commit IN FOUR PLACES!
