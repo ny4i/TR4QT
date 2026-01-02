@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.21.0] - 2026-01-02
+
+### Fixed
+- **Windows file storage location**: Now correctly uses `AppData\Local\TR4QT` instead of `AppData\Roaming\TR4QT\TR4QT`
+- Fixed nested directory issue caused by duplicate organization/application names
+- Log file now written to correct platform-native location
+
+### Added
+- Automatic settings migration for existing Windows users
+- Registry paths containing `.tr4qt` automatically updated to new location on startup
+- Migration covers: log file path, backup directory, country file path
+
+### Changed
+- PathManager now uses `AppLocalDataLocation` instead of `AppDataLocation`
+- Application name set before Logger initialization for correct path resolution
+
+### Technical Details
+- `QCoreApplication::setApplicationName()` called before Logger init
+- `AppSettings::migrateLegacyPaths()` detects and updates legacy Registry paths
+- Empty organization name prevents nested `TR4QT\TR4QT` directory structure
+
+## [3.20.0] - 2026-01-01
+
+### Added
+- **Serial port dropdown**: Auto-detection of available COM ports in Preferences → Radio
+- Refresh button for manual port rescanning
+- Auto-refresh every 5 seconds while Preferences dialog is open
+- Port descriptions shown in dropdown (e.g., "COM3 (USB Serial Port)")
+- Manual entry field as fallback for ports not auto-detected
+
+### Fixed
+- **Radio reconnection failure**: Fixed bug where `m_shutdownRequested` flag was never reset after disconnect
+- Radio now reconnects properly after manual disconnect
+
+### Changed
+- **Test Connection button**: Disabled when radio is already connected (prevents "port busy" errors)
+- Added status label showing "(Radio is connected - disconnect to test)"
+
+### Dependencies
+- Added Qt6::SerialPort to Windows CI deployment
+
+## [3.19.0] - 2026-01-01
+
+### Changed
+- **Consolidated Radio Configuration**: Eliminated standalone RadioConfigDialog
+- All radio settings now in Preferences → Radio tab
+- Single location for all radio configuration (model, port, CI-V, polling, etc.)
+- Extracted CI-V address widget into reusable `CivAddressWidget` component
+
+### Removed
+- `RadioConfigDialog.cpp` and `RadioConfigDialog.h` - functionality merged into PreferencesDialog
+
 ## [3.18.1] - 2026-01-01
 
 ### Changed
@@ -1336,7 +1388,7 @@ When releasing a new version:
 ## Project History
 
 - **Initial Release**: v1.5.0 (2025-12-23)
-- **Total Versions**: 214
+- **Total Versions**: 217
 - **Development Started**: December 23, 2025
-- **Latest Version**: v3.15.0 (2026-01-01)
-- **Active Development**: 214 releases in 10 days
+- **Latest Version**: v3.21.0 (2026-01-02)
+- **Active Development**: 217 releases in 11 days
