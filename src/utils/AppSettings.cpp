@@ -3,6 +3,7 @@
 #include "../network/UdpBroadcaster.h"
 #include "PathManager.h"
 #include <QDir>
+#include <QFileInfo>
 
 namespace TR4QT {
 
@@ -47,6 +48,22 @@ void AppSettings::migrateLegacyPaths() {
         if (ctyPath.contains(legacyMarker)) {
             QString newPath = PathManager::getCountryFilePath();
             m_settings.setValue("CountryFile/path", newPath);
+            m_settings.sync();
+        }
+    }
+
+    // Migrate contest database path
+    // Also handles nested TR4QT\TR4QT paths from incorrect organization name
+    if (m_settings.contains("Contest/lastContestPath")) {
+        QString contestPath = m_settings.value("Contest/lastContestPath").toString();
+        // Check for legacy marker OR nested TR4QT\TR4QT pattern
+        if (contestPath.contains(legacyMarker) || contestPath.contains("TR4QT/TR4QT") || contestPath.contains("TR4QT\\TR4QT")) {
+            // Extract just the filename from the old path
+            QFileInfo fileInfo(contestPath);
+            QString filename = fileInfo.fileName();
+            // Construct new path using PathManager
+            QString newPath = PathManager::getLogsDir() + "/" + filename;
+            m_settings.setValue("Contest/lastContestPath", newPath);
             m_settings.sync();
         }
     }

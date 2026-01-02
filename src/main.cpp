@@ -7,6 +7,8 @@
 #include <QTimer>
 #include <QLockFile>
 #include <QStandardPaths>
+#include <cstdio>
+#include <cstring>
 #include <hamlib/rig.h>
 #include "core/Constants.h"
 #include "utils/CountryFile.h"
@@ -18,6 +20,46 @@
 #include "logging/Logger.h"
 #include "logging/LogMacros.h"
 #include "ui/MainWindow.h"
+
+// Hamlib debug callback - routes hamlib debug output through our Logger
+static int hamlibDebugCallback(enum rig_debug_level_e debug_level, rig_ptr_t /*user_data*/, const char *fmt, va_list ap) {
+    // Format the hamlib message
+    char buffer[2048];
+    vsnprintf(buffer, sizeof(buffer), fmt, ap);
+
+    // Remove trailing newline if present (our logger adds its own)
+    size_t len = strlen(buffer);
+    if (len > 0 && buffer[len-1] == '\n') {
+        buffer[len-1] = '\0';
+    }
+
+    // Skip empty messages
+    if (strlen(buffer) == 0) {
+        return 0;
+    }
+
+    // Map hamlib debug levels to our log levels
+    QString msg = QString::fromUtf8(buffer);
+    switch (debug_level) {
+        case RIG_DEBUG_ERR:
+            LOG_ERROR("Hamlib", msg);
+            break;
+        case RIG_DEBUG_WARN:
+            LOG_WARN("Hamlib", msg);
+            break;
+        case RIG_DEBUG_VERBOSE:
+            LOG_INFO("Hamlib", msg);
+            break;
+        case RIG_DEBUG_TRACE:
+            LOG_DEBUG("Hamlib", msg);
+            break;
+        default:
+            LOG_TRACE("Hamlib", msg);
+            break;
+    }
+
+    return 0;  // Return 0 to indicate success
+}
 
 int main(int argc, char *argv[]) {
     // Set application name FIRST - required for QStandardPaths to return correct paths
@@ -84,9 +126,12 @@ int main(int argc, char *argv[]) {
     parser.process(app);
 
     // Set hamlib debug level (command-line overrides setting)
+    // Install our callback to route hamlib output through our Logger
+    rig_set_debug_callback(hamlibDebugCallback, nullptr);
+
     if (parser.isSet(hamlibDebugOption) || settings.getHamlibDebugEnabled()) {
         rig_set_debug(RIG_DEBUG_VERBOSE);
-        LOG_DEBUG("Main", "Hamlib debug output enabled");
+        LOG_INFO("Main", "Hamlib debug logging enabled - output will appear in log file");
     } else {
         rig_set_debug(RIG_DEBUG_NONE);
     }

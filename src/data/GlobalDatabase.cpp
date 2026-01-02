@@ -1,6 +1,7 @@
 #include "GlobalDatabase.h"
 #include "DXCCRepository.h"
 #include "../logging/LogMacros.h"
+#include "../utils/PathManager.h"
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QFile>
@@ -27,9 +28,11 @@ GlobalDatabase::~GlobalDatabase() {
 }
 
 QString GlobalDatabase::defaultDatabasePath() {
-    // Store in user's home directory: ~/.tr4qt/tr4qt_global.db
-    QString homeDir = QDir::homePath();
-    return homeDir + "/.tr4qt/tr4qt_global.db";
+    // Use platform-native path from PathManager
+    // Windows: C:\Users\<user>\AppData\Local\TR4QT\tr4qt_global.db
+    // macOS:   ~/Library/Application Support/TR4QT/tr4qt_global.db
+    // Linux:   ~/.local/share/TR4QT/tr4qt_global.db
+    return PathManager::getGlobalDatabasePath();
 }
 
 bool GlobalDatabase::isSqliteDriverAvailable() {
