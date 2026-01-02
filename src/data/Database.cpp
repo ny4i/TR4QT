@@ -130,6 +130,40 @@ bool Database::open(const QString& dbPath) {
             return false;
         }
     } else {
+        // Verify application ID for existing database
+        uint32_t appId = getApplicationId();
+        if (appId != 0 && appId != TR4QT_APP_ID) {
+            m_lastError = QString("Database file has incorrect application ID (0x%1).\n"
+                                "This is not a TR4QT contest database.\n"
+                                "Expected: 0x%2 (TR4QT)")
+                .arg(appId, 8, 16, QChar('0'))
+                .arg(TR4QT_APP_ID, 8, 16, QChar('0'));
+            LOG_WARN("Database", m_lastError);
+            close();
+            return false;
+        }
+
+        // Check schema version
+        int dbVersion = getUserVersion();
+        LOG_DEBUG("Database", QString("Database schema version: %1 (current: %2)")
+            .arg(dbVersion).arg(CURRENT_SCHEMA_VERSION));
+
+        if (dbVersion > CURRENT_SCHEMA_VERSION) {
+            // Database is from a NEWER version of TR4QT - cannot open!
+            m_lastError = QString("Database schema version (%1) is newer than this TR4QT version supports (%2).\n\n"
+                                "This database was created with a newer version of TR4QT.\n"
+                                "Please upgrade TR4QT to open this database.")
+                .arg(dbVersion).arg(CURRENT_SCHEMA_VERSION);
+            LOG_WARN("Database", m_lastError);
+            LOG_WARN("Database", QString("Database path: %1").arg(dbPath));
+            close();
+            return false;
+        }
+
+        if (dbVersion < CURRENT_SCHEMA_VERSION) {
+            LOG_INFO("Database", QString("Database needs migration from v%1 to v%2")
+                .arg(dbVersion).arg(CURRENT_SCHEMA_VERSION));
+        }
         // Check if existing database has schema (graceful error handling)
         query.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='contests'");
         if (!query.next()) {
@@ -270,6 +304,11 @@ bool Database::initSchema() {
     }
 
     LOG_DEBUG("Database", "Database schema initialized successfully");
+
+    // Set application ID and schema version for new database
+    setApplicationId(TR4QT_APP_ID);
+    setUserVersion(CURRENT_SCHEMA_VERSION);
+
     return true;
 }
 
@@ -624,8 +663,75 @@ bool Database::migrateSchema() {
         LOG_INFO("Database", "Note: contest_type stores the registry ID for reliable contest loading");
     }
 
+    // Set application ID if not already set (for databases created before versioning)
+    uint32_t currentAppId = getApplicationId();
+    if (currentAppId == 0) {
+        LOG_INFO("Database", "Setting application_id for pre-versioning database");
+        setApplicationId(TR4QT_APP_ID);
+    } else if (currentAppId != TR4QT_APP_ID) {
+        LOG_WARN("Database", QString("Database has unexpected application_id: 0x%1 (expected 0x%2)")
+            .arg(currentAppId, 8, 16, QChar('0'))
+            .arg(TR4QT_APP_ID, 8, 16, QChar('0')));
+    }
+
+    // Update schema version to current
+    setUserVersion(CURRENT_SCHEMA_VERSION);
+
     LOG_DEBUG("Database", "Schema migration complete");
     return true;
+}
+
+int Database::getUserVersion() const {
+    QSqlQuery query(m_db);
+    if (!query.exec("PRAGMA user_version")) {
+        LOG_WARN("Database", QString("Failed to read user_version: %1").arg(query.lastError().text()));
+        return 0;
+    }
+
+    if (query.next()) {
+        return query.value(0).toInt();
+    }
+
+    return 0;
+}
+
+void Database::setUserVersion(int version) {
+    QSqlQuery query(m_db);
+    // Note: PRAGMA user_version cannot use bind parameters
+    QString sql = QString("PRAGMA user_version = %1").arg(version);
+    if (!query.exec(sql)) {
+        LOG_WARN("Database", QString("Failed to set user_version to %1: %2")
+            .arg(version).arg(query.lastError().text()));
+    } else {
+        LOG_DEBUG("Database", QString("Set database schema version to %1").arg(version));
+    }
+}
+
+uint32_t Database::getApplicationId() const {
+    QSqlQuery query(m_db);
+    if (!query.exec("PRAGMA application_id")) {
+        LOG_WARN("Database", QString("Failed to read application_id: %1").arg(query.lastError().text()));
+        return 0;
+    }
+
+    if (query.next()) {
+        return query.value(0).toUInt();
+    }
+
+    return 0;
+}
+
+void Database::setApplicationId(uint32_t appId) {
+    QSqlQuery query(m_db);
+    // Note: PRAGMA application_id cannot use bind parameters
+    QString sql = QString("PRAGMA application_id = %1").arg(appId);
+    if (!query.exec(sql)) {
+        LOG_WARN("Database", QString("Failed to set application_id to 0x%1: %2")
+            .arg(appId, 8, 16, QChar('0')).arg(query.lastError().text()));
+    } else {
+        LOG_DEBUG("Database", QString("Set database application_id to 0x%1 (TR4QT)")
+            .arg(appId, 8, 16, QChar('0')));
+    }
 }
 
 } // namespace TR4QT

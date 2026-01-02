@@ -18,6 +18,9 @@
 #include <QDialogButtonBox>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QHeaderView>
+#include <QBrush>
+#include <QSqlQuery>
 
 namespace TR4QT {
 
@@ -37,14 +40,25 @@ void ContestChooserDialog::setupUI() {
     QGroupBox* existingGroup = new QGroupBox("Existing Contests", this);
     QVBoxLayout* existingLayout = new QVBoxLayout(existingGroup);
 
-    m_existingContestsList = new QListWidget(this);
-    m_existingContestsList->setAlternatingRowColors(true);
-    connect(m_existingContestsList, &QListWidget::itemSelectionChanged,
+    m_existingContestsTable = new QTableWidget(this);
+    m_existingContestsTable->setColumnCount(4);
+    m_existingContestsTable->setHorizontalHeaderLabels({"Contest Name", "Type", "Start Date", "Version"});
+    m_existingContestsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_existingContestsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_existingContestsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_existingContestsTable->setAlternatingRowColors(true);
+    m_existingContestsTable->horizontalHeader()->setStretchLastSection(false);
+    m_existingContestsTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);  // Contest Name stretches
+    m_existingContestsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);  // Type
+    m_existingContestsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);  // Start Date
+    m_existingContestsTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);  // Version
+    m_existingContestsTable->verticalHeader()->setVisible(false);
+    connect(m_existingContestsTable, &QTableWidget::itemSelectionChanged,
             this, &ContestChooserDialog::onExistingContestSelected);
-    connect(m_existingContestsList, &QListWidget::itemDoubleClicked,
+    connect(m_existingContestsTable, &QTableWidget::itemDoubleClicked,
             this, &ContestChooserDialog::onResumeContest);
 
-    existingLayout->addWidget(m_existingContestsList);
+    existingLayout->addWidget(m_existingContestsTable);
 
     // Buttons for existing contests
     QHBoxLayout* existingButtonLayout = new QHBoxLayout();
@@ -137,7 +151,7 @@ void ContestChooserDialog::populateContestTypes() {
 }
 
 void ContestChooserDialog::loadExistingContests() {
-    m_existingContestsList->clear();
+    m_existingContestsTable->setRowCount(0);
 
     // Get database directory
     QString dbDir = PathManager::getLogsDir();
@@ -153,15 +167,61 @@ void ContestChooserDialog::loadExistingContests() {
     QFileInfoList files = dir.entryInfoList(filters, QDir::Files, QDir::Time | QDir::Reversed);
 
     for (const QFileInfo& fileInfo : files) {
-        QString fileName = fileInfo.fileName();
-        QString displayName = fileName;
-        displayName.replace(".db", "");
-        displayName.replace("_", " ");
+        QString dbPath = fileInfo.absoluteFilePath();
 
-        QListWidgetItem* item = new QListWidgetItem(displayName);
-        item->setData(Qt::UserRole, fileInfo.absoluteFilePath());
-        item->setToolTip(fileInfo.absoluteFilePath());
-        m_existingContestsList->addItem(item);
+        // Open database to read contest info and version
+        Database& db = Database::instance();
+        if (!db.open(dbPath)) {
+            LOG_WARN("ContestChooserDialog", QString("Failed to open database: %1").arg(dbPath));
+            continue;
+        }
+
+        // Read contest name, type, and start time
+        QSqlQuery query = db.execute("SELECT contest_name, contest_type, start_time FROM contests LIMIT 1", {});
+        if (!query.next()) {
+            LOG_WARN("ContestChooserDialog", QString("Database has no contest record: %1").arg(dbPath));
+            db.close();
+            continue;
+        }
+
+        QString contestName = query.value(0).toString();
+        QString contestType = query.value(1).toString();
+        qint64 startTime = query.value(2).toLongLong();
+        QDateTime startDate = QDateTime::fromSecsSinceEpoch(startTime);
+
+        // Read schema version
+        int schemaVersion = db.getUserVersion();
+
+        db.close();
+
+        // Add row to table
+        int row = m_existingContestsTable->rowCount();
+        m_existingContestsTable->insertRow(row);
+
+        // Column 0: Contest Name
+        QTableWidgetItem* nameItem = new QTableWidgetItem(contestName);
+        nameItem->setData(Qt::UserRole, dbPath);  // Store database path in first column
+        nameItem->setToolTip(dbPath);
+        m_existingContestsTable->setItem(row, 0, nameItem);
+
+        // Column 1: Type
+        QTableWidgetItem* typeItem = new QTableWidgetItem(contestType);
+        m_existingContestsTable->setItem(row, 1, typeItem);
+
+        // Column 2: Start Date
+        QString startDateStr = startDate.toString("yyyy-MM-dd");
+        QTableWidgetItem* dateItem = new QTableWidgetItem(startDateStr);
+        m_existingContestsTable->setItem(row, 2, dateItem);
+
+        // Column 3: Version
+        QString versionStr = schemaVersion > 0 ? QString("v%1").arg(schemaVersion) : "v0 (old)";
+        QTableWidgetItem* versionItem = new QTableWidgetItem(versionStr);
+        if (schemaVersion == 0) {
+            // Highlight old databases in yellow
+            versionItem->setForeground(QBrush(QColor("#d68910")));  // Orange warning color
+            versionItem->setToolTip("This database was created before versioning (will be migrated on open)");
+        }
+        m_existingContestsTable->setItem(row, 3, versionItem);
     }
 }
 
@@ -199,18 +259,24 @@ void ContestChooserDialog::onContestTypeChanged(int index) {
 }
 
 void ContestChooserDialog::onExistingContestSelected() {
-    bool hasSelection = !m_existingContestsList->selectedItems().isEmpty();
+    bool hasSelection = !m_existingContestsTable->selectedItems().isEmpty();
     m_resumeButton->setEnabled(hasSelection);
     m_deleteButton->setEnabled(hasSelection);
 }
 
 void ContestChooserDialog::onResumeContest() {
-    QListWidgetItem* item = m_existingContestsList->currentItem();
-    if (!item) {
+    int currentRow = m_existingContestsTable->currentRow();
+    if (currentRow < 0) {
         return;
     }
 
-    QString dbPath = item->data(Qt::UserRole).toString();
+    // Get database path from first column's UserRole data
+    QTableWidgetItem* nameItem = m_existingContestsTable->item(currentRow, 0);
+    if (!nameItem) {
+        return;
+    }
+
+    QString dbPath = nameItem->data(Qt::UserRole).toString();
 
     // Open database and read contest info (don't guess from filename!)
     Database& db = Database::instance();
@@ -260,13 +326,19 @@ void ContestChooserDialog::onResumeContest() {
 }
 
 void ContestChooserDialog::onDeleteContest() {
-    QListWidgetItem* item = m_existingContestsList->currentItem();
-    if (!item) {
+    int currentRow = m_existingContestsTable->currentRow();
+    if (currentRow < 0) {
         return;
     }
 
-    QString contestName = item->text();
-    QString dbPath = item->data(Qt::UserRole).toString();
+    // Get database path and contest name from first column
+    QTableWidgetItem* nameItem = m_existingContestsTable->item(currentRow, 0);
+    if (!nameItem) {
+        return;
+    }
+
+    QString contestName = nameItem->text();
+    QString dbPath = nameItem->data(Qt::UserRole).toString();
 
     QMessageBox::StandardButton reply = DialogHelper::question(
         this, "Delete Contest?",

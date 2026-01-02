@@ -2,7 +2,7 @@
 #define CONTESTCHOOSERDIALOG_H
 
 #include <QDialog>
-#include <QListWidget>
+#include <QTableWidget>
 #include <QComboBox>
 #include <QLineEdit>
 #include <QDateTimeEdit>
@@ -59,7 +59,7 @@ private:
     QString generateContestId(const QString& type, const QDateTime& startDate);
 
     // UI components
-    QListWidget* m_existingContestsList;
+    QTableWidget* m_existingContestsTable;
     QPushButton* m_resumeButton;
     QPushButton* m_deleteButton;
 
