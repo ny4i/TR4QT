@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.24.0";  // Add General Logging contest for non-scored QSOs
+constexpr const char* APP_VERSION = "3.24.1";  // Fix orphaned widgets appearing as blank windows
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -252,11 +252,11 @@ void BandSummaryGrid::configureForContest(bool usesModeGroupBreakdown, bool uses
 }
 
 void BandSummaryGrid::rebuildGrid() {
-    // Clear existing layout (but keep widget references for reuse)
+    // Clear existing layout and delete widgets
     QLayoutItem* item;
     while ((item = m_gridLayout->takeAt(0)) != nullptr) {
         if (QWidget* widget = item->widget()) {
-            widget->setParent(nullptr);  // Remove from layout but don't delete
+            widget->deleteLater();  // Delete widget to prevent orphaned top-level windows
         }
         delete item;
     }
