@@ -3331,6 +3331,12 @@ QString MainWindow::fullIntegrityCheck() {
     int memoryCount = m_qsoTableModel->count();
     Database& db = Database::instance();
 
+    // CRITICAL: Checkpoint WAL to ensure all recent writes are visible
+    // Without this, the integrity check may report false positives for recently-logged QSOs
+    // that are in the WAL but not yet visible to new queries
+    QSqlQuery checkpointQuery = db.execute("PRAGMA wal_checkpoint(PASSIVE)", {});
+    checkpointQuery.next();  // Execute the checkpoint
+
     // Count database QSOs
     QSqlQuery countQuery = db.execute(
         "SELECT COUNT(*) FROM qsos WHERE contest_id = ? AND deleted = 0",
