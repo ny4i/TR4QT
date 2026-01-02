@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.24.6";  // Fix crash in BandSummaryGrid - add nullptr checks to all setter methods
+constexpr const char* APP_VERSION = "3.25.0";  // Add callsign validation with status bar warnings (TR4W algorithm)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -7,6 +7,7 @@ set(SOURCES
     utils/AppSettings.cpp
     utils/ArrlSectionHelper.cpp
     utils/CabrilloExporter.cpp
+    utils/CallsignValidator.cpp
     utils/CountryFile.cpp
     utils/CountryFileDownloader.cpp
     utils/SCPDownloader.cpp
@@ -96,6 +97,7 @@ set(HEADERS
     utils/AppSettings.h
     utils/ArrlSectionHelper.h
     utils/CabrilloExporter.h
+    utils/CallsignValidator.h
     utils/CountryFile.h
     utils/CountryFileDownloader.h
     utils/SCPDownloader.h
@@ -200,8 +202,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.24.6"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.24.6"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.25.0"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.25.0"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
