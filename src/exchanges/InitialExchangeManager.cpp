@@ -3,6 +3,7 @@
 #include "../utils/CountryFile.h"
 #include "../utils/AppSettings.h"
 #include "../logging/LogMacros.h"
+#include "../contests/RSTValidator.h"
 #include <QRegularExpression>
 #include <QFile>
 
@@ -144,8 +145,7 @@ QString InitialExchangeManager::getDefaults(ContestBase* contest, ModeType mode)
     // Add RST if contest expects it
     for (const ExchangeField& field : fields) {
         if (field.name == "RST" && field.autoFill) {
-            QString rst = (mode == ModeType::CW || mode == ModeType::CWR) ? "599" : "59";
-            exchangeFields["RST"] = rst;
+            exchangeFields["RST"] = RSTValidator::getDefault(mode);
             break;  // Only one RST field
         }
     }
