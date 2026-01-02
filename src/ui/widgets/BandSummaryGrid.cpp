@@ -271,6 +271,15 @@ void BandSummaryGrid::rebuildGrid() {
     m_modeGroupAllLabels.clear();
     m_modeGroupRowHeaders.clear();
 
+    // CRITICAL: Clear member pointers to prevent use-after-free crashes
+    // These widgets were deleted above but pointers weren't cleared
+    m_qsoAllLabel = nullptr;
+    m_multAllLabel = nullptr;
+    m_zoneAllLabel = nullptr;
+    m_pointsAllLabel = nullptr;
+    m_totalPointsLabel = nullptr;
+    m_bothLabel = nullptr;
+
     // Now rebuild from scratch
     QFont headerFont;
     headerFont.setBold(true);
