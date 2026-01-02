@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.24.3";  // Reduce log noise - move deleted DXCC entity warnings to debug
+constexpr const char* APP_VERSION = "3.24.4";  // Fix Rodrigues Island DXCC mapping (207, 3B9)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
