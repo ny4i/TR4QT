@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.28.0] - 2026-01-02
+
+### Changed
+- **Code Refactoring Quick Wins**: Centralized RST logic and eliminated magic numbers
+  - Replaced 4 hard-coded RST values with `RSTValidator::getDefault(mode)`
+  - Files: `MainWindow.cpp` (3 instances), `InitialExchangeManager.cpp` (1 instance)
+
+### Added
+- **Constants Phase 1**: Added standardized constants to `Constants.h`
+  - Zone validation ranges: `CQ_ZONE_MIN/MAX (1-40)`, `ITU_ZONE_MIN/MAX (1-90)`
+  - Integrity check constants: `INTEGRITY_CHECK_INTERVAL_MS (5 min)`, `INTEGRITY_CHECK_QSO_THRESHOLD (50)`
+  - CW speed limits: `CW_SPEED_MIN (5)`, `CW_SPEED_MAX (60)`, `CW_SPEED_DEFAULT (25)`
+
 ### Documentation
 - **Hamlib Integration Review**: Comprehensive review of TR4QT's Hamlib implementation against best practices
 - Confirmed TR4QT follows all critical Hamlib best practices (lifecycle, error handling, threading, polling)
@@ -14,6 +27,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced error messages with model ID details
   - Retry logic for transient timeout errors
   - Pre-check radio capabilities before operations
+- Updated PRODUCT_ROADMAP.md: Marked Code Refactoring Quick Wins as complete
+
+### Impact
+- Improved code maintainability (fewer magic numbers)
+- Centralized RST logic (single source of truth)
+- Better code documentation for future improvements
+
+## [3.27.0] - 2026-01-02
+
+### Fixed
+- **TCP Radio Hang on Exit**: Fixed critical issue where application hung for 3+ seconds when quitting with TCP radio connected
+  - Root cause: Worker thread blocked on TCP `read()`, couldn't be interrupted by `terminate()`
+  - Solution: Close Hamlib connection FIRST to unblock socket, then allow natural thread exit
+  - Result: Clean exit in <1 second instead of 3+ seconds
+  - Files: `src/radio/RadioController.cpp` destructor
+
+## [3.26.0] - 2026-01-02
+
+### Changed
+- **SCP Architecture Refactoring**: Per-contest queries instead of modifying global table
+  - Global SCP table now read-only (MASTER.SCP only)
+  - Query uses `ATTACH DATABASE + UNION` to combine contest.qsos with global.scp_callsigns
+  - Removed bulkInsert() calls from onLogQSO() and rescore logic
+  - Files: `SCPRepository.h/cpp`, `SCPMatcher.h/cpp`, `MainWindow.cpp`
+
+### Fixed
+- **Hardcoded Colors**: Replaced hardcoded hex colors with ThemeManager
+  - Changed `#0066cc` and `#808080` to use `ThemeManager::instance().color(ColorRole::...)`
+  - Added pre-commit hook to detect future hardcoded colors
+
+### Added
+- **Database Schema Versioning**: Added PRAGMA user_version and Version column in contest chooser
+- **Contest Type Column**: Added contest_type database column for contest-specific behavior
+
+## [3.25.0] - 2026-01-02
+
+### Added
+- **Callsign Validation**: Real-time validation with status bar warnings
+  - Validates callsign format using `CallsignValidator::isValid()`
+  - Shows warnings for invalid callsigns in status bar
+  - Prevents invalid callsigns from being logged
+
+### Fixed
+- **Log Integrity Check**: Fixed false positives with SQLite WAL mode
+- **macOS Scroll Behavior**: Uses native macOS scroll in contest chooser per Apple HIG
 
 ## [3.21.0] - 2026-01-02
 
