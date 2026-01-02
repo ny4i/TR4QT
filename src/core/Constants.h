@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.20.0";  // Serial port dropdown, radio reconnect fix
+constexpr const char* APP_VERSION = "3.21.0";  // Fix Windows file storage to AppData\Local\TR4QT
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -14,6 +14,42 @@ AppSettings& AppSettings::instance() {
 AppSettings::AppSettings()
     : m_settings(APP_ORG, APP_NAME)
 {
+    migrateLegacyPaths();
+}
+
+void AppSettings::migrateLegacyPaths() {
+    // Check if any settings point to legacy ~/.tr4qt paths and update to platform-native paths
+    QString legacyMarker = ".tr4qt";
+
+    // Migrate log file path
+    if (m_settings.contains("Logging/filePath")) {
+        QString logPath = m_settings.value("Logging/filePath").toString();
+        if (logPath.contains(legacyMarker)) {
+            QString newPath = PathManager::getLogsDir() + "/tr4qt.log";
+            m_settings.setValue("Logging/filePath", newPath);
+            m_settings.sync();
+        }
+    }
+
+    // Migrate backup directory
+    if (m_settings.contains("Backup/backupDirectory")) {
+        QString backupDir = m_settings.value("Backup/backupDirectory").toString();
+        if (backupDir.contains(legacyMarker)) {
+            QString newPath = PathManager::getBackupsDir();
+            m_settings.setValue("Backup/backupDirectory", newPath);
+            m_settings.sync();
+        }
+    }
+
+    // Migrate country file path
+    if (m_settings.contains("CountryFile/path")) {
+        QString ctyPath = m_settings.value("CountryFile/path").toString();
+        if (ctyPath.contains(legacyMarker)) {
+            QString newPath = PathManager::getCountryFilePath();
+            m_settings.setValue("CountryFile/path", newPath);
+            m_settings.sync();
+        }
+    }
 }
 
 void AppSettings::saveRadioConfig(const RadioConfig& config) {
