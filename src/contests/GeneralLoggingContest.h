@@ -79,6 +79,8 @@ public:
     // ===== Special Rules =====
     bool usesSerialNumbers() const override { return false; }
 
+    bool requiresExchange() const override { return false; }  // Exchange is optional in General Logging
+
     DuplicateCheckingRule getDuplicateCheckingRule() const override {
         return DuplicateCheckingRule::PerBandMode;
     }

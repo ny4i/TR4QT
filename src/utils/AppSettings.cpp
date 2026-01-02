@@ -243,6 +243,15 @@ QString AppSettings::getMyARRLSection() const {
     return m_settings.value("Station/arrlSection", "").toString();
 }
 
+void AppSettings::setComputerID(const QString& id) {
+    m_settings.setValue("Network/computerID", id.toUpper());
+    m_settings.sync();
+}
+
+QString AppSettings::getComputerID() const {
+    return m_settings.value("Network/computerID", "A").toString();
+}
+
 void AppSettings::setCurrentOperator(const QString& callsign) {
     m_settings.setValue("Station/currentOperator", callsign.toUpper());
     m_settings.sync();
@@ -800,24 +809,40 @@ int AppSettings::getLogMaxBackupFiles() const {
     return m_settings.value("Logging/maxBackupFiles", 5).toInt();
 }
 
-void AppSettings::saveQSOTableColumnWidths(const QList<int>& widths) {
+void AppSettings::saveQSOTableColumnWidths(const QString& contestId, const QList<int>& widths) {
+    if (contestId.isEmpty()) {
+        return;  // Don't save if no contest is active
+    }
+
     QStringList widthStrings;
     for (int width : widths) {
         widthStrings.append(QString::number(width));
     }
-    m_settings.setValue("UI/qsoTableColumnWidths", widthStrings.join(","));
+
+    // Save per-contest: ColumnWidths/CQWW, ColumnWidths/CQWPX, etc.
+    QString key = QString("ColumnWidths/%1").arg(contestId);
+    m_settings.setValue(key, widthStrings.join(","));
     m_settings.sync();
 }
 
-QList<int> AppSettings::loadQSOTableColumnWidths() const {
+QList<int> AppSettings::loadQSOTableColumnWidths(const QString& contestId) const {
     QList<int> widths;
-    QString widthString = m_settings.value("UI/qsoTableColumnWidths", "").toString();
+
+    if (contestId.isEmpty()) {
+        return widths;  // Return empty list if no contest
+    }
+
+    // Load per-contest
+    QString key = QString("ColumnWidths/%1").arg(contestId);
+    QString widthString = m_settings.value(key, "").toString();
+
     if (!widthString.isEmpty()) {
         QStringList widthStrings = widthString.split(",");
         for (const QString& w : widthStrings) {
             widths.append(w.toInt());
         }
     }
+
     return widths;
 }
 

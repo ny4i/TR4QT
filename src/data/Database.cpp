@@ -533,6 +533,97 @@ bool Database::migrateSchema() {
         LOG_INFO("Database", "Note: Tracks whether QSO was made in CQ (run) mode or S&P mode");
     }
 
+    // Migration 7: Add contest_type column to contests table (v3.25.0)
+    // Separates contest type (registry ID) from contest_id (unique identifier)
+    query.exec("PRAGMA table_info(contests)");
+    bool hasContestTypeColumn = false;
+    while (query.next()) {
+        QString columnName = query.value(1).toString();
+        if (columnName == "contest_type") {
+            hasContestTypeColumn = true;
+            break;
+        }
+    }
+
+    if (!hasContestTypeColumn) {
+        LOG_INFO("Database", "Migrating schema: Adding contest_type column to contests table");
+
+        // Add contest_type column
+        if (!query.exec("ALTER TABLE contests ADD COLUMN contest_type TEXT")) {
+            m_lastError = QString("Failed to add contest_type column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+
+        LOG_INFO("Database", "contest_type column added successfully");
+
+        // Populate contest_type for existing contests by parsing contest_id
+        // Format: "CONTESTTYPE_MODE_YYYY_MM_DD" or "CONTESTTYPE_YYYY_MM_DD" → "CONTESTTYPE"
+        if (!query.exec("SELECT id, contest_id FROM contests")) {
+            m_lastError = QString("Failed to query existing contests: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+
+        QList<QPair<int, QString>> contestsToUpdate;
+        while (query.next()) {
+            int id = query.value(0).toInt();
+            QString contestId = query.value(1).toString();
+            contestsToUpdate.append(qMakePair(id, contestId));
+        }
+
+        LOG_INFO("Database", QString("Updating contest_type for %1 existing contests...").arg(contestsToUpdate.size()));
+
+        // Update each contest with parsed contest_type
+        QSqlQuery updateQuery(m_db);
+        updateQuery.prepare("UPDATE contests SET contest_type = ? WHERE id = ?");
+
+        for (const auto& pair : contestsToUpdate) {
+            int id = pair.first;
+            QString contestId = pair.second;
+
+            // Parse contest type from contest_id
+            // Remove date suffix (YYYY_MM_DD) if present
+            QStringList parts = contestId.split('_');
+            if (parts.size() >= 3) {
+                bool ok1, ok2, ok3;
+                int year = parts[parts.size() - 3].toInt(&ok1);
+                int month = parts[parts.size() - 2].toInt(&ok2);
+                int day = parts[parts.size() - 1].toInt(&ok3);
+
+                if (ok1 && ok2 && ok3 && year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                    // Remove date suffix
+                    parts.removeLast();
+                    parts.removeLast();
+                    parts.removeLast();
+                }
+            }
+
+            // Remove mode suffix (_CW or _SSB) if present
+            if (!parts.isEmpty() && (parts.last() == "CW" || parts.last() == "SSB")) {
+                parts.removeLast();
+            }
+
+            // Rejoin to get contest type
+            QString contestType = parts.join('_');
+
+            updateQuery.bindValue(0, contestType);
+            updateQuery.bindValue(1, id);
+
+            if (!updateQuery.exec()) {
+                m_lastError = QString("Failed to update contest %1 with type '%2': %3")
+                    .arg(id).arg(contestType).arg(updateQuery.lastError().text());
+                LOG_ERROR("Database", m_lastError);
+                return false;
+            }
+
+            LOG_DEBUG("Database", QString("Contest ID %1: '%2' → type: '%3'").arg(id).arg(contestId).arg(contestType));
+        }
+
+        LOG_INFO("Database", QString("Successfully migrated %1 contests with contest_type").arg(contestsToUpdate.size()));
+        LOG_INFO("Database", "Note: contest_type stores the registry ID for reliable contest loading");
+    }
+
     LOG_DEBUG("Database", "Schema migration complete");
     return true;
 }

@@ -1,5 +1,6 @@
 #include "QSOTableModel.h"
 #include "../../utils/ThemeManager.h"
+#include "../../utils/AppSettings.h"
 #include "../../core/Types.h"
 #include <QBrush>
 #include <QFont>
@@ -33,8 +34,8 @@ int QSOTableModel::columnCount(const QModelIndex& parent) const {
     // Return actual visible column count based on contest's exchange fields
     // Fixed columns: Band, Date, UTC, NR, Callsign (5 before exchange)
     // Exchange columns: variable (1-5)
-    // Fixed columns: Pts, M, Mult, Freq, Op (5 after exchange)
-    return 5 + m_visibleExchangeColumns + 5;
+    // Fixed columns: Pts, M, Id, $, D, Freq, Op (7 after exchange)
+    return 5 + m_visibleExchangeColumns + 7;
 }
 
 QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
@@ -90,13 +91,18 @@ QVariant QSOTableModel::data(const QModelIndex& index, int role) const {
             return qso.qsoPoints > 0 ? QString::number(qso.qsoPoints) : QString();
         case ColM:
             // Multiplier type indicators (TR4W style)
-            // D = Duplicate QSO
             // x = DXCC country, d = section/state, z = zone, p = prefix
             // Combined in order: x, d, z, p (e.g., "xz" for CQ WW)
             return getMultiplierIndicators(qso);
+        case ColId:
+            // Computer ID (network station identifier)
+            return AppSettings::instance().getComputerID();
         case ColMult:
             // $ indicator (Search & Pounce - not implemented yet)
             return QString();  // TODO: implement S&P indicator
+        case ColDupe:
+            // D indicator for duplicate QSO
+            return qso.isDupe ? "D" : QString();
         case ColFreq:
             // Frequency in kHz with 1 decimal
             return formatFrequency(qso.frequency);
@@ -170,7 +176,9 @@ QVariant QSOTableModel::headerData(int section, Qt::Orientation orientation, int
             return getExchangeFieldHeader(logicalCol - ColExch1);
         case ColPts:        return "Pts";
         case ColM:          return "M";
+        case ColId:         return "Id";
         case ColMult:       return "$";
+        case ColDupe:       return "D";
         case ColFreq:       return "Freq";
         case ColOp:         return "Op";
         default:            return QVariant();
@@ -285,6 +293,8 @@ QString QSOTableModel::getExchangeFieldValue(const QSO& qso, int fieldIndex) con
 
         // Map field name to dedicated QSO fields
         // All exchange data is now stored in dedicated fields (no more parsedExchange)
+        // TODO: Keep this mapping in sync with new contest exchange fields!
+        //       When adding new contests, verify all exchange fields have mappings here.
         if (fieldName == "Zone") {
             return qso.cqZone > 0 ? QString::number(qso.cqZone) :
                    (!qso.ituZoneExchange.isEmpty() ? qso.ituZoneExchange : QString());
@@ -323,6 +333,12 @@ QString QSOTableModel::getExchangeFieldValue(const QSO& qso, int fieldIndex) con
                 return QString::number(qso.serialNumberReceived);
             }
             return QString();
+        } else if (fieldName == "Comments") {
+            // General Logging: free-form comments/notes
+            return qso.notes;
+        } else if (fieldName == "RST") {
+            // General Logging: RST received
+            return qso.rstReceived;
         }
 
         // If no mapping found, return empty
@@ -352,11 +368,6 @@ void QSOTableModel::onThemeChanged() {
 }
 
 QString QSOTableModel::getMultiplierIndicators(const QSO& qso) const {
-    // Show "D" for duplicate QSOs
-    if (qso.isDupe) {
-        return "D";
-    }
-
     if (!qso.isMultiplier || qso.multipliers.isEmpty()) {
         return QString();
     }

@@ -81,6 +81,7 @@ void PreferencesDialog::setupUI() {
     m_categoryList->addItem("DX Cluster");
     m_categoryList->addItem("SCP");
     m_categoryList->addItem("UDP Broadcast");
+    m_categoryList->addItem("Network");
     m_categoryList->addItem("Appearance");
     m_categoryList->addItem("Logging");
     m_categoryList->addItem("Backup");
@@ -101,6 +102,8 @@ void PreferencesDialog::setupUI() {
     m_settingsStack->addWidget(createSCPTab());
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating UDP Broadcast page ***");
     m_settingsStack->addWidget(createUDPBroadcastTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Network page ***");
+    m_settingsStack->addWidget(createNetworkTab());
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Appearance page ***");
     m_settingsStack->addWidget(createAppearanceTab());
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Logging page ***");
@@ -807,6 +810,41 @@ QWidget* PreferencesDialog::createUDPBroadcastTab() {
     return udpTab;
 }
 
+QWidget* PreferencesDialog::createNetworkTab() {
+    QWidget* networkTab = new QWidget(this);
+    networkTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
+    QVBoxLayout* mainLayout = new QVBoxLayout(networkTab);
+
+    // Network Settings group
+    QGroupBox* networkGroup = new QGroupBox("Network Settings", this);
+    QFormLayout* formLayout = new QFormLayout(networkGroup);
+
+    // Computer ID
+    m_computerIDEdit = new QLineEdit(this);
+    m_computerIDEdit->setMaxLength(1);
+    m_computerIDEdit->setPlaceholderText("A");
+    m_computerIDEdit->setToolTip("Computer ID for networked multi-station operation (A-Z)");
+    formLayout->addRow("Computer ID:", m_computerIDEdit);
+
+    mainLayout->addWidget(networkGroup);
+
+    // Help text
+    QLabel* helpLabel = new QLabel(
+        "Network settings for multi-station operation.\n\n"
+        "Computer ID identifies this station in a networked TR4QT setup.\n"
+        "Each station in the network should have a unique ID (A, B, C, etc.).\n"
+        "The ID appears in the \"Id\" column of the QSO table.",
+        this
+    );
+    helpLabel->setWordWrap(true);
+    helpLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; }");
+    mainLayout->addWidget(helpLabel);
+
+    mainLayout->addStretch();
+
+    return networkTab;
+}
+
 QWidget* PreferencesDialog::createAppearanceTab() {
     QWidget* appearanceTab = new QWidget(this);
     appearanceTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
@@ -1410,6 +1448,9 @@ void PreferencesDialog::loadSettings() {
         m_udpDestinationsList->addItem(itemText);
     }
 
+    // Network tab
+    m_computerIDEdit->setText(settings.getComputerID());
+
     // Appearance tab
     m_entryFontSizeSpin->setValue(settings.getEntryFontSize());
     m_tableFontSizeSpin->setValue(settings.getTableFontSize());
@@ -1569,6 +1610,9 @@ void PreferencesDialog::saveSettings() {
         }
     }
     settings.setUDPDestinations(destinations);
+
+    // Network tab
+    settings.setComputerID(m_computerIDEdit->text());
 
     // Appearance tab
     settings.setEntryFontSize(m_entryFontSizeSpin->value());

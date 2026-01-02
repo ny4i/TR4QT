@@ -111,6 +111,7 @@ private:
     QWidget* createDXClusterTab();
     QWidget* createSCPTab();
     QWidget* createUDPBroadcastTab();
+    QWidget* createNetworkTab();
     QWidget* createAppearanceTab();
     QWidget* createLoggingTab();
     QWidget* createBackupTab();
@@ -191,6 +192,9 @@ private:
     QPushButton* m_udpAddButton;
     QPushButton* m_udpRemoveButton;
     QPushButton* m_udpTestButton;
+
+    // Network tab widgets
+    QLineEdit* m_computerIDEdit;
 
     // Appearance tab widgets
     QSpinBox* m_entryFontSizeSpin;

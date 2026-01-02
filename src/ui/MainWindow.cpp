@@ -685,24 +685,46 @@ void MainWindow::createCentralWidget() {
     // Initially resize all columns to contents to trim whitespace
     m_qsoTableView->resizeColumnsToContents();
 
-    // Set reasonable minimum widths for readability
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColBand, qMax(60, m_qsoTableView->columnWidth(QSOTableModel::ColBand)));
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColDate, qMax(80, m_qsoTableView->columnWidth(QSOTableModel::ColDate)));
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColUTC, qMax(50, m_qsoTableView->columnWidth(QSOTableModel::ColUTC)));
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColQSOs, qMax(50, m_qsoTableView->columnWidth(QSOTableModel::ColQSOs)));
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColCallsign, qMax(100, m_qsoTableView->columnWidth(QSOTableModel::ColCallsign)));
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColExch1, qMax(40, m_qsoTableView->columnWidth(QSOTableModel::ColExch1)));
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColExch2, qMax(40, m_qsoTableView->columnWidth(QSOTableModel::ColExch2)));
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColPts, qMax(40, m_qsoTableView->columnWidth(QSOTableModel::ColPts)));
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColM, qMax(30, m_qsoTableView->columnWidth(QSOTableModel::ColM)));
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColMult, qMax(30, m_qsoTableView->columnWidth(QSOTableModel::ColMult)));
-    m_qsoTableView->setColumnWidth(QSOTableModel::ColFreq, qMax(80, m_qsoTableView->columnWidth(QSOTableModel::ColFreq)));
+    // Calculate minimum column widths based on font metrics (no magic numbers!)
+    // Add padding for column margins and sort indicator
+    const int COLUMN_PADDING = 20;          // Base padding for margins
+    const int HEADER_SORT_INDICATOR = 15;   // Extra space for sort arrow in header
+    QFontMetrics fm = m_qsoTableView->fontMetrics();
+
+    // Calculate widths based on typical/maximum content for each column
+    // For Date/Time columns, add extra padding for header sort indicator
+    int bandWidth = fm.horizontalAdvance("160SSB") + COLUMN_PADDING;                            // Longest band/mode combo
+    int dateWidth = fm.horizontalAdvance("12-31-2025") + COLUMN_PADDING + HEADER_SORT_INDICATOR;  // Date format: MM-dd-yyyy
+    int utcWidth = fm.horizontalAdvance("23:59") + COLUMN_PADDING + HEADER_SORT_INDICATOR;        // Time format: HH:mm
+    int qsosWidth = fm.horizontalAdvance("99999") + COLUMN_PADDING;       // QSO number (up to 5 digits)
+    int callsignWidth = fm.horizontalAdvance("WW1ABC/QRP") + COLUMN_PADDING; // Longest typical callsign
+    int exchWidth = fm.horizontalAdvance("WWWW") + COLUMN_PADDING;        // Exchange field (4 chars typical)
+    int ptsWidth = fm.horizontalAdvance("999") + COLUMN_PADDING;          // Points (up to 3 digits)
+    int mWidth = fm.horizontalAdvance("xdzp") + COLUMN_PADDING;           // Multiplier indicators (4 chars max)
+    int idWidth = fm.horizontalAdvance("A") + COLUMN_PADDING;             // Computer ID (1 char)
+    int multWidth = fm.horizontalAdvance("$") + COLUMN_PADDING;           // S&P indicator (1 char)
+    int dupeWidth = fm.horizontalAdvance("D") + COLUMN_PADDING;           // Dupe indicator (1 char)
+    int freqWidth = fm.horizontalAdvance("14350.0") + COLUMN_PADDING;     // Frequency (kHz with 1 decimal)
+
+    // Set minimum widths to ensure no truncation at startup
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColBand, qMax(bandWidth, m_qsoTableView->columnWidth(QSOTableModel::ColBand)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColDate, qMax(dateWidth, m_qsoTableView->columnWidth(QSOTableModel::ColDate)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColUTC, qMax(utcWidth, m_qsoTableView->columnWidth(QSOTableModel::ColUTC)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColQSOs, qMax(qsosWidth, m_qsoTableView->columnWidth(QSOTableModel::ColQSOs)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColCallsign, qMax(callsignWidth, m_qsoTableView->columnWidth(QSOTableModel::ColCallsign)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColExch1, qMax(exchWidth, m_qsoTableView->columnWidth(QSOTableModel::ColExch1)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColExch2, qMax(exchWidth, m_qsoTableView->columnWidth(QSOTableModel::ColExch2)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColPts, qMax(ptsWidth, m_qsoTableView->columnWidth(QSOTableModel::ColPts)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColM, qMax(mWidth, m_qsoTableView->columnWidth(QSOTableModel::ColM)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColId, qMax(idWidth, m_qsoTableView->columnWidth(QSOTableModel::ColId)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColMult, qMax(multWidth, m_qsoTableView->columnWidth(QSOTableModel::ColMult)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColDupe, qMax(dupeWidth, m_qsoTableView->columnWidth(QSOTableModel::ColDupe)));
+    m_qsoTableView->setColumnWidth(QSOTableModel::ColFreq, qMax(freqWidth, m_qsoTableView->columnWidth(QSOTableModel::ColFreq)));
 
     // Connect signal to save column widths when user resizes
     connect(header, &QHeaderView::sectionResized, this, &MainWindow::onQSOTableColumnResized);
 
-    // Load saved column widths (must be done after initial sizing)
-    loadQSOTableColumnWidths();
+    // Note: Column widths are loaded in updateExchangeFieldsForContest() after contest is activated
 
     // Connect double-click to edit QSO
     connect(m_qsoTableView, &QTableView::doubleClicked, this, &MainWindow::onEditQSO);
@@ -2036,21 +2058,28 @@ void MainWindow::onLogQSO() {
         return;
     }
 
-    if (exchange.isEmpty()) {
-        m_statusLabel->setText("Error: Exchange is required");
-        m_exchangeEntry->setFocus();
-        return;
-    }
-
-    // Validate exchange against contest rules
+    // Exchange validation - check if contest requires an exchange
     if (m_activeContest) {
-        QString errorMsg;
-        if (!m_activeContest->validateReceivedExchange(exchange, errorMsg)) {
-            setStatusMessage(QString("Invalid exchange: %1").arg(errorMsg));
+        // Check if exchange is required for this contest
+        if (exchange.isEmpty() && m_activeContest->requiresExchange()) {
+            m_statusLabel->setText("Error: Exchange is required");
             m_exchangeEntry->setFocus();
-            m_exchangeEntry->selectAll();
             return;
         }
+
+        // Validate exchange format (skip validation if empty and not required)
+        if (!exchange.isEmpty()) {
+            QString errorMsg;
+            if (!m_activeContest->validateReceivedExchange(exchange, errorMsg)) {
+                setStatusMessage(QString("Invalid exchange: %1").arg(errorMsg));
+                m_exchangeEntry->setFocus();
+                m_exchangeEntry->selectAll();
+                return;
+            }
+        }
+    } else {
+        // No active contest - exchange is optional
+        // (Will default to RST based on mode)
     }
 
     // Create QSO object with current radio state (snapshot!)
@@ -2067,8 +2096,10 @@ void MainWindow::onLogQSO() {
     // Track operating mode (CQ vs S&P)
     qso.isRunQSO = (m_operatingMode == OperatingMode::CQ);
 
-    // Exchange
-    qso.rstSent = (qso.mode == ModeType::CW) ? "599" : "59";
+    // Exchange - set default sent RST based on mode
+    // Phone modes (SSB, FM, AM): 59
+    // CW and Digital modes (RTTY, PSK, FT8, etc.): 599
+    qso.rstSent = isPhoneMode(qso.mode) ? "59" : "599";
     qso.exchangeReceived = exchange;
 
     // Parse exchange into QSO fields
@@ -2078,11 +2109,15 @@ void MainWindow::onLogQSO() {
 
         // Set default RST if not populated by contest
         if (qso.rstReceived.isEmpty()) {
-            qso.rstReceived = (qso.mode == ModeType::CW) ? "599" : "59";
+            // Phone modes (SSB, FM, AM): 59
+            // CW and Digital modes (RTTY, PSK, FT8, etc.): 599
+            qso.rstReceived = isPhoneMode(qso.mode) ? "59" : "599";
         }
     } else {
-        // No active contest - use default RST
-        qso.rstReceived = (qso.mode == ModeType::CW) ? "599" : "59";
+        // No active contest - use default RST based on mode
+        // Phone modes (SSB, FM, AM): 59
+        // CW and Digital modes (RTTY, PSK, FT8, etc.): 599
+        qso.rstReceived = isPhoneMode(qso.mode) ? "59" : "599";
     }
 
     // Sent exchange handling (for contests that use serial numbers)
@@ -3724,7 +3759,7 @@ void MainWindow::reopenLastContest() {
     }
 
     // Read contest info from database
-    QSqlQuery query = db.execute("SELECT contest_id, contest_name, start_time FROM contests LIMIT 1", {});
+    QSqlQuery query = db.execute("SELECT contest_id, contest_name, start_time, contest_type FROM contests LIMIT 1", {});
     if (!query.next()) {
         LOG_WARN("MainWindow", "Last contest database has no contest record");
         db.close();
@@ -3736,21 +3771,13 @@ void MainWindow::reopenLastContest() {
     contestInfo.contestId = query.value(0).toString();
     contestInfo.contestName = query.value(1).toString();
     contestInfo.startDate = QDateTime::fromSecsSinceEpoch(query.value(2).toLongLong());
+    contestInfo.contestType = query.value(3).toString();  // Read contest_type directly from database!
     contestInfo.databasePath = lastContestPath;
     contestInfo.isExisting = true;
 
-    // Determine contest type from contest_id by intelligently parsing
-    // Format: "CONTESTTYPE_MODE_YYYY_MM_DD" or just "CONTESTTYPE"
-    // Examples:
-    //   "CQWW_CW_2025_12_25" → type: "CQWW", mode: "CW"
-    //   "CQWPX_SSB_2025_12_25" → type: "CQWPX", mode: "SSB"
-    //   "IARU_HF_CW_2025_07_12" → type: "IARU_HF_CW", mode: "CW"
+    // Determine mode from contest_id (for backward compatibility with CW/SSB specific contests)
+    // This is only used for display and mode restrictions
     QString contestId = contestInfo.contestId;
-
-    // Split by underscores
-    QStringList parts = contestId.split('_');
-
-    // Determine mode by looking for _CW or _SSB in the ID
     if (contestId.contains("_CW")) {
         contestInfo.mode = "CW";
     } else if (contestId.contains("_SSB")) {
@@ -3759,32 +3786,8 @@ void MainWindow::reopenLastContest() {
         contestInfo.mode = "Mixed";
     }
 
-    // Strip date suffix (last 3 parts if they look like YYYY_MM_DD)
-    // Check if last 3 parts are numeric
-    if (parts.size() >= 3) {
-        bool ok1, ok2, ok3;
-        int year = parts[parts.size() - 3].toInt(&ok1);
-        int month = parts[parts.size() - 2].toInt(&ok2);
-        int day = parts[parts.size() - 1].toInt(&ok3);
-
-        if (ok1 && ok2 && ok3 && year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-            // Remove date suffix
-            parts.removeLast();
-            parts.removeLast();
-            parts.removeLast();
-        }
-    }
-
-    // Strip mode suffix (_CW or _SSB) if present
-    if (!parts.isEmpty() && (parts.last() == "CW" || parts.last() == "SSB")) {
-        parts.removeLast();
-    }
-
-    // Rejoin remaining parts to get contest type
-    contestInfo.contestType = parts.join('_');
-
-    LOG_DEBUG("MainWindow", QString("Parsed contest ID '%1' → type: '%2', mode: '%3'")
-        .arg(contestId, contestInfo.contestType, contestInfo.mode));
+    LOG_DEBUG("MainWindow", QString("Loaded contest from database: type='%1', mode='%2', name='%3'")
+        .arg(contestInfo.contestType, contestInfo.mode, contestInfo.contestName));
 
     // Close database - activateContest will reopen it
     db.close();
@@ -3894,12 +3897,13 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         QDateTime now = QDateTime::currentDateTimeUtc();
 
         query = db.execute(
-            "INSERT INTO contests (contest_id, contest_name, start_time, my_call, "
+            "INSERT INTO contests (contest_id, contest_name, start_time, contest_type, my_call, "
             "my_grid, my_continent, my_cq_zone, my_itu_zone, "
             "current_serial, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             {contestInfo.contestId, contestInfo.contestName,
              contestInfo.startDate.toSecsSinceEpoch(),
+             contestInfo.contestType,  // Store contest type (registry ID)
              settings.getMyCallsign(), settings.getMyGridSquare(),
              settings.getMyContinent(),
              settings.getMyCQZone(), settings.getMyITUZone(),
@@ -4125,6 +4129,9 @@ void MainWindow::updateExchangeFieldsForContest() {
 
     // Clear any existing exchange text
     m_exchangeEntry->clear();
+
+    // Restore saved column widths for this contest (after table columns are set)
+    loadQSOTableColumnWidths();
 }
 
 void MainWindow::autoPopulateExchange(const QString& callsign) {
@@ -5347,7 +5354,7 @@ BandType MainWindow::getPreviousBand(BandType currentBand) const {
 }
 
 void MainWindow::saveQSOTableColumnWidths() {
-    if (!m_qsoTableView) {
+    if (!m_qsoTableView || !m_activeContest) {
         return;
     }
 
@@ -5356,15 +5363,20 @@ void MainWindow::saveQSOTableColumnWidths() {
         widths.append(m_qsoTableView->columnWidth(i));
     }
 
-    AppSettings::instance().saveQSOTableColumnWidths(widths);
+    // Save per-contest using contest ID
+    QString contestId = m_activeContest->getContestId();
+    AppSettings::instance().saveQSOTableColumnWidths(contestId, widths);
 }
 
 void MainWindow::loadQSOTableColumnWidths() {
-    if (!m_qsoTableView) {
+    if (!m_qsoTableView || !m_activeContest) {
         return;
     }
 
-    QList<int> widths = AppSettings::instance().loadQSOTableColumnWidths();
+    // Load per-contest using contest ID
+    QString contestId = m_activeContest->getContestId();
+    QList<int> widths = AppSettings::instance().loadQSOTableColumnWidths(contestId);
+
     if (widths.isEmpty() || widths.size() != QSOTableModel::ColCount) {
         return;  // No saved widths or wrong number of columns
     }

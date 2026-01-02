@@ -50,6 +50,23 @@ enum class ModeGroup {
     Digital   // RTTY, PSK, FT8, FT4, DATA
 };
 
+// Mode group helper functions
+inline bool isPhoneMode(ModeType mode) {
+    return (mode == ModeType::LSB || mode == ModeType::USB ||
+            mode == ModeType::FM || mode == ModeType::AM);
+}
+
+inline bool isCWMode(ModeType mode) {
+    return (mode == ModeType::CW || mode == ModeType::CWR);
+}
+
+inline bool isDigitalMode(ModeType mode) {
+    return (mode == ModeType::RTTY || mode == ModeType::RTTYR ||
+            mode == ModeType::PSK || mode == ModeType::PSKR ||
+            mode == ModeType::FT8 || mode == ModeType::FT4 ||
+            mode == ModeType::DATA || mode == ModeType::DATAR);
+}
+
 // Operating mode (calling CQ vs searching and pouncing)
 enum class OperatingMode {
     CQ,       // Running/calling CQ
