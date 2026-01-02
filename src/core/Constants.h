@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.24.2";  // Fix use-after-free crash in BandSummaryGrid setFontSize
+constexpr const char* APP_VERSION = "3.24.3";  // Reduce log noise - move deleted DXCC entity warnings to debug
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

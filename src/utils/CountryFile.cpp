@@ -139,7 +139,7 @@ bool CountryFile::parseMainLine(const QString& line, CountryData& country) {
     country.dxccEntity = getDXCCEntityCode(country.name);
 
     if (country.dxccEntity == 0) {
-        LOG_WARN("CountryFile", QString("No DXCC code found for country: '%1'").arg(country.name));
+        LOG_DEBUG("CountryFile", QString("No DXCC code found for country: '%1' (deleted entity or alias)").arg(country.name));
     }
 
     return true;
@@ -236,8 +236,8 @@ int CountryFile::getDXCCEntityCode(const QString& countryName) {
         }
     }
 
-    // Not found - log warning for manual investigation
-    LOG_WARN("CountryFile", QString("No DXCC code found for country: '%1' (tried exact, uppercase, and fuzzy matching)").arg(countryName));
+    // Not found - this is expected for deleted DXCC entities
+    LOG_DEBUG("CountryFile", QString("No DXCC code found for country: '%1' (deleted entity, expected)").arg(countryName));
     return 0;
 }
 
