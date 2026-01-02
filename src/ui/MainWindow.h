@@ -227,6 +227,7 @@ private:
     QList<BandType> getWorkedBandsForCallsign(const QString& callsign) const;
     QList<BandType> getWorkedBandsForMultiplier(const QString& multValue, MultiplierType type) const;
     QString getMultiplierValueForCallsign(const QString& callsign) const;
+    QSet<QString> getWorkedCallsigns() const;  // Get all worked callsigns from log
 
     // Station info display
     void updateStationInfo(const QString& callsign);

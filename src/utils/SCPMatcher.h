@@ -27,10 +27,15 @@ public:
      * 1. Prefix matches (starts with partial)
      * 2. Suffix matches (ends with partial)
      *
+     * Prioritization (when contestDbPath is provided):
+     * - Calls worked in THIS contest appear first (from contest database)
+     * - MASTER.SCP calls appear second (from global database)
+     *
      * @param partial Partial callsign (minimum 2 characters)
+     * @param contestDbPath Path to contest database for prioritization (optional)
      * @return List of matches, max 5 entries
      */
-    QStringList findMatches(const QString& partial);
+    QStringList findMatches(const QString& partial, const QString& contestDbPath = QString());
 
     /**
      * Enable/disable SCP matching

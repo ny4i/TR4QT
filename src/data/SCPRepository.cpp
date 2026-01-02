@@ -11,8 +11,9 @@ namespace TR4QT {
 SCPRepository::SCPRepository() {
 }
 
-QStringList SCPRepository::findMatches(const QString& partial) const {
-    LOG_DEBUG("SCPRepository", QString("findMatches called with partial='%1'").arg(partial));
+QStringList SCPRepository::findMatches(const QString& partial, const QString& contestDbPath) const {
+    LOG_DEBUG("SCPRepository", QString("findMatches called with partial='%1', contestDbPath='%2'")
+        .arg(partial).arg(contestDbPath));
 
     if (partial.length() < 2) {
         LOG_DEBUG("SCPRepository", "findMatches: partial too short, returning empty");
@@ -32,16 +33,53 @@ QStringList SCPRepository::findMatches(const QString& partial) const {
     QStringList allMatches;
 
     // Query 1: Prefix matches (callsign starts with partial)
-    // These are higher priority and returned first
-    QString prefixSql = R"(
-        SELECT callsign FROM scp_callsigns
-        WHERE callsign LIKE ? || '%'
-        ORDER BY LENGTH(callsign) ASC
-        LIMIT 5
-    )";
+    QString prefixSql;
+    QVariantList prefixParams;
 
-    LOG_DEBUG("SCPRepository", QString("findMatches: executing prefix query with '%1'").arg(normalized));
-    QSqlQuery prefixQuery = db.execute(prefixSql, {normalized});
+    if (!contestDbPath.isEmpty()) {
+        // Contest mode: UNION worked calls from contest DB + MASTER.SCP from global DB
+        // Prioritize worked calls first, then MASTER.SCP
+        prefixSql = R"(
+            SELECT callsign, priority FROM (
+                SELECT DISTINCT UPPER(callsign) as callsign, 0 as priority
+                FROM contest.qsos
+                WHERE UPPER(callsign) LIKE ? || '%'
+                UNION ALL
+                SELECT callsign, 1 as priority
+                FROM scp_callsigns
+                WHERE callsign LIKE ? || '%'
+                AND source = 'master_scp'
+            )
+            ORDER BY priority ASC, LENGTH(callsign) ASC
+            LIMIT 5
+        )";
+        prefixParams = {normalized, normalized};
+    } else {
+        // Non-contest mode: Just query global MASTER.SCP
+        prefixSql = R"(
+            SELECT callsign FROM scp_callsigns
+            WHERE callsign LIKE ? || '%'
+            AND source = 'master_scp'
+            ORDER BY LENGTH(callsign) ASC
+            LIMIT 5
+        )";
+        prefixParams = {normalized};
+    }
+
+    // Attach contest database if provided
+    if (!contestDbPath.isEmpty()) {
+        QString attachSql = QString("ATTACH DATABASE '%1' AS contest").arg(contestDbPath);
+        QSqlQuery attachQuery = db.execute(attachSql);
+        if (!attachQuery.isActive()) {
+            m_lastError = QString("Failed to attach contest database: %1").arg(db.lastError());
+            LOG_WARN("SCPRepository", m_lastError);
+            return QStringList();
+        }
+        LOG_DEBUG("SCPRepository", QString("Attached contest database: %1").arg(contestDbPath));
+    }
+
+    LOG_DEBUG("SCPRepository", QString("findMatches: executing prefix query"));
+    QSqlQuery prefixQuery = db.execute(prefixSql, prefixParams);
 
     if (!prefixQuery.isActive()) {
         m_lastError = db.lastError();
@@ -61,21 +99,51 @@ QStringList SCPRepository::findMatches(const QString& partial) const {
     // Fill remaining slots up to 5 total
     int suffixLimit = 5 - allMatches.size();
     if (suffixLimit > 0) {
-        QString suffixSql = R"(
-            SELECT callsign FROM scp_callsigns
-            WHERE callsign LIKE '%' || ?
-            AND callsign NOT LIKE ? || '%'
-            ORDER BY LENGTH(callsign) ASC
-            LIMIT ?
-        )";
+        QString suffixSql;
+        QVariantList suffixParams;
+
+        if (!contestDbPath.isEmpty()) {
+            // Contest mode: UNION worked calls + MASTER.SCP
+            suffixSql = R"(
+                SELECT callsign, priority FROM (
+                    SELECT DISTINCT UPPER(callsign) as callsign, 0 as priority
+                    FROM contest.qsos
+                    WHERE UPPER(callsign) LIKE '%' || ?
+                    AND UPPER(callsign) NOT LIKE ? || '%'
+                    UNION ALL
+                    SELECT callsign, 1 as priority
+                    FROM scp_callsigns
+                    WHERE callsign LIKE '%' || ?
+                    AND callsign NOT LIKE ? || '%'
+                    AND source = 'master_scp'
+                )
+                ORDER BY priority ASC, LENGTH(callsign) ASC
+                LIMIT ?
+            )";
+            suffixParams = {normalized, normalized, normalized, normalized, suffixLimit};
+        } else {
+            // Non-contest mode: Just query global MASTER.SCP
+            suffixSql = R"(
+                SELECT callsign FROM scp_callsigns
+                WHERE callsign LIKE '%' || ?
+                AND callsign NOT LIKE ? || '%'
+                AND source = 'master_scp'
+                ORDER BY LENGTH(callsign) ASC
+                LIMIT ?
+            )";
+            suffixParams = {normalized, normalized, suffixLimit};
+        }
 
         LOG_DEBUG("SCPRepository", QString("findMatches: executing suffix query, limit=%1").arg(suffixLimit));
-        QSqlQuery suffixQuery = db.execute(suffixSql, {normalized, normalized, suffixLimit});
+        QSqlQuery suffixQuery = db.execute(suffixSql, suffixParams);
 
         if (!suffixQuery.isActive()) {
             m_lastError = db.lastError();
             LOG_WARN("SCPRepository", QString("Suffix query failed: %1").arg(m_lastError));
-            // Return prefix matches even if suffix query fails
+            // Detach before returning
+            if (!contestDbPath.isEmpty()) {
+                db.execute("DETACH DATABASE contest");
+            }
             return allMatches;
         }
 
@@ -86,6 +154,14 @@ QStringList SCPRepository::findMatches(const QString& partial) const {
         }
 
         LOG_DEBUG("SCPRepository", QString("findMatches: suffix query added %1 matches").arg(allMatches.size() - (5 - suffixLimit)));
+    }
+
+    // Detach contest database
+    if (!contestDbPath.isEmpty()) {
+        QSqlQuery detachQuery = db.execute("DETACH DATABASE contest");
+        if (detachQuery.isActive()) {
+            LOG_DEBUG("SCPRepository", "Detached contest database");
+        }
     }
 
     LOG_DEBUG("SCPRepository", QString("findMatches: returning %1 total matches: %2")
@@ -114,10 +190,14 @@ int SCPRepository::bulkInsert(const QStringList& callsigns,
         return 0;
     }
 
+    // Use UPSERT to update source when callsign already exists (e.g., from MASTER.SCP)
+    // This ensures worked calls get prioritized in SCP queries
     QString sql = R"(
-        INSERT OR IGNORE INTO scp_callsigns
-        (callsign, source, contest_id, added_at)
+        INSERT INTO scp_callsigns (callsign, source, contest_id, added_at)
         VALUES (?, ?, ?, ?)
+        ON CONFLICT(callsign) DO UPDATE SET
+            source = excluded.source,
+            contest_id = excluded.contest_id
     )";
 
     QSqlQuery query(db.connection());
@@ -138,7 +218,7 @@ int SCPRepository::bulkInsert(const QStringList& callsigns,
         query.addBindValue(now);
 
         if (query.exec()) {
-            // Check if row was actually inserted (not ignored due to UNIQUE constraint)
+            // Count inserts and updates (UPSERT affects rows for both operations)
             if (query.numRowsAffected() > 0) {
                 insertCount++;
             }
@@ -154,7 +234,7 @@ int SCPRepository::bulkInsert(const QStringList& callsigns,
         return 0;
     }
 
-    LOG_DEBUG("SCPRepository", QString("Bulk insert: %1 callsigns inserted from source '%2'")
+    LOG_DEBUG("SCPRepository", QString("Bulk insert: %1 callsigns inserted/updated from source '%2'")
         .arg(insertCount).arg(source));
 
     return insertCount;
@@ -180,6 +260,30 @@ int SCPRepository::clearBySource(const QString& source) {
     int deletedCount = query.numRowsAffected();
     LOG_DEBUG("SCPRepository", QString("Cleared %1 callsigns from source '%2'")
         .arg(deletedCount).arg(source));
+
+    return deletedCount;
+}
+
+int SCPRepository::clearByContestId(const QString& contestId) {
+    GlobalDatabase& db = GlobalDatabase::instance();
+    if (!db.isOpen()) {
+        m_lastError = "Global database is not open";
+        LOG_WARN("SCPRepository", m_lastError);
+        return 0;
+    }
+
+    QString sql = "DELETE FROM scp_callsigns WHERE contest_id = ?";
+    QSqlQuery query = db.execute(sql, {contestId});
+
+    if (!query.isActive()) {
+        m_lastError = db.lastError();
+        LOG_WARN("SCPRepository", QString("Clear failed for contest_id '%1': %2").arg(contestId).arg(m_lastError));
+        return 0;
+    }
+
+    int deletedCount = query.numRowsAffected();
+    LOG_DEBUG("SCPRepository", QString("Cleared %1 callsigns from contest_id '%2'")
+        .arg(deletedCount).arg(contestId));
 
     return deletedCount;
 }
