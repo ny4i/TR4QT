@@ -225,6 +225,10 @@ int CountryFile::getDXCCEntityCode(const QString& countryName) {
         specialCases["HAWAII"] = "HAWAII";
         specialCases["ALASKA"] = "ALASKA";
         specialCases["CANADA"] = "CANADA";
+
+        // Spelling variations between cty.dat and ADIF spec
+        specialCases["RODRIGUEZ ISLAND"] = "RODRIGUES I.";  // cty.dat uses Spanish spelling
+
         // Add other special cases as discovered
     }
 
