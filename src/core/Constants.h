@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.27.0";  // Fix TCP hang on exit - close connection before terminating thread
+constexpr const char* APP_VERSION = "3.28.0";  // Code Refactoring Quick Wins - centralized RST logic, added constants
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
