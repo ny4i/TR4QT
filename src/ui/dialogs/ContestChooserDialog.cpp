@@ -47,6 +47,8 @@ void ContestChooserDialog::setupUI() {
     m_existingContestsTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_existingContestsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_existingContestsTable->setAlternatingRowColors(true);
+    // Use native macOS scroll behavior - let system show scroll indicators when appropriate
+    // Visual affordance: partially clipped last row indicates more content (Apple HIG)
     m_existingContestsTable->horizontalHeader()->setStretchLastSection(false);
     m_existingContestsTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);  // Contest Name stretches
     m_existingContestsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);  // Type
