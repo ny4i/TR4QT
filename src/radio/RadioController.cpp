@@ -22,6 +22,8 @@ static bool isRadioReachable(const QString& host, quint16 port, int timeoutMs = 
 
     bool connected = false;
     bool timedOut = false;
+    QAbstractSocket::SocketError socketError = QAbstractSocket::UnknownSocketError;
+    QString errorString;
 
     // Connect signals
     QObject::connect(&socket, &QTcpSocket::connected, [&]() {
@@ -29,7 +31,9 @@ static bool isRadioReachable(const QString& host, quint16 port, int timeoutMs = 
         loop.quit();
     });
 
-    QObject::connect(&socket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::errorOccurred), [&]() {
+    QObject::connect(&socket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::errorOccurred), [&](QAbstractSocket::SocketError error) {
+        socketError = error;
+        errorString = socket.errorString();
         loop.quit();
     });
 
@@ -38,12 +42,15 @@ static bool isRadioReachable(const QString& host, quint16 port, int timeoutMs = 
         loop.quit();
     });
 
-    // Start connection attempt
+    // Start connection attempt and measure time
+    QElapsedTimer timer;
+    timer.start();
     socket.connectToHost(host, port);
     timeoutTimer.start(timeoutMs);
 
     // Wait for connection or timeout
     loop.exec();
+    qint64 elapsed = timer.elapsed();
 
     // Clean up
     if (socket.state() == QAbstractSocket::ConnectedState) {
@@ -56,14 +63,16 @@ static bool isRadioReachable(const QString& host, quint16 port, int timeoutMs = 
     }
 
     if (connected) {
-        LOG_DEBUG("RadioController", QString("Pre-flight check: SUCCESS - %1:%2 is reachable").arg(host).arg(port));
+        LOG_DEBUG("RadioController", QString("Pre-flight check: SUCCESS - %1:%2 is reachable (took %3ms)")
+            .arg(host).arg(port).arg(elapsed));
         return true;
     } else if (timedOut) {
-        LOG_WARN("RadioController", QString("Pre-flight check: TIMEOUT - %1:%2 not reachable within %3ms").arg(host).arg(port).arg(timeoutMs));
+        LOG_WARN("RadioController", QString("Pre-flight check: TIMEOUT - %1:%2 not reachable within %3ms (elapsed: %4ms)")
+            .arg(host).arg(port).arg(timeoutMs).arg(elapsed));
         return false;
     } else {
-        LOG_WARN("RadioController", QString("Pre-flight check: FAILED - %1:%2 error: %3")
-            .arg(host).arg(port).arg(socket.errorString()));
+        LOG_WARN("RadioController", QString("Pre-flight check: FAILED - %1:%2 error after %3ms: %4 (error code: %5)")
+            .arg(host).arg(port).arg(elapsed).arg(errorString).arg(socketError));
         return false;
     }
 }
@@ -236,8 +245,10 @@ void RadioController::connectToRadio(const RadioConfig& config) {
             quint16 port = parts[1].toUShort(&ok);
 
             if (ok && !host.isEmpty()) {
-                // Run pre-flight connectivity check (500ms timeout)
-                if (!isRadioReachable(host, port, 500)) {
+                // Run pre-flight connectivity check (2000ms timeout)
+                // Note: Increased from 500ms to 2000ms to prevent false negatives
+                // on slower networks or radios that take longer to respond
+                if (!isRadioReachable(host, port, 2000)) {
                     // Radio not reachable - abort connection attempt
                     QString errorMsg = QString("Radio not reachable at %1:%2 (pre-flight check failed)").arg(host).arg(port);
                     LOG_WARN("RadioController", errorMsg);
