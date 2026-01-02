@@ -226,8 +226,13 @@ int CountryFile::getDXCCEntityCode(const QString& countryName) {
         specialCases["ALASKA"] = "ALASKA";
         specialCases["CANADA"] = "CANADA";
 
-        // Spelling variations between cty.dat and ADIF spec
-        specialCases["RODRIGUEZ ISLAND"] = "RODRIGUES I.";  // cty.dat uses Spanish spelling
+        // Spelling/abbreviation variations between cty.dat and ADIF spec
+        specialCases["RODRIGUEZ ISLAND"] = "RODRIGUES I.";             // Entity 207, 3B9 (spelling + abbrev)
+        specialCases["SOV MIL ORDER OF MALTA"] = "SOVEREIGN MILITARY ORDER OF MALTA";  // Entity 246, 1A
+        specialCases["SPRATLY ISLANDS"] = "SPRATLY IS.";               // Entity 247 (deleted)
+        specialCases["AGALEGA & ST. BRANDON"] = "AGALEGA & ST. BRANDON IS.";  // Entity 4, 3B6/3B7
+        specialCases["ANNOBON ISLAND"] = "ANNOBON I.";                 // Entity 195, 3C0
+        specialCases["ROTUMA ISLAND"] = "ROTUMA I.";                   // Entity 460, 3D2
 
         // Add other special cases as discovered
     }
