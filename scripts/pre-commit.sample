@@ -1,0 +1,174 @@
+#!/bin/bash
+# Pre-commit hook to catch dangerous Qt/C++ patterns and common bugs
+
+echo "Running TR4QT pre-commit checks..."
+
+ERRORS=0
+WARNINGS=0
+
+# Get list of staged C++ files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cpp|h)$')
+
+if [ -z "$STAGED_FILES" ]; then
+    echo "✓ No C++ files to check"
+    exit 0
+fi
+
+# ============================================================================
+# CRITICAL ERRORS (will block commit)
+# ============================================================================
+
+# Check 1: setParent(nullptr) creates top-level windows
+if echo "$STAGED_FILES" | xargs grep -n 'setParent(nullptr)' 2>/dev/null; then
+    echo ""
+    echo "❌ ERROR: Found setParent(nullptr) which creates top-level windows!"
+    echo ""
+    echo "This is usually a bug. Did you mean to:"
+    echo "  - deleteLater() - Delete the widget"
+    echo "  - hide() - Hide the widget"
+    echo "  - setParent(this) - Keep as child but remove from layout"
+    echo ""
+    echo "If you really want a top-level window, use:"
+    echo "  widget->setParent(nullptr);"
+    echo "  widget->setWindowFlags(Qt::Window);  // Make intent explicit"
+    echo ""
+    ERRORS=$((ERRORS + 1))
+fi
+
+# Check 2: Missing Q_OBJECT macro in classes with signals/slots
+for file in $STAGED_FILES; do
+    # Check if file has Q_OBJECT, signals, or slots
+    HAS_QOBJECT=$(grep -c "Q_OBJECT" "$file" 2>/dev/null || echo 0)
+    HAS_SIGNALS=$(grep -c "signals:" "$file" 2>/dev/null || echo 0)
+    HAS_SLOTS=$(grep -c "slots:" "$file" 2>/dev/null || echo 0)
+
+    if [ "$HAS_SIGNALS" -gt 0 ] || [ "$HAS_SLOTS" -gt 0 ]; then
+        if [ "$HAS_QOBJECT" -eq 0 ]; then
+            echo ""
+            echo "❌ ERROR: File $file has signals/slots but missing Q_OBJECT macro"
+            echo "Classes with signals or slots MUST have Q_OBJECT in the class declaration"
+            echo ""
+            ERRORS=$((ERRORS + 1))
+        fi
+    fi
+done
+
+# Check 3: Sensitive data patterns (API keys, passwords, tokens)
+if echo "$STAGED_FILES" | xargs grep -nE '(password|passwd|secret|api[_-]?key|private[_-]?key|access[_-]?token|auth[_-]?token)\s*=\s*"[^"]+"' -i 2>/dev/null | grep -v "//.*password"; then
+    echo ""
+    echo "❌ ERROR: Found potential sensitive data (password/API key) in code!"
+    echo "Never commit passwords, API keys, or tokens to version control"
+    echo "Use environment variables or configuration files (.gitignore'd)"
+    echo ""
+    ERRORS=$((ERRORS + 1))
+fi
+
+# Check 4: Dangerous pointer dereference without nullptr check
+if echo "$STAGED_FILES" | xargs grep -nE '\*[a-zA-Z_][a-zA-Z0-9_]*\s*\(' 2>/dev/null | grep -v "if.*!=" | grep -v "if.*==" | grep -v "Q_ASSERT" | head -3; then
+    echo ""
+    echo "⚠️  WARNING: Found pointer dereference - ensure nullptr check exists"
+    echo "(Showing first 3 occurrences)"
+    echo ""
+    WARNINGS=$((WARNINGS + 1))
+fi
+
+# ============================================================================
+# WARNINGS (won't block commit, but should review)
+# ============================================================================
+
+# Check 5: QWidget created without parent (potential top-level windows)
+if echo "$STAGED_FILES" | xargs grep -n 'new Q[A-Z][a-zA-Z]*\(Widget\|Dialog\|Window\)()' 2>/dev/null; then
+    echo ""
+    echo "⚠️  WARNING: Found QWidget/QDialog/QWindow created without parent"
+    echo "This might create a top-level window. Consider adding parent argument."
+    echo ""
+    WARNINGS=$((WARNINGS + 1))
+fi
+
+# Check 6: Debug statements left in code (qDebug, LOG_DEBUG in non-debug code)
+if echo "$STAGED_FILES" | xargs grep -n 'qDebug()' 2>/dev/null; then
+    echo ""
+    echo "⚠️  WARNING: Found qDebug() calls"
+    echo "Consider using LOG_DEBUG() for production code or remove debug statements"
+    echo ""
+    WARNINGS=$((WARNINGS + 1))
+fi
+
+# Check 7: TODO/FIXME without context
+if echo "$STAGED_FILES" | xargs grep -nE '(TODO|FIXME):?\s*$' 2>/dev/null; then
+    echo ""
+    echo "⚠️  WARNING: Found TODO/FIXME without description"
+    echo "Add context: // TODO(username): Description of what needs to be done"
+    echo ""
+    WARNINGS=$((WARNINGS + 1))
+fi
+
+# Check 8: Magic numbers (literal numbers in code)
+# This is aggressive, so we only warn about obvious cases
+if echo "$STAGED_FILES" | xargs grep -nE '\.(setMaximumWidth|setMinimumWidth|setMaximumHeight|setMinimumHeight|setFixedWidth|setFixedHeight)\([0-9]+\)' 2>/dev/null | head -5; then
+    echo ""
+    echo "⚠️  WARNING: Found magic numbers in widget sizing"
+    echo "Consider using named constants or calculating from fontMetrics()"
+    echo "(Showing first 5 occurrences)"
+    echo ""
+    WARNINGS=$((WARNINGS + 1))
+fi
+
+# Check 9: QString conversion without UTF-8 awareness
+if echo "$STAGED_FILES" | xargs grep -n '\.toStdString()' 2>/dev/null; then
+    echo ""
+    echo "⚠️  WARNING: Found QString::toStdString() conversion"
+    echo "Be aware: toStdString() uses system locale, not UTF-8!"
+    echo "Consider: .toUtf8().constData() for explicit UTF-8"
+    echo ""
+    WARNINGS=$((WARNINGS + 1))
+fi
+
+# Check 10: Deprecated Qt API usage (common ones)
+if echo "$STAGED_FILES" | xargs grep -nE '(QRegExp|qrand|qsrand|QTime::currentTime\.elapsed)' 2>/dev/null; then
+    echo ""
+    echo "⚠️  WARNING: Found deprecated Qt API"
+    echo "  QRegExp → QRegularExpression"
+    echo "  qrand/qsrand → QRandomGenerator"
+    echo "  QTime::elapsed → QElapsedTimer"
+    echo ""
+    WARNINGS=$((WARNINGS + 1))
+fi
+
+# Check 11: Missing include guards in header files
+for file in $STAGED_FILES; do
+    if [[ "$file" == *.h ]]; then
+        # Extract expected guard name from filename
+        GUARD=$(basename "$file" | tr '[:lower:].' '[:upper:]_' | sed 's/_H_*//')
+        HAS_GUARD=$(grep -c "#ifndef ${GUARD}_H" "$file" 2>/dev/null || echo 0)
+        HAS_PRAGMA=$(grep -c "#pragma once" "$file" 2>/dev/null || echo 0)
+
+        if [ "$HAS_GUARD" -eq 0 ] && [ "$HAS_PRAGMA" -eq 0 ]; then
+            echo ""
+            echo "⚠️  WARNING: Header $file missing include guard"
+            echo "Add: #ifndef ${GUARD}_H / #define ${GUARD}_H"
+            echo "Or:  #pragma once"
+            echo ""
+            WARNINGS=$((WARNINGS + 1))
+        fi
+    fi
+done
+
+# ============================================================================
+# Summary
+# ============================================================================
+
+echo ""
+echo "════════════════════════════════════════"
+if [ $ERRORS -gt 0 ]; then
+    echo "❌ COMMIT BLOCKED: $ERRORS critical error(s) found"
+    echo "   Fix the errors above or use --no-verify to bypass"
+    exit 1
+elif [ $WARNINGS -gt 0 ]; then
+    echo "⚠️  $WARNINGS warning(s) - please review"
+    echo "✓ Pre-commit checks passed (with warnings)"
+    exit 0
+else
+    echo "✓ All pre-commit checks passed"
+    exit 0
+fi
