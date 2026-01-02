@@ -78,6 +78,7 @@ add_tr4qt_test(test_countryfile
     test_countryfile.cpp
     ../src/utils/CountryFile.cpp
     ../src/utils/GeographicUtils.cpp
+    ../src/utils/PathManager.cpp
     ../src/data/DXCCRepository.cpp
     ../src/data/GlobalDatabase.cpp
     ../src/data/Database.cpp
@@ -136,6 +137,7 @@ add_tr4qt_test(test_geographicutils
     test_geographicutils.cpp
     ../src/utils/GeographicUtils.cpp
     ../src/utils/CountryFile.cpp
+    ../src/utils/PathManager.cpp
     ../src/data/DXCCRepository.cpp
     ../src/data/GlobalDatabase.cpp
     ../src/data/Database.cpp
@@ -223,6 +225,7 @@ add_tr4qt_test(test_adif_import
     ../src/importers/ADIFImporter.cpp
     ../src/utils/CountryFile.cpp
     ../src/utils/GeographicUtils.cpp
+    ../src/utils/PathManager.cpp
     ../src/data/DXCCRepository.cpp
     ../src/data/GlobalDatabase.cpp
     ../src/data/Database.cpp
@@ -241,6 +244,7 @@ add_tr4qt_test(test_adif_mapping_demo
     ../src/importers/ADIFImporter.cpp
     ../src/utils/CountryFile.cpp
     ../src/utils/GeographicUtils.cpp
+    ../src/utils/PathManager.cpp
     ../src/data/DXCCRepository.cpp
     ../src/data/GlobalDatabase.cpp
     ../src/data/Database.cpp
