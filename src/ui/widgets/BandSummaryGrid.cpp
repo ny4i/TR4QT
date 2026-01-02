@@ -67,27 +67,27 @@ void BandSummaryGrid::setPointsCount(BandType band, int points) {
 }
 
 void BandSummaryGrid::setAllQSOs(int count) {
-    m_qsoAllLabel->setText(QString::number(count));
+    if (m_qsoAllLabel) m_qsoAllLabel->setText(QString::number(count));
 }
 
 void BandSummaryGrid::setAllMults(int count) {
-    m_multAllLabel->setText(QString::number(count));
+    if (m_multAllLabel) m_multAllLabel->setText(QString::number(count));
 }
 
 void BandSummaryGrid::setAllZones(int count) {
-    m_zoneAllLabel->setText(QString::number(count));
+    if (m_zoneAllLabel) m_zoneAllLabel->setText(QString::number(count));
 }
 
 void BandSummaryGrid::setAllPoints(int points) {
-    m_pointsAllLabel->setText(QString::number(points));
+    if (m_pointsAllLabel) m_pointsAllLabel->setText(QString::number(points));
 }
 
 void BandSummaryGrid::setFinalScore(int score) {
-    m_totalPointsLabel->setText(QString("%1 Pts").arg(score));
+    if (m_totalPointsLabel) m_totalPointsLabel->setText(QString("%1 Pts").arg(score));
 }
 
 void BandSummaryGrid::setBothNeeded(const QString& bands) {
-    m_bothLabel->setText(bands);
+    if (m_bothLabel) m_bothLabel->setText(bands);
 }
 
 void BandSummaryGrid::clearAll() {

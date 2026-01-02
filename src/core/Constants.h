@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.24.5";  // Fix DXCC mappings for 6 entities with cty.dat spelling mismatches
+constexpr const char* APP_VERSION = "3.24.6";  // Fix crash in BandSummaryGrid - add nullptr checks to all setter methods
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
