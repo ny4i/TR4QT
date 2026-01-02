@@ -30,10 +30,18 @@ public:
      *
      * Returns top 5 matches combined, prefix matches prioritized.
      *
+     * Prioritization order:
+     * 1. Calls worked in THIS contest (from contest database qsos table)
+     * 2. Calls from MASTER.SCP (from global scp_callsigns table)
+     *
+     * NOTE: Global scp_callsigns table contains ONLY MASTER.SCP (never modified).
+     *       Worked calls are queried from the contest database dynamically.
+     *
      * @param partial Partial callsign (minimum 2 characters)
+     * @param contestDbPath Path to contest database (optional, for contest-specific matching)
      * @return List of matching callsigns, max 5 entries
      */
-    QStringList findMatches(const QString& partial) const;
+    QStringList findMatches(const QString& partial, const QString& contestDbPath = QString()) const;
 
     /**
      * Bulk insert callsigns (transaction-optimized)
@@ -58,6 +66,15 @@ public:
      * @return Number of callsigns deleted
      */
     int clearBySource(const QString& source);
+
+    /**
+     * Clear all callsigns from a specific contest
+     * Used during contest rescore to sync SCP with current log state.
+     *
+     * @param contestId Contest ID (e.g., "cqww_2025")
+     * @return Number of callsigns deleted
+     */
+    int clearByContestId(const QString& contestId);
 
     /**
      * Clear all SCP callsigns

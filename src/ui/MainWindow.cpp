@@ -32,6 +32,7 @@
 #include "../data/LOTWUserRepository.h"
 #include "../data/BackupManager.h"
 #include "../data/ExchangeMemoryRepository.h"
+#include "../data/SCPRepository.h"
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
@@ -2066,6 +2067,19 @@ void MainWindow::onLogQSO() {
         return;
     }
 
+    // Validate callsign format (non-blocking warning)
+    QString validationError;
+    if (!CallsignValidator::validate(callsign, &validationError)) {
+        // Show warning in status bar - user can still proceed if they want
+        QString warningMsg = QString("⚠️ %1 - Press Enter again to log anyway").arg(
+            validationError.split('\n').first()  // Use first line of error message
+        );
+        statusBar()->showMessage(warningMsg, 5000);  // Show for 5 seconds
+        LOG_WARN("MainWindow", QString("Invalid callsign format: %1 - %2")
+            .arg(callsign).arg(validationError));
+        // Note: Not returning - allowing user to proceed despite warning
+    }
+
     // Exchange validation - check if contest requires an exchange
     if (m_activeContest) {
         // Check if exchange is required for this contest
@@ -2081,7 +2095,8 @@ void MainWindow::onLogQSO() {
             if (!m_activeContest->validateReceivedExchange(exchange, errorMsg)) {
                 setStatusMessage(QString("Invalid exchange: %1").arg(errorMsg));
                 m_exchangeEntry->setFocus();
-                m_exchangeEntry->selectAll();
+                // Move cursor to end (don't select all) so user can backspace to fix
+                m_exchangeEntry->setCursorPosition(m_exchangeEntry->text().length());
                 return;
             }
         }
@@ -2393,6 +2408,10 @@ void MainWindow::onLogQSO() {
                 }
             }
 
+            // NOTE: No longer adding callsign to global SCP database
+            // Worked calls are now queried directly from contest database
+            // This keeps global SCP table clean (MASTER.SCP only)
+
             // Auto-backup check (if enabled)
             int currentQSOCount = repo.getQSOCount(m_currentContestDbId);
             BackupManager::instance().autoBackupIfNeeded(
@@ -2437,20 +2456,8 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
         m_needsDisplayWidget->clear();
         m_scpMatchesLabel->setText("");  // Clear but keep visible to prevent layout shift
         m_stationInfoLabel->setText("");  // Clear station info when callsign cleared
-        statusBar()->clearMessage();  // Clear any callsign validation warnings
+        statusBar()->clearMessage();  // Clear any status messages
         return;
-    }
-
-    // Validate callsign format (non-blocking - just show warning)
-    QString validationError;
-    if (!CallsignValidator::validate(callsign, &validationError)) {
-        // Show warning in status bar - user can still proceed if they want
-        QString warningMsg = QString("⚠️ %1 - Press Enter to log anyway").arg(
-            validationError.split('\n').first()  // Use first line of error message
-        );
-        statusBar()->showMessage(warningMsg, 0);  // Stay until cleared
-    } else {
-        statusBar()->clearMessage();  // Clear warning if callsign becomes valid
     }
 
     // Get worked bands for this callsign
@@ -2493,28 +2500,104 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
         callsign, m_activeContest, workedBands, workedMultBands);
 
     // Update SCP matches display (2-column grid format)
+    // Shows SCP matches that are in the log, with duplicate highlighting
     bool scpEnabled = AppSettings::instance().getSCPEnabled();
     LOG_DEBUG("MainWindow", QString("SCP: enabled=%1, callsign='%2'")
         .arg(scpEnabled ? "true" : "false").arg(callsign));
 
     if (scpEnabled) {
-        QStringList matches = m_scpMatcher->findMatches(callsign);
+        // Pass current contest database path for contest-specific prioritization
+        // This allows SCP to query worked calls from contest DB + MASTER.SCP from global DB
+        QString contestDbPath = m_hasActiveContest ? m_currentContest.databasePath : QString();
+        QStringList matches = m_scpMatcher->findMatches(callsign, contestDbPath);
         LOG_DEBUG("MainWindow", QString("SCP: found %1 matches: %2")
             .arg(matches.size()).arg(matches.join(", ")));
 
         if (!matches.isEmpty()) {
-            // Format matches in 2 columns (e.g., "W1ABC  W1DEF\nW1GHI  W1JKL\nW1MNO")
-            QStringList rows;
-            for (int i = 0; i < matches.size(); i += 2) {
-                QString row = matches[i];
-                if (i + 1 < matches.size()) {
-                    row += "  " + matches[i + 1];
+            // Get colors for different states from ThemeManager
+            QColor dupeColor = ThemeManager::instance().color(ColorRole::DupeText);  // Red for dupes
+            QString dupeColorStr = dupeColor.name();
+            QColor workedColor = ThemeManager::instance().color(ColorRole::WorkedStationText);  // Gray for worked
+            QString workedColorStr = workedColor.name();
+            QColor notWorkedColor = ThemeManager::instance().color(ColorRole::MultiplierText);  // Blue for not worked (potential new mult)
+            QString notWorkedColorStr = notWorkedColor.name();
+
+            // Get all worked callsigns for checking if a call was worked
+            QSet<QString> workedCallsigns = getWorkedCallsigns();
+
+            // Sort matches: worked/dupe calls FIRST, then not-worked calls
+            // This prioritizes showing important information (dupes, worked calls) at the top
+            QStringList workedMatches;  // Red (dupes) and Blue (worked but not dupe)
+            QStringList notWorkedMatches;  // Gray (not worked yet)
+
+            for (const QString& match : matches) {
+                if (workedCallsigns.contains(match)) {
+                    workedMatches.append(match);  // Worked or dupe - show first
+                } else {
+                    notWorkedMatches.append(match);  // Not worked - show after
                 }
+            }
+
+            // Combine: worked calls first, then not-worked
+            QStringList sortedMatches = workedMatches + notWorkedMatches;
+
+            LOG_DEBUG("MainWindow", QString("SCP: sorted %1 worked first, %2 not worked after")
+                .arg(workedMatches.size()).arg(notWorkedMatches.size()));
+
+            // Format matches in 2 columns with color coding:
+            // RED = duplicate on current band/mode
+            // BLUE = worked but not a duplicate
+            // GRAY = not worked yet (only in MASTER.SCP)
+            QStringList rows;
+            for (int i = 0; i < sortedMatches.size(); i += 2) {
+                // Check first match
+                QString dupeInfo;
+                bool isWorked1 = workedCallsigns.contains(sortedMatches[i]);
+                bool isDupe1 = isWorked1 && checkForDuplicate(sortedMatches[i], m_currentState.bandA, m_currentState.modeA, dupeInfo);
+
+                QString color1;
+                if (isDupe1) {
+                    color1 = dupeColorStr;  // RED - dupe
+                } else if (isWorked1) {
+                    color1 = workedColorStr;  // GRAY - worked but not dupe
+                } else {
+                    color1 = notWorkedColorStr;  // BLUE - not worked (potential mult)
+                }
+
+                QString call1 = QString("<span style='color: %1;'>%2</span>")
+                    .arg(color1)
+                    .arg(sortedMatches[i]);
+
+                QString row = call1;
+
+                // Check second match if exists
+                if (i + 1 < sortedMatches.size()) {
+                    bool isWorked2 = workedCallsigns.contains(sortedMatches[i + 1]);
+                    bool isDupe2 = isWorked2 && checkForDuplicate(sortedMatches[i + 1], m_currentState.bandA, m_currentState.modeA, dupeInfo);
+
+                    QString color2;
+                    if (isDupe2) {
+                        color2 = dupeColorStr;  // RED - dupe
+                    } else if (isWorked2) {
+                        color2 = workedColorStr;  // GRAY - worked but not dupe
+                    } else {
+                        color2 = notWorkedColorStr;  // BLUE - not worked (potential mult)
+                    }
+
+                    QString call2 = QString("<span style='color: %1;'>%2</span>")
+                        .arg(color2)
+                        .arg(sortedMatches[i + 1]);
+                    row += "  " + call2;
+                }
+
                 rows.append(row);
             }
-            m_scpMatchesLabel->setText(rows.join("\n"));
+
+            m_scpMatchesLabel->setTextFormat(Qt::RichText);  // Enable HTML formatting
+            m_scpMatchesLabel->setText(rows.join("<br>"));  // Use <br> for line breaks in HTML
             m_scpMatchesLabel->show();  // Make sure label is visible
-            LOG_DEBUG("MainWindow", QString("SCP: displaying %1 rows").arg(rows.size()));
+            LOG_DEBUG("MainWindow", QString("SCP: displaying %1 rows (%2 total calls)")
+                .arg(rows.size()).arg(sortedMatches.size()));
         } else {
             m_scpMatchesLabel->setText("");  // Clear but don't hide
             m_scpMatchesLabel->show();  // Keep visible even when empty
@@ -3290,7 +3373,9 @@ void MainWindow::onRescoreContest() {
     m_statusLabel->setText("Rescoring contest...");
     QApplication::processEvents();
 
-    // Call silent rescore helper
+    // Rescore contest (recalculate points, mults, dupes)
+    // NOTE: No longer need to sync SCP database - worked calls are queried
+    // directly from contest database, so SCP is always in sync
     RescoreStats stats = rescoreContestSilent();
 
     // Show results
@@ -4264,6 +4349,18 @@ bool MainWindow::checkForDuplicate(const QString& callsign, BandType band, ModeT
 }
 
 // Band needs tracking methods
+
+QSet<QString> MainWindow::getWorkedCallsigns() const {
+    QSet<QString> workedCallsigns;
+
+    // Collect all unique callsigns from the log
+    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
+        QSO qso = m_qsoTableModel->getQSO(row);
+        workedCallsigns.insert(qso.callsign.toUpper());  // Store in uppercase for matching
+    }
+
+    return workedCallsigns;
+}
 
 QList<BandType> MainWindow::getWorkedBandsForCallsign(const QString& callsign) const {
     QList<BandType> workedBands;

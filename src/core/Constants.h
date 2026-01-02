@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.25.0";  // Add callsign validation with status bar warnings (TR4W algorithm)
+constexpr const char* APP_VERSION = "3.26.0";  // Refactor SCP to per-contest queries (UNION contest DB + global MASTER.SCP)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
