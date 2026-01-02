@@ -54,6 +54,7 @@ set(SOURCES
     contests/CQWWContest.cpp
     contests/CQWPXContest.cpp
     contests/FloridaQSOPartyContest.cpp
+    contests/GeneralLoggingContest.cpp
     contests/NAQPContest.cpp
     contests/WinterFieldDayContest.cpp
     contests/ARRLFieldDayContest.cpp
@@ -145,6 +146,7 @@ set(HEADERS
     contests/CQWWContest.h
     contests/CQWPXContest.h
     contests/FloridaQSOPartyContest.h
+    contests/GeneralLoggingContest.h
     contests/NAQPContest.h
     contests/WinterFieldDayContest.h
     contests/ARRLFieldDayContest.h
@@ -198,8 +200,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.23.0"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.23.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.24.0"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.24.0"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

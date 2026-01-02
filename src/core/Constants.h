@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.23.0";  // Fix hamlib debug logging + contest path migration
+constexpr const char* APP_VERSION = "3.24.0";  // Add General Logging contest for non-scored QSOs
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
