@@ -133,32 +133,49 @@ RadioController::~RadioController() {
 
     LOG_DEBUG("RadioController", "Destructor: Stopping worker thread");
 
-    // Don't bother with quit() - thread is stuck in blocking call anyway
-    // Go straight to terminate() to forcefully kill the thread
+    // CRITICAL FIX: Close connection FIRST to unblock any pending I/O
+    // This is essential for TCP connections which block on read()
+    // Use BlockingQueuedConnection to ensure disconnect completes before we terminate
+    bool disconnected = QMetaObject::invokeMethod(m_radio, [this]() {
+        static_cast<RadioInterface*>(m_radio)->disconnect();
+        LOG_DEBUG("RadioController", "Hamlib connection closed in destructor");
+    }, Qt::BlockingQueuedConnection);
+
+    if (!disconnected) {
+        LOG_WARN("RadioController", "Failed to invoke disconnect on worker thread");
+    }
+
+    // Give thread a moment to exit naturally after disconnect
+    if (m_workerThread.wait(500)) {
+        LOG_DEBUG("RadioController", "Worker thread exited cleanly after disconnect");
+        return;  // Clean exit!
+    }
+
+    // Thread didn't exit naturally - try quit() signal
+    m_workerThread.quit();
+    if (m_workerThread.wait(500)) {
+        LOG_DEBUG("RadioController", "Worker thread exited after quit()");
+        return;
+    }
+
+    // Still running - resort to terminate() as last resort
+    LOG_WARN("RadioController", "Worker thread didn't exit cleanly, using terminate()");
     m_workerThread.terminate();
 
     // CRITICAL: Must wait for termination to complete before QThread destructor runs
-    // QThread::~QThread() will hang forever if thread is still running
-    // Try multiple times with increasing aggression
     for (int attempt = 0; attempt < 3; attempt++) {
         if (m_workerThread.wait(1000)) {
-            LOG_DEBUG("RadioController", QString("Worker thread terminated successfully (attempt %1)").arg(attempt + 1));
-            return;  // Success!
+            LOG_DEBUG("RadioController", QString("Worker thread terminated (attempt %1)").arg(attempt + 1));
+            return;
         }
 
         LOG_WARN("RadioController", QString("Worker thread still alive after terminate, attempt %1/3").arg(attempt + 1));
-
-        // Try terminating again (shouldn't be needed but can't hurt)
-        m_workerThread.terminate();
+        m_workerThread.terminate();  // Try again
     }
 
     // If we get here, thread won't die - this is VERY bad
-    // But we must return anyway or QThread destructor will hang forever
-    LOG_ERROR("RadioController", "CRITICAL: Worker thread refused to die after 3 terminate attempts!");
+    LOG_ERROR("RadioController", "CRITICAL: Worker thread refused to die after all attempts!");
     LOG_ERROR("RadioController", "Proceeding anyway - QThread destructor may hang...");
-
-    // Note: QThread destructor will now run and will likely hang
-    // But at least we tried everything possible
 }
 
 bool RadioController::isConnected() const {
