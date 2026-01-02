@@ -20,7 +20,15 @@
 #include "ui/MainWindow.h"
 
 int main(int argc, char *argv[]) {
-    // Initialize logger FIRST (before QApplication) to capture all startup messages
+    // Set application name FIRST - required for QStandardPaths to return correct paths
+    // QStandardPaths::writableLocation() uses applicationName to construct paths like:
+    //   AppData\Local\TR4QT  (Windows)
+    //   ~/Library/Application Support/TR4QT  (macOS)
+    // Without this, paths would be: AppData\Local (missing app directory!)
+    QCoreApplication::setOrganizationName("");  // Empty to avoid nested TR4QT\TR4QT
+    QCoreApplication::setApplicationName(TR4QT::APP_NAME);
+
+    // Initialize logger (now QStandardPaths will return correct TR4QT subdirectory)
     TR4QT::Logger& logger = TR4QT::Logger::instance();
     logger.initialize();
 
@@ -93,8 +101,8 @@ int main(int argc, char *argv[]) {
     qRegisterMetaType<TR4QT::ModeType>("ModeType");
     qRegisterMetaType<TR4QT::VFO>("VFO");
 
-    app.setOrganizationName(TR4QT::APP_ORG);
-    app.setApplicationName(TR4QT::APP_NAME);
+    // Note: Organization/Application names already set at top of main()
+    // via QCoreApplication::setOrganizationName/setApplicationName (required for paths)
     app.setApplicationVersion(TR4QT::APP_VERSION);
 
     // Check if QSQLITE driver is available

@@ -290,6 +290,14 @@ private:
     AppSettings(const AppSettings&) = delete;
     AppSettings& operator=(const AppSettings&) = delete;
 
+    /**
+     * @brief Migrate settings pointing to legacy ~/.tr4qt paths
+     *
+     * Updates saved paths for logs, backups, and country file from
+     * legacy ~/.tr4qt location to platform-native AppData/Local/TR4QT
+     */
+    void migrateLegacyPaths();
+
     mutable QSettings m_settings;
 };
 

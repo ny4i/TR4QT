@@ -18,6 +18,9 @@ namespace TR4QT {
  *
  * This replaces the old Unix-style ~/.tr4qt/ approach with platform-native
  * locations that follow OS conventions and best practices.
+ *
+ * Note: Uses AppLocalDataLocation (not AppDataLocation) on Windows because
+ * TR4QT data doesn't need to roam between machines in enterprise environments.
  */
 class PathManager {
 public:

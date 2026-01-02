@@ -7,11 +7,16 @@
 namespace TR4QT {
 
 QString PathManager::getAppDataDir() {
-    // Use Qt's AppDataLocation which provides platform-native paths:
+    // Use Qt's AppLocalDataLocation which provides platform-native paths:
     // Windows: C:\Users\<user>\AppData\Local\TR4QT
     // macOS:   ~/Library/Application Support/TR4QT
     // Linux:   ~/.local/share/TR4QT
-    QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    //
+    // Note: We use AppLocalDataLocation (not AppDataLocation) because:
+    // - AppDataLocation returns AppData\Roaming (for roaming profiles)
+    // - AppLocalDataLocation returns AppData\Local (for local-only data)
+    // TR4QT data doesn't need to roam between machines.
+    QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
 
     // Ensure the directory exists
     ensureDirectoryExists(appDataDir);
