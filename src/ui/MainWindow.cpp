@@ -21,6 +21,7 @@
 #include "../utils/DialogHelper.h"
 #include "../utils/ADIFExporter.h"
 #include "../utils/CabrilloExporter.h"
+#include "../utils/CallsignValidator.h"
 #include "../utils/CountryFileDownloader.h"
 #include "../utils/LOTWUserDownloader.h"
 #include "../utils/SCPDownloader.h"
@@ -1333,6 +1334,13 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
         }
     }
 
+    // Clear callsign warning when exchange field gets focus
+    // This prevents status bar message stacking (callsign warning hiding exchange errors)
+    if (event->type() == QEvent::FocusIn && obj == m_exchangeEntry) {
+        statusBar()->clearMessage();  // Clear callsign validation warning
+        return false;  // Let the event propagate normally
+    }
+
     // Catch WindowActivate events on any of our windows
     if (event->type() == QEvent::WindowActivate) {
         // Check if the activated window belongs to our application
@@ -2429,7 +2437,20 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
         m_needsDisplayWidget->clear();
         m_scpMatchesLabel->setText("");  // Clear but keep visible to prevent layout shift
         m_stationInfoLabel->setText("");  // Clear station info when callsign cleared
+        statusBar()->clearMessage();  // Clear any callsign validation warnings
         return;
+    }
+
+    // Validate callsign format (non-blocking - just show warning)
+    QString validationError;
+    if (!CallsignValidator::validate(callsign, &validationError)) {
+        // Show warning in status bar - user can still proceed if they want
+        QString warningMsg = QString("⚠️ %1 - Press Enter to log anyway").arg(
+            validationError.split('\n').first()  // Use first line of error message
+        );
+        statusBar()->showMessage(warningMsg, 0);  // Stay until cleared
+    } else {
+        statusBar()->clearMessage();  // Clear warning if callsign becomes valid
     }
 
     // Get worked bands for this callsign
