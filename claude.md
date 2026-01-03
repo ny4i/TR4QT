@@ -328,6 +328,50 @@ QString formatted = QString("%1%2 %3%4%5")
 
 **This principle applies to ALL projects, not just TR4QT.**
 
+### ALWAYS Use ThemeManager for Colors
+
+**CRITICAL**: NEVER use hardcoded hex color codes in UI code. Always use `ThemeManager::instance().color(ColorRole::...)`.
+
+**Why this matters**:
+- Enables theme support (TR4W Default, Dark Mode, High Contrast, Custom)
+- Allows user customization via Custom theme
+- Ensures consistent color management across the application
+- Hardcoded colors break when user changes theme
+
+**Pattern to follow**:
+```cpp
+// ❌ BAD: Hardcoded color
+m_label->setStyleSheet("QLabel { color: #006600; }");
+
+// ✅ GOOD: ThemeManager color
+QString color = ThemeManager::instance().colorName(ColorRole::LotwUserText);
+m_label->setStyleSheet(QString("QLabel { color: %1; }").arg(color));
+
+// ✅ EVEN BETTER: Use QColor directly
+QColor color = ThemeManager::instance().color(ColorRole::LotwUserText);
+m_label->setPalette(QPalette(color));
+```
+
+**Available color roles** (see `ThemeManager.h`):
+- Display: `VfoBackground`, `VfoText`, `WindowBackground`, `TextDisplayBackground`
+- Status: `ConnectedStatus`, `DisconnectedStatus`, `FrozenIndicator`
+- Functional: `DupeText`, `NewMultiplierBackground`, `WorkedStationText`, `MultiplierText`, `LotwUserText`
+- Spot Aging: `NewSpotText`, `NewSpotBackground`, `AgingSpotText`, `AgingSpotBackground`
+- UI: `PrimaryText`, `SecondaryText`, `HoverHighlight`, `BorderColor`
+
+**Allowed hardcoded colors** (won't trigger error):
+- Theme definitions in `ThemeManager.cpp`: `colors[ColorRole::VfoBackground] = QColor("#00FFFF");`
+- Documented defaults: `QString defaultColor = "#006400";  // Theme default: dark green`
+
+**Prevention**:
+The git pre-commit hook enforces this rule:
+- Located at `.git/hooks/pre-commit`
+- **Blocks commits** containing hardcoded hex colors (e.g., `= "#0066cc"`)
+- Excludes allowed patterns (ThemeManager.cpp, "// Theme default" comments)
+- Can bypass with `git commit --no-verify` if intentional (not recommended)
+
+**This applies to ALL Qt projects with theme support.**
+
 ### NEVER Use setParent(nullptr) on Qt Widgets
 
 **CRITICAL**: In Qt, calling `setParent(nullptr)` on a widget creates a TOP-LEVEL WINDOW. This is a dangerous API design that "fails open" (shows unwanted windows) rather than "fails closed".
