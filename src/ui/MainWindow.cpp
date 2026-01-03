@@ -662,11 +662,12 @@ void MainWindow::createCentralWidget() {
     // Station info labels (at bottom of right column)
     int miscFontSize = AppSettings::instance().getMiscDisplayFontSize();
     QFont stationInfoFont("Monospace", miscFontSize);
+    QString stationInfoColor = ThemeManager::instance().colorName(ColorRole::LotwUserText);
 
     // Line 1: Country name
     m_countryNameLabel = new QLabel(this);
     m_countryNameLabel->setFont(stationInfoFont);
-    m_countryNameLabel->setStyleSheet("QLabel { color: #006600; }");  // Dark green
+    m_countryNameLabel->setStyleSheet(QString("QLabel { color: %1; }").arg(stationInfoColor));
     m_countryNameLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     m_countryNameLabel->setText("");  // Empty initially
     rightLayout->addWidget(m_countryNameLabel);
@@ -674,7 +675,7 @@ void MainWindow::createCentralWidget() {
     // Line 2: Station info (prefix, bearing, distance)
     m_stationInfoLabel = new QLabel(this);
     m_stationInfoLabel->setFont(stationInfoFont);
-    m_stationInfoLabel->setStyleSheet("QLabel { color: #006600; }");  // Dark green
+    m_stationInfoLabel->setStyleSheet(QString("QLabel { color: %1; }").arg(stationInfoColor));
     m_stationInfoLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     m_stationInfoLabel->setText("");  // Empty initially
     rightLayout->addWidget(m_stationInfoLabel);
