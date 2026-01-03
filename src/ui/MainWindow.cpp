@@ -17,8 +17,10 @@
 #include "../network/WebServer.h"
 #include "../core/Constants.h"
 #include "../logging/LogMacros.h"
+#include "../logging/Logger.h"
 #include "../utils/ThemeManager.h"
 #include "../utils/DialogHelper.h"
+#include "../utils/AppSettings.h"
 #include "../utils/ADIFExporter.h"
 #include "../utils/CabrilloExporter.h"
 #include "../utils/CallsignValidator.h"
@@ -62,6 +64,16 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QThread>
 #include <QTimeZone>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QSysInfo>
+#include <QAbstractButton>
+#include <QProcess>
+#include <QDateTime>
+#include <QClipboard>
+#include <QStandardPaths>
+#include <QFileInfo>
+#include <hamlib/rig.h>
 
 namespace TR4QT {
 
@@ -610,6 +622,9 @@ void MainWindow::createMenuBar() {
     QMenu* helpMenu = menuBar->addMenu("&Help");
     QAction* aboutAction = helpMenu->addAction("&About");
     connect(aboutAction, &QAction::triggered, this, &MainWindow::onAbout);
+
+    QAction* emailLogsAction = helpMenu->addAction("Email Logs to Support...");
+    connect(emailLogsAction, &QAction::triggered, this, &MainWindow::onEmailLogsToSupport);
 }
 
 void MainWindow::createCentralWidget() {
@@ -642,23 +657,28 @@ void MainWindow::createCentralWidget() {
     m_needsDisplayWidget->setMinimumWidth(200);
     rightLayout->addWidget(m_needsDisplayWidget);
 
-    // Station info label (below needs display)
-    m_stationInfoLabel = new QLabel(this);
+    rightLayout->addStretch();  // Push needs widget to top
+
+    // Station info labels (at bottom of right column)
     int miscFontSize = AppSettings::instance().getMiscDisplayFontSize();
-    m_stationInfoLabel->setFont(QFont("Monospace", miscFontSize));
+    QFont stationInfoFont("Monospace", miscFontSize);
+
+    // Line 1: Country name
+    m_countryNameLabel = new QLabel(this);
+    m_countryNameLabel->setFont(stationInfoFont);
+    m_countryNameLabel->setStyleSheet("QLabel { color: #006600; }");  // Dark green
+    m_countryNameLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    m_countryNameLabel->setText("");  // Empty initially
+    rightLayout->addWidget(m_countryNameLabel);
+
+    // Line 2: Station info (prefix, bearing, distance)
+    m_stationInfoLabel = new QLabel(this);
+    m_stationInfoLabel->setFont(stationInfoFont);
     m_stationInfoLabel->setStyleSheet("QLabel { color: #006600; }");  // Dark green
-    m_stationInfoLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-    m_stationInfoLabel->setWordWrap(false);
-
-    // Calculate max height based on font metrics (single line + padding)
-    int stationInfoHeight = m_stationInfoLabel->fontMetrics().height() + 6;  // Font height + padding
-    m_stationInfoLabel->setMinimumHeight(stationInfoHeight);
-    m_stationInfoLabel->setMaximumHeight(stationInfoHeight);  // Fixed height - prevents layout shift
-
+    m_stationInfoLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     m_stationInfoLabel->setText("");  // Empty initially
     rightLayout->addWidget(m_stationInfoLabel);
 
-    rightLayout->addStretch();  // Push content to top
     topLayout->addLayout(rightLayout, 1);  // Stretch factor 1
 
     mainLayout->addLayout(topLayout);
@@ -1496,6 +1516,245 @@ void MainWindow::onAbout() {
                                "</ul>")
                            .arg(APP_NAME)
                            .arg(APP_VERSION));
+}
+
+void MainWindow::onEmailLogsToSupport() {
+    // Get logs from last "PROGRAM STARTUP" banner forward
+    QString logs = Logger::instance().getLastLogLines();
+
+    // Get configured radio model from settings (not just connected radio)
+    RadioConfig radioConfig = AppSettings::instance().loadRadioConfig();
+    QString configuredRadio = "None";
+    QString connectionType = "None";
+    QString connectionDetails = "";
+
+    if (radioConfig.hamlibModelId > 0) {
+        // Get radio model name from Hamlib
+        const struct rig_caps* caps = rig_get_caps(radioConfig.hamlibModelId);
+        if (caps) {
+            configuredRadio = QString("%1 %2").arg(caps->mfg_name).arg(caps->model_name);
+        } else {
+            configuredRadio = QString("Unknown (ID: %1)").arg(radioConfig.hamlibModelId);
+        }
+
+        // Determine connection type without revealing IP addresses
+        if (radioConfig.port.contains(':')) {
+            connectionType = "Network (TCP)";
+            // Don't include actual IP:port for privacy
+        } else if (!radioConfig.port.isEmpty()) {
+            connectionType = "Serial";
+            connectionDetails = QString("Port: %1, Baud: %2, %3%4%5")
+                .arg(radioConfig.port)
+                .arg(radioConfig.baudRate)
+                .arg(radioConfig.dataBits)
+                .arg(radioConfig.parity == 0 ? "N" : radioConfig.parity == 1 ? "O" : "E")
+                .arg(radioConfig.stopBits);
+
+            // Add CI-V address if configured (Icom radios)
+            if (radioConfig.civAddress > 0) {
+                connectionDetails += QString(", CI-V: 0x%1").arg(radioConfig.civAddress, 2, 16, QChar('0')).toUpper();
+            }
+        }
+    }
+
+    // Collect system information
+    QString systemInfo = QString(
+        "TR4QT Version: %1\n"
+        "Platform: %2 %3\n"
+        "Qt Version: %4\n"
+        "Radio Model (Configured): %5\n"
+        "Connection Type: %6\n"
+        "%7"
+        "Poll Interval: %8 ms\n"
+        "Radio Connected: %9\n"
+        "\n"
+    ).arg(APP_VERSION)
+     .arg(QSysInfo::productType())
+     .arg(QSysInfo::productVersion())
+     .arg(QT_VERSION_STR)
+     .arg(configuredRadio)
+     .arg(connectionType)
+     .arg(connectionDetails.isEmpty() ? "" : connectionDetails + "\n")
+     .arg(radioConfig.pollInterval)
+     .arg(m_radio->isConnected() ? "Yes" : "No");
+
+    // Build full log content
+    QString logContent = systemInfo + "=== LOG (from last startup) ===\n\n" + logs;
+
+    // Show preview dialog BEFORE creating zip file
+    QMessageBox preview;
+    preview.setWindowTitle("Email Logs to Support - Preview");
+    preview.setIcon(QMessageBox::Question);
+    preview.setText(
+        QString("This will create a zip file with your support logs (%1 characters).\n\n"
+                "Click 'Show Details' below to review what will be included.\n\n"
+                "The zip file will be saved to your temp directory for you to attach to an email.")
+        .arg(logContent.length()));
+    preview.setDetailedText(logContent);
+    preview.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+    preview.setDefaultButton(QMessageBox::Ok);
+
+    // Auto-expand "Show Details" so user can see the content immediately
+    foreach (QAbstractButton *button, preview.buttons()) {
+        if (preview.buttonRole(button) == QMessageBox::ActionRole) {
+            button->click();
+            break;
+        }
+    }
+
+    // If user cancels, abort the operation
+    if (preview.exec() != QMessageBox::Ok) {
+        return;
+    }
+
+    // Save to Desktop for easy access (instead of temp folder)
+    QString desktopPath = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+    if (desktopPath.isEmpty()) {
+        // Fallback to home directory if Desktop not available
+        desktopPath = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    }
+
+    // Generate filename with timestamp
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HHmmss");
+    QString logFileName = QString("tr4qt-logs-%1.txt").arg(timestamp);
+    QString zipFileName = QString("tr4qt-logs-%1.zip").arg(timestamp);
+    QString logFilePath = QFileInfo(desktopPath, logFileName).filePath();
+    QString zipFilePath = QFileInfo(desktopPath, zipFileName).filePath();
+
+    // Write log content to file
+    QFile logFile(logFilePath);
+    if (!logFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        DialogHelper::critical(this, "Error",
+            QString("Failed to create temporary log file: %1\n\nError: %2")
+            .arg(logFilePath)
+            .arg(logFile.errorString()));
+        return;
+    }
+
+    QTextStream out(&logFile);
+    out << logContent;
+    logFile.close();
+
+    // Zip the log file using Qt's QProcess to call system zip command
+    QProcess zipProcess;
+    zipProcess.setWorkingDirectory(desktopPath);
+
+#ifdef Q_OS_WIN
+    // Windows: Use PowerShell Compress-Archive
+    zipProcess.start("powershell", QStringList()
+        << "-Command"
+        << QString("Compress-Archive -Path '%1' -DestinationPath '%2' -Force")
+           .arg(logFileName).arg(zipFileName));
+#else
+    // macOS/Linux: Use zip command
+    zipProcess.start("zip", QStringList() << "-j" << zipFileName << logFileName);
+#endif
+
+    if (!zipProcess.waitForFinished(5000)) {
+        DialogHelper::critical(this, "Error",
+            "Failed to create zip file.\n\n"
+            "Please manually attach the log file to your email:\n" + logFilePath);
+        return;
+    }
+
+    if (zipProcess.exitCode() != 0) {
+        DialogHelper::critical(this, "Error",
+            QString("Zip command failed with exit code %1.\n\n"
+                    "Please manually attach the log file to your email:\n%2")
+            .arg(zipProcess.exitCode())
+            .arg(logFilePath));
+        return;
+    }
+
+    // Delete the uncompressed log file (keep only the zip)
+    QFile::remove(logFilePath);
+
+    // Show success dialog with instructions
+    QMessageBox instructions;
+    instructions.setWindowTitle("Support Logs Ready");
+    instructions.setIcon(QMessageBox::Information);
+    instructions.setText(
+        QString("Support logs saved to your Desktop:\n\n"
+                "%1\n\n"
+                "What would you like to do?")
+        .arg(zipFileName));  // Just show filename, not full path
+
+    QPushButton* bothButton = instructions.addButton(
+#ifdef Q_OS_MAC
+        "Show in Finder && Open Email",
+#else
+        "Show in Explorer && Open Email",
+#endif
+        QMessageBox::AcceptRole);
+    QPushButton* revealButton = instructions.addButton(
+#ifdef Q_OS_MAC
+        "Show in Finder Only",
+#else
+        "Show in Explorer Only",
+#endif
+        QMessageBox::ActionRole);
+    QPushButton* emailButton = instructions.addButton("Open Email Only", QMessageBox::ActionRole);
+    QPushButton* closeButton = instructions.addButton("Close", QMessageBox::RejectRole);
+    instructions.setDefaultButton(bothButton);
+
+    int result = instructions.exec();
+    QAbstractButton* clicked = instructions.clickedButton();
+
+    // Reveal file in Finder/Explorer if requested
+    bool shouldReveal = (clicked == revealButton || clicked == bothButton);
+    bool shouldEmail = (clicked == emailButton || clicked == bothButton);
+
+    if (shouldReveal) {
+#ifdef Q_OS_MAC
+        // macOS: Use 'open -R' to reveal file in Finder
+        QProcess::startDetached("open", QStringList() << "-R" << zipFilePath);
+#elif defined(Q_OS_WIN)
+        // Windows: Use 'explorer /select,' to highlight file in Explorer
+        QProcess::startDetached("explorer", QStringList() << "/select," << QDir::toNativeSeparators(zipFilePath));
+#else
+        // Linux: Open file manager at directory (can't select specific file universally)
+        QDesktopServices::openUrl(QUrl::fromLocalFile(desktopPath));
+#endif
+        LOG_INFO("MainWindow", QString("Revealed support zip file: %1").arg(zipFilePath));
+    }
+
+    if (shouldEmail) {
+        // Open email client with instructions
+        QString subject = QString("TR4QT Support Request - v%1 (%2)")
+            .arg(APP_VERSION)
+            .arg(QSysInfo::productType());
+
+        QString body = QString(
+            "Please describe your issue:\n\n\n\n"
+            "---\n"
+            "Logs attached: %1\n"
+            "TR4QT Version: %2\n"
+            "Platform: %3 %4")
+            .arg(zipFileName)
+            .arg(APP_VERSION)
+            .arg(QSysInfo::productType())
+            .arg(QSysInfo::productVersion());
+
+        QString mailto = QString("mailto:support@ny4i.com?subject=%1&body=%2")
+            .arg(QUrl::toPercentEncoding(subject))
+            .arg(QUrl::toPercentEncoding(body));
+
+        if (!QDesktopServices::openUrl(QUrl(mailto))) {
+            DialogHelper::critical(this, "Error",
+                QString("Failed to open email client.\n\n"
+                        "Please manually email the zip file to: support@ny4i.com\n\n"
+                        "The file is on your Desktop:\n%1").arg(zipFileName));
+        } else {
+            // Show brief reminder (only if we didn't already show Finder)
+            if (!shouldReveal) {
+                DialogHelper::information(this, "Don't Forget!",
+                    QString("Remember to attach the zip file from your Desktop:\n\n%1")
+                    .arg(zipFileName));
+            }
+
+            LOG_INFO("MainWindow", QString("Created support zip file: %1").arg(zipFilePath));
+        }
+    }
 }
 
 void MainWindow::onExit() {
@@ -2603,11 +2862,12 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
         m_scpMatchesLabel->show();  // Keep visible even when empty
     }
 
-    // Update station info display (prefix, bearing, distance)
+    // Update station info display (country name, prefix, bearing, distance)
     // Wait for at least one digit to avoid matching incomplete prefixes (e.g., "KA" before "KA6")
     if (callsign.length() >= 2 && callsign.contains(QRegularExpression("\\d"))) {
         updateStationInfo(callsign);
     } else {
+        m_countryNameLabel->setText("");
         m_stationInfoLabel->setText("");
     }
 
@@ -2619,15 +2879,19 @@ void MainWindow::updateStationInfo(const QString& callsign) {
     // Lookup country data from CTY.DAT
     CountryData countryData = m_countryFile.lookup(callsign);
     if (!countryData.isValid()) {
+        m_countryNameLabel->setText("");
         m_stationInfoLabel->setText("");
         return;
     }
+
+    // Always show country name
+    m_countryNameLabel->setText(countryData.name);
 
     // Get my station's grid square from settings
     AppSettings& settings = AppSettings::instance();
     QString myGrid = settings.getMyGridSquare();
     if (myGrid.isEmpty()) {
-        // No grid square configured, just show prefix (cannot calculate distance)
+        // No grid square configured, just show prefix (cannot calculate distance/bearing)
         m_stationInfoLabel->setText(countryData.primaryPrefix);
         return;
     }
@@ -2635,7 +2899,7 @@ void MainWindow::updateStationInfo(const QString& callsign) {
     // Convert my grid square to lat/lon
     double myLat, myLon;
     if (!GeographicUtils::gridToLatLon(myGrid, myLat, myLon)) {
-        // Invalid grid square, just show prefix
+        // Invalid grid square, just show prefix (cannot calculate distance/bearing)
         m_stationInfoLabel->setText(countryData.primaryPrefix);
         return;
     }
@@ -2663,10 +2927,10 @@ void MainWindow::updateStationInfo(const QString& callsign) {
                                                     countryData.latitude, countryData.longitude);
     }
 
-    // Format: "PREFIX  BEARING  DISTANCE"
-    // Example: "KP4  121  1263mi" or "KP4  121  1263km"
+    // Format station info: "PREFIX  BEARING°  DISTANCE"
+    // Example: "KP4  121°  1263mi" or "HV  045°  4521km"
     QString distUnit = useKilometers ? "km" : "mi";
-    QString info = QString("%1  %2  %3%4")
+    QString info = QString("%1  %2°  %3%4")
         .arg(countryData.primaryPrefix, -6)  // Left-align in 6 char field
         .arg(static_cast<int>(bearing), 3)   // Bearing (3 digits)
         .arg(static_cast<int>(distance), 4)  // Distance (4 digits)

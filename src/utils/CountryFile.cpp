@@ -139,7 +139,14 @@ bool CountryFile::parseMainLine(const QString& line, CountryData& country) {
     country.dxccEntity = getDXCCEntityCode(country.name);
 
     if (country.dxccEntity == 0) {
-        LOG_DEBUG("CountryFile", QString("No DXCC code found for country: '%1' (deleted entity or alias)").arg(country.name));
+        // Show full entity details to confirm country is available via prefix
+        LOG_TRACE("CountryFile", QString("DXCC name mismatch for '%1' - country available via prefix: %2 %3 %4 %5 %6 (no DXCC code)")
+            .arg(country.name)
+            .arg(country.primaryPrefix)
+            .arg(continentToString(country.continent))
+            .arg(country.cqZone)
+            .arg(country.ituZone)
+            .arg(country.dxccEntity));
     }
 
     return true;
@@ -245,8 +252,9 @@ int CountryFile::getDXCCEntityCode(const QString& countryName) {
         }
     }
 
-    // Not found - this is expected for deleted DXCC entities
-    LOG_DEBUG("CountryFile", QString("No DXCC code found for country: '%1' (deleted entity, expected)").arg(countryName));
+    // Not found - could be deleted DXCC entity or name mismatch with ADIF database
+    // Country is still available via prefix lookup in CTY.DAT
+    // (Full entity details will be logged in parseMainCountryLine if needed)
     return 0;
 }
 

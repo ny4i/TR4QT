@@ -773,6 +773,12 @@ From code comments:
 - [ ] Check for new multipliers (line 1386)
 - [ ] Improve exchange prediction architecture (per plan file)
 
+Platform-Specific:
+- [ ] **Linux**: Implement "Email Logs to Support" feature (currently macOS/Windows only)
+  - Feature saves logs to Desktop as zip file
+  - Shows in file manager for easy email attachment
+  - See `MainWindow::onEmailLogsToSupport()` for reference implementation
+
 UI Enhancements:
 - [ ] **DialogHelper Cmd-C Support**: Add keyboard copy (Cmd-C/Ctrl-C) support for dialog text
   - Current: Right-click → Copy works (text selectable)

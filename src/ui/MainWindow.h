@@ -93,6 +93,7 @@ private slots:
     void onRadioConnect();
     void onRadioDisconnect();
     void onAbout();
+    void onEmailLogsToSupport();
     void onExit();
 
     // Window menu actions
@@ -260,7 +261,8 @@ private:
     QTableView* m_qsoTableView;
     QSOTableModel* m_qsoTableModel;
     QLabel* m_scpMatchesLabel;  // Display SCP callsign matches (Column 3)
-    QLabel* m_stationInfoLabel;  // Display station info (prefix, bearing, distance, sunrise/sunset)
+    QLabel* m_countryNameLabel;  // Display country name
+    QLabel* m_stationInfoLabel;  // Display station info (prefix, bearing, distance)
 
     // Stats panel (bottom right)
     QLabel* m_rateLabel;

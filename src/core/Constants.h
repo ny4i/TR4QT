@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.28.1";  // Radio pre-flight check improvements - timing instrumentation
+constexpr const char* APP_VERSION = "3.29.0";  // Email logs to support + country name display
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
