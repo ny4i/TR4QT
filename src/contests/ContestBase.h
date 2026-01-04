@@ -159,11 +159,18 @@ public:
 
     /**
      * Does this contest include RST in the received exchange?
+     * Auto-detects by checking if exchange fields contain "RST"
      * If true, RST will be prepended to exchangeReceived when logging QSO
-     * @return true if RST should be prepended (default: true for most contests)
+     * @return true if exchange includes RST field
      */
     virtual bool includesRSTInReceivedExchange() const {
-        return true;  // Default: most contests include RST
+        QList<ExchangeField> fields = getReceivedExchangeFields();
+        for (const ExchangeField& field : fields) {
+            if (field.name.toUpper() == "RST") {
+                return true;
+            }
+        }
+        return false;  // No RST field found
     }
 
     /**
