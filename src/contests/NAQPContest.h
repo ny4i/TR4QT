@@ -60,7 +60,6 @@ public:
     QString formatSentExchange(int serialNumber, const QString& rst = "599") const override;
     bool validateReceivedExchange(const QString& exchange, QString& errorMsg) const override;
     void parseReceivedExchange(const QString& exchange, QSO& qso) const override;
-    bool includesRSTInReceivedExchange() const override { return false; }  // NAQP: Name + State only
 
     // ===== Scoring =====
     int calculateQSOPoints(
