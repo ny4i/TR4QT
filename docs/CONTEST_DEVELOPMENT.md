@@ -337,6 +337,134 @@ See existing contest implementations for reference:
 7. **Check official contest rules** for scoring edge cases
 8. **Use CTY.DAT for all country/prefix lookups** (don't hardcode)
 
+## Database Schema for Exchange Fields
+
+### Current Architecture: Flat Schema
+
+TR4QT uses a **flat database schema** where each exchange field is stored as a dedicated column in the `qsos` table. This is a deliberate architectural decision.
+
+**Current exchange field columns** (as of v3.31.x):
+- `serial_number` (INTEGER) - Serial number sent
+- `serial_number_received` (INTEGER) - Serial number received
+- `precedence` (TEXT) - Sweepstakes precedence (Q, A, B, U, M, S)
+- `sweepstakes_check` (TEXT) - Sweepstakes check (year licensed)
+- `power` (TEXT) - Power level for NAQP, Field Day
+- `operator_name` (TEXT) - Operator first name (NAQP)
+- `itu_zone_exchange` (TEXT) - ITU zone received in exchange
+- `state` (TEXT) - State/province abbreviation
+- `county` (TEXT) - County name
+- `arrl_section` (TEXT) - ARRL/RAC section code
+- `contest_class` (TEXT) - Station class (Field Day, Winter FD)
+
+### Adding New Exchange Fields
+
+When implementing a contest that requires a **new type of exchange field** not listed above, you may need to add a database column.
+
+**Process:**
+1. **Check existing fields first**: Can you reuse an existing column?
+   - Example: "Power" field can store power level for multiple contests
+   - Example: "State" can store state/province for any contest
+
+2. **Add to QSO struct** (`src/models/QSO.h`):
+   ```cpp
+   struct QSO {
+       // ... existing fields ...
+       QString newFieldName;  // Add new field
+   };
+   ```
+
+3. **Add database column** (`src/data/Database.cpp`):
+   - Increment `CURRENT_SCHEMA_VERSION` in `Database.h`
+   - Add migration in `Database.cpp`:
+   ```cpp
+   // Migration N: Add new_field_name column to qsos table (vX.Y.Z)
+   query.exec("PRAGMA table_info(qsos)");
+   bool hasNewField = false;
+   while (query.next()) {
+       QString columnName = query.value(1).toString();
+       if (columnName == "new_field_name") hasNewField = true;
+   }
+   if (!hasNewField) {
+       LOG_INFO("Database", "Migrating schema: Adding new_field_name column to qsos table");
+       if (!query.exec("ALTER TABLE qsos ADD COLUMN new_field_name TEXT")) {
+           // ... error handling ...
+       }
+   }
+   ```
+
+4. **Update QSORepository** (`src/data/QSORepository.cpp`):
+   - Add to INSERT statement column list
+   - Add to VALUES binding list
+   - Add to UPDATE statement
+   - Add to SELECT/loading logic
+
+5. **Add to Edit QSO Dialog** (if user-editable):
+   - Add widget to `EditQSODialog.h`
+   - Add to UI layout in `EditQSODialog.cpp`
+   - Add to `loadQSOData()` and `getEditedQSO()`
+   - Add to `configureFieldsForContest()` for context-aware enabling
+
+### Why Flat Schema Instead of JSON?
+
+**Alternatives considered:**
+1. **Flat schema (current)**: Dedicated column per field type
+2. **JSON storage**: Single `exchange_data` column with JSON blob
+3. **Hybrid**: Common fields + JSON overflow for rare fields
+
+**Decision: Keep flat schema**
+
+**Rationale:**
+- **Simple queries**: No JSON parsing required for reports/filters
+- **Type safety**: Database enforces INTEGER, TEXT types
+- **Performance**: Indexed columns, no JSON parsing overhead
+- **Limited scope**: ~10-15 major contests, each adds 0-3 unique fields
+- **Space is cheap**: 40 columns × 10,000 QSOs is negligible storage
+- **Development model**: Recompiling for new contest anyway
+- **Maintainability**: Clear schema, easy to understand
+
+**Trade-offs:**
+- ✅ **Pro**: Fast queries, clear schema, type-safe
+- ✅ **Pro**: No parsing overhead, easy to debug
+- ⚠️ **Con**: Schema changes require migration (but rare)
+- ⚠️ **Con**: Some columns unused for some contests (but negligible space)
+
+**When to reconsider:**
+- Supporting 50+ contests with highly unique exchange fields
+- User-defined custom contests with arbitrary fields
+- Field combinations create combinatorial explosion
+- Performance issues with table width (unlikely with ~40 columns)
+
+Until then, **prefer adding columns** over complex JSON storage.
+
+### Defensive Programming for New Fields
+
+To prevent bugs where fields exist in QSO struct but not in database (causing data loss):
+
+**Recommendations:**
+1. **Unit tests**: Test QSO round-trip (save → reload → verify)
+2. **Runtime assertions**: Check INSERT statement column count matches struct
+3. **Pre-commit hooks**: Flag mismatches between QSO.h and Database.cpp
+4. **Code review**: Always update all four locations together:
+   - QSO struct
+   - Database migration
+   - QSORepository INSERT/UPDATE/SELECT
+   - EditQSODialog (if user-editable)
+
+**Example unit test** (future):
+```cpp
+TEST(QSORepository, AllFieldsPersist) {
+    QSO original = createTestQSO();
+    original.serialNumberReceived = 123;
+    original.operatorName = "John";
+
+    repo.saveQSO(original);
+    QSO loaded = repo.loadQSO(original.guid);
+
+    ASSERT_EQ(original.serialNumberReceived, loaded.serialNumberReceived);
+    ASSERT_EQ(original.operatorName, loaded.operatorName);
+}
+```
+
 ## Troubleshooting
 
 **Build errors with static QString?**
@@ -356,6 +484,12 @@ See existing contest implementations for reference:
 - Check getMultiplierValue() returns non-empty string for new multipliers
 - Verify alreadyWorkedValues list is passed correctly
 - Test per-band vs all-band logic
+
+**Exchange field data not persisting?**
+- Verify field exists in database schema (check migration)
+- Confirm QSORepository INSERT includes the column
+- Test QSO round-trip: save → reload → verify
+- Check Edit QSO Dialog loads/saves the field
 
 ## Future Enhancements
 
