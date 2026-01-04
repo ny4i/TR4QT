@@ -103,6 +103,7 @@ private:
     // State management
     void updateState();
     RadioState pollCurrentState();
+    void handlePollError(int retcode);
 
     // Member variables
     RIG* m_rig{nullptr};
