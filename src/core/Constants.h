@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.31.8";  // Refactor pre-flight checks into RadioPreflightHelper, add K4 ID verification
+constexpr const char* APP_VERSION = "3.31.9";  // Add K4 Option Module Info (OM command) to pre-flight checks
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
