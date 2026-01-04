@@ -7,6 +7,7 @@
 #include "dialogs/ExportPreviewDialog.h"
 #include "dialogs/SendMorseDialog.h"
 #include "dialogs/FunctionKeysWindow.h"
+#include "dialogs/GraylineMapDialog.h"
 #include "widgets/DXClusterWindow.h"
 #include "widgets/BandMapWidget.h"
 #include "widgets/RadioControlWidget.h"
@@ -94,6 +95,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_functionKeysWindow(nullptr)
     , m_sectionsMapViewer(nullptr)
     , m_statesMapViewer(nullptr)
+    , m_graylineMapDialog(nullptr)
     , m_qsosThisHour(0)
     , m_qsosSinceLastIntegrityCheck(0)
     , m_hasActiveContest(false)
@@ -586,6 +588,10 @@ void MainWindow::createMenuBar() {
     m_statesMapAction = windowMenu->addAction("St&ates Map (WAS)");
     m_statesMapAction->setCheckable(true);
     connect(m_statesMapAction, &QAction::triggered, this, &MainWindow::onShowStatesMap);
+
+    m_graylineMapAction = windowMenu->addAction("&Grayline Map");
+    m_graylineMapAction->setCheckable(true);
+    connect(m_graylineMapAction, &QAction::triggered, this, &MainWindow::onShowGraylineMap);
 
     windowMenu->addSeparator();
 
@@ -1109,6 +1115,16 @@ void MainWindow::loadSettings() {
         onShowStatesMap();
     }
 
+    LOG_DEBUG("MainWindow", QString("Grayline Map was visible: %1").arg(settings.getGraylineMapVisible() ? "true" : "false"));
+    if (settings.getGraylineMapVisible()) {
+        LOG_DEBUG("MainWindow", "Restoring Grayline Map window");
+        onShowGraylineMap();
+        QByteArray graylineGeometry = settings.loadGraylineMapGeometry();
+        if (!graylineGeometry.isEmpty()) {
+            m_graylineMapDialog->restoreGeometry(graylineGeometry);
+        }
+    }
+
     // Load and display current operator
     QString currentOperator = settings.getCurrentOperator();
     if (!currentOperator.isEmpty()) {
@@ -1171,6 +1187,13 @@ void MainWindow::saveSettings() {
         LOG_DEBUG("MainWindow", QString("Saving States Map window - visible: %1").arg(visible ? "true" : "false"));
         QSettings qsettings("TR4QT", "TR4QT");
         qsettings.setValue("MapViewer/States/Visible", visible);
+    }
+
+    if (m_graylineMapDialog) {
+        bool visible = m_graylineMapDialog->isVisible();
+        LOG_DEBUG("MainWindow", QString("Saving Grayline Map window - visible: %1").arg(visible ? "true" : "false"));
+        settings.saveGraylineMapGeometry(m_graylineMapDialog->saveGeometry());
+        settings.setGraylineMapVisible(visible);
     }
 }
 
@@ -3017,6 +3040,13 @@ void MainWindow::updateStationInfo(const QString& callsign) {
     m_stationInfoLabel->setTextFormat(Qt::RichText);
     m_stationInfoLabel->setText(info);
     m_stationInfoLabel->setToolTip(tooltip);
+
+    // Update grayline map if it's open
+    if (m_graylineMapDialog && m_graylineMapDialog->isVisible() && !m_graylineMapDialog->isFrozen()) {
+        QString myCallsign = settings.getMyCallsign();
+        m_graylineMapDialog->updateStations(myCallsign, myLat, myLon,
+                                           callsign, targetLat, targetLon);
+    }
 }
 
 void MainWindow::onExchangeTextChanged(const QString& text) {
@@ -4088,6 +4118,9 @@ void MainWindow::updateWindowMenuCheckmarks() {
     if (m_statesMapAction) {
         m_statesMapAction->setChecked(m_statesMapViewer && m_statesMapViewer->isVisible());
     }
+    if (m_graylineMapAction) {
+        m_graylineMapAction->setChecked(m_graylineMapDialog && m_graylineMapDialog->isVisible());
+    }
 }
 
 void MainWindow::applyFontSettings() {
@@ -4958,6 +4991,19 @@ void MainWindow::onShowStatesMap() {
     m_statesMapViewer->show();
     m_statesMapViewer->raise();
     m_statesMapViewer->activateWindow();
+    updateWindowMenuCheckmarks();
+}
+
+void MainWindow::onShowGraylineMap() {
+    // Create and show grayline propagation map
+    if (!m_graylineMapDialog) {
+        m_graylineMapDialog = new GraylineMapDialog(this);
+        m_graylineMapDialog->setWindowFlags(Qt::Window);
+        m_graylineMapDialog->setAttribute(Qt::WA_DeleteOnClose, false);
+    }
+    m_graylineMapDialog->show();
+    m_graylineMapDialog->raise();
+    m_graylineMapDialog->activateWindow();
     updateWindowMenuCheckmarks();
 }
 

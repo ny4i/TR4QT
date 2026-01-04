@@ -360,6 +360,25 @@ bool AppSettings::getMultipliersVisible() const {
     return m_settings.value("MultipliersWindow/visible", false).toBool();
 }
 
+// Grayline Map window
+void AppSettings::saveGraylineMapGeometry(const QByteArray& geometry) {
+    m_settings.setValue("GraylineMapWindow/geometry", geometry);
+    m_settings.sync();
+}
+
+QByteArray AppSettings::loadGraylineMapGeometry() const {
+    return m_settings.value("GraylineMapWindow/geometry").toByteArray();
+}
+
+void AppSettings::setGraylineMapVisible(bool visible) {
+    m_settings.setValue("GraylineMapWindow/visible", visible);
+    m_settings.sync();
+}
+
+bool AppSettings::getGraylineMapVisible() const {
+    return m_settings.value("GraylineMapWindow/visible", false).toBool();
+}
+
 // DX Cluster settings
 void AppSettings::setDXClusterCallsign(const QString& callsign) {
     m_settings.setValue("DXCluster/callsign", callsign.toUpper());

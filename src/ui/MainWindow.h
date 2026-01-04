@@ -43,6 +43,7 @@ class RadioControlWidget;
 class MultiplierWidget;
 class StatisticsWindow;
 class FunctionKeysWindow;
+class GraylineMapDialog;
 class UdpBroadcastManager;
 class WebServer;
 class CountryFileDownloader;
@@ -104,6 +105,7 @@ private slots:
     void onShowStatistics();
     void onShowSectionsMap();       // Show ARRL Sections map
     void onShowStatesMap();         // Show US States map (WAS)
+    void onShowGraylineMap();       // Show Grayline propagation map
     void onSwapMultView();          // TODO: Implement swap multiplier view
     void onMissingMultsReport();    // TODO: Implement missing mults report
 
@@ -306,6 +308,7 @@ private:
     QAction* m_statisticsAction;
     QAction* m_sectionsMapAction;
     QAction* m_statesMapAction;
+    QAction* m_graylineMapAction;
 
     // Window widgets
     DXClusterWindow* m_dxClusterWindow;
@@ -316,6 +319,7 @@ private:
     FunctionKeysWindow* m_functionKeysWindow;
     NativeMapViewer* m_sectionsMapViewer;
     NativeMapViewer* m_statesMapViewer;
+    GraylineMapDialog* m_graylineMapDialog;
 
     // Time tracking
     QTimer* m_updateTimer;
