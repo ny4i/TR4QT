@@ -502,6 +502,25 @@ Example (tr4qt.rc):
 - tr4qt.rc: Used by Windows .exe Properties → Details tab (File Version, Product Version, Company)
 - If they don't match, users and crash reports show inconsistent versions
 
+### Dependency Version Requirements
+
+**CRITICAL**: See `VERSION_REQUIREMENTS.md` for required Qt, Hamlib, and other dependency versions.
+
+**Key principle**: CI builds MUST use the same dependency versions as local development to prevent "works on my machine" issues.
+
+Real example of version mismatch failure (v3.31.10):
+- Windows CI: Qt 6.7.2, Local dev: Qt 6.10.1
+- Result: CI-built releases had broken QSO grid, wrong theme colors
+- Users downloaded broken installers from GitHub Releases
+- Fix: Updated CI to Qt 6.10.1 to match local dev
+
+**Enforcement:**
+- CI includes automated version validation (fails build on mismatch)
+- Run `./scripts/check-versions.sh` locally to verify versions
+- Update `VERSION_REQUIREMENTS.md` when changing Qt/Hamlib versions
+
+**This applies to ALL projects**: Version parity between CI and local dev is non-negotiable.
+
 ## Build Process
 
 Standard build:
