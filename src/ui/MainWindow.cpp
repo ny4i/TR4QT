@@ -3830,7 +3830,7 @@ void MainWindow::onFullIntegrityCheck() {
     m_statusLabel->setText("Running full integrity check...");
     QApplication::processEvents();  // Update UI
 
-    QString report = fullIntegrityCheck();
+    QString report = fullIntegrityCheck(false);  // Show all checks (critical + informational)
 
     // Display report
     QDialog* dialog = new QDialog(this);
