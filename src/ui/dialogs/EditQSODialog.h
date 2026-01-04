@@ -43,6 +43,7 @@ private:
     void loadQSOData();
     void populateModeCombo();
     void populateBandCombo();
+    void configureFieldsForContest();
 
     // Original QSO being edited
     QSO m_qso;
