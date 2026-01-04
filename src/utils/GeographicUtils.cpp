@@ -190,4 +190,239 @@ bool GeographicUtils::distanceAndBearingBetweenCallsigns(const CountryFile& coun
     return true;
 }
 
+QTime GeographicUtils::calculateSunrise(double lat, double lon, const QDate& date) {
+    // NOAA sunrise equation algorithm
+    // Solar zenith angle: 90.833° (official NOAA/US Naval Observatory standard)
+    const double ZENITH = 90.833;
+
+    // Calculate day of year
+    int dayOfYear = date.dayOfYear();
+
+    // Convert longitude to hour value and calculate approximate time
+    double lngHour = lon / 15.0;
+    double t = dayOfYear + ((6.0 - lngHour) / 24.0);
+
+    // Calculate Sun's mean anomaly
+    double M = (0.9856 * t) - 3.289;
+
+    // Calculate Sun's true longitude
+    double L = M + (1.916 * std::sin(degToRad(M))) + (0.020 * std::sin(degToRad(2 * M))) + 282.634;
+
+    // Normalize L to 0-360
+    while (L < 0) L += 360.0;
+    while (L >= 360.0) L -= 360.0;
+
+    // Calculate Sun's right ascension
+    double RA = radToDeg(std::atan(0.91764 * std::tan(degToRad(L))));
+
+    // Normalize RA to 0-360
+    while (RA < 0) RA += 360.0;
+    while (RA >= 360.0) RA -= 360.0;
+
+    // Right ascension value needs to be in same quadrant as L
+    double Lquadrant = std::floor(L / 90.0) * 90.0;
+    double RAquadrant = std::floor(RA / 90.0) * 90.0;
+    RA = RA + (Lquadrant - RAquadrant);
+
+    // Convert RA to hours
+    RA = RA / 15.0;
+
+    // Calculate Sun's declination
+    double sinDec = 0.39782 * std::sin(degToRad(L));
+    double cosDec = std::cos(std::asin(sinDec));
+
+    // Calculate Sun's local hour angle
+    double cosH = (std::cos(degToRad(ZENITH)) - (sinDec * std::sin(degToRad(lat)))) /
+                  (cosDec * std::cos(degToRad(lat)));
+
+    // Check if sun rises at this location on this date
+    if (cosH > 1.0) {
+        // Sun never rises (polar winter)
+        LOG_WARN("GeographicUtils", QString("Sun never rises at lat=%1 on date=%2")
+            .arg(lat).arg(date.toString("yyyy-MM-dd")));
+        return QTime();  // Invalid time
+    }
+    if (cosH < -1.0) {
+        // Sun never sets (polar summer) - return midnight for sunrise
+        return QTime(0, 0, 0);
+    }
+
+    // Calculate hour angle for sunrise (sun rising in east)
+    double H = 360.0 - radToDeg(std::acos(cosH));
+    H = H / 15.0;  // Convert to hours
+
+    // Calculate local mean time of sunrise
+    double T = H + RA - (0.06571 * t) - 6.622;
+
+    // Adjust back to UTC
+    double UT = T - lngHour;
+
+    // Normalize UT to 0-24
+    while (UT < 0.0) UT += 24.0;
+    while (UT >= 24.0) UT -= 24.0;
+
+    // Convert to QTime
+    int hours = static_cast<int>(UT);
+    int minutes = static_cast<int>((UT - hours) * 60.0);
+    int seconds = static_cast<int>(((UT - hours) * 60.0 - minutes) * 60.0);
+
+    QTime sunrise(hours, minutes, seconds);
+
+    LOG_DEBUG("GeographicUtils", QString("Sunrise at lat=%1, lon=%2, date=%3: %4 UTC")
+        .arg(lat).arg(lon).arg(date.toString("yyyy-MM-dd")).arg(sunrise.toString("HH:mm:ss")));
+
+    return sunrise;
+}
+
+QTime GeographicUtils::calculateSunset(double lat, double lon, const QDate& date) {
+    // NOAA sunrise equation algorithm (same as sunrise, but different hour angle)
+    // Solar zenith angle: 90.833° (official NOAA/US Naval Observatory standard)
+    const double ZENITH = 90.833;
+
+    // Calculate day of year
+    int dayOfYear = date.dayOfYear();
+
+    // Convert longitude to hour value and calculate approximate time
+    double lngHour = lon / 15.0;
+    double t = dayOfYear + ((18.0 - lngHour) / 24.0);  // 18.0 for sunset instead of 6.0
+
+    // Calculate Sun's mean anomaly
+    double M = (0.9856 * t) - 3.289;
+
+    // Calculate Sun's true longitude
+    double L = M + (1.916 * std::sin(degToRad(M))) + (0.020 * std::sin(degToRad(2 * M))) + 282.634;
+
+    // Normalize L to 0-360
+    while (L < 0) L += 360.0;
+    while (L >= 360.0) L -= 360.0;
+
+    // Calculate Sun's right ascension
+    double RA = radToDeg(std::atan(0.91764 * std::tan(degToRad(L))));
+
+    // Normalize RA to 0-360
+    while (RA < 0) RA += 360.0;
+    while (RA >= 360.0) RA -= 360.0;
+
+    // Right ascension value needs to be in same quadrant as L
+    double Lquadrant = std::floor(L / 90.0) * 90.0;
+    double RAquadrant = std::floor(RA / 90.0) * 90.0;
+    RA = RA + (Lquadrant - RAquadrant);
+
+    // Convert RA to hours
+    RA = RA / 15.0;
+
+    // Calculate Sun's declination
+    double sinDec = 0.39782 * std::sin(degToRad(L));
+    double cosDec = std::cos(std::asin(sinDec));
+
+    // Calculate Sun's local hour angle
+    double cosH = (std::cos(degToRad(ZENITH)) - (sinDec * std::sin(degToRad(lat)))) /
+                  (cosDec * std::cos(degToRad(lat)));
+
+    // Check if sun sets at this location on this date
+    if (cosH > 1.0) {
+        // Sun never rises (polar winter) - return midnight for sunset
+        return QTime(23, 59, 59);
+    }
+    if (cosH < -1.0) {
+        // Sun never sets (polar summer)
+        LOG_WARN("GeographicUtils", QString("Sun never sets at lat=%1 on date=%2")
+            .arg(lat).arg(date.toString("yyyy-MM-dd")));
+        return QTime();  // Invalid time
+    }
+
+    // Calculate hour angle for sunset (sun setting in west)
+    double H = radToDeg(std::acos(cosH));
+    H = H / 15.0;  // Convert to hours
+
+    // Calculate local mean time of sunset
+    double T = H + RA - (0.06571 * t) - 6.622;
+
+    // Adjust back to UTC
+    double UT = T - lngHour;
+
+    // Normalize UT to 0-24
+    while (UT < 0.0) UT += 24.0;
+    while (UT >= 24.0) UT -= 24.0;
+
+    // Convert to QTime
+    int hours = static_cast<int>(UT);
+    int minutes = static_cast<int>((UT - hours) * 60.0);
+    int seconds = static_cast<int>(((UT - hours) * 60.0 - minutes) * 60.0);
+
+    QTime sunset(hours, minutes, seconds);
+
+    LOG_DEBUG("GeographicUtils", QString("Sunset at lat=%1, lon=%2, date=%3: %4 UTC")
+        .arg(lat).arg(lon).arg(date.toString("yyyy-MM-dd")).arg(sunset.toString("HH:mm:ss")));
+
+    return sunset;
+}
+
+bool GeographicUtils::isInGraylineWindow(const QDateTime& currentTime,
+                                         const QTime& sunrise,
+                                         const QTime& sunset,
+                                         int windowMinutes) {
+    // Extract time from QDateTime
+    QTime currentTimeOnly = currentTime.time();
+
+    // Check if sunrise or sunset are invalid
+    if (!sunrise.isValid() || !sunset.isValid()) {
+        return false;
+    }
+
+    // Calculate window in seconds
+    const int WINDOW_SECONDS = windowMinutes * 60;
+
+    // Check if within window of sunrise
+    int secondsToSunrise = currentTimeOnly.secsTo(sunrise);
+    if (std::abs(secondsToSunrise) <= WINDOW_SECONDS) {
+        LOG_DEBUG("GeographicUtils", QString("In grayline window (sunrise): %1 seconds from sunrise")
+            .arg(secondsToSunrise));
+        return true;
+    }
+
+    // Check if within window of sunset
+    int secondsToSunset = currentTimeOnly.secsTo(sunset);
+    if (std::abs(secondsToSunset) <= WINDOW_SECONDS) {
+        LOG_DEBUG("GeographicUtils", QString("In grayline window (sunset): %1 seconds from sunset")
+            .arg(secondsToSunset));
+        return true;
+    }
+
+    // Handle midnight crossing for sunrise window (case 1)
+    // If sunrise is near midnight (e.g., 23:45), and current time is early morning (e.g., 00:10)
+    if (sunrise.hour() >= 23 && currentTimeOnly.hour() <= 1) {
+        int secondsFromMidnight = QTime(0, 0, 0).secsTo(currentTimeOnly);
+        int secondsSunriseFromMidnight = 86400 - QTime(0, 0, 0).secsTo(sunrise);  // Seconds before midnight
+        if (secondsFromMidnight + secondsSunriseFromMidnight <= WINDOW_SECONDS) {
+            LOG_DEBUG("GeographicUtils", "In grayline window (sunrise, midnight crossing case 1)");
+            return true;
+        }
+    }
+
+    // Handle midnight crossing for sunrise window (case 2)
+    // If sunrise is early morning (e.g., 00:15), and current time is late night (e.g., 23:50)
+    if (sunrise.hour() <= 1 && currentTimeOnly.hour() >= 23) {
+        int secondsToMidnight = currentTimeOnly.secsTo(QTime(23, 59, 59));
+        int secondsSunriseFromMidnight = QTime(0, 0, 0).secsTo(sunrise);
+        if (secondsToMidnight + secondsSunriseFromMidnight <= WINDOW_SECONDS) {
+            LOG_DEBUG("GeographicUtils", "In grayline window (sunrise, midnight crossing case 2)");
+            return true;
+        }
+    }
+
+    // Handle midnight crossing for sunset window
+    // If sunset is early morning (e.g., 00:15), and current time is late night (e.g., 23:50)
+    if (sunset.hour() <= 1 && currentTimeOnly.hour() >= 23) {
+        int secondsToMidnight = currentTimeOnly.secsTo(QTime(23, 59, 59));
+        int secondsSunsetFromMidnight = QTime(0, 0, 0).secsTo(sunset);
+        if (secondsToMidnight + secondsSunsetFromMidnight <= WINDOW_SECONDS) {
+            LOG_DEBUG("GeographicUtils", "In grayline window (sunset, midnight crossing)");
+            return true;
+        }
+    }
+
+    return false;
+}
+
 } // namespace TR4QT

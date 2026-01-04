@@ -2921,15 +2921,50 @@ void MainWindow::updateStationInfo(const QString& callsign) {
                                                     targetLat, targetLon);
     } else {
         // Non-US or Alaska/Hawaii - use country center from CTY.DAT
+        targetLat = countryData.latitude;
+        targetLon = countryData.longitude;
         distance = GeographicUtils::haversineDistance(myLat, myLon,
-                                                      countryData.latitude, countryData.longitude,
+                                                      targetLat, targetLon,
                                                       useKilometers);
         bearing = GeographicUtils::calculateBearing(myLat, myLon,
-                                                    countryData.latitude, countryData.longitude);
+                                                    targetLat, targetLon);
     }
 
-    // Format station info: "PREFIX  BEARING°  DISTANCE"
-    // Example: "KP4  121°  1263mi" or "HV  045°  4521km"
+    // Calculate sunrise/sunset for DX station
+    QDate today = QDate::currentDate();
+    QTime dxSunrise = GeographicUtils::calculateSunrise(targetLat, targetLon, today);
+    QTime dxSunset = GeographicUtils::calculateSunset(targetLat, targetLon, today);
+
+    // Calculate sunrise/sunset for Home station
+    QTime homeSunrise = GeographicUtils::calculateSunrise(myLat, myLon, today);
+    QTime homeSunset = GeographicUtils::calculateSunset(myLat, myLon, today);
+
+    // Check grayline status
+    QDateTime now = QDateTime::currentDateTimeUtc();
+    QTime currentTime = now.time();
+
+    // Check which specific times are in grayline
+    const int GRAYLINE_WINDOW_MINUTES = 30;
+    bool homeInGrayline = GeographicUtils::isInGraylineWindow(now, homeSunrise, homeSunset, GRAYLINE_WINDOW_MINUTES);
+
+    // Check DX sunrise grayline
+    bool dxSunriseInGrayline = false;
+    if (dxSunrise.isValid()) {
+        int secondsToSunrise = currentTime.secsTo(dxSunrise);
+        dxSunriseInGrayline = (std::abs(secondsToSunrise) <= GRAYLINE_WINDOW_MINUTES * 60);
+    }
+
+    // Check DX sunset grayline
+    bool dxSunsetInGrayline = false;
+    if (dxSunset.isValid()) {
+        int secondsToSunset = currentTime.secsTo(dxSunset);
+        dxSunsetInGrayline = (std::abs(secondsToSunset) <= GRAYLINE_WINDOW_MINUTES * 60);
+    }
+
+    bool dxInGrayline = dxSunriseInGrayline || dxSunsetInGrayline;
+
+    // Format station info: "PREFIX  BEARING°  DISTANCE  SR/SS"
+    // Example: "KP4  121°  1263mi  10:45z/22:15z" or "HV  045°  4521km  04:52z/17:10z"
     QString distUnit = useKilometers ? "km" : "mi";
     QString info = QString("%1  %2°  %3%4")
         .arg(countryData.primaryPrefix, -6)  // Left-align in 6 char field
@@ -2937,7 +2972,51 @@ void MainWindow::updateStationInfo(const QString& callsign) {
         .arg(static_cast<int>(distance), 4)  // Distance (4 digits)
         .arg(distUnit);
 
+    // Add sunrise/sunset times if valid (with rich text for grayline highlighting)
+    QString tooltip;
+    if (dxSunrise.isValid() && dxSunset.isValid()) {
+        QString srText = dxSunrise.toString("HH:mm") + "z";
+        QString ssText = dxSunset.toString("HH:mm") + "z";
+
+        // Color highlight if in grayline (orange for enhanced propagation)
+        QString graylineColor = ThemeManager::instance().colorName(ColorRole::AgingSpotText);
+
+        if (dxSunriseInGrayline) {
+            srText = QString("<span style='color:%1;font-weight:bold;'>%2</span>")
+                .arg(graylineColor).arg(srText);
+            tooltip = "DX station in sunrise grayline window (enhanced propagation)";
+        }
+
+        if (dxSunsetInGrayline) {
+            ssText = QString("<span style='color:%1;font-weight:bold;'>%2</span>")
+                .arg(graylineColor).arg(ssText);
+            if (!tooltip.isEmpty()) {
+                tooltip = "DX station in sunrise/sunset grayline window (enhanced propagation)";
+            } else {
+                tooltip = "DX station in sunset grayline window (enhanced propagation)";
+            }
+        }
+
+        info += "  " + srText + "/" + ssText;
+    }
+
+    // Add grayline indicators
+    if (homeInGrayline && dxInGrayline) {
+        info += "  ⚡DOUBLE⚡";
+        tooltip = "Both home and DX stations in grayline window (exceptional propagation!)";
+    } else if (homeInGrayline) {
+        info += "  [HOME GRAYLINE]";
+        if (tooltip.isEmpty()) {
+            tooltip = "Home station in grayline window (enhanced propagation)";
+        } else {
+            tooltip += " + Home station also in grayline";
+        }
+    }
+
+    // Enable rich text and set content
+    m_stationInfoLabel->setTextFormat(Qt::RichText);
     m_stationInfoLabel->setText(info);
+    m_stationInfoLabel->setToolTip(tooltip);
 }
 
 void MainWindow::onExchangeTextChanged(const QString& text) {
