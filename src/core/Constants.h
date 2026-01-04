@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.31.3";  // Context-aware field enabling in Edit QSO Dialog
+constexpr const char* APP_VERSION = "3.31.4";  // Add ITU Zone to context-aware field configuration
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
