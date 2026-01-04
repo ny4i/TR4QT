@@ -197,6 +197,12 @@ QWidget* PreferencesDialog::createStationTab() {
     m_arrlSectionEdit->setToolTip("Your ARRL section (used for contests like Sweepstakes)");
     formLayout->addRow("ARRL Section:", m_arrlSectionEdit);
 
+    // County
+    m_countyEdit = new QLineEdit(this);
+    m_countyEdit->setPlaceholderText("GAD");
+    m_countyEdit->setToolTip("Your county (used for contests like Florida QSO Party)");
+    formLayout->addRow("County:", m_countyEdit);
+
     // Default operator
     m_operatorEdit = new QLineEdit(this);
     m_operatorEdit->setPlaceholderText("Same as station callsign");
@@ -1355,6 +1361,7 @@ void PreferencesDialog::loadSettings() {
     m_ituZoneSpin->setValue(settings.getMyITUZone());
     m_stateEdit->setText(settings.getMyState());
     m_arrlSectionEdit->setText(settings.getMyARRLSection());
+    m_countyEdit->setText(settings.getMyCounty());
     // Operator will be added to AppSettings
 
     // Radio tab
@@ -1522,6 +1529,7 @@ void PreferencesDialog::saveSettings() {
     settings.setMyITUZone(m_ituZoneSpin->value());
     settings.setMyState(m_stateEdit->text());
     settings.setMyARRLSection(m_arrlSectionEdit->text());
+    settings.setMyCounty(m_countyEdit->text());
 
     // Radio tab
     RadioConfig config;

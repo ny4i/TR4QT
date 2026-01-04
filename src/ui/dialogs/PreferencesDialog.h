@@ -129,6 +129,7 @@ private:
     QSpinBox* m_ituZoneSpin;
     QLineEdit* m_stateEdit;
     QLineEdit* m_arrlSectionEdit;
+    QLineEdit* m_countyEdit;
     QComboBox* m_continentCombo;
     QLineEdit* m_operatorEdit;
 

@@ -75,6 +75,9 @@ public:
     void setMyARRLSection(const QString& section);
     QString getMyARRLSection() const;
 
+    void setMyCounty(const QString& county);
+    QString getMyCounty() const;
+
     void setComputerID(const QString& id);
     QString getComputerID() const;  // Default: "A"
 

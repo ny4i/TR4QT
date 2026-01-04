@@ -2480,12 +2480,20 @@ void MainWindow::onLogQSO() {
         qso.rstReceived = RSTValidator::getDefault(qso.mode);
     }
 
-    // Sent exchange handling (for contests that use serial numbers)
-    if (m_activeContest && m_activeContest->usesSerialNumbers()) {
-        qso.exchangeSent = QString::number(m_nextSerialNumber);
-        m_nextSerialNumber++;  // Increment for next QSO
+    // Sent exchange handling - get template from contest and substitute values
+    if (m_activeContest) {
+        // Get the exchange template from the contest (e.g., "599 {ZONE}" for CQ WW)
+        QString exchangeTemplate = m_activeContest->formatSentExchange(m_nextSerialNumber, qso.rstSent);
+
+        // Substitute template placeholders with actual values from settings
+        qso.exchangeSent = substituteSentExchangeTemplate(exchangeTemplate, m_nextSerialNumber, qso.rstSent);
+
+        // Increment serial number if contest uses them
+        if (m_activeContest->usesSerialNumbers()) {
+            m_nextSerialNumber++;
+        }
     } else {
-        qso.exchangeSent = "";  // Will be set by contest rules later
+        qso.exchangeSent = "";  // No contest active
     }
 
     // Lookup country/zone from cty.dat
@@ -6158,6 +6166,25 @@ void MainWindow::checkAutoSP(freq_t newFrequency) {
     // Update tracking
     m_lastFrequency = newFrequency;
     m_lastFrequencyTime = now;
+}
+
+// Substitute template placeholders in sent exchange with actual values from settings
+QString MainWindow::substituteSentExchangeTemplate(const QString& templateStr, int serialNumber, const QString& rst) const {
+    QString result = templateStr;
+    AppSettings& settings = AppSettings::instance();
+
+    // Replace placeholders with actual values
+    result.replace("{RST}", rst);
+    result.replace("{SERIAL}", QString::number(serialNumber));
+    result.replace("{ZONE}", QString::number(settings.getMyCQZone()));
+    result.replace("{CQZONE}", QString::number(settings.getMyCQZone()));
+    result.replace("{ITUZONE}", QString::number(settings.getMyITUZone()));
+    result.replace("{STATE}", settings.getMyState());
+    result.replace("{COUNTY}", settings.getMyCounty());
+    result.replace("{SECTION}", settings.getMyARRLSection());
+    result.replace("{GRID}", settings.getMyGridSquare());
+
+    return result.trimmed();
 }
 
 } // namespace TR4QT

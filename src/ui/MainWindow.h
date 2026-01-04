@@ -247,6 +247,9 @@ private:
     void setOperatingMode(OperatingMode mode);  // Switch operating mode and update UI
     void checkAutoSP(freq_t newFrequency);      // Check if AUTO S&P should trigger
 
+    // Sent exchange helpers
+    QString substituteSentExchangeTemplate(const QString& templateStr, int serialNumber, const QString& rst) const;
+
     // UI Components
     QLabel* m_statusLabel;
     QLabel* m_radioStatusLabel;
