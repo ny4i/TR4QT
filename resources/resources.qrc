@@ -12,4 +12,7 @@
         <file alias="us_states.geojson">us_states.geojson</file>
         <file alias="cty.dat">cty.dat</file>
     </qresource>
+    <qresource prefix="/maps">
+        <file alias="nasabluemarble.jpg">nasabluemarble.jpg</file>
+    </qresource>
 </RCC>

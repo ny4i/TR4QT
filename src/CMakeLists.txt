@@ -77,6 +77,7 @@ set(SOURCES
     ui/dialogs/MacroEditDialog.cpp
     ui/dialogs/FunctionKeysWindow.cpp
     ui/dialogs/ADIFImportDialog.cpp
+    ui/dialogs/GraylineMapDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
     ui/widgets/CivAddressWidget.cpp
@@ -202,8 +203,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.29.0"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.29.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.30.0"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.30.0"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

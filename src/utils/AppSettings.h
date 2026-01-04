@@ -110,6 +110,11 @@ public:
     void setMultipliersVisible(bool visible);
     bool getMultipliersVisible() const;
 
+    void saveGraylineMapGeometry(const QByteArray& geometry);
+    QByteArray loadGraylineMapGeometry() const;
+    void setGraylineMapVisible(bool visible);
+    bool getGraylineMapVisible() const;
+
     // DX Cluster settings
     void setDXClusterCallsign(const QString& callsign);
     QString getDXClusterCallsign() const;
