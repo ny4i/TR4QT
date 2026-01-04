@@ -237,7 +237,7 @@ private:
 
     // Data integrity helpers
     bool quickIntegrityCheck();         // Quick count-based check
-    QString fullIntegrityCheck();       // Detailed check with report
+    QString fullIntegrityCheck(bool criticalOnly = false);  // Detailed check with report
     void handleIntegrityMismatch(int memoryCount, int dbCount);
 
     // Rescore helpers
