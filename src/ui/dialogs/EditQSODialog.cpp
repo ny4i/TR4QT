@@ -386,7 +386,16 @@ void EditQSODialog::configureFieldsForContest() {
         m_cqZoneSpinBox->setStyleSheet("QSpinBox { background-color: #f0f0f0; }");
     }
 
-    // Note: Some fields like ITU Zone, Operator Name, Precedence, Check, Power
+    // ITU Zone - used by IARU HF Championship
+    // Most contests don't use ITU zones, so default to disabled
+    // Note: CQ WW/WPX use "Zone" but that refers to CQ Zone, not ITU Zone
+    bool usesITUZone = usedFields.contains("ITU Zone");
+    m_ituZoneSpinBox->setEnabled(usesITUZone);
+    if (!usesITUZone) {
+        m_ituZoneSpinBox->setStyleSheet("QSpinBox { background-color: #f0f0f0; }");
+    }
+
+    // Note: Some fields like Operator Name, Precedence, Check, Power
     // don't have UI widgets yet, so we can't configure them here
 }
 
