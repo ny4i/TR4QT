@@ -106,6 +106,8 @@ private:
     RadioState m_currentState;
     QTimer* m_pollTimer{nullptr};
     bool m_connected{false};
+    int m_consecutiveErrors{0};  // Track consecutive polling errors for disconnect detection
+    static constexpr int MAX_CONSECUTIVE_ERRORS = 3;  // Disconnect after 3 failed polls
 };
 
 } // namespace TR4QT

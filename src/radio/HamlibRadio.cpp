@@ -102,6 +102,9 @@ bool HamlibRadio::connect(const RadioConfig& config) {
         LOG_DEBUG("HamlibRadio", "HamlibRadio::connect: Poll interval is 0, not starting timer");
     }
 
+    // Reset error counter on successful connection
+    m_consecutiveErrors = 0;
+
     LOG_DEBUG("HamlibRadio", "HamlibRadio::connect: About to emit connectionStatusChanged(true)");
     emit connectionStatusChanged(true);
     LOG_DEBUG("HamlibRadio", "HamlibRadio::connect: Signal emitted");
@@ -638,6 +641,30 @@ void HamlibRadio::pollRadio() {
     if (!isConnected()) return;
 
     RadioState newState = pollCurrentState();
+
+    // Check if polling succeeded (at least got frequency which is the most basic operation)
+    bool pollSucceeded = (newState.frequencyA > 0);  // Valid frequency indicates successful poll
+
+    if (!pollSucceeded) {
+        m_consecutiveErrors++;
+        LOG_WARN("HamlibRadio", QString("Polling failed (consecutive errors: %1/%2)")
+            .arg(m_consecutiveErrors).arg(MAX_CONSECUTIVE_ERRORS));
+
+        // After MAX_CONSECUTIVE_ERRORS failed polls, assume radio is disconnected
+        if (m_consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            LOG_WARN("HamlibRadio", QString("Radio appears disconnected after %1 consecutive poll failures").arg(m_consecutiveErrors));
+            m_connected = false;
+            m_pollTimer->stop();
+            emit connectionStatusChanged(false);
+        }
+        return;
+    }
+
+    // Poll succeeded - reset error counter
+    if (m_consecutiveErrors > 0) {
+        LOG_DEBUG("HamlibRadio", QString("Polling recovered after %1 errors").arg(m_consecutiveErrors));
+        m_consecutiveErrors = 0;
+    }
 
     // Emit individual change signals if values changed
     if (newState.frequencyA != m_currentState.frequencyA) {

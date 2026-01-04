@@ -185,19 +185,14 @@ MainWindow::MainWindow(QWidget* parent)
     m_radioReconnectTimer->setSingleShot(true);
     m_radioReconnectTimer->setInterval(10000);  // 10 seconds
     connect(m_radioReconnectTimer, &QTimer::timeout, this, [this]() {
-        if (m_radioAutoReconnect && m_radioReconnectAttempts < MAX_RADIO_RECONNECT_ATTEMPTS) {
+        if (m_radioAutoReconnect) {
             m_radioReconnectAttempts++;
-            m_statusLabel->setText(QString("Reconnecting to radio (attempt %1 of %2)...")
-                .arg(m_radioReconnectAttempts).arg(MAX_RADIO_RECONNECT_ATTEMPTS));
-            LOG_DEBUG("MainWindow", QString("Auto-reconnect: Attempt %1 of %2")
-                .arg(m_radioReconnectAttempts).arg(MAX_RADIO_RECONNECT_ATTEMPTS));
+            m_statusLabel->setText(QString("Reconnecting to radio (attempt %1)...")
+                .arg(m_radioReconnectAttempts));
+            LOG_DEBUG("MainWindow", QString("Auto-reconnect: Attempt %1")
+                .arg(m_radioReconnectAttempts));
             m_radio->connectToRadio(m_lastRadioConfig);
-        } else if (m_radioReconnectAttempts >= MAX_RADIO_RECONNECT_ATTEMPTS) {
-            m_radioAutoReconnect = false;
-            m_statusLabel->setText(QString("Failed to reconnect to radio after %1 attempts")
-                .arg(MAX_RADIO_RECONNECT_ATTEMPTS));
-            LOG_WARN("MainWindow", QString("Auto-reconnect failed after %1 attempts")
-                .arg(MAX_RADIO_RECONNECT_ATTEMPTS));
+            // Note: No attempt limit - will keep trying until radio comes back or user clicks Disconnect
         }
     });
 
@@ -2314,6 +2309,14 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
 
 void MainWindow::onRadioError(const QString& error) {
     m_statusLabel->setText(QString("Radio error: %1").arg(error));
+
+    // If auto-reconnect is enabled and we're not connected, restart the reconnect timer
+    // This handles pre-flight failures during reconnect attempts
+    if (m_radioAutoReconnect && !m_radioConnected) {
+        LOG_DEBUG("MainWindow", QString("Radio error during reconnect (attempt %1), will retry in 10 seconds")
+            .arg(m_radioReconnectAttempts));
+        m_radioReconnectTimer->start();
+    }
 }
 
 void MainWindow::onRadioModelChanged(const QString& model) {
