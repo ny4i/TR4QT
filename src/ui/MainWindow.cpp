@@ -3946,6 +3946,19 @@ QString MainWindow::fullIntegrityCheck() {
             .arg(fieldMismatches);
     }
 
+    // TODO: Check 5: Detect QSOs with Unknown/None band
+    // Query database for QSOs where band = 'Unknown' or band = 'None'
+    // These should never exist (prevented by validation in onLogQSO since v3.30.0)
+    // but check anyway in case something slips through or data corruption occurs
+    // If found:
+    //   - Report callsign, timestamp, and ID
+    //   - Suggest user manually edit these QSOs to set correct band
+    //   - Or offer to delete them if they can't be fixed
+    // Example query:
+    //   SELECT id, callsign, timestamp, band FROM qsos
+    //   WHERE contest_id = ? AND deleted = 0
+    //   AND (band = 'Unknown' OR band = 'None' OR band = '')
+
     // Summary
     report += "=== SUMMARY ===\n";
     bool allPassed = (memoryCount == dbCount) &&
