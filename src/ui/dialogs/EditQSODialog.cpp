@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QDialogButtonBox>
+#include <QSet>
 
 namespace TR4QT {
 
@@ -18,6 +19,7 @@ EditQSODialog::EditQSODialog(const QSO& qso, ContestBase* contest, QWidget* pare
 {
     setupUI();
     loadQSOData();
+    configureFieldsForContest();
 }
 
 void EditQSODialog::setupUI() {
@@ -320,6 +322,72 @@ void EditQSODialog::onAccept() {
     }
 
     accept();
+}
+
+void EditQSODialog::configureFieldsForContest() {
+    // If no contest specified, enable all fields
+    if (!m_contest) {
+        return;
+    }
+
+    // Get the received exchange fields for this contest
+    QList<ExchangeField> receivedFields = m_contest->getReceivedExchangeFields();
+
+    // Build a set of field names used by this contest
+    QSet<QString> usedFields;
+    for (const ExchangeField& field : receivedFields) {
+        usedFields.insert(field.name);
+    }
+
+    // Configure Serial Number Received field
+    // Used by: CQ WPX, RTTY Roundup, Sweepstakes
+    bool usesSerial = usedFields.contains("Serial");
+    m_serialNumberReceivedSpinBox->setEnabled(usesSerial);
+    if (!usesSerial) {
+        m_serialNumberReceivedSpinBox->setStyleSheet("QSpinBox { background-color: #f0f0f0; }");
+    }
+
+    // Configure geographic fields based on contest requirements
+    // State field - used by many contests
+    bool usesState = usedFields.contains("State") ||
+                     usedFields.contains("State/Province") ||
+                     usedFields.contains("State/Power");  // ARRL DX
+    m_stateEdit->setEnabled(usesState);
+    if (!usesState) {
+        m_stateEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+    }
+
+    // County field - used by QSO parties
+    bool usesCounty = usedFields.contains("County");
+    m_countyEdit->setEnabled(usesCounty);
+    if (!usesCounty) {
+        m_countyEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+    }
+
+    // ARRL Section field - used by Field Day, Sweepstakes, etc.
+    bool usesSection = usedFields.contains("Section");
+    m_arrlSectionEdit->setEnabled(usesSection);
+    if (!usesSection) {
+        m_arrlSectionEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+    }
+
+    // Contest Class field - used by Field Day, Winter Field Day
+    bool usesClass = usedFields.contains("Class");
+    m_contestClassEdit->setEnabled(usesClass);
+    if (!usesClass) {
+        m_contestClassEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+    }
+
+    // Zone fields
+    // CQ Zone - used by CQ WW
+    bool usesCQZone = usedFields.contains("Zone");  // CQ WW uses "Zone"
+    m_cqZoneSpinBox->setEnabled(usesCQZone);
+    if (!usesCQZone) {
+        m_cqZoneSpinBox->setStyleSheet("QSpinBox { background-color: #f0f0f0; }");
+    }
+
+    // Note: Some fields like ITU Zone, Operator Name, Precedence, Check, Power
+    // don't have UI widgets yet, so we can't configure them here
 }
 
 } // namespace TR4QT
