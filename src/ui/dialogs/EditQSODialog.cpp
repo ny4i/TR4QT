@@ -163,9 +163,13 @@ void EditQSODialog::setupUI() {
     m_serialNumberReceivedSpinBox->setRange(0, 99999);
     metaLayout->addWidget(m_serialNumberReceivedSpinBox, 1, 3);
 
-    metaLayout->addWidget(new QLabel("Operator:"), 2, 0);
+    metaLayout->addWidget(new QLabel("Operator Name:"), 2, 0);
+    m_operatorNameEdit = new QLineEdit(this);
+    metaLayout->addWidget(m_operatorNameEdit, 2, 1);
+
+    metaLayout->addWidget(new QLabel("Operator Call:"), 2, 2);
     m_operatorCallEdit = new QLineEdit(this);
-    metaLayout->addWidget(m_operatorCallEdit, 2, 1);
+    metaLayout->addWidget(m_operatorCallEdit, 2, 3);
 
     metaLayout->addWidget(new QLabel("Notes:"), 3, 0);
     m_notesEdit = new QTextEdit(this);
@@ -263,6 +267,7 @@ void EditQSODialog::loadQSOData() {
     // Metadata fields
     m_serialNumberSpinBox->setValue(m_qso.serialNumber);
     m_serialNumberReceivedSpinBox->setValue(m_qso.serialNumberReceived);
+    m_operatorNameEdit->setText(m_qso.operatorName);
     m_operatorCallEdit->setText(m_qso.operatorCall);
     m_notesEdit->setPlainText(m_qso.notes);
 }
@@ -296,6 +301,7 @@ QSO EditQSODialog::getEditedQSO() const {
     // Metadata
     editedQSO.serialNumber = m_serialNumberSpinBox->value();
     editedQSO.serialNumberReceived = m_serialNumberReceivedSpinBox->value();
+    editedQSO.operatorName = m_operatorNameEdit->text().trimmed();
     editedQSO.operatorCall = m_operatorCallEdit->text().toUpper();
     editedQSO.notes = m_notesEdit->toPlainText();
 
@@ -395,8 +401,14 @@ void EditQSODialog::configureFieldsForContest() {
         m_ituZoneSpinBox->setStyleSheet("QSpinBox { background-color: #f0f0f0; }");
     }
 
-    // Note: Some fields like Operator Name, Precedence, Check, Power
-    // don't have UI widgets yet, so we can't configure them here
+    // Operator Name field - used by NAQP
+    bool usesOperatorName = usedFields.contains("Name");
+    m_operatorNameEdit->setEnabled(usesOperatorName);
+    if (!usesOperatorName) {
+        m_operatorNameEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+    }
+
+    // Note: Some fields like Precedence, Check, Power don't have UI widgets yet
 }
 
 } // namespace TR4QT

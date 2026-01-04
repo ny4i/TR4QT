@@ -84,6 +84,7 @@ private:
     // Metadata fields
     QSpinBox* m_serialNumberSpinBox;
     QSpinBox* m_serialNumberReceivedSpinBox;
+    QLineEdit* m_operatorNameEdit;
     QLineEdit* m_operatorCallEdit;
     QTextEdit* m_notesEdit;
 };
