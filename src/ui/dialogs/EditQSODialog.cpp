@@ -269,25 +269,25 @@ QSO EditQSODialog::getEditedQSO() const {
     editedQSO.mode = static_cast<ModeType>(m_modeCombo->currentData().toInt());
     editedQSO.band = static_cast<BandType>(m_bandCombo->currentData().toInt());
 
-    editedQSO.rstSent = m_rstSentEdit->text();
-    editedQSO.rstReceived = m_rstReceivedEdit->text();
-    editedQSO.exchangeSent = m_exchangeSentEdit->text();
-    editedQSO.exchangeReceived = m_exchangeReceivedEdit->text();
+    editedQSO.rstSent = m_rstSentEdit->text().toUpper();
+    editedQSO.rstReceived = m_rstReceivedEdit->text().toUpper();
+    editedQSO.exchangeSent = m_exchangeSentEdit->text().toUpper();
+    editedQSO.exchangeReceived = m_exchangeReceivedEdit->text().toUpper();
 
     // Geographic fields (DXCC entity/prefix are read-only, don't update)
     editedQSO.cqZone = m_cqZoneSpinBox->value();
     editedQSO.ituZone = m_ituZoneSpinBox->value();
-    editedQSO.continent = m_continentEdit->text();
-    editedQSO.state = m_stateEdit->text();
-    editedQSO.county = m_countyEdit->text();
-    editedQSO.arrlSection = m_arrlSectionEdit->text();
-    editedQSO.contestClass = m_contestClassEdit->text();
+    editedQSO.continent = m_continentEdit->text().toUpper();
+    editedQSO.state = m_stateEdit->text().toUpper();
+    editedQSO.county = m_countyEdit->text().toUpper();
+    editedQSO.arrlSection = m_arrlSectionEdit->text().toUpper();
+    editedQSO.contestClass = m_contestClassEdit->text().toUpper();
 
     // Scoring fields are read-only, don't update
 
     // Metadata
     editedQSO.serialNumber = m_serialNumberSpinBox->value();
-    editedQSO.operatorCall = m_operatorCallEdit->text();
+    editedQSO.operatorCall = m_operatorCallEdit->text().toUpper();
     editedQSO.notes = m_notesEdit->toPlainText();
 
     return editedQSO;

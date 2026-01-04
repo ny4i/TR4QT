@@ -2306,7 +2306,7 @@ void MainWindow::updateConnectionStatus(bool connected) {
 
 void MainWindow::onLogQSO() {
     QString callsign = m_callsignEntry->text().trimmed().toUpper();
-    QString exchange = m_exchangeEntry->text().trimmed();
+    QString exchange = m_exchangeEntry->text().trimmed().toUpper();
 
     // Check for OPON command (change operator)
     if (callsign == "OPON") {
