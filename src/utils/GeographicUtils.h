@@ -2,6 +2,9 @@
 #define GEOGRAPHICUTILS_H
 
 #include <QString>
+#include <QTime>
+#include <QDate>
+#include <QDateTime>
 
 namespace TR4QT {
 
@@ -104,6 +107,46 @@ public:
      * @return true if conversion successful, false if invalid grid format
      */
     static bool gridToLatLon(const QString& grid, double& lat, double& lon);
+
+    /**
+     * Calculate sunrise time for a given location and date
+     *
+     * Uses NOAA sunrise equation algorithm for accurate calculation
+     *
+     * @param lat Latitude in degrees (-90 to 90)
+     * @param lon Longitude in degrees (-180 to 180)
+     * @param date Date for calculation
+     * @return Sunrise time in UTC, or invalid QTime if calculation fails
+     */
+    static QTime calculateSunrise(double lat, double lon, const QDate& date);
+
+    /**
+     * Calculate sunset time for a given location and date
+     *
+     * Uses NOAA sunrise equation algorithm for accurate calculation
+     *
+     * @param lat Latitude in degrees (-90 to 90)
+     * @param lon Longitude in degrees (-180 to 180)
+     * @param date Date for calculation
+     * @return Sunset time in UTC, or invalid QTime if calculation fails
+     */
+    static QTime calculateSunset(double lat, double lon, const QDate& date);
+
+    /**
+     * Check if current time is within grayline window (±30 min of sunrise/sunset)
+     *
+     * Grayline propagation window occurs around sunrise and sunset transitions
+     *
+     * @param currentTime Current UTC time to check
+     * @param sunrise Sunrise time in UTC
+     * @param sunset Sunset time in UTC
+     * @param windowMinutes Window size in minutes (default: 30)
+     * @return true if currentTime is within window of sunrise or sunset
+     */
+    static bool isInGraylineWindow(const QDateTime& currentTime,
+                                   const QTime& sunrise,
+                                   const QTime& sunset,
+                                   int windowMinutes = 30);
 
 private:
     // Earth radius in kilometers and miles

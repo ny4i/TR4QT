@@ -43,6 +43,24 @@ private slots:
     void testDistanceAndBearingBetweenCallsigns_SameCountry();
     void testDistanceAndBearingBetweenCallsigns_InvalidCallsign1();
     void testDistanceAndBearingBetweenCallsigns_InvalidCallsign2();
+
+    // Sunrise/sunset calculation tests
+    void testCalculateSunrise_KnownLocation();
+    void testCalculateSunset_KnownLocation();
+    void testCalculateSunrise_PolarRegion();
+    void testCalculateSunset_PolarRegion();
+    void testCalculateSunrise_Equator();
+    void testCalculateSunset_Equator();
+
+    // Grayline window tests
+    void testIsInGraylineWindow_BeforeSunrise();
+    void testIsInGraylineWindow_AtSunrise();
+    void testIsInGraylineWindow_AfterSunrise();
+    void testIsInGraylineWindow_BeforeSunset();
+    void testIsInGraylineWindow_AtSunset();
+    void testIsInGraylineWindow_AfterSunset();
+    void testIsInGraylineWindow_MidnightCrossing();
+    void testIsInGraylineWindow_InvalidTimes();
 };
 
 // Grid to Lat/Lon conversion tests
@@ -251,6 +269,171 @@ void TestGeographicUtils::testDistanceAndBearingBetweenCallsigns_InvalidCallsign
         "W1AW", "999ZZZ", distance, bearing, true);
 
     QVERIFY(!result);
+}
+
+// Sunrise/sunset calculation tests
+
+void TestGeographicUtils::testCalculateSunrise_KnownLocation() {
+    // Hartford, CT (41.7658°N, -72.6734°W) on June 21, 2024 (summer solstice)
+    // Expected sunrise (from NOAA calculator): ~09:20 UTC (05:20 EDT)
+    QDate date(2024, 6, 21);
+    QTime sunrise = GeographicUtils::calculateSunrise(41.7658, -72.6734, date);
+
+    QVERIFY(sunrise.isValid());
+
+    // Allow ±5 minute tolerance (NOAA algorithm approximation)
+    int expectedMinutes = 9 * 60 + 20;  // 09:20 UTC
+    int actualMinutes = sunrise.hour() * 60 + sunrise.minute();
+    int diff = qAbs(actualMinutes - expectedMinutes);
+
+    QVERIFY2(diff <= 5, QString("Sunrise time %1 differs from expected 09:20 UTC by %2 minutes")
+        .arg(sunrise.toString("HH:mm")).arg(diff).toLatin1());
+}
+
+void TestGeographicUtils::testCalculateSunset_KnownLocation() {
+    // Hartford, CT (41.7658°N, -72.6734°W) on June 21, 2024 (summer solstice)
+    // Expected sunset (from NOAA calculator): ~00:32 UTC (20:32 EDT)
+    QDate date(2024, 6, 21);
+    QTime sunset = GeographicUtils::calculateSunset(41.7658, -72.6734, date);
+
+    QVERIFY(sunset.isValid());
+
+    // Allow ±5 minute tolerance
+    int expectedMinutes = 0 * 60 + 32;  // 00:32 UTC
+    int actualMinutes = sunset.hour() * 60 + sunset.minute();
+    int diff = qAbs(actualMinutes - expectedMinutes);
+
+    QVERIFY2(diff <= 5, QString("Sunset time %1 differs from expected 00:32 UTC by %2 minutes")
+        .arg(sunset.toString("HH:mm")).arg(diff).toLatin1());
+}
+
+void TestGeographicUtils::testCalculateSunrise_PolarRegion() {
+    // North Pole (90°N, 0°W) on December 21 (polar winter)
+    // Sun never rises in winter
+    QDate date(2024, 12, 21);
+    QTime sunrise = GeographicUtils::calculateSunrise(90.0, 0.0, date);
+
+    QVERIFY(!sunrise.isValid());  // Should return invalid QTime
+}
+
+void TestGeographicUtils::testCalculateSunset_PolarRegion() {
+    // North Pole (90°N, 0°W) on June 21 (polar summer)
+    // Sun never sets in summer
+    QDate date(2024, 6, 21);
+    QTime sunset = GeographicUtils::calculateSunset(90.0, 0.0, date);
+
+    QVERIFY(!sunset.isValid());  // Should return invalid QTime
+}
+
+void TestGeographicUtils::testCalculateSunrise_Equator() {
+    // Quito, Ecuador (0°N, -78°W) on March 20 (equinox)
+    // Sunrise should be approximately 11:12 UTC (06:12 local)
+    QDate date(2024, 3, 20);
+    QTime sunrise = GeographicUtils::calculateSunrise(0.0, -78.0, date);
+
+    QVERIFY(sunrise.isValid());
+
+    // At equator on equinox, sunrise should be near 06:00 local
+    // -78° longitude = UTC-5.2h, so ~11:12 UTC
+    int expectedMinutes = 11 * 60 + 12;  // 11:12 UTC
+    int actualMinutes = sunrise.hour() * 60 + sunrise.minute();
+    int diff = qAbs(actualMinutes - expectedMinutes);
+
+    QVERIFY2(diff <= 10, QString("Equator sunrise %1 differs from expected 11:12 UTC by %2 minutes")
+        .arg(sunrise.toString("HH:mm")).arg(diff).toLatin1());
+}
+
+void TestGeographicUtils::testCalculateSunset_Equator() {
+    // Quito, Ecuador (0°N, -78°W) on March 20 (equinox)
+    // Sunset should be approximately 23:18 UTC (18:18 local)
+    QDate date(2024, 3, 20);
+    QTime sunset = GeographicUtils::calculateSunset(0.0, -78.0, date);
+
+    QVERIFY(sunset.isValid());
+
+    // At equator on equinox, sunset should be near 18:00 local
+    // -78° longitude = UTC-5.2h, so ~23:18 UTC
+    int expectedMinutes = 23 * 60 + 18;  // 23:18 UTC
+    int actualMinutes = sunset.hour() * 60 + sunset.minute();
+    int diff = qAbs(actualMinutes - expectedMinutes);
+
+    QVERIFY2(diff <= 10, QString("Equator sunset %1 differs from expected 23:18 UTC by %2 minutes")
+        .arg(sunset.toString("HH:mm")).arg(diff).toLatin1());
+}
+
+// Grayline window tests
+
+void TestGeographicUtils::testIsInGraylineWindow_BeforeSunrise() {
+    QTime sunrise(6, 0, 0);   // 06:00 UTC
+    QTime sunset(18, 0, 0);   // 18:00 UTC
+    QDateTime currentTime(QDate(2024, 6, 21), QTime(5, 0, 0));  // 05:00 UTC (60 min before sunrise)
+
+    // 60 minutes before sunrise is outside the 30-minute window
+    QVERIFY(!GeographicUtils::isInGraylineWindow(currentTime, sunrise, sunset, 30));
+}
+
+void TestGeographicUtils::testIsInGraylineWindow_AtSunrise() {
+    QTime sunrise(6, 0, 0);   // 06:00 UTC
+    QTime sunset(18, 0, 0);   // 18:00 UTC
+    QDateTime currentTime(QDate(2024, 6, 21), QTime(6, 0, 0));  // 06:00 UTC (exactly at sunrise)
+
+    // Exactly at sunrise should be in grayline window
+    QVERIFY(GeographicUtils::isInGraylineWindow(currentTime, sunrise, sunset, 30));
+}
+
+void TestGeographicUtils::testIsInGraylineWindow_AfterSunrise() {
+    QTime sunrise(6, 0, 0);   // 06:00 UTC
+    QTime sunset(18, 0, 0);   // 18:00 UTC
+    QDateTime currentTime(QDate(2024, 6, 21), QTime(6, 25, 0));  // 06:25 UTC (25 min after sunrise)
+
+    // 25 minutes after sunrise is within the 30-minute window
+    QVERIFY(GeographicUtils::isInGraylineWindow(currentTime, sunrise, sunset, 30));
+}
+
+void TestGeographicUtils::testIsInGraylineWindow_BeforeSunset() {
+    QTime sunrise(6, 0, 0);   // 06:00 UTC
+    QTime sunset(18, 0, 0);   // 18:00 UTC
+    QDateTime currentTime(QDate(2024, 6, 21), QTime(17, 40, 0));  // 17:40 UTC (20 min before sunset)
+
+    // 20 minutes before sunset is within the 30-minute window
+    QVERIFY(GeographicUtils::isInGraylineWindow(currentTime, sunrise, sunset, 30));
+}
+
+void TestGeographicUtils::testIsInGraylineWindow_AtSunset() {
+    QTime sunrise(6, 0, 0);   // 06:00 UTC
+    QTime sunset(18, 0, 0);   // 18:00 UTC
+    QDateTime currentTime(QDate(2024, 6, 21), QTime(18, 0, 0));  // 18:00 UTC (exactly at sunset)
+
+    // Exactly at sunset should be in grayline window
+    QVERIFY(GeographicUtils::isInGraylineWindow(currentTime, sunrise, sunset, 30));
+}
+
+void TestGeographicUtils::testIsInGraylineWindow_AfterSunset() {
+    QTime sunrise(6, 0, 0);   // 06:00 UTC
+    QTime sunset(18, 0, 0);   // 18:00 UTC
+    QDateTime currentTime(QDate(2024, 6, 21), QTime(19, 0, 0));  // 19:00 UTC (60 min after sunset)
+
+    // 60 minutes after sunset is outside the 30-minute window
+    QVERIFY(!GeographicUtils::isInGraylineWindow(currentTime, sunrise, sunset, 30));
+}
+
+void TestGeographicUtils::testIsInGraylineWindow_MidnightCrossing() {
+    QTime sunrise(0, 15, 0);   // 00:15 UTC (just after midnight)
+    QTime sunset(12, 30, 0);   // 12:30 UTC
+    QDateTime currentTime(QDate(2024, 6, 21), QTime(23, 50, 0));  // 23:50 UTC (25 min before midnight)
+
+    // 23:50 is 25 minutes before 00:15 sunrise (crossing midnight)
+    // Should be within 30-minute grayline window
+    QVERIFY(GeographicUtils::isInGraylineWindow(currentTime, sunrise, sunset, 30));
+}
+
+void TestGeographicUtils::testIsInGraylineWindow_InvalidTimes() {
+    QTime invalidSunrise;      // Invalid QTime
+    QTime validSunset(18, 0, 0);
+    QDateTime currentTime(QDate(2024, 6, 21), QTime(17, 45, 0));
+
+    // Invalid sunrise time should return false
+    QVERIFY(!GeographicUtils::isInGraylineWindow(currentTime, invalidSunrise, validSunset, 30));
 }
 
 QTEST_MAIN(TestGeographicUtils)

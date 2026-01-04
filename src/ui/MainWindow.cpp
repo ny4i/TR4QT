@@ -7,6 +7,7 @@
 #include "dialogs/ExportPreviewDialog.h"
 #include "dialogs/SendMorseDialog.h"
 #include "dialogs/FunctionKeysWindow.h"
+#include "dialogs/GraylineMapDialog.h"
 #include "widgets/DXClusterWindow.h"
 #include "widgets/BandMapWidget.h"
 #include "widgets/RadioControlWidget.h"
@@ -94,6 +95,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_functionKeysWindow(nullptr)
     , m_sectionsMapViewer(nullptr)
     , m_statesMapViewer(nullptr)
+    , m_graylineMapDialog(nullptr)
     , m_qsosThisHour(0)
     , m_qsosSinceLastIntegrityCheck(0)
     , m_hasActiveContest(false)
@@ -586,6 +588,10 @@ void MainWindow::createMenuBar() {
     m_statesMapAction = windowMenu->addAction("St&ates Map (WAS)");
     m_statesMapAction->setCheckable(true);
     connect(m_statesMapAction, &QAction::triggered, this, &MainWindow::onShowStatesMap);
+
+    m_graylineMapAction = windowMenu->addAction("&Grayline Map");
+    m_graylineMapAction->setCheckable(true);
+    connect(m_graylineMapAction, &QAction::triggered, this, &MainWindow::onShowGraylineMap);
 
     windowMenu->addSeparator();
 
@@ -1109,6 +1115,16 @@ void MainWindow::loadSettings() {
         onShowStatesMap();
     }
 
+    LOG_DEBUG("MainWindow", QString("Grayline Map was visible: %1").arg(settings.getGraylineMapVisible() ? "true" : "false"));
+    if (settings.getGraylineMapVisible()) {
+        LOG_DEBUG("MainWindow", "Restoring Grayline Map window");
+        onShowGraylineMap();
+        QByteArray graylineGeometry = settings.loadGraylineMapGeometry();
+        if (!graylineGeometry.isEmpty()) {
+            m_graylineMapDialog->restoreGeometry(graylineGeometry);
+        }
+    }
+
     // Load and display current operator
     QString currentOperator = settings.getCurrentOperator();
     if (!currentOperator.isEmpty()) {
@@ -1171,6 +1187,13 @@ void MainWindow::saveSettings() {
         LOG_DEBUG("MainWindow", QString("Saving States Map window - visible: %1").arg(visible ? "true" : "false"));
         QSettings qsettings("TR4QT", "TR4QT");
         qsettings.setValue("MapViewer/States/Visible", visible);
+    }
+
+    if (m_graylineMapDialog) {
+        bool visible = m_graylineMapDialog->isVisible();
+        LOG_DEBUG("MainWindow", QString("Saving Grayline Map window - visible: %1").arg(visible ? "true" : "false"));
+        settings.saveGraylineMapGeometry(m_graylineMapDialog->saveGeometry());
+        settings.setGraylineMapVisible(visible);
     }
 }
 
@@ -2943,15 +2966,50 @@ void MainWindow::updateStationInfo(const QString& callsign) {
                                                     targetLat, targetLon);
     } else {
         // Non-US or Alaska/Hawaii - use country center from CTY.DAT
+        targetLat = countryData.latitude;
+        targetLon = countryData.longitude;
         distance = GeographicUtils::haversineDistance(myLat, myLon,
-                                                      countryData.latitude, countryData.longitude,
+                                                      targetLat, targetLon,
                                                       useKilometers);
         bearing = GeographicUtils::calculateBearing(myLat, myLon,
-                                                    countryData.latitude, countryData.longitude);
+                                                    targetLat, targetLon);
     }
 
-    // Format station info: "PREFIX  BEARING°  DISTANCE"
-    // Example: "KP4  121°  1263mi" or "HV  045°  4521km"
+    // Calculate sunrise/sunset for DX station
+    QDate today = QDate::currentDate();
+    QTime dxSunrise = GeographicUtils::calculateSunrise(targetLat, targetLon, today);
+    QTime dxSunset = GeographicUtils::calculateSunset(targetLat, targetLon, today);
+
+    // Calculate sunrise/sunset for Home station
+    QTime homeSunrise = GeographicUtils::calculateSunrise(myLat, myLon, today);
+    QTime homeSunset = GeographicUtils::calculateSunset(myLat, myLon, today);
+
+    // Check grayline status
+    QDateTime now = QDateTime::currentDateTimeUtc();
+    QTime currentTime = now.time();
+
+    // Check which specific times are in grayline
+    const int GRAYLINE_WINDOW_MINUTES = 30;
+    bool homeInGrayline = GeographicUtils::isInGraylineWindow(now, homeSunrise, homeSunset, GRAYLINE_WINDOW_MINUTES);
+
+    // Check DX sunrise grayline
+    bool dxSunriseInGrayline = false;
+    if (dxSunrise.isValid()) {
+        int secondsToSunrise = currentTime.secsTo(dxSunrise);
+        dxSunriseInGrayline = (std::abs(secondsToSunrise) <= GRAYLINE_WINDOW_MINUTES * 60);
+    }
+
+    // Check DX sunset grayline
+    bool dxSunsetInGrayline = false;
+    if (dxSunset.isValid()) {
+        int secondsToSunset = currentTime.secsTo(dxSunset);
+        dxSunsetInGrayline = (std::abs(secondsToSunset) <= GRAYLINE_WINDOW_MINUTES * 60);
+    }
+
+    bool dxInGrayline = dxSunriseInGrayline || dxSunsetInGrayline;
+
+    // Format station info: "PREFIX  BEARING°  DISTANCE  SR/SS"
+    // Example: "KP4  121°  1263mi  10:45z/22:15z" or "HV  045°  4521km  04:52z/17:10z"
     QString distUnit = useKilometers ? "km" : "mi";
     QString info = QString("%1  %2°  %3%4")
         .arg(countryData.primaryPrefix, -6)  // Left-align in 6 char field
@@ -2959,7 +3017,58 @@ void MainWindow::updateStationInfo(const QString& callsign) {
         .arg(static_cast<int>(distance), 4)  // Distance (4 digits)
         .arg(distUnit);
 
+    // Add sunrise/sunset times if valid (with rich text for grayline highlighting)
+    QString tooltip;
+    if (dxSunrise.isValid() && dxSunset.isValid()) {
+        QString srText = dxSunrise.toString("HH:mm") + "z";
+        QString ssText = dxSunset.toString("HH:mm") + "z";
+
+        // Color highlight if in grayline (orange for enhanced propagation)
+        QString graylineColor = ThemeManager::instance().colorName(ColorRole::AgingSpotText);
+
+        if (dxSunriseInGrayline) {
+            srText = QString("<span style='color:%1;font-weight:bold;'>%2</span>")
+                .arg(graylineColor).arg(srText);
+            tooltip = "DX station in sunrise grayline window (enhanced propagation)";
+        }
+
+        if (dxSunsetInGrayline) {
+            ssText = QString("<span style='color:%1;font-weight:bold;'>%2</span>")
+                .arg(graylineColor).arg(ssText);
+            if (!tooltip.isEmpty()) {
+                tooltip = "DX station in sunrise/sunset grayline window (enhanced propagation)";
+            } else {
+                tooltip = "DX station in sunset grayline window (enhanced propagation)";
+            }
+        }
+
+        info += "  " + srText + "/" + ssText;
+    }
+
+    // Add grayline indicators
+    if (homeInGrayline && dxInGrayline) {
+        info += "  ⚡DOUBLE⚡";
+        tooltip = "Both home and DX stations in grayline window (exceptional propagation!)";
+    } else if (homeInGrayline) {
+        info += "  [HOME GRAYLINE]";
+        if (tooltip.isEmpty()) {
+            tooltip = "Home station in grayline window (enhanced propagation)";
+        } else {
+            tooltip += " + Home station also in grayline";
+        }
+    }
+
+    // Enable rich text and set content
+    m_stationInfoLabel->setTextFormat(Qt::RichText);
     m_stationInfoLabel->setText(info);
+    m_stationInfoLabel->setToolTip(tooltip);
+
+    // Update grayline map if it's open
+    if (m_graylineMapDialog && m_graylineMapDialog->isVisible() && !m_graylineMapDialog->isFrozen()) {
+        QString myCallsign = settings.getMyCallsign();
+        m_graylineMapDialog->updateStations(myCallsign, myLat, myLon,
+                                           callsign, targetLat, targetLon);
+    }
 }
 
 void MainWindow::onExchangeTextChanged(const QString& text) {
@@ -4031,6 +4140,9 @@ void MainWindow::updateWindowMenuCheckmarks() {
     if (m_statesMapAction) {
         m_statesMapAction->setChecked(m_statesMapViewer && m_statesMapViewer->isVisible());
     }
+    if (m_graylineMapAction) {
+        m_graylineMapAction->setChecked(m_graylineMapDialog && m_graylineMapDialog->isVisible());
+    }
 }
 
 void MainWindow::applyFontSettings() {
@@ -4901,6 +5013,19 @@ void MainWindow::onShowStatesMap() {
     m_statesMapViewer->show();
     m_statesMapViewer->raise();
     m_statesMapViewer->activateWindow();
+    updateWindowMenuCheckmarks();
+}
+
+void MainWindow::onShowGraylineMap() {
+    // Create and show grayline propagation map
+    if (!m_graylineMapDialog) {
+        m_graylineMapDialog = new GraylineMapDialog(this);
+        m_graylineMapDialog->setWindowFlags(Qt::Window);
+        m_graylineMapDialog->setAttribute(Qt::WA_DeleteOnClose, false);
+    }
+    m_graylineMapDialog->show();
+    m_graylineMapDialog->raise();
+    m_graylineMapDialog->activateWindow();
     updateWindowMenuCheckmarks();
 }
 
