@@ -1,82 +1,9 @@
 #include "RadioController.h"
+#include "RadioPreflightHelper.h"
 #include "../logging/LogMacros.h"
 #include <QMutexLocker>
-#include <QTcpSocket>
-#include <QEventLoop>
-#include <QTimer>
 
 namespace TR4QT {
-
-// Helper function to check if radio is reachable before attempting Hamlib connection
-// Returns true if radio responds to TCP connection attempt within timeout
-static bool isRadioReachable(const QString& host, quint16 port, int timeoutMs = 500) {
-    QTcpSocket socket;
-
-    LOG_DEBUG("RadioController", QString("Pre-flight check: Testing connectivity to %1:%2 (timeout %3ms)")
-        .arg(host).arg(port).arg(timeoutMs));
-
-    // Create event loop to wait for connection with timeout
-    QEventLoop loop;
-    QTimer timeoutTimer;
-    timeoutTimer.setSingleShot(true);
-
-    bool connected = false;
-    bool timedOut = false;
-    QAbstractSocket::SocketError socketError = QAbstractSocket::UnknownSocketError;
-    QString errorString;
-
-    // Connect signals
-    QObject::connect(&socket, &QTcpSocket::connected, [&]() {
-        connected = true;
-        loop.quit();
-    });
-
-    QObject::connect(&socket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::errorOccurred), [&](QAbstractSocket::SocketError error) {
-        socketError = error;
-        errorString = socket.errorString();
-        loop.quit();
-    });
-
-    QObject::connect(&timeoutTimer, &QTimer::timeout, [&]() {
-        timedOut = true;
-        loop.quit();
-    });
-
-    // Start connection attempt and measure time
-    QElapsedTimer timer;
-    timer.start();
-    socket.connectToHost(host, port);
-    timeoutTimer.start(timeoutMs);
-
-    // Wait for connection or timeout
-    loop.exec();
-    qint64 elapsed = timer.elapsed();
-
-    // Clean up
-    if (socket.state() == QAbstractSocket::ConnectedState) {
-        socket.disconnectFromHost();
-        if (socket.state() != QAbstractSocket::UnconnectedState) {
-            socket.waitForDisconnected(100);
-        }
-    } else {
-        socket.abort();
-    }
-
-    if (connected) {
-        LOG_DEBUG("RadioController", QString("Pre-flight check: SUCCESS - %1:%2 is reachable (took %3ms)")
-            .arg(host).arg(port).arg(elapsed));
-        return true;
-    } else if (timedOut) {
-        LOG_WARN("RadioController", QString("Pre-flight check: TIMEOUT - %1:%2 not reachable within %3ms (elapsed: %4ms)")
-            .arg(host).arg(port).arg(timeoutMs).arg(elapsed));
-        return false;
-    } else {
-        LOG_WARN("RadioController", QString("Pre-flight check: FAILED - %1:%2 error after %3ms: %4 (error code: %5)")
-            .arg(host).arg(port).arg(elapsed).arg(errorString).arg(socketError));
-        return false;
-    }
-}
-
 
 RadioController::RadioController(QObject* parent)
     : QObject(parent)
@@ -245,11 +172,13 @@ void RadioController::connectToRadio(const RadioConfig& config) {
             quint16 port = parts[1].toUShort(&ok);
 
             if (ok && !host.isEmpty()) {
-                // Run pre-flight connectivity check (2000ms timeout)
+                // Run radio-specific pre-flight check (2000ms timeout)
+                // This performs radio-specific verification (e.g., K4 ID command)
+                // or falls back to general TCP connectivity test
                 // Note: Increased from 500ms to 2000ms to prevent false negatives
                 // on slower networks or radios that take longer to respond
-                if (!isRadioReachable(host, port, 2000)) {
-                    // Radio not reachable - abort connection attempt
+                if (!RadioPreflightHelper::radioSpecificPreflight(config.hamlibModelId, host, port, 2000)) {
+                    // Radio not reachable or verification failed - abort connection attempt
                     QString errorMsg = QString("Radio not reachable at %1:%2 (pre-flight check failed)").arg(host).arg(port);
                     LOG_WARN("RadioController", errorMsg);
 
@@ -260,7 +189,8 @@ void RadioController::connectToRadio(const RadioConfig& config) {
                     return;
                 }
                 // Pre-flight check passed - proceed with Hamlib connection
-                LOG_DEBUG("RadioController", QString("Pre-flight check passed for %1:%2").arg(host).arg(port));
+                LOG_DEBUG("RadioController", QString("Pre-flight check passed for %1:%2 (model %3)")
+                    .arg(host).arg(port).arg(config.hamlibModelId));
             }
         }
     }
