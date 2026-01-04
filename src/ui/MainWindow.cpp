@@ -4016,7 +4016,7 @@ QString MainWindow::fullIntegrityCheck(bool criticalOnly) {
     // This is non-critical but indicates data entry inconsistency
     if (!criticalOnly) {
         QSqlQuery lowercaseQuery = db.execute(
-            "SELECT id, callsign, rstSent, rstReceived, exchangeSent, exchangeReceived "
+            "SELECT id, callsign, rst_sent, rst_received, exchange_sent, exchange_received "
             "FROM qsos WHERE contest_id = ? AND deleted = 0",
             {m_currentContestDbId});
 
@@ -4031,10 +4031,10 @@ QString MainWindow::fullIntegrityCheck(bool criticalOnly) {
 
             QStringList fields;
             if (callsign != callsign.toUpper()) fields << "callsign";
-            if (rstSent != rstSent.toUpper()) fields << "rstSent";
-            if (rstReceived != rstReceived.toUpper()) fields << "rstReceived";
-            if (exchangeSent != exchangeSent.toUpper()) fields << "exchangeSent";
-            if (exchangeReceived != exchangeReceived.toUpper()) fields << "exchangeReceived";
+            if (rstSent != rstSent.toUpper()) fields << "rst_sent";
+            if (rstReceived != rstReceived.toUpper()) fields << "rst_received";
+            if (exchangeSent != exchangeSent.toUpper()) fields << "exchange_sent";
+            if (exchangeReceived != exchangeReceived.toUpper()) fields << "exchange_received";
 
             if (!fields.isEmpty()) {
                 lowercaseIssues.append(QString("ID=%1: %2 (%3)")
