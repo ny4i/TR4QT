@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.31.11";  // Fix radio disconnect/reconnect + CI/local version parity
+constexpr const char* APP_VERSION = "3.31.12";  // Auto-detect radio disconnection via hamlib I/O errors
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

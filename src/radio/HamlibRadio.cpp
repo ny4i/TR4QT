@@ -654,21 +654,11 @@ void HamlibRadio::pollRadio() {
 
     RadioState newState = pollCurrentState();
 
-    // Check if polling succeeded (at least got frequency which is the most basic operation)
-    bool pollSucceeded = (newState.frequencyA > 0);  // Valid frequency indicates successful poll
-
-    if (!pollSucceeded) {
-        m_consecutiveErrors++;
-        LOG_WARN("HamlibRadio", QString("Polling failed (consecutive errors: %1/%2)")
-            .arg(m_consecutiveErrors).arg(MAX_CONSECUTIVE_ERRORS));
-
-        // After MAX_CONSECUTIVE_ERRORS failed polls, assume radio is disconnected
-        if (m_consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-            LOG_WARN("HamlibRadio", QString("Radio appears disconnected after %1 consecutive poll failures").arg(m_consecutiveErrors));
-            m_connected = false;
-            m_pollTimer->stop();
-            emit connectionStatusChanged(false);
-        }
+    // Check if state is valid (no I/O errors during polling)
+    // pollCurrentState() calls handlePollError() on I/O errors which tracks consecutive errors
+    if (!newState.isValid) {
+        // State polling failed - handlePollError() already tracked the error
+        // Don't emit state changes to avoid stale data
         return;
     }
 
@@ -710,11 +700,28 @@ RadioState HamlibRadio::pollCurrentState() {
     // Get radio model name
     state.radioModel = QString::fromStdString(m_rig->caps->model_name);
 
-    // Poll VFO A frequency and mode
+    // Poll VFO A frequency - use this as the critical "health check" call
+    // If this fails with I/O error, the radio is likely disconnected
     freq_t freqA = 0;
-    if (rig_get_freq(m_rig, RIG_VFO_A, &freqA) == RIG_OK) {
+    int ret = rig_get_freq(m_rig, RIG_VFO_A, &freqA);
+    if (ret == RIG_OK) {
         state.frequencyA = freqA;
         state.bandA = frequencyToBand(freqA);
+    } else {
+        // Check if this is a communication error (radio likely disconnected)
+        // RIG_EIO: IO error including open failed (e.g., "Broken pipe" when radio turned off)
+        // RIG_ETIMEOUT: Communication timeout
+        // RIG_EPROTO: Protocol error
+        // RIG_BUSERROR: Error talking on the bus
+        if (ret == -RIG_EIO || ret == -RIG_ETIMEOUT || ret == -RIG_EPROTO || ret == -RIG_BUSERROR) {
+            LOG_WARN("HamlibRadio", QString("Communication error during poll: %1 (%2)")
+                .arg(rigerror(ret)).arg(ret));
+            handlePollError(ret);
+            return state;  // Return invalid state (isValid = false)
+        }
+        // For other errors, continue polling but log the issue
+        LOG_WARN("HamlibRadio", QString("Error getting frequency: %1 (%2)")
+            .arg(rigerror(ret)).arg(ret));
     }
 
     rmode_t modeA = RIG_MODE_NONE;
@@ -888,6 +895,36 @@ bool HamlibRadio::checkRigPointer(const QString& operation) const {
         return false;
     }
     return true;
+}
+
+void HamlibRadio::handlePollError(int retcode) {
+    m_consecutiveErrors++;
+
+    if (m_consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        LOG_ERROR("HamlibRadio", QString("Radio communication lost after %1 consecutive errors (error: %2 - %3). Disconnecting.")
+            .arg(m_consecutiveErrors)
+            .arg(retcode)
+            .arg(rigerror(retcode)));
+
+        // Stop polling to avoid continuous error spam
+        m_pollTimer->stop();
+
+        // Mark as disconnected
+        m_connected = false;
+        m_currentState = RadioState{};
+
+        // Emit signal to update UI
+        emit connectionStatusChanged(false);
+
+        // Reset error counter
+        m_consecutiveErrors = 0;
+    } else {
+        LOG_WARN("HamlibRadio", QString("Radio communication error %1/%2 (error: %3 - %4)")
+            .arg(m_consecutiveErrors)
+            .arg(MAX_CONSECUTIVE_ERRORS)
+            .arg(retcode)
+            .arg(rigerror(retcode)));
+    }
 }
 
 } // namespace TR4QT
