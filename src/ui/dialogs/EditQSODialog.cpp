@@ -151,19 +151,24 @@ void EditQSODialog::setupUI() {
     m_isMultiplierCheckBox->setEnabled(false);
     metaLayout->addWidget(m_isMultiplierCheckBox, 0, 3);
 
-    metaLayout->addWidget(new QLabel("Serial Number:"), 1, 0);
+    metaLayout->addWidget(new QLabel("Serial Number Sent:"), 1, 0);
     m_serialNumberSpinBox = new QSpinBox(this);
     m_serialNumberSpinBox->setRange(0, 99999);
     metaLayout->addWidget(m_serialNumberSpinBox, 1, 1);
 
-    metaLayout->addWidget(new QLabel("Operator:"), 1, 2);
-    m_operatorCallEdit = new QLineEdit(this);
-    metaLayout->addWidget(m_operatorCallEdit, 1, 3);
+    metaLayout->addWidget(new QLabel("Serial Number Rcvd:"), 1, 2);
+    m_serialNumberReceivedSpinBox = new QSpinBox(this);
+    m_serialNumberReceivedSpinBox->setRange(0, 99999);
+    metaLayout->addWidget(m_serialNumberReceivedSpinBox, 1, 3);
 
-    metaLayout->addWidget(new QLabel("Notes:"), 2, 0);
+    metaLayout->addWidget(new QLabel("Operator:"), 2, 0);
+    m_operatorCallEdit = new QLineEdit(this);
+    metaLayout->addWidget(m_operatorCallEdit, 2, 1);
+
+    metaLayout->addWidget(new QLabel("Notes:"), 3, 0);
     m_notesEdit = new QTextEdit(this);
     m_notesEdit->setMaximumHeight(80);
-    metaLayout->addWidget(m_notesEdit, 2, 1, 1, 3);
+    metaLayout->addWidget(m_notesEdit, 3, 1, 1, 3);
 
     mainLayout->addWidget(metaGroup);
 
@@ -255,6 +260,7 @@ void EditQSODialog::loadQSOData() {
 
     // Metadata fields
     m_serialNumberSpinBox->setValue(m_qso.serialNumber);
+    m_serialNumberReceivedSpinBox->setValue(m_qso.serialNumberReceived);
     m_operatorCallEdit->setText(m_qso.operatorCall);
     m_notesEdit->setPlainText(m_qso.notes);
 }
@@ -287,6 +293,7 @@ QSO EditQSODialog::getEditedQSO() const {
 
     // Metadata
     editedQSO.serialNumber = m_serialNumberSpinBox->value();
+    editedQSO.serialNumberReceived = m_serialNumberReceivedSpinBox->value();
     editedQSO.operatorCall = m_operatorCallEdit->text().toUpper();
     editedQSO.notes = m_notesEdit->toPlainText();
 
