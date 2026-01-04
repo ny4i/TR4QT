@@ -2366,6 +2366,28 @@ void MainWindow::onLogQSO() {
         // (Will default to RST based on mode)
     }
 
+    // CRITICAL: Prevent logging QSO with invalid band/mode
+    // Band/Mode can be None if:
+    // 1. App started with contest already open (didn't run contest open initialization)
+    // 2. Radio disconnected and user hasn't manually selected band with Band Up/Down
+    if (m_currentState.bandA == BandType::None || m_currentState.modeA == ModeType::None) {
+        QString errorMsg;
+        if (m_currentState.bandA == BandType::None && m_currentState.modeA == ModeType::None) {
+            errorMsg = "Error: Band and Mode not set - use Band Up/Down (ALT-B/ALT-V) to select band";
+        } else if (m_currentState.bandA == BandType::None) {
+            errorMsg = "Error: Band not set - use Band Up/Down (ALT-B/ALT-V) to select band";
+        } else {
+            errorMsg = "Error: Mode not set - radio not connected and mode unknown";
+        }
+        m_statusLabel->setText(errorMsg);
+        m_statusLabel->setStyleSheet("QLabel { color: #ff0000; font-weight: bold; }");  // Theme default: #ff0000 (error red)
+        QApplication::beep();
+        LOG_ERROR("MainWindow", QString("Cannot log QSO: bandA=%1 modeA=%2 (invalid state)")
+            .arg(bandToString(m_currentState.bandA))
+            .arg(modeToString(m_currentState.modeA)));
+        return;
+    }
+
     // Create QSO object with current radio state (snapshot!)
     QSO qso;
     qso.timestamp = QDateTime::currentDateTimeUtc();
