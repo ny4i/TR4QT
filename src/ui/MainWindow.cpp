@@ -4068,13 +4068,100 @@ QString MainWindow::fullIntegrityCheck(bool criticalOnly) {
         }
     }
 
+    // Check 7: Database schema version validation (CRITICAL)
+    QSqlQuery versionQuery = db.execute("PRAGMA user_version", {});
+    int dbSchemaVersion = 0;
+    if (versionQuery.next()) {
+        dbSchemaVersion = versionQuery.value(0).toInt();
+    }
+
+    const int EXPECTED_SCHEMA_VERSION = 8;  // From Database.h CURRENT_SCHEMA_VERSION
+    bool schemaVersionMismatch = false;
+    if (dbSchemaVersion == EXPECTED_SCHEMA_VERSION) {
+        report += QString("✓ Database schema version matches (v%1)\n\n").arg(EXPECTED_SCHEMA_VERSION);
+    } else {
+        schemaVersionMismatch = true;
+        report += QString("✗ CRITICAL: Schema version mismatch!\n");
+        report += QString("  Database: v%1\n").arg(dbSchemaVersion);
+        report += QString("  Expected: v%1\n").arg(EXPECTED_SCHEMA_VERSION);
+        report += "  Recommendation: Restart TR4QT to trigger automatic migration\n\n";
+    }
+
+    // Check 8: Required columns existence check (CRITICAL)
+    QSqlQuery columnsQuery = db.execute("PRAGMA table_info(qsos)", {});
+    QSet<QString> existingColumns;
+    while (columnsQuery.next()) {
+        existingColumns.insert(columnsQuery.value(1).toString());
+    }
+
+    QStringList requiredColumns = {
+        "id", "contest_id", "callsign", "timestamp", "frequency", "band", "mode",
+        "rst_sent", "rst_received", "exchange_sent", "exchange_received",
+        "serial_number", "serial_number_received", "precedence", "sweepstakes_check",
+        "power", "operator_name", "itu_zone_exchange",
+        "dxcc_entity", "cq_zone", "itu_zone", "continent",
+        "qso_points", "is_dupe", "is_multiplier", "deleted"
+    };
+
+    QStringList missingColumns;
+    for (const QString& col : requiredColumns) {
+        if (!existingColumns.contains(col)) {
+            missingColumns.append(col);
+        }
+    }
+
+    if (missingColumns.isEmpty()) {
+        report += QString("✓ All %1 required columns exist\n\n").arg(requiredColumns.size());
+    } else {
+        report += QString("✗ CRITICAL: %1 required columns missing from qsos table:\n")
+            .arg(missingColumns.size());
+        for (const QString& col : missingColumns) {
+            report += QString("  - %1\n").arg(col);
+        }
+        report += "  Recommendation: Restart TR4QT to trigger automatic migration\n\n";
+    }
+
+    // Check 9: QSO load validation test (CRITICAL)
+    int loadFailures = 0;
+    int sampleSize = qMin(10, dbCount);  // Test first 10 QSOs
+
+    if (sampleSize > 0) {
+        QSqlQuery sampleQuery = db.execute(
+            "SELECT id FROM qsos WHERE contest_id = ? AND deleted = 0 LIMIT ?",
+            {m_currentContestDbId, sampleSize});
+
+        while (sampleQuery.next()) {
+            int qsoId = sampleQuery.value(0).toInt();
+            QSO loadedQso = repo.findById(qsoId);
+
+            // Verify QSO was actually loaded (not just default-constructed)
+            if (loadedQso.id != qsoId || loadedQso.callsign.isEmpty()) {
+                loadFailures++;
+            }
+        }
+
+        if (loadFailures == 0) {
+            report += QString("✓ QSO load test passed (sampled %1 QSOs)\n\n").arg(sampleSize);
+        } else {
+            report += QString("✗ CRITICAL: %1/%2 QSOs failed to load correctly\n")
+                .arg(loadFailures).arg(sampleSize);
+            report += "  This suggests a database schema issue or data corruption\n";
+            report += "  Recommendation: Check logs for SQL errors, verify schema version\n\n";
+        }
+    } else {
+        report += "✓ QSO load test skipped (no QSOs in database)\n\n";
+    }
+
     // Summary
     report += "=== SUMMARY ===\n";
     bool criticalIssues = (memoryCount != dbCount) ||
                           !missingInDB.isEmpty() ||
                           !orphanedInDB.isEmpty() ||
                           (fieldMismatches > 0) ||
-                          !unknownBands.isEmpty();
+                          !unknownBands.isEmpty() ||
+                          schemaVersionMismatch ||
+                          !missingColumns.isEmpty() ||
+                          (loadFailures > 0);
 
     if (!criticalIssues) {
         report += "✓ ALL CRITICAL CHECKS PASSED - Log integrity verified\n";
