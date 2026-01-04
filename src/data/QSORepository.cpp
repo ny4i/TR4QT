@@ -54,13 +54,15 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
             rst_sent, rst_received, exchange_sent, exchange_received,
             dxcc_entity, dxcc_prefix, dxcc_entity_code, cq_zone, itu_zone, continent, state, county, arrl_section, grid_square, iota_reference, contest_class,
             qso_points, is_dupe, is_multiplier, multipliers, is_run_qso,
-            serial_number, operator_call, notes
+            serial_number, serial_number_received, precedence, sweepstakes_check, power, operator_name, itu_zone_exchange,
+            operator_call, notes
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
-            ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?,
+            ?, ?
         )
     )";
 
@@ -95,6 +97,12 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         multipliersStr,
         qso.isRunQSO,
         qso.serialNumber > 0 ? qso.serialNumber : QVariant(),
+        qso.serialNumberReceived > 0 ? qso.serialNumberReceived : QVariant(),
+        qso.precedence.isEmpty() ? QVariant() : qso.precedence,
+        qso.check.isEmpty() ? QVariant() : qso.check,
+        qso.power.isEmpty() ? QVariant() : qso.power,
+        qso.operatorName.isEmpty() ? QVariant() : qso.operatorName,
+        qso.ituZoneExchange.isEmpty() ? QVariant() : qso.ituZoneExchange,
         qso.operatorCall,
         qso.notes
     };
@@ -162,7 +170,8 @@ bool QSORepository::updateQSO(const QSO& qso) {
             rst_sent = ?, rst_received = ?, exchange_sent = ?, exchange_received = ?,
             dxcc_entity = ?, dxcc_prefix = ?, dxcc_entity_code = ?, cq_zone = ?, itu_zone = ?, continent = ?, state = ?, county = ?, arrl_section = ?, grid_square = ?, iota_reference = ?, contest_class = ?,
             qso_points = ?, is_dupe = ?, is_multiplier = ?, multipliers = ?, is_run_qso = ?,
-            serial_number = ?, operator_call = ?, notes = ?
+            serial_number = ?, serial_number_received = ?, precedence = ?, sweepstakes_check = ?, power = ?, operator_name = ?, itu_zone_exchange = ?,
+            operator_call = ?, notes = ?
         WHERE id = ?
     )";
 
@@ -195,6 +204,12 @@ bool QSORepository::updateQSO(const QSO& qso) {
         multipliersStr,
         qso.isRunQSO,
         qso.serialNumber > 0 ? qso.serialNumber : QVariant(),
+        qso.serialNumberReceived > 0 ? qso.serialNumberReceived : QVariant(),
+        qso.precedence.isEmpty() ? QVariant() : qso.precedence,
+        qso.check.isEmpty() ? QVariant() : qso.check,
+        qso.power.isEmpty() ? QVariant() : qso.power,
+        qso.operatorName.isEmpty() ? QVariant() : qso.operatorName,
+        qso.ituZoneExchange.isEmpty() ? QVariant() : qso.ituZoneExchange,
         qso.operatorCall,
         qso.notes,
         qso.id
@@ -645,6 +660,12 @@ QSO QSORepository::qsoFromQuery(const QSqlQuery& query) const {
     }
 
     qso.serialNumber = query.value("serial_number").toInt();
+    qso.serialNumberReceived = query.value("serial_number_received").toInt();
+    qso.precedence = query.value("precedence").toString();
+    qso.check = query.value("sweepstakes_check").toString();
+    qso.power = query.value("power").toString();
+    qso.operatorName = query.value("operator_name").toString();
+    qso.ituZoneExchange = query.value("itu_zone_exchange").toString();
     qso.operatorCall = query.value("operator_call").toString();
     qso.deleted = query.value("deleted").toBool();
     qso.notes = query.value("notes").toString();
