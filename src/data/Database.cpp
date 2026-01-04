@@ -663,6 +663,85 @@ bool Database::migrateSchema() {
         LOG_INFO("Database", "Note: contest_type stores the registry ID for reliable contest loading");
     }
 
+    // Migration 8: Add exchange field columns to qsos table (v3.31.1)
+    // These columns store contest-specific exchange data
+    query.exec("PRAGMA table_info(qsos)");
+    bool hasSerialNumberReceived = false;
+    bool hasPrecedence = false;
+    bool hasSweepstakesCheck = false;
+    bool hasPower = false;
+    bool hasOperatorName = false;
+    bool hasItuZoneExchange = false;
+    while (query.next()) {
+        QString columnName = query.value(1).toString();
+        if (columnName == "serial_number_received") hasSerialNumberReceived = true;
+        if (columnName == "precedence") hasPrecedence = true;
+        if (columnName == "sweepstakes_check") hasSweepstakesCheck = true;
+        if (columnName == "power") hasPower = true;
+        if (columnName == "operator_name") hasOperatorName = true;
+        if (columnName == "itu_zone_exchange") hasItuZoneExchange = true;
+    }
+
+    if (!hasSerialNumberReceived) {
+        LOG_INFO("Database", "Migrating schema: Adding serial_number_received column to qsos table");
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN serial_number_received INTEGER DEFAULT 0")) {
+            m_lastError = QString("Failed to add serial_number_received column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+        LOG_INFO("Database", "serial_number_received column added successfully");
+    }
+
+    if (!hasPrecedence) {
+        LOG_INFO("Database", "Migrating schema: Adding precedence column to qsos table");
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN precedence TEXT")) {
+            m_lastError = QString("Failed to add precedence column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+        LOG_INFO("Database", "precedence column added (for Sweepstakes)");
+    }
+
+    if (!hasSweepstakesCheck) {
+        LOG_INFO("Database", "Migrating schema: Adding sweepstakes_check column to qsos table");
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN sweepstakes_check TEXT")) {
+            m_lastError = QString("Failed to add sweepstakes_check column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+        LOG_INFO("Database", "sweepstakes_check column added (for Sweepstakes)");
+    }
+
+    if (!hasPower) {
+        LOG_INFO("Database", "Migrating schema: Adding power column to qsos table");
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN power TEXT")) {
+            m_lastError = QString("Failed to add power column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+        LOG_INFO("Database", "power column added (for ARRL DX)");
+    }
+
+    if (!hasOperatorName) {
+        LOG_INFO("Database", "Migrating schema: Adding operator_name column to qsos table");
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN operator_name TEXT")) {
+            m_lastError = QString("Failed to add operator_name column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+        LOG_INFO("Database", "operator_name column added (for NAQP)");
+    }
+
+    if (!hasItuZoneExchange) {
+        LOG_INFO("Database", "Migrating schema: Adding itu_zone_exchange column to qsos table");
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN itu_zone_exchange TEXT")) {
+            m_lastError = QString("Failed to add itu_zone_exchange column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+        LOG_INFO("Database", "itu_zone_exchange column added (for IARU HF)");
+    }
+
     // Set application ID if not already set (for databases created before versioning)
     uint32_t currentAppId = getApplicationId();
     if (currentAppId == 0) {
