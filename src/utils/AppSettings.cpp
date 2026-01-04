@@ -243,6 +243,15 @@ QString AppSettings::getMyARRLSection() const {
     return m_settings.value("Station/arrlSection", "").toString();
 }
 
+void AppSettings::setMyCounty(const QString& county) {
+    m_settings.setValue("Station/county", county.toUpper());
+    m_settings.sync();
+}
+
+QString AppSettings::getMyCounty() const {
+    return m_settings.value("Station/county", "").toString();
+}
+
 void AppSettings::setComputerID(const QString& id) {
     m_settings.setValue("Network/computerID", id.toUpper());
     m_settings.sync();
