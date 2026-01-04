@@ -153,6 +153,9 @@ void GeneralLoggingContest::parseReceivedExchange(const QString& exchange, QSO& 
         // No RST pattern found, entire exchange is notes
         qso.notes = trimmed;
     }
+
+    // Format exchangeReceived (General Logging optionally includes RST)
+    formatExchangeReceived(exchange, qso);
 }
 
 } // namespace TR4QT

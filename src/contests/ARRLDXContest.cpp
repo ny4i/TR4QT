@@ -168,6 +168,9 @@ void ARRLDXContest::parseReceivedExchange(const QString& exchange, QSO& qso) con
         qso.state = "";
         qso.power = stateOrPower;
     }
+
+    // Format exchangeReceived with RST prepended (e.g., "599 FL" or "599 100")
+    formatExchangeReceived(exchange, qso);
 }
 
 int ARRLDXContest::calculateQSOPoints(

@@ -2466,24 +2466,17 @@ void MainWindow::onLogQSO() {
     qso.rstSent = RSTValidator::getDefault(qso.mode);
 
     // Parse exchange into QSO fields
+    // Contest class handles all exchange formatting including RST prepending
     if (m_activeContest) {
-        // Contest populates dedicated QSO fields directly
+        // Contest populates QSO fields AND sets qso.exchangeReceived
         m_activeContest->parseReceivedExchange(exchange, qso);
 
         // Set default RST if not populated by contest
         if (qso.rstReceived.isEmpty()) {
             qso.rstReceived = RSTValidator::getDefault(qso.mode);
         }
-
-        // Prepend RST to exchangeReceived if contest includes it
-        // This ensures the full exchange (RST + data) is stored for Cabrillo export
-        if (m_activeContest->includesRSTInReceivedExchange()) {
-            qso.exchangeReceived = qso.rstReceived + " " + exchange;
-        } else {
-            qso.exchangeReceived = exchange;  // No RST (e.g., NAQP: just name + state)
-        }
     } else {
-        // No active contest - use default RST based on mode
+        // No active contest - use defaults
         qso.rstReceived = RSTValidator::getDefault(qso.mode);
         qso.exchangeReceived = exchange;
     }

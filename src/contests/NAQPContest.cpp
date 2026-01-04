@@ -156,6 +156,9 @@ void NAQPContest::parseReceivedExchange(const QString& exchange, QSO& qso) const
             qso.state = parts.last().toUpper();
         }
     }
+
+    // Format exchangeReceived (NAQP does not include RST)
+    formatExchangeReceived(exchange, qso);
 }
 
 int NAQPContest::calculateQSOPoints(

@@ -206,6 +206,9 @@ void CQWPXContest::parseReceivedExchange(const QString& exchange, QSO& qso) cons
             qso.serialNumberReceived = first.toInt();  // Assume first is serial
         }
     }
+
+    // Format exchangeReceived with RST prepended (e.g., "599 001")
+    formatExchangeReceived(exchange, qso);
 }
 
 int CQWPXContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) const {

@@ -168,6 +168,9 @@ void ARRLRTTYRoundupContest::parseReceivedExchange(const QString& exchange, QSO&
         qso.state = stateOrSerial.toUpper();
         qso.serialNumberReceived = 0;
     }
+
+    // Format exchangeReceived with RST prepended (e.g., "599 FL" or "599 001")
+    formatExchangeReceived(exchange, qso);
 }
 
 int ARRLRTTYRoundupContest::calculateQSOPoints(

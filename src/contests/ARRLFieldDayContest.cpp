@@ -179,6 +179,9 @@ void ARRLFieldDayContest::parseReceivedExchange(const QString& exchange, QSO& qs
     if (parsed.contains("Section")) {
         qso.arrlSection = parsed["Section"];
     }
+
+    // Format exchangeReceived (Field Day does not include RST)
+    formatExchangeReceived(exchange, qso);
 }
 
 int ARRLFieldDayContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) const {

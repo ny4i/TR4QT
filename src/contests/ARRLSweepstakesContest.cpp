@@ -161,6 +161,9 @@ void ARRLSweepstakesContest::parseReceivedExchange(const QString& exchange, QSO&
     if (parsed.contains("Section")) {
         qso.arrlSection = parsed["Section"];
     }
+
+    // Format exchangeReceived (Sweepstakes does not include RST)
+    formatExchangeReceived(exchange, qso);
 }
 
 // ===== Scoring =====

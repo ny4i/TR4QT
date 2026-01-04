@@ -238,6 +238,9 @@ void CQWWContest::parseReceivedExchange(const QString& exchange, QSO& qso) const
             qso.cqZone = first.toInt();  // Assume first is zone
         }
     }
+
+    // Format exchangeReceived with RST prepended (e.g., "599 14")
+    formatExchangeReceived(exchange, qso);
 }
 
 int CQWWContest::calculateQSOPoints(

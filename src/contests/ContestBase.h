@@ -6,11 +6,11 @@
 #include <QDateTime>
 #include "../core/Types.h"
 #include "../models/StationInfo.h"
+#include "../models/QSO.h"
 
 namespace TR4QT {
 
 // Forward declarations
-struct QSO;
 class CountryFile;
 
 /**
@@ -177,10 +177,29 @@ public:
      * Parse received exchange and populate QSO fields
      * Populates dedicated QSO fields (arrlSection, serialNumber, contestClass, state, rstReceived)
      * and qso.parsedExchange only for contest-specific fields without dedicated members
-     * @param exchange Raw exchange string
+     *
+     * IMPORTANT: Must also set qso.exchangeReceived with complete exchange for Cabrillo export
+     * - If contest includes RST: prepend rstReceived (e.g., "599 005")
+     * - If no RST: use raw exchange (e.g., "DAVE CT" for NAQP)
+     *
+     * @param exchange Raw exchange string (without RST)
      * @param qso QSO object to populate
      */
     virtual void parseReceivedExchange(const QString& exchange, QSO& qso) const = 0;
+
+    /**
+     * Helper: Format exchangeReceived with RST if contest includes it
+     * Call this at the end of parseReceivedExchange() to set qso.exchangeReceived
+     * @param exchange Raw exchange string (without RST)
+     * @param qso QSO object (must have rstReceived already set)
+     */
+    void formatExchangeReceived(const QString& exchange, QSO& qso) const {
+        if (includesRSTInReceivedExchange()) {
+            qso.exchangeReceived = qso.rstReceived + " " + exchange;
+        } else {
+            qso.exchangeReceived = exchange;
+        }
+    }
 
     /**
      * Validate if a mode is allowed for this contest
