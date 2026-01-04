@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.31.9";  // Add K4 Option Module Info (OM command) to pre-flight checks
+constexpr const char* APP_VERSION = "3.31.10";  // Add logging for grayline map NASA image loading
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

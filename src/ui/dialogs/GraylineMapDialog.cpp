@@ -1,6 +1,7 @@
 #include "GraylineMapDialog.h"
 #include "../../utils/GeographicUtils.h"
 #include "../../utils/ThemeManager.h"
+#include "../../logging/LogMacros.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -181,6 +182,9 @@ void GraylineMapDialog::drawWorldMap() {
     QPixmap mapImage(":/maps/nasabluemarble.jpg");
 
     if (!mapImage.isNull()) {
+        LOG_DEBUG("GraylineMap", QString("NASA Blue Marble map loaded successfully (size: %1x%2)")
+            .arg(mapImage.width()).arg(mapImage.height()));
+
         // Scale the map image to fit the scene dimensions
         QPixmap scaledMap = mapImage.scaled(MAP_WIDTH, MAP_HEIGHT, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 
@@ -190,6 +194,8 @@ void GraylineMapDialog::drawWorldMap() {
         mapItem->setZValue(-1);  // Place map behind all other items
     } else {
         // Fallback to ocean background if image fails to load
+        // NOTE: If this occurs, verify Qt imageformats plugins are deployed (qjpeg.dll, etc.)
+        LOG_WARN("GraylineMap", "Failed to load NASA Blue Marble map from resources (:/maps/nasabluemarble.jpg), using ocean background fallback - check imageformats plugins");
         QBrush oceanBrush(COLOR_OCEAN);
         m_scene->setBackgroundBrush(oceanBrush);
     }
