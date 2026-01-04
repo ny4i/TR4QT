@@ -158,6 +158,15 @@ public:
     virtual bool validateReceivedExchange(const QString& exchange, QString& errorMsg) const = 0;
 
     /**
+     * Does this contest include RST in the received exchange?
+     * If true, RST will be prepended to exchangeReceived when logging QSO
+     * @return true if RST should be prepended (default: true for most contests)
+     */
+    virtual bool includesRSTInReceivedExchange() const {
+        return true;  // Default: most contests include RST
+    }
+
+    /**
      * Parse received exchange and populate QSO fields
      * Populates dedicated QSO fields (arrlSection, serialNumber, contestClass, state, rstReceived)
      * and qso.parsedExchange only for contest-specific fields without dedicated members
