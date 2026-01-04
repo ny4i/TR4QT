@@ -39,6 +39,10 @@
 
 namespace TR4QT {
 
+// K4 default rigctld port (Elecraft K4 specific)
+// K3/K4 radios typically use port 9200 for hamlib control
+static constexpr int K4_DEFAULT_RIGCTLD_PORT = 9200;
+
 PreferencesDialog::PreferencesDialog(QWidget* parent)
     : QDialog(parent)
     , m_k4Discovery(new K4Discovery(this))
@@ -2532,7 +2536,7 @@ void PreferencesDialog::onK4DiscoveryFinished(int count) {
 
                 if (reply == QMessageBox::Yes) {
                     m_ipAddressEdit->setText(m_foundK4Radios.first().ipAddress);
-                    m_portSpin->setValue(4532);  // Default K4 rigctld port
+                    m_portSpin->setValue(K4_DEFAULT_RIGCTLD_PORT);  // K4 uses port 9200
                 }
             } else {
                 // Multiple K4s found - let user select which one
@@ -2559,7 +2563,7 @@ void PreferencesDialog::onK4DiscoveryFinished(int count) {
                     int index = radioOptions.indexOf(selection);
                     if (index >= 0 && index < m_foundK4Radios.count()) {
                         m_ipAddressEdit->setText(m_foundK4Radios[index].ipAddress);
-                        m_portSpin->setValue(4532);  // Default K4 rigctld port
+                        m_portSpin->setValue(K4_DEFAULT_RIGCTLD_PORT);  // K4 uses port 9200
                     }
                 }
             }
