@@ -1963,6 +1963,35 @@ void MainWindow::onExportADIF() {
         return;
     }
 
+    // Run full integrity check before export (all issues)
+    if (m_hasActiveContest) {
+        QString integrityReport = fullIntegrityCheck(false);  // Check all issues
+
+        // Check if there are any critical issues in the report
+        if (integrityReport.contains("✗ CRITICAL ISSUES DETECTED")) {
+            QMessageBox::StandardButton reply = DialogHelper::warning(
+                this,
+                "Data Integrity Warning",
+                "Log integrity check found CRITICAL issues!\n\n"
+                "Exporting may result in incomplete or incorrect data.\n\n"
+                "View integrity report?",
+                QMessageBox::Yes | QMessageBox::No,
+                QMessageBox::Yes);
+
+            if (reply == QMessageBox::Yes) {
+                // Show full report
+                DialogHelper::information(this, "Integrity Check Report", integrityReport);
+                return;  // Abort export so user can fix issues
+            }
+        } else if (integrityReport.contains("ℹ INFO:")) {
+            // Informational issues only - just log them, don't block export
+            LOG_INFO("MainWindow", QString("Pre-export ADIF integrity check found informational issues:\n%1")
+                .arg(integrityReport));
+        } else {
+            LOG_INFO("MainWindow", "Pre-export ADIF integrity check passed");
+        }
+    }
+
     // Generate ADIF content
     ADIFExporter exporter;
     QString operatorCall = AppSettings::instance().getMyCallsign();
@@ -1998,24 +2027,32 @@ void MainWindow::onExportCabrillo() {
         return;
     }
 
-    // Tier 4: Run integrity check before export
+    // Run full integrity check before export (all issues)
     if (m_hasActiveContest) {
-        if (!quickIntegrityCheck()) {
+        QString integrityReport = fullIntegrityCheck(false);  // Check all issues
+
+        // Check if there are any critical issues in the report
+        if (integrityReport.contains("✗ CRITICAL ISSUES DETECTED")) {
             QMessageBox::StandardButton reply = DialogHelper::warning(
                 this,
                 "Data Integrity Warning",
-                "Log integrity check failed!\n\n"
-                "There is a mismatch between memory and database.\n"
+                "Log integrity check found CRITICAL issues!\n\n"
                 "Exporting may result in incomplete or incorrect data.\n\n"
-                "Continue with export anyway?",
+                "View integrity report?",
                 QMessageBox::Yes | QMessageBox::No,
-                QMessageBox::No);
+                QMessageBox::Yes);
 
-            if (reply == QMessageBox::No) {
-                return;  // Abort export
+            if (reply == QMessageBox::Yes) {
+                // Show full report
+                DialogHelper::information(this, "Integrity Check Report", integrityReport);
+                return;  // Abort export so user can fix issues
             }
+        } else if (integrityReport.contains("ℹ INFO:")) {
+            // Informational issues only - just log them, don't block export
+            LOG_INFO("MainWindow", QString("Pre-export Cabrillo integrity check found informational issues:\n%1")
+                .arg(integrityReport));
         } else {
-            LOG_INFO("MainWindow", "Pre-export integrity check passed");
+            LOG_INFO("MainWindow", "Pre-export Cabrillo integrity check passed");
         }
     }
 
@@ -3818,12 +3855,13 @@ void MainWindow::onFullIntegrityCheck() {
     m_statusLabel->setText("Integrity check complete");
 }
 
-QString MainWindow::fullIntegrityCheck() {
+QString MainWindow::fullIntegrityCheck(bool criticalOnly) {
     QString report;
     report += "=== LOG INTEGRITY CHECK REPORT ===\n\n";
     report += QString("Contest: %1\n").arg(m_currentContest.contestName);
     report += QString("Database: %1\n").arg(m_currentContest.databasePath);
     report += QString("Check time: %1\n\n").arg(QDateTime::currentDateTime().toString(Qt::ISODate));
+    report += QString("Mode: %1\n\n").arg(criticalOnly ? "Critical issues only" : "All issues (critical + informational)");
 
     int memoryCount = m_qsoTableModel->count();
     Database& db = Database::instance();
@@ -3946,35 +3984,101 @@ QString MainWindow::fullIntegrityCheck() {
             .arg(fieldMismatches);
     }
 
-    // TODO: Check 5: Detect QSOs with Unknown/None band
-    // Query database for QSOs where band = 'Unknown' or band = 'None'
-    // These should never exist (prevented by validation in onLogQSO since v3.30.0)
-    // but check anyway in case something slips through or data corruption occurs
-    // If found:
-    //   - Report callsign, timestamp, and ID
-    //   - Suggest user manually edit these QSOs to set correct band
-    //   - Or offer to delete them if they can't be fixed
-    // Example query:
-    //   SELECT id, callsign, timestamp, band FROM qsos
-    //   WHERE contest_id = ? AND deleted = 0
-    //   AND (band = 'Unknown' OR band = 'None' OR band = '')
+    // Check 5: Detect QSOs with Unknown/None band (CRITICAL)
+    QSqlQuery unknownBandQuery = db.execute(
+        "SELECT id, callsign, timestamp, band FROM qsos "
+        "WHERE contest_id = ? AND deleted = 0 "
+        "AND (band = 'Unknown' OR band = 'None' OR band = '')",
+        {m_currentContestDbId});
+
+    QStringList unknownBands;
+    while (unknownBandQuery.next()) {
+        int id = unknownBandQuery.value(0).toInt();
+        QString callsign = unknownBandQuery.value(1).toString();
+        QString timestamp = unknownBandQuery.value(2).toString();
+        QString band = unknownBandQuery.value(3).toString();
+        unknownBands.append(QString("ID=%1: %2 at %3 (band='%4')")
+            .arg(id).arg(callsign).arg(timestamp).arg(band));
+    }
+
+    if (unknownBands.isEmpty()) {
+        report += "✓ No QSOs with Unknown/None band\n\n";
+    } else {
+        report += QString("✗ CRITICAL: %1 QSOs with Unknown/None band:\n")
+            .arg(unknownBands.size());
+        for (const QString& item : unknownBands) {
+            report += QString("  - %1\n").arg(item);
+        }
+        report += "  Recommendation: Manually edit these QSOs to set correct band\n\n";
+    }
+
+    // Check 6: Detect lowercase data in critical fields (INFORMATIONAL)
+    // This is non-critical but indicates data entry inconsistency
+    if (!criticalOnly) {
+        QSqlQuery lowercaseQuery = db.execute(
+            "SELECT id, callsign, rstSent, rstReceived, exchangeSent, exchangeReceived "
+            "FROM qsos WHERE contest_id = ? AND deleted = 0",
+            {m_currentContestDbId});
+
+        QStringList lowercaseIssues;
+        while (lowercaseQuery.next()) {
+            int id = lowercaseQuery.value(0).toInt();
+            QString callsign = lowercaseQuery.value(1).toString();
+            QString rstSent = lowercaseQuery.value(2).toString();
+            QString rstReceived = lowercaseQuery.value(3).toString();
+            QString exchangeSent = lowercaseQuery.value(4).toString();
+            QString exchangeReceived = lowercaseQuery.value(5).toString();
+
+            QStringList fields;
+            if (callsign != callsign.toUpper()) fields << "callsign";
+            if (rstSent != rstSent.toUpper()) fields << "rstSent";
+            if (rstReceived != rstReceived.toUpper()) fields << "rstReceived";
+            if (exchangeSent != exchangeSent.toUpper()) fields << "exchangeSent";
+            if (exchangeReceived != exchangeReceived.toUpper()) fields << "exchangeReceived";
+
+            if (!fields.isEmpty()) {
+                lowercaseIssues.append(QString("ID=%1: %2 (%3)")
+                    .arg(id).arg(callsign).arg(fields.join(", ")));
+            }
+        }
+
+        if (lowercaseIssues.isEmpty()) {
+            report += "✓ All text fields are uppercase\n\n";
+        } else {
+            report += QString("ℹ INFO: %1 QSOs with lowercase data:\n")
+                .arg(lowercaseIssues.size());
+            // Limit to first 10 to avoid overwhelming output
+            int displayed = qMin(10, lowercaseIssues.size());
+            for (int i = 0; i < displayed; i++) {
+                report += QString("  - %1\n").arg(lowercaseIssues[i]);
+            }
+            if (lowercaseIssues.size() > 10) {
+                report += QString("  ... and %1 more\n").arg(lowercaseIssues.size() - 10);
+            }
+            report += "  Note: This is informational only. Uppercase validation added in v3.30.0.\n\n";
+        }
+    }
 
     // Summary
     report += "=== SUMMARY ===\n";
-    bool allPassed = (memoryCount == dbCount) &&
-                     missingInDB.isEmpty() &&
-                     orphanedInDB.isEmpty() &&
-                     (fieldMismatches == 0);
+    bool criticalIssues = (memoryCount != dbCount) ||
+                          !missingInDB.isEmpty() ||
+                          !orphanedInDB.isEmpty() ||
+                          (fieldMismatches > 0) ||
+                          !unknownBands.isEmpty();
 
-    if (allPassed) {
-        report += "✓ ALL CHECKS PASSED - Log integrity verified\n";
+    if (!criticalIssues) {
+        report += "✓ ALL CRITICAL CHECKS PASSED - Log integrity verified\n";
+        if (!criticalOnly) {
+            report += "  (Informational checks may have reported non-critical issues above)\n";
+        }
     } else {
-        report += "✗ ISSUES DETECTED - See details above\n";
+        report += "✗ CRITICAL ISSUES DETECTED - See details above\n";
         report += "\nRecommendation: Consider reloading contest from database\n";
     }
 
     LOG_INFO("MainWindow", QString("Full integrity check: %1")
-        .arg(allPassed ? "PASSED" : "FAILED"));
+        .arg(!criticalIssues ? "PASSED" : "FAILED"));
 
     return report;
 }
