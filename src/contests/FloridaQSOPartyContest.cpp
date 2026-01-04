@@ -333,6 +333,9 @@ void FloridaQSOPartyContest::parseReceivedExchange(const QString& exchange, QSO&
         qso.state = upper;  // Store as-is in state field
         qso.county = "";
     }
+
+    // Format exchangeReceived with RST prepended (e.g., "599 PAL" or "599 GA")
+    formatExchangeReceived(exchange, qso);
 }
 
 // ===== Scoring =====

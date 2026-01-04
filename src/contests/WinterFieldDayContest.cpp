@@ -179,6 +179,9 @@ void WinterFieldDayContest::parseReceivedExchange(const QString& exchange, QSO& 
     if (parsed.contains("Section")) {
         qso.arrlSection = parsed["Section"];
     }
+
+    // Format exchangeReceived (Winter Field Day does not include RST)
+    formatExchangeReceived(exchange, qso);
 }
 
 bool WinterFieldDayContest::isValidMode(ModeType mode, QString& errorMsg) const {

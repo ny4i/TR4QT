@@ -299,6 +299,9 @@ void IARUHFContest::parseReceivedExchange(const QString& exchange, QSO& qso) con
             qso.ituZone = zone;
         }
     }
+
+    // Format exchangeReceived with RST prepended (e.g., "599 46" or "599 HQ")
+    formatExchangeReceived(exchange, qso);
 }
 
 int IARUHFContest::calculateQSOPoints(
