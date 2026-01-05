@@ -25,6 +25,7 @@ set(SOURCES
     utils/ThemeManager.cpp
     radio/HamlibRadio.cpp
     radio/K4Radio.cpp
+    radio/RadioFactory.cpp
     radio/RadioController.cpp
     radio/RadioPreflightHelper.cpp
     network/TelnetClient.cpp
@@ -118,6 +119,7 @@ set(HEADERS
     radio/RadioInterface.h
     radio/HamlibRadio.h
     radio/K4Radio.h
+    radio/RadioFactory.h
     radio/RadioController.h
     radio/RadioPreflightHelper.h
     network/TelnetClient.h

@@ -1,4 +1,5 @@
 #include "RadioController.h"
+#include "RadioFactory.h"
 #include "RadioPreflightHelper.h"
 #include "../logging/LogMacros.h"
 #include <QMutexLocker>
@@ -10,8 +11,11 @@ RadioController::RadioController(QObject* parent)
     , m_radio(nullptr)
     , m_connected(false)
 {
-    // Create HamlibRadio (will be moved to worker thread)
-    m_radio = new HamlibRadio();
+    // Create radio using RadioFactory (defaults to Hamlib for backward compatibility)
+    // TODO: Add support for runtime radio type switching via config.radioType
+    RadioConfig defaultConfig;
+    defaultConfig.radioType = static_cast<int>(RadioFactory::RadioType::HAMLIB);
+    m_radio = RadioFactory::createRadio(RadioFactory::RadioType::HAMLIB, defaultConfig);
 
     // Move to worker thread (QTimer moves with it as a child object)
     m_radio->moveToThread(&m_workerThread);
