@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.31.11] - 2026-01-04
+
+### Fixed
+- **Radio Disconnect Detection**: Radio now properly detected as disconnected after 3 consecutive poll failures
+  - HamlibRadio tracks consecutive errors in `pollRadio()`
+  - Emits `connectionStatusChanged(false)` after 3 failures
+  - Stops poll timer and sets `m_connected = false`
+  - Files: `src/radio/HamlibRadio.cpp`
+- **Auto-reconnect Reliability**: Removed 10-attempt reconnect limit
+  - Previously stopped after 100 seconds (10 attempts × 10 seconds)
+  - Now retries indefinitely until reconnected or user clicks Disconnect
+  - Critical for K4 with ~20 second boot time
+  - Files: `src/ui/MainWindow.cpp`
+- **Pre-flight Reconnect Timer**: Pre-flight failures now restart reconnect timer
+  - `onRadioError()` now restarts timer when auto-reconnect enabled and disconnected
+  - Prevents reconnect attempts from stopping after pre-flight failures
+  - Files: `src/ui/MainWindow.cpp`
+- **CI/Local Version Parity**: Fixed critical issue where CI builds used different Qt version than local development
+  - **Root cause**: Windows CI used Qt 6.7.2, macOS CI used Homebrew qt@6 (6.7.2), local dev used Qt 6.10.1
+  - **Symptom**: QSO grid didn't populate, radio indicator flashed black instead of red in CI-built releases
+  - **Solution**: Both Windows and macOS CI now use Qt 6.10.1 via `jurplel/install-qt-action`
+  - Files: `.github/workflows/build.yml`
+- **Version Validation Regex**: Fixed Windows Git Bash compatibility
+  - Changed from `grep -P` (Perl regex) to `grep -E` (extended regex)
+  - Windows Git Bash doesn't support `-P` flag, causing CI builds to fail
+  - Files: `.github/workflows/build.yml`
+
+### Added
+- **RadioPreflightHelper**: Extracted pre-flight logic from RadioController "god class"
+  - Two-mode architecture: `generalPreflight()` for TCP connectivity, `radioSpecificPreflight()` for radio-specific verification
+  - K4-specific verification: sends `ID;` command to verify K4/K4D/K4HD model
+  - K4 option module detection: sends `OM;` command and logs detected modules (KPA1500, P3, etc.)
+  - Properly handles KPA1500 vs generic linear amp (KPA1500 supersedes generic)
+  - Files: `src/radio/RadioPreflightHelper.h`, `src/radio/RadioPreflightHelper.cpp`
+- **Version Validation System**: Prevents "works on my machine" issues
+  - `VERSION_REQUIREMENTS.md`: Single source of truth for Qt/Hamlib versions
+  - `scripts/check-versions.sh`: Local version validation script with tolerance levels
+  - CI validation steps: Fail build if Qt version doesn't match expected version
+  - Files: `VERSION_REQUIREMENTS.md`, `scripts/check-versions.sh`, `.github/workflows/build.yml`
+- **CLAUDE.md Documentation**: Added version parity enforcement section
+  - Documents the v3.31.10 failure (QSO grid not populating)
+  - Explains enforcement mechanisms (CI validation, local script)
+  - Applies principle to ALL projects, not just TR4QT
+  - Files: `CLAUDE.md`
+
+### Changed
+- **macOS CI Qt Installation**: Changed from Homebrew to jurplel/install-qt-action
+  - **Before**: `brew install qt@6` (installed Qt 6.7.2)
+  - **After**: `jurplel/install-qt-action` with explicit `QT_VERSION: 6.10.1`
+  - Ensures version parity between Windows and macOS CI builds
+  - Updated macdeployqt and TLS plugin paths to use `QT_ROOT_DIR`
+  - Files: `.github/workflows/build.yml`
+- **RadioController Pre-flight**: Now delegates to RadioPreflightHelper
+  - Removed 70+ line `isRadioReachable()` static function
+  - Cleaner separation of concerns, easier to add new radio models
+  - Files: `src/radio/RadioController.cpp`
+
+### Impact
+- Radio disconnect/reconnect now works reliably (no more confusing flashing indicators)
+- K4 auto-reconnect succeeds even with long boot times (20+ seconds)
+- CI-built releases now behave identically to local builds (same Qt version)
+- Version mismatches caught early in CI builds (fail fast with clear error)
+- Users downloading releases get builds matching developer environment
+
+### Technical Details
+- RadioPreflightHelper uses TCP socket for general checks, Hamlib for radio-specific verification
+- Version validation runs after CMake configure, before build step
+- macOS bundle step now conditional on Homebrew dependencies (may not be needed with install-qt-action)
+- CI builds include automated version validation that fails build on mismatch
+
 ## [3.28.1] - 2026-01-02
 
 ### Fixed
