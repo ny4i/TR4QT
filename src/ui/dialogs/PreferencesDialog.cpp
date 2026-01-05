@@ -288,6 +288,37 @@ QWidget* PreferencesDialog::createRadioTab() {
 
     layout->addWidget(modelGroup);
 
+    // Radio Interface Type (RadioFactory selection)
+    QGroupBox* interfaceGroup = new QGroupBox("Radio Interface", this);
+    QFormLayout* interfaceLayout = new QFormLayout(interfaceGroup);
+
+    m_radioTypeCombo = new QComboBox(this);
+    m_radioTypeCombo->addItem("Auto (Recommended)", -1);           // -1 = Auto
+    m_radioTypeCombo->addItem("Hamlib (Universal)", 0);            // 0 = HAMLIB
+    m_radioTypeCombo->addItem("K4 Direct (K4 only, 5-10x faster)", 1);  // 1 = K4_DIRECT
+    m_radioTypeCombo->setCurrentIndex(0);  // Default to Auto
+
+    // Tooltip explaining the options
+    m_radioTypeCombo->setToolTip(
+        "Auto: Automatically selects the best interface for your radio (K4 Direct for K4, Hamlib for others)\n"
+        "Hamlib: Universal compatibility, works with all radios\n"
+        "K4 Direct: Direct TCP control for Elecraft K4 (5-10x faster than Hamlib, requires K4/K4D/K4HD)"
+    );
+
+    interfaceLayout->addRow("Type:", m_radioTypeCombo);
+
+    // Add explanatory label
+    QLabel* infoLabel = new QLabel(
+        "<small><i>K4 Direct provides 5-10x faster radio control for Elecraft K4 radios.<br>"
+        "For all other radios, Hamlib is used automatically.</i></small>",
+        this
+    );
+    infoLabel->setWordWrap(true);
+    infoLabel->setStyleSheet("color: #666;");
+    interfaceLayout->addRow("", infoLabel);
+
+    layout->addWidget(interfaceGroup);
+
     // Connection type
     QGroupBox* connectionGroup = new QGroupBox("Connection Type", this);
     QVBoxLayout* connectionLayout = new QVBoxLayout(connectionGroup);
@@ -1412,6 +1443,14 @@ void PreferencesDialog::loadSettings() {
         m_civAddressWidget->setCivAddress(config.civAddress);
 
         m_pollIntervalSpin->setValue(config.pollInterval);
+
+        // Set radio type (find combo index by data value)
+        int radioTypeIndex = m_radioTypeCombo->findData(config.radioType);
+        if (radioTypeIndex >= 0) {
+            m_radioTypeCombo->setCurrentIndex(radioTypeIndex);
+        } else {
+            m_radioTypeCombo->setCurrentIndex(0);  // Default to Auto if not found
+        }
     }
 
     m_autoConnectCheck->setChecked(settings.getRadioAutoConnect());
@@ -1571,6 +1610,9 @@ void PreferencesDialog::saveSettings() {
     config.civAddress = m_civAddressWidget->getCivAddress();
 
     config.pollInterval = m_pollIntervalSpin->value();
+
+    // Save radio type selection (-1=Auto, 0=Hamlib, 1=K4_DIRECT)
+    config.radioType = m_radioTypeCombo->currentData().toInt();
 
     settings.saveRadioConfig(config);
     settings.setRadioAutoConnect(m_autoConnectCheck->isChecked());

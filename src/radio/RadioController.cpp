@@ -9,10 +9,10 @@ namespace TR4QT {
 RadioController::RadioController(QObject* parent)
     : QObject(parent)
     , m_radio(nullptr)
+    , m_currentRadioType(0)  // Default to Hamlib
     , m_connected(false)
 {
     // Create radio using RadioFactory (defaults to Hamlib for backward compatibility)
-    // TODO: Add support for runtime radio type switching via config.radioType
     RadioConfig defaultConfig;
     defaultConfig.radioType = static_cast<int>(RadioFactory::RadioType::HAMLIB);
     m_radio = RadioFactory::createRadio(RadioFactory::RadioType::HAMLIB, defaultConfig);
@@ -20,6 +20,14 @@ RadioController::RadioController(QObject* parent)
     // Move to worker thread (QTimer moves with it as a child object)
     m_radio->moveToThread(&m_workerThread);
 
+    // Connect radio signals
+    connectRadioSignals();
+
+    // Start worker thread
+    m_workerThread.start();
+}
+
+void RadioController::connectRadioSignals() {
     // Connect signals from radio (worker thread) to our signals (for UI)
     // Qt automatically uses QueuedConnection for cross-thread signals
     connect(m_radio, &RadioInterface::connectionStatusChanged,
@@ -62,9 +70,48 @@ RadioController::RadioController(QObject* parent)
     // Clean up radio when thread finishes
     connect(&m_workerThread, &QThread::finished,
             m_radio, &QObject::deleteLater);
+}
 
-    // Start worker thread
-    m_workerThread.start();
+void RadioController::recreateRadio(int radioType, const RadioConfig& config) {
+    LOG_INFO("RadioController", QString("Recreating radio with type %1").arg(radioType));
+
+    // Disconnect old radio
+    if (m_radio) {
+        // Disconnect in worker thread
+        QMetaObject::invokeMethod(m_radio, [this]() {
+            static_cast<RadioInterface*>(m_radio)->disconnect();
+        }, Qt::BlockingQueuedConnection);
+
+        // Disconnect signals
+        QObject::disconnect(m_radio, nullptr, this, nullptr);
+
+        // Delete old radio (will be deleted when thread processes deleteLater)
+        m_radio->deleteLater();
+        m_radio = nullptr;
+    }
+
+    // Determine actual radio type to create
+    RadioFactory::RadioType factoryType;
+    if (radioType == -1) {
+        // Auto: Use recommendedTypeForModel
+        factoryType = RadioFactory::recommendedTypeForModel(config.hamlibModelId);
+        LOG_INFO("RadioController", QString("Auto mode selected recommended type: %1")
+                 .arg(RadioFactory::radioTypeName(factoryType)));
+    } else {
+        factoryType = static_cast<RadioFactory::RadioType>(radioType);
+    }
+
+    // Create new radio with RadioFactory
+    m_radio = RadioFactory::createRadio(factoryType, config);
+    m_currentRadioType = radioType;
+
+    // Move to worker thread
+    m_radio->moveToThread(&m_workerThread);
+
+    // Reconnect signals
+    connectRadioSignals();
+
+    LOG_INFO("RadioController", "Radio recreation complete");
 }
 
 RadioController::~RadioController() {
@@ -158,11 +205,19 @@ bool RadioController::supportsCWSending() const {
 }
 
 void RadioController::connectToRadio(const RadioConfig& config) {
-    LOG_DEBUG("RadioController", QString("connectToRadio called with model %1 port %2").arg(config.hamlibModelId).arg(config.port));
+    LOG_DEBUG("RadioController", QString("connectToRadio called with model %1 port %2 radioType %3")
+              .arg(config.hamlibModelId).arg(config.port).arg(config.radioType));
 
     // CRITICAL: Reset shutdown flag before new connection attempt
     // This flag is set during disconnectFromRadio() and must be cleared for new connections
     m_shutdownRequested.store(false);
+
+    // Check if radio type has changed - if so, recreate radio with new type
+    if (config.radioType != m_currentRadioType) {
+        LOG_INFO("RadioController", QString("Radio type changed from %1 to %2, recreating radio")
+                 .arg(m_currentRadioType).arg(config.radioType));
+        recreateRadio(config.radioType, config);
+    }
 
     // Pre-flight check: If this is a network connection (host:port format),
     // verify the radio is reachable BEFORE attempting Hamlib connection.

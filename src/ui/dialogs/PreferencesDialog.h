@@ -134,6 +134,7 @@ private:
     QLineEdit* m_operatorEdit;
 
     // Radio tab widgets (from RadioConfigDialog)
+    QComboBox* m_radioTypeCombo;        // Radio interface type (Auto/Hamlib/K4 Direct)
     QComboBox* m_radioModelCombo;
     QLineEdit* m_customModelEdit;
     QCheckBox* m_showStableRadiosCheck;

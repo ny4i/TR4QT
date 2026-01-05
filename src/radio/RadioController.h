@@ -54,8 +54,12 @@ signals:
     void radioModelChanged(const QString& model);
 
 private:
+    void recreateRadio(int radioType, const RadioConfig& config);
+    void connectRadioSignals();
+
     QThread m_workerThread;
     RadioInterface* m_radio;  // Lives in worker thread (created by RadioFactory)
+    int m_currentRadioType;   // Current radio type (-1=Auto, 0=Hamlib, 1=K4_DIRECT)
     mutable QMutex m_stateMutex;
     RadioState m_lastState;
     bool m_connected;
