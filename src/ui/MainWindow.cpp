@@ -22,6 +22,7 @@
 #include "../utils/ThemeManager.h"
 #include "../utils/DialogHelper.h"
 #include "../utils/AppSettings.h"
+#include "../utils/PerformanceProfiler.h"
 #include "../utils/ADIFExporter.h"
 #include "../utils/CabrilloExporter.h"
 #include "../utils/CallsignValidator.h"
@@ -623,6 +624,9 @@ void MainWindow::createMenuBar() {
     QMenu* helpMenu = menuBar->addMenu("&Help");
     QAction* aboutAction = helpMenu->addAction("&About");
     connect(aboutAction, &QAction::triggered, this, &MainWindow::onAbout);
+
+    QAction* perfReportAction = helpMenu->addAction("Show Performance Report...");
+    connect(perfReportAction, &QAction::triggered, this, &MainWindow::onShowPerformanceReport);
 
     QAction* emailLogsAction = helpMenu->addAction("Email Logs to Support...");
     connect(emailLogsAction, &QAction::triggered, this, &MainWindow::onEmailLogsToSupport);
@@ -1535,6 +1539,26 @@ void MainWindow::onAbout() {
                                "</ul>")
                            .arg(APP_NAME)
                            .arg(APP_VERSION));
+}
+
+void MainWindow::onShowPerformanceReport() {
+    QString report = PerformanceProfiler::instance().generateReport();
+
+    // Log the report
+    LOG_INFO("MainWindow", "\n" + report);
+
+    // Show in a dialog
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle("Radio Performance Report");
+    msgBox.setText("Performance comparison between K4 Direct and Hamlib interfaces:");
+    msgBox.setDetailedText(report);
+    msgBox.setIcon(QMessageBox::Information);
+    msgBox.setStandardButtons(QMessageBox::Ok);
+
+    // Make the dialog larger to show more text
+    msgBox.setStyleSheet("QTextEdit { min-width: 600px; min-height: 400px; }");
+
+    msgBox.exec();
 }
 
 void MainWindow::onEmailLogsToSupport() {

@@ -32,44 +32,43 @@ public:
     explicit K4Radio(QObject* parent = nullptr);
     ~K4Radio() override;
 
-    // RadioInterface implementation
+public slots:
+    // DEBUG: Test slot to verify signal/slot mechanism works
+    void debugTestSlot(int testValue);
+
+    // RadioInterface slot overrides (must be in slots section for MOC)
     bool connect(const RadioConfig& config) override;
     void disconnect() override;
-    bool isConnected() const override;
 
     bool setFrequency(freq_t freq, VFO vfo = VFO::VFO_A) override;
-    freq_t getFrequency(VFO vfo = VFO::VFO_A) const override;
-
     bool setMode(ModeType mode, VFO vfo = VFO::VFO_A) override;
-    ModeType getMode(VFO vfo = VFO::VFO_A) const override;
-
     bool setPTT(bool transmit) override;
-    bool getPTT() const override;
-
     bool sendCW(const QString& text) override;
     bool setCWSpeed(int wpm) override;
-    int getCWSpeed() const override;
     bool stopCW() override;
     bool waitForMorseComplete() override;
-
     bool setRIT(int offset_hz, VFO vfo = VFO::VFO_A) override;
     bool setXIT(int offset_hz, VFO vfo = VFO::VFO_A) override;
-    int getRIT(VFO vfo = VFO::VFO_A) const override;
-    int getXIT(VFO vfo = VFO::VFO_A) const override;
     bool clearRIT(VFO vfo = VFO::VFO_A) override;
     bool clearXIT(VFO vfo = VFO::VFO_A) override;
     bool enableRIT(bool enable, VFO vfo = VFO::VFO_A) override;
     bool enableXIT(bool enable, VFO vfo = VFO::VFO_A) override;
-
     bool setSplit(bool enable, VFO txVfo = VFO::VFO_B) override;
-    bool getSplit() const override;
-
     bool vfoBumpUp(VFO vfo = VFO::VFO_A) override;
     bool vfoBumpDown(VFO vfo = VFO::VFO_A) override;
-
     bool setFilterWidth(int width_hz) override;
-    int getFilterWidth() const override;
 
+public:
+    // Query methods (const, not slots)
+    bool isConnected() const override;
+    freq_t getFrequency(VFO vfo = VFO::VFO_A) const override;
+    ModeType getMode(VFO vfo = VFO::VFO_A) const override;
+    bool getPTT() const override;
+    int getCWSpeed() const override;
+    int getRIT(VFO vfo = VFO::VFO_A) const override;
+    int getXIT(VFO vfo = VFO::VFO_A) const override;
+    bool getSplit() const override;
+    int getFilterWidth() const override;
     RadioState getCurrentState() const override;
 
     // K4-specific features not in RadioInterface

@@ -57,37 +57,31 @@ public:
     virtual ~RadioInterface() = default;
 
 public slots:
+    // DEBUG: Test slot to verify signal/slot mechanism (must be implemented by concrete classes)
+    virtual void debugTestSlot(int testValue) = 0;
+
     // Connection management (slots for thread-safe invocation)
     virtual bool connect(const RadioConfig& config) = 0;
     virtual void disconnect() = 0;
 
-public:
-    virtual bool isConnected() const = 0;
-
-    // Frequency control
+    // Frequency control (slots for thread-safe cross-thread invocation)
     virtual bool setFrequency(freq_t freq, VFO vfo = VFO::VFO_A) = 0;
-    virtual freq_t getFrequency(VFO vfo = VFO::VFO_A) const = 0;
 
     // Mode control
     virtual bool setMode(ModeType mode, VFO vfo = VFO::VFO_A) = 0;
-    virtual ModeType getMode(VFO vfo = VFO::VFO_A) const = 0;
 
     // PTT control
     virtual bool setPTT(bool transmit) = 0;
-    virtual bool getPTT() const = 0;
 
     // CW functions
     virtual bool sendCW(const QString& text) = 0;
     virtual bool setCWSpeed(int wpm) = 0;
-    virtual int getCWSpeed() const = 0;
     virtual bool stopCW() = 0;
     virtual bool waitForMorseComplete() = 0;  // Blocks until CW transmission finishes
 
     // RIT/XIT control
     virtual bool setRIT(int offset_hz, VFO vfo = VFO::VFO_A) = 0;
     virtual bool setXIT(int offset_hz, VFO vfo = VFO::VFO_A) = 0;
-    virtual int getRIT(VFO vfo = VFO::VFO_A) const = 0;
-    virtual int getXIT(VFO vfo = VFO::VFO_A) const = 0;
     virtual bool clearRIT(VFO vfo = VFO::VFO_A) = 0;
     virtual bool clearXIT(VFO vfo = VFO::VFO_A) = 0;
     virtual bool enableRIT(bool enable, VFO vfo = VFO::VFO_A) = 0;
@@ -95,7 +89,6 @@ public:
 
     // Split operation
     virtual bool setSplit(bool enable, VFO txVfo = VFO::VFO_B) = 0;
-    virtual bool getSplit() const = 0;
 
     // VFO tuning
     virtual bool vfoBumpUp(VFO vfo = VFO::VFO_A) = 0;
@@ -103,6 +96,30 @@ public:
 
     // Filter control
     virtual bool setFilterWidth(int width_hz) = 0;
+
+public:
+    virtual bool isConnected() const = 0;
+
+    // Frequency query (const, called synchronously)
+    virtual freq_t getFrequency(VFO vfo = VFO::VFO_A) const = 0;
+
+    // Mode query (const, called synchronously)
+    virtual ModeType getMode(VFO vfo = VFO::VFO_A) const = 0;
+
+    // PTT query (const, called synchronously)
+    virtual bool getPTT() const = 0;
+
+    // CW speed query (const, called synchronously)
+    virtual int getCWSpeed() const = 0;
+
+    // RIT/XIT query (const, called synchronously)
+    virtual int getRIT(VFO vfo = VFO::VFO_A) const = 0;
+    virtual int getXIT(VFO vfo = VFO::VFO_A) const = 0;
+
+    // Split query (const, called synchronously)
+    virtual bool getSplit() const = 0;
+
+    // Filter query (const, called synchronously)
     virtual int getFilterWidth() const = 0;
 
     // Get current state

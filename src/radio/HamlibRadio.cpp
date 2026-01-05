@@ -1,6 +1,7 @@
 #include "HamlibRadio.h"
 #include "../core/Constants.h"
 #include "../logging/LogMacros.h"
+#include "../utils/PerformanceProfiler.h"
 
 namespace TR4QT {
 
@@ -13,6 +14,13 @@ HamlibRadio::HamlibRadio(QObject* parent)
 
 HamlibRadio::~HamlibRadio() {
     disconnect();
+}
+
+// DEBUG: Test slot to verify signal/slot mechanism works
+void HamlibRadio::debugTestSlot(int testValue)
+{
+    LOG_ERROR("HamlibRadio", QString("***** DEBUG TEST SLOT CALLED WITH VALUE: %1 *****").arg(testValue));
+    LOG_ERROR("HamlibRadio", QString("***** This proves worker thread is processing slot calls *****"));
 }
 
 bool HamlibRadio::connect(const RadioConfig& config) {
@@ -136,6 +144,7 @@ bool HamlibRadio::isConnected() const {
 }
 
 bool HamlibRadio::setFrequency(freq_t freq, VFO vfo) {
+    PROFILE_FUNCTION("Hamlib");
     QMutexLocker locker(&m_rigMutex);
     if (!checkRigPointer("setFrequency")) return false;
 
@@ -172,6 +181,7 @@ freq_t HamlibRadio::getFrequency(VFO vfo) const {
 }
 
 bool HamlibRadio::setMode(ModeType mode, VFO vfo) {
+    PROFILE_FUNCTION("Hamlib");
     QMutexLocker locker(&m_rigMutex);
     if (!checkRigPointer("setMode")) return false;
 
@@ -209,6 +219,7 @@ ModeType HamlibRadio::getMode(VFO vfo) const {
 }
 
 bool HamlibRadio::setPTT(bool transmit) {
+    PROFILE_FUNCTION("Hamlib");
     QMutexLocker locker(&m_rigMutex);
     if (!checkRigPointer("setPTT")) return false;
 
@@ -240,6 +251,7 @@ bool HamlibRadio::getPTT() const {
 }
 
 bool HamlibRadio::sendCW(const QString& text) {
+    PROFILE_FUNCTION("Hamlib");
     QMutexLocker locker(&m_rigMutex);
     if (!checkRigPointer("sendCW")) return false;
 

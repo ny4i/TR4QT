@@ -23,6 +23,7 @@ set(SOURCES
     utils/PathManager.cpp
     utils/RadioEnumerator.cpp
     utils/ThemeManager.cpp
+    utils/PerformanceProfiler.cpp
     radio/HamlibRadio.cpp
     radio/K4Radio.cpp
     radio/RadioFactory.cpp

@@ -76,6 +76,7 @@ void AppSettings::saveRadioConfig(const RadioConfig& config) {
     m_settings.setValue("baudRate", config.baudRate);
     m_settings.setValue("civAddress", config.civAddress);
     m_settings.setValue("pollInterval", config.pollInterval);
+    m_settings.setValue("radioType", config.radioType);  // Save radio interface type
     m_settings.endGroup();
     m_settings.sync();
 }
@@ -88,6 +89,7 @@ RadioConfig AppSettings::loadRadioConfig() const {
     config.baudRate = m_settings.value("baudRate", 38400).toInt();
     config.civAddress = m_settings.value("civAddress", 0).toInt();
     config.pollInterval = m_settings.value("pollInterval", 100).toInt();
+    config.radioType = m_settings.value("radioType", -1).toInt();  // Default: -1 (Auto)
     m_settings.endGroup();
     return config;
 }

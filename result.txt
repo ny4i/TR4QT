@@ -1,0 +1,51 @@
+********* Start testing of TestWinterFieldDay *********
+Config: Using QtTest library 6.10.1, Qt 6.10.1 (x86_64-little_endian-llp64 shared (dynamic) release build; by GCC 13.1.0), windows 11
+PASS   : TestWinterFieldDay::initTestCase()
+PASS   : TestWinterFieldDay::testGetContestId()
+PASS   : TestWinterFieldDay::testGetContestName()
+PASS   : TestWinterFieldDay::testUsesSerialNumbers()
+PASS   : TestWinterFieldDay::testValidateClass_IndoorCategory()
+PASS   : TestWinterFieldDay::testValidateClass_OutdoorCategory()
+PASS   : TestWinterFieldDay::testValidateClass_HomeCategory()
+PASS   : TestWinterFieldDay::testValidateClass_MobileCategory()
+PASS   : TestWinterFieldDay::testValidateClass_SingleTransmitter()
+PASS   : TestWinterFieldDay::testValidateClass_TwoDigitTransmitter()
+PASS   : TestWinterFieldDay::testValidateClass_MaxTransmitter_99()
+PASS   : TestWinterFieldDay::testValidateClass_InvalidTransmitter_100()
+PASS   : TestWinterFieldDay::testValidateClass_InvalidTransmitter_Zero()
+PASS   : TestWinterFieldDay::testValidateClass_InvalidCategory()
+PASS   : TestWinterFieldDay::testValidateSection_Valid_US()
+PASS   : TestWinterFieldDay::testValidateSection_Valid_Canadian()
+PASS   : TestWinterFieldDay::testValidateSection_Valid_DX()
+PASS   : TestWinterFieldDay::testValidateSection_Invalid()
+PASS   : TestWinterFieldDay::testValidateExchange_ClassFirst()
+PASS   : TestWinterFieldDay::testValidateExchange_SectionFirst()
+PASS   : TestWinterFieldDay::testValidateExchange_AllCategories_OrderAgnostic()
+PASS   : TestWinterFieldDay::testValidateExchange_InvalidFormat_OnePart()
+PASS   : TestWinterFieldDay::testValidateExchange_InvalidFormat_ThreeParts()
+PASS   : TestWinterFieldDay::testValidateExchange_InvalidClass()
+PASS   : TestWinterFieldDay::testValidateExchange_InvalidSection()
+PASS   : TestWinterFieldDay::testParseExchange_ClassFirst()
+PASS   : TestWinterFieldDay::testParseExchange_SectionFirst()
+PASS   : TestWinterFieldDay::testParseExchange_AllCombinations()
+PASS   : TestWinterFieldDay::testParseExchange_TwoDigitTransmitter()
+PASS   : TestWinterFieldDay::testParseExchange_UppercaseConversion()
+FAIL!  : TestWinterFieldDay::testCalculatePoints_SameCountry() Compared values are not the same
+   Actual   (contest.calculateQSOPoints(qso, myStation)): 1
+   Expected (0)                                         : 0
+C:\projects\TR4QT\tests\test_winterfieldday.cpp(339) : failure location
+FAIL!  : TestWinterFieldDay::testCalculatePoints_SameContinent_NA() Compared values are not the same
+   Actual   (contest.calculateQSOPoints(qso, myStation)): 1
+   Expected (2)                                         : 2
+C:\projects\TR4QT\tests\test_winterfieldday.cpp(354) : failure location
+PASS   : TestWinterFieldDay::testCalculatePoints_SameContinent_NonNA()
+FAIL!  : TestWinterFieldDay::testCalculatePoints_DifferentContinent() Compared values are not the same
+   Actual   (contest.calculateQSOPoints(qso, myStation)): 1
+   Expected (3)                                         : 3
+C:\projects\TR4QT\tests\test_winterfieldday.cpp(384) : failure location
+PASS   : TestWinterFieldDay::testGetMultiplierTypes()
+PASS   : TestWinterFieldDay::testGetMultiplierValue_CQZone()
+PASS   : TestWinterFieldDay::testGetMultiplierValue_Country()
+PASS   : TestWinterFieldDay::cleanupTestCase()
+Totals: 35 passed, 3 failed, 0 skipped, 0 blacklisted, 4ms
+********* Finished testing of TestWinterFieldDay *********
