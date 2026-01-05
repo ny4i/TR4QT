@@ -17,14 +17,28 @@ RadioController::RadioController(QObject* parent)
     defaultConfig.radioType = static_cast<int>(RadioFactory::RadioType::HAMLIB);
     m_radio = RadioFactory::createRadio(RadioFactory::RadioType::HAMLIB, defaultConfig);
 
+    LOG_DEBUG("RadioController", QString("Created radio: %1 (main thread: %2)")
+              .arg(m_radio ? "valid" : "NULL")
+              .arg(reinterpret_cast<quintptr>(QThread::currentThread())));
+
     // Move to worker thread (QTimer moves with it as a child object)
     m_radio->moveToThread(&m_workerThread);
+
+    LOG_DEBUG("RadioController", QString("Moved radio to worker thread: %1")
+              .arg(reinterpret_cast<quintptr>(&m_workerThread)));
 
     // Connect radio signals
     connectRadioSignals();
 
+    // Connect command signals (internal signals → m_radio slots)
+    connectCommandSignals();
+
     // Start worker thread
     m_workerThread.start();
+
+    LOG_DEBUG("RadioController", QString("Worker thread started: %1 (running: %2)")
+              .arg(reinterpret_cast<quintptr>(&m_workerThread))
+              .arg(m_workerThread.isRunning() ? "YES" : "NO"));
 }
 
 void RadioController::connectRadioSignals() {
@@ -72,6 +86,83 @@ void RadioController::connectRadioSignals() {
             m_radio, &QObject::deleteLater);
 }
 
+void RadioController::connectCommandSignals() {
+    // Connect our internal command signals to m_radio's slots
+    // CRITICAL: Use old-style SLOT/SIGNAL macros for connecting to pure virtual slots
+    // Qt's new-style connect syntax may fail with abstract base class pointers
+    int failed = 0;
+
+    // DEBUG: Connect test signal first to verify mechanism works
+    if (!connect(this, SIGNAL(debugTestSignal(int)),
+                 m_radio, SLOT(debugTestSlot(int)), Qt::QueuedConnection)) {
+        LOG_ERROR("RadioController", "FAILED to connect debugTestSignal");
+        failed++;
+    } else {
+        LOG_ERROR("RadioController", "***** DEBUG: Test signal connected successfully *****");
+    }
+
+    // CRITICAL: Old-style SLOT/SIGNAL macros may need the UNDERLYING type for typedefs
+    // freq_t is typedef'd as double - try using the actual type
+    if (!connect(this, SIGNAL(requestSetFrequency(double,VFO)),
+                 m_radio, SLOT(setFrequency(double,VFO)), Qt::QueuedConnection)) {
+        LOG_ERROR("RadioController", "FAILED to connect requestSetFrequency");
+        failed++;
+    }
+    if (!connect(this, SIGNAL(requestSetMode(ModeType,VFO)),
+                 m_radio, SLOT(setMode(ModeType,VFO)), Qt::QueuedConnection)) {
+        LOG_ERROR("RadioController", "FAILED to connect requestSetMode");
+        failed++;
+    }
+    if (!connect(this, SIGNAL(requestSetPTT(bool)),
+                 m_radio, SLOT(setPTT(bool)), Qt::QueuedConnection)) {
+        LOG_ERROR("RadioController", "FAILED to connect requestSetPTT");
+        failed++;
+    }
+    if (!connect(this, SIGNAL(requestSendCW(QString)),
+                 m_radio, SLOT(sendCW(QString)), Qt::QueuedConnection)) {
+        LOG_ERROR("RadioController", "FAILED to connect requestSendCW");
+        failed++;
+    }
+    if (!connect(this, SIGNAL(requestSetCWSpeed(int)),
+                 m_radio, SLOT(setCWSpeed(int)), Qt::QueuedConnection)) {
+        LOG_ERROR("RadioController", "FAILED to connect requestSetCWSpeed");
+        failed++;
+    }
+    if (!connect(this, SIGNAL(requestStopCW()),
+                 m_radio, SLOT(stopCW()), Qt::QueuedConnection)) {
+        LOG_ERROR("RadioController", "FAILED to connect requestStopCW");
+        failed++;
+    }
+    if (!connect(this, SIGNAL(requestEnableRIT(bool,VFO)),
+                 m_radio, SLOT(enableRIT(bool,VFO)), Qt::QueuedConnection)) {
+        LOG_ERROR("RadioController", "FAILED to connect requestEnableRIT");
+        failed++;
+    }
+    if (!connect(this, SIGNAL(requestEnableXIT(bool,VFO)),
+                 m_radio, SLOT(enableXIT(bool,VFO)), Qt::QueuedConnection)) {
+        LOG_ERROR("RadioController", "FAILED to connect requestEnableXIT");
+        failed++;
+    }
+    if (!connect(this, SIGNAL(requestSetSplit(bool,VFO)),
+                 m_radio, SLOT(setSplit(bool,VFO)), Qt::QueuedConnection)) {
+        LOG_ERROR("RadioController", "FAILED to connect requestSetSplit");
+        failed++;
+    }
+
+    if (failed == 0) {
+        LOG_DEBUG("RadioController", "Command signals connected to m_radio slots - ALL 10 SUCCESS (including debug test)");
+    } else {
+        LOG_ERROR("RadioController", QString("FAILED to connect %1 command signals!").arg(failed));
+    }
+
+    // DEBUG: Test both signal/slot and invokeMethod paths
+    LOG_ERROR("RadioController", "***** DEBUG: Testing signal/slot path by emitting debugTestSignal(42) *****");
+    emit debugTestSignal(42);
+
+    LOG_ERROR("RadioController", "***** DEBUG: Testing invokeMethod path by calling debugTestSlot(99) *****");
+    QMetaObject::invokeMethod(m_radio, "debugTestSlot", Qt::QueuedConnection, Q_ARG(int, 99));
+}
+
 void RadioController::recreateRadio(int radioType, const RadioConfig& config) {
     LOG_INFO("RadioController", QString("Recreating radio with type %1").arg(radioType));
 
@@ -110,6 +201,7 @@ void RadioController::recreateRadio(int radioType, const RadioConfig& config) {
 
     // Reconnect signals
     connectRadioSignals();
+    connectCommandSignals();  // Reconnect command signals to new radio
 
     LOG_INFO("RadioController", "Radio recreation complete");
 }
@@ -294,33 +386,32 @@ void RadioController::disconnectFromRadio() {
 }
 
 void RadioController::setFrequency(freq_t freq, VFO vfo) {
-    QMetaObject::invokeMethod(m_radio, [this, freq, vfo]() {
-        m_radio->setFrequency(freq, vfo);
-    }, Qt::QueuedConnection);
+    LOG_DEBUG("RadioController", QString("setFrequency called: freq=%1 Hz, VFO %2")
+              .arg(static_cast<qulonglong>(freq))
+              .arg(vfo == VFO::VFO_A ? "A" : "B"));
+
+    // Use invokeMethod instead of signal/slot - this DOES work (proven by connect() method)
+    bool queued = QMetaObject::invokeMethod(m_radio, "setFrequency", Qt::QueuedConnection,
+                                            Q_ARG(freq_t, freq),
+                                            Q_ARG(VFO, vfo));
+
+    LOG_DEBUG("RadioController", QString("setFrequency invokeMethod returned: %1").arg(queued));
 }
 
 void RadioController::setMode(ModeType mode, VFO vfo) {
-    QMetaObject::invokeMethod(m_radio, [this, mode, vfo]() {
-        m_radio->setMode(mode, vfo);
-    }, Qt::QueuedConnection);
+    emit requestSetMode(mode, vfo);
 }
 
 void RadioController::setPTT(bool transmit) {
-    QMetaObject::invokeMethod(m_radio, [this, transmit]() {
-        m_radio->setPTT(transmit);
-    }, Qt::QueuedConnection);
+    emit requestSetPTT(transmit);
 }
 
 void RadioController::sendCW(const QString& text) {
-    QMetaObject::invokeMethod(m_radio, [this, text]() {
-        m_radio->sendCW(text);
-    }, Qt::QueuedConnection);
+    emit requestSendCW(text);
 }
 
 void RadioController::setCWSpeed(int wpm) {
-    QMetaObject::invokeMethod(m_radio, [this, wpm]() {
-        m_radio->setCWSpeed(wpm);
-    }, Qt::QueuedConnection);
+    emit requestSetCWSpeed(wpm);
 }
 
 int RadioController::getCWSpeed() const {
@@ -333,9 +424,7 @@ int RadioController::getCWSpeed() const {
 }
 
 void RadioController::stopCW() {
-    QMetaObject::invokeMethod(m_radio, [this]() {
-        m_radio->stopCW();
-    }, Qt::QueuedConnection);
+    emit requestStopCW();
 }
 
 bool RadioController::waitForMorseComplete() {
@@ -347,21 +436,15 @@ bool RadioController::waitForMorseComplete() {
 }
 
 void RadioController::enableRIT(bool enable, VFO vfo) {
-    QMetaObject::invokeMethod(m_radio, [this, enable, vfo]() {
-        m_radio->enableRIT(enable, vfo);
-    }, Qt::QueuedConnection);
+    emit requestEnableRIT(enable, vfo);
 }
 
 void RadioController::enableXIT(bool enable, VFO vfo) {
-    QMetaObject::invokeMethod(m_radio, [this, enable, vfo]() {
-        m_radio->enableXIT(enable, vfo);
-    }, Qt::QueuedConnection);
+    emit requestEnableXIT(enable, vfo);
 }
 
 void RadioController::setSplit(bool enable, VFO txVfo) {
-    QMetaObject::invokeMethod(m_radio, [this, enable, txVfo]() {
-        m_radio->setSplit(enable, txVfo);
-    }, Qt::QueuedConnection);
+    emit requestSetSplit(enable, txVfo);
 }
 
 } // namespace TR4QT

@@ -53,9 +53,24 @@ signals:
     void errorOccurred(const QString& error);
     void radioModelChanged(const QString& model);
 
+    // DEBUG: Test signal to verify signal/slot mechanism
+    void debugTestSignal(int testValue);
+
+    // Internal signals to trigger worker thread operations (Qt signal/slot pattern)
+    void requestSetFrequency(freq_t freq, VFO vfo);
+    void requestSetMode(ModeType mode, VFO vfo);
+    void requestSetPTT(bool transmit);
+    void requestSendCW(QString text);
+    void requestSetCWSpeed(int wpm);
+    void requestStopCW();
+    void requestEnableRIT(bool enable, VFO vfo);
+    void requestEnableXIT(bool enable, VFO vfo);
+    void requestSetSplit(bool enable, VFO txVfo);
+
 private:
     void recreateRadio(int radioType, const RadioConfig& config);
     void connectRadioSignals();
+    void connectCommandSignals();  // Connect internal command signals to m_radio slots
 
     QThread m_workerThread;
     RadioInterface* m_radio;  // Lives in worker thread (created by RadioFactory)

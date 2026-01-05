@@ -145,6 +145,7 @@ int main(int argc, char *argv[]) {
     qRegisterMetaType<TR4QT::RadioState>("RadioState");
     qRegisterMetaType<TR4QT::ModeType>("ModeType");
     qRegisterMetaType<TR4QT::VFO>("VFO");
+    qRegisterMetaType<freq_t>("freq_t");  // Hamlib frequency type (required for cross-thread slot calls)
 
     // Note: Organization/Application names already set at top of main()
     // via QCoreApplication::setOrganizationName/setApplicationName (required for paths)

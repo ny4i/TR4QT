@@ -1,8 +1,10 @@
 #include "K4Radio.h"
 #include "../logging/LogMacros.h"
+#include "../utils/PerformanceProfiler.h"
 #include <QMutexLocker>
 #include <QEventLoop>
 #include <QCoreApplication>
+#include <QThread>
 
 namespace TR4QT {
 
@@ -53,22 +55,20 @@ bool K4Radio::connect(const RadioConfig& config)
     LOG_INFO("K4Radio", QString("Connecting to K4 at %1:%2").arg(m_host).arg(m_port));
 
     m_socket = new QTcpSocket(this);
+
     QObject::connect(m_socket, &QTcpSocket::connected, this, &K4Radio::onSocketConnected);
     QObject::connect(m_socket, &QTcpSocket::disconnected, this, &K4Radio::onSocketDisconnected);
     QObject::connect(m_socket, QOverload<QAbstractSocket::SocketError>::of(&QTcpSocket::errorOccurred),
                      this, &K4Radio::onSocketError);
     QObject::connect(m_socket, &QTcpSocket::readyRead, this, &K4Radio::onReadyRead);
 
+    // Connect asynchronously - DO NOT use waitForConnected() as it blocks the event loop!
+    // This was causing the worker thread to stop processing events after connection,
+    // preventing setFrequency/setMode/etc. slot calls from executing.
+    // The onSocketConnected() slot will be called when connection succeeds.
     m_socket->connectToHost(m_host, m_port);
 
-    if (!m_socket->waitForConnected(2000)) {
-        LOG_ERROR("K4Radio", QString("Connection timeout: %1").arg(m_socket->errorString()));
-        emit errorOccurred(QString("Connection timeout: %1").arg(m_socket->errorString()));
-        delete m_socket;
-        m_socket = nullptr;
-        return false;
-    }
-
+    LOG_DEBUG("K4Radio", "Connection initiated, waiting for onSocketConnected()");
     return true;
 }
 
@@ -77,10 +77,9 @@ void K4Radio::disconnect()
     if (m_socket) {
         LOG_INFO("K4Radio", "Disconnecting from K4");
         m_socket->disconnectFromHost();
-        if (m_socket->state() != QAbstractSocket::UnconnectedState) {
-            m_socket->waitForDisconnected(1000);
-        }
-        delete m_socket;
+        // DO NOT use waitForDisconnected() - it blocks the event loop just like waitForConnected()
+        // The socket will be cleaned up asynchronously via onSocketDisconnected() or deleteLater()
+        m_socket->deleteLater();
         m_socket = nullptr;
     }
 
@@ -92,19 +91,37 @@ void K4Radio::disconnect()
 
 bool K4Radio::isConnected() const
 {
-    return m_socket && m_socket->state() == QAbstractSocket::ConnectedState;
+    bool connected = m_socket && m_socket->state() == QAbstractSocket::ConnectedState;
+
+    // Debug: Log connection state checks to diagnose why buttons are disabled
+    static int callCount = 0;
+    if (++callCount <= 10 || callCount % 100 == 0) {  // Log first 10 calls, then every 100th
+        LOG_DEBUG("K4Radio", QString("isConnected() called: socket=%1, state=%2, returning=%3 (call #%4)")
+                  .arg(m_socket ? "valid" : "NULL")
+                  .arg(m_socket ? QString::number(m_socket->state()) : "N/A")
+                  .arg(connected ? "true" : "false")
+                  .arg(callCount));
+    }
+
+    return connected;
 }
 
 void K4Radio::onSocketConnected()
 {
     LOG_INFO("K4Radio", QString("Connected to K4 at %1:%2").arg(m_host).arg(m_port));
-    emit connectionStatusChanged(true);
 
     // Enable AI5 mode for automatic updates
     enableAIMode(5);
 
+    // Query AI mode to confirm it was set (K4 doesn't echo AI5, must query with AI;)
+    sendCommand("AI");
+
     // Query initial state
     queryInitialState();
+
+    // Emit connected AFTER initialization commands are queued
+    // This prevents race conditions where UI handlers run before radio is ready
+    emit connectionStatusChanged(true);
 }
 
 void K4Radio::onSocketDisconnected()
@@ -146,7 +163,7 @@ void K4Radio::sendCommand(const QString& cmd, VFO vfo)
         fullCmd += ';';
     }
 
-    LOG_TRACE("K4Radio", QString("TX: %1").arg(fullCmd.trimmed()));
+    LOG_DEBUG("K4Radio", QString("TX: %1").arg(fullCmd.trimmed()));
 
     m_socket->write(fullCmd.toLatin1());
     m_socket->flush();
@@ -158,20 +175,30 @@ void K4Radio::sendCommand(const QString& cmd, VFO vfo)
 
 void K4Radio::onReadyRead()
 {
-    while (m_socket->canReadLine()) {
-        QByteArray line = m_socket->readLine();
-        m_receiveBuffer += QString::fromLatin1(line).trimmed();
+    // Read all available data (K4 uses ; terminators, not newlines)
+    if (m_socket->bytesAvailable() > 0) {
+        QByteArray data = m_socket->readAll();
+        QString dataStr = QString::fromLatin1(data);
+        LOG_DEBUG("K4Radio", QString("onReadyRead: received %1 bytes: '%2'")
+                  .arg(data.size()).arg(dataStr));
+        m_receiveBuffer += dataStr;
 
         // Process complete messages (terminated with ;)
+        int messageCount = 0;
         while (m_receiveBuffer.contains(';')) {
             int idx = m_receiveBuffer.indexOf(';');
             QString message = m_receiveBuffer.left(idx);
             m_receiveBuffer = m_receiveBuffer.mid(idx + 1);
 
             if (!message.isEmpty()) {
-                LOG_TRACE("K4Radio", QString("RX: %1;").arg(message));
+                messageCount++;
+                LOG_DEBUG("K4Radio", QString("RX [%1]: %2;").arg(messageCount).arg(message));
                 processMessage(message);
             }
+        }
+
+        if (!m_receiveBuffer.isEmpty()) {
+            LOG_DEBUG("K4Radio", QString("Incomplete message in buffer: '%1'").arg(m_receiveBuffer));
         }
     }
 }
@@ -407,8 +434,7 @@ bool K4Radio::parseIFCommand(const QString& response, VFO vfo)
     QString dataModeStr = data.mid(pos, 1);
 
     // Update state
-    QMutexLocker locker(&m_stateMutex);
-
+    // NOTE: Mutex is already locked by processMessage caller - do NOT lock again!
     if (vfo == VFO::VFO_A) {
         m_state.frequencyA = freq;
         m_state.bandA = frequencyToBand(freq);
@@ -578,10 +604,11 @@ void K4Radio::queryInitialState()
     sendCommand("IF");    // Comprehensive status
 
     // Query VFO B state
-    sendCommand("FB", VFO::VFO_B);
-    sendCommand("MD", VFO::VFO_B);
-    sendCommand("DT", VFO::VFO_B);
-    sendCommand("IF", VFO::VFO_B);
+    // Note: K4 uses FB (not FA$) for VFO B frequency
+    sendCommand("FB");    // Frequency B
+    sendCommand("MD", VFO::VFO_B);  // MD$ for VFO B mode (uses $ suffix)
+    sendCommand("DT", VFO::VFO_B);  // DT$ for VFO B data sub-mode (uses $ suffix)
+    // Note: IF command only works for current VFO, no VFO B version
 
     // Query radio ID to confirm K4
     sendCommand("ID");
@@ -596,16 +623,36 @@ QString K4Radio::vfoSuffix(VFO vfo) const
 // RadioInterface Implementation - Frequency Control
 // ============================================================================
 
+// DEBUG: Test slot to verify signal/slot mechanism works
+void K4Radio::debugTestSlot(int testValue)
+{
+    LOG_ERROR("K4Radio", QString("***** DEBUG TEST SLOT CALLED WITH VALUE: %1 *****").arg(testValue));
+    LOG_ERROR("K4Radio", QString("***** This proves worker thread is processing slot calls *****"));
+}
+
 bool K4Radio::setFrequency(freq_t freq, VFO vfo)
 {
+    PROFILE_FUNCTION("K4Direct");
+
     if (!isConnected()) {
         LOG_ERROR("K4Radio", "Cannot set frequency: not connected");
         return false;
     }
 
-    QString cmd = (vfo == VFO::VFO_A) ? "FA" : "FB";
+    // Format frequency as 11-digit zero-padded string (e.g., "00007000000")
     QString freqStr = QString::number(static_cast<qulonglong>(freq)).rightJustified(11, '0');
-    sendCommand(QString("%1%2").arg(cmd).arg(freqStr), vfo);
+
+    // K4 uses FA for VFO A, FB for VFO B (not FA$)
+    QString command = (vfo == VFO::VFO_A) ? QString("FA%1").arg(freqStr)
+                                           : QString("FB%1").arg(freqStr);
+
+    LOG_DEBUG("K4Radio", QString("setFrequency: freq=%1 Hz, VFO %2, command='%3'")
+              .arg(static_cast<qulonglong>(freq))
+              .arg(vfo == VFO::VFO_A ? "A" : "B")
+              .arg(command));
+
+    // Send command without VFO suffix (FA/FB already encodes the VFO)
+    sendCommand(command);
 
     return true;
 }
@@ -622,6 +669,8 @@ freq_t K4Radio::getFrequency(VFO vfo) const
 
 bool K4Radio::setMode(ModeType mode, VFO vfo)
 {
+    PROFILE_FUNCTION("K4Direct");
+
     if (!isConnected()) {
         LOG_ERROR("K4Radio", "Cannot set mode: not connected");
         return false;
@@ -651,6 +700,8 @@ ModeType K4Radio::getMode(VFO vfo) const
 
 bool K4Radio::setPTT(bool transmit)
 {
+    PROFILE_FUNCTION("K4Direct");
+
     if (!isConnected()) {
         LOG_ERROR("K4Radio", "Cannot set PTT: not connected");
         return false;
@@ -672,6 +723,8 @@ bool K4Radio::getPTT() const
 
 bool K4Radio::sendCW(const QString& text)
 {
+    PROFILE_FUNCTION("K4Direct");
+
     if (!isConnected()) {
         LOG_ERROR("K4Radio", "Cannot send CW: not connected");
         return false;
