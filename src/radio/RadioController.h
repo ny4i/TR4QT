@@ -6,13 +6,12 @@
 #include <QMutex>
 #include <atomic>
 #include "RadioInterface.h"
-#include "HamlibRadio.h"
 
 namespace TR4QT {
 
 /**
- * Radio controller that manages HamlibRadio in a separate thread
- * All hamlib operations run in the worker thread to keep UI responsive
+ * Radio controller that manages RadioInterface in a separate thread
+ * All radio operations run in the worker thread to keep UI responsive
  */
 class RadioController : public QObject {
     Q_OBJECT
@@ -56,7 +55,7 @@ signals:
 
 private:
     QThread m_workerThread;
-    HamlibRadio* m_radio;  // Lives in worker thread
+    RadioInterface* m_radio;  // Lives in worker thread (created by RadioFactory)
     mutable QMutex m_stateMutex;
     RadioState m_lastState;
     bool m_connected;
