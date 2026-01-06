@@ -196,6 +196,19 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::SecondaryText] = QColor(Qt::darkGray);
             colors[ColorRole::HoverHighlight] = QColor("#e0e0e0");
             colors[ColorRole::BorderColor] = QColor("#cccccc");
+
+            // Map Colors
+            colors[ColorRole::MapBackground] = QColor("#E8F4F8");  // Theme default: light blue
+            colors[ColorRole::MapNotWorked] = QColor("#CCCCCC");  // Theme default: gray
+            colors[ColorRole::MapFirstContact] = QColor("#3498DB");  // Theme default: blue
+            colors[ColorRole::MapSecondContact] = QColor("#E74C3C");  // Theme default: red
+            colors[ColorRole::MapFew] = QColor("#0D5D0D");  // Theme default: dark green
+            colors[ColorRole::MapSome] = QColor("#137A13");  // Theme default: green
+            colors[ColorRole::MapMany] = QColor("#1A9E1A");  // Theme default: medium green
+            colors[ColorRole::MapManyMore] = QColor("#2ECC71");  // Theme default: bright green
+            colors[ColorRole::MapHundreds] = QColor("#5ED68F");  // Theme default: light green
+            colors[ColorRole::MapHundredsMore] = QColor("#8EE0AD");  // Theme default: lighter green
+            colors[ColorRole::MapThousands] = QColor("#C8F0DC");  // Theme default: very light green
             break;
 
         case ThemeType::DarkMode:
@@ -231,6 +244,19 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::SecondaryText] = QColor("#808080");  // Gray
             colors[ColorRole::HoverHighlight] = QColor("#3c3c3c");  // Lighter dark gray
             colors[ColorRole::BorderColor] = QColor("#555555");  // Medium gray
+
+            // Map Colors (darker palette for dark mode)
+            colors[ColorRole::MapBackground] = QColor("#1a2530");  // Theme default: dark blue-gray
+            colors[ColorRole::MapNotWorked] = QColor("#555555");  // Theme default: dark gray
+            colors[ColorRole::MapFirstContact] = QColor("#2980b9");  // Theme default: darker blue
+            colors[ColorRole::MapSecondContact] = QColor("#c0392b");  // Theme default: darker red
+            colors[ColorRole::MapFew] = QColor("#1a4d1a");  // Theme default: very dark green
+            colors[ColorRole::MapSome] = QColor("#246624");  // Theme default: dark green
+            colors[ColorRole::MapMany] = QColor("#2d862d");  // Theme default: medium dark green
+            colors[ColorRole::MapManyMore] = QColor("#27ae60");  // Theme default: green
+            colors[ColorRole::MapHundreds] = QColor("#52c073");  // Theme default: light green
+            colors[ColorRole::MapHundredsMore] = QColor("#7dd999");  // Theme default: lighter green
+            colors[ColorRole::MapThousands] = QColor("#a8e6bf");  // Theme default: very light green
             break;
 
         case ThemeType::HighContrast:
@@ -266,6 +292,19 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::SecondaryText] = QColor("#404040");  // Dark gray
             colors[ColorRole::HoverHighlight] = QColor("#d0d0d0");  // Light gray
             colors[ColorRole::BorderColor] = QColor(Qt::black);
+
+            // Map Colors (high contrast palette)
+            colors[ColorRole::MapBackground] = QColor("#FFFFFF");  // Theme default: white
+            colors[ColorRole::MapNotWorked] = QColor("#C0C0C0");  // Theme default: light gray
+            colors[ColorRole::MapFirstContact] = QColor("#0000FF");  // Theme default: bright blue
+            colors[ColorRole::MapSecondContact] = QColor("#FF0000");  // Theme default: bright red
+            colors[ColorRole::MapFew] = QColor("#004000");  // Theme default: very dark green
+            colors[ColorRole::MapSome] = QColor("#006000");  // Theme default: dark green
+            colors[ColorRole::MapMany] = QColor("#008000");  // Theme default: green
+            colors[ColorRole::MapManyMore] = QColor("#00A000");  // Theme default: bright green
+            colors[ColorRole::MapHundreds] = QColor("#00C000");  // Theme default: brighter green
+            colors[ColorRole::MapHundredsMore] = QColor("#00E000");  // Theme default: very bright green
+            colors[ColorRole::MapThousands] = QColor("#00FF00");  // Theme default: max green
             break;
 
         case ThemeType::Custom:
