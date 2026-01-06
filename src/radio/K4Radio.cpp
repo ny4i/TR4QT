@@ -963,6 +963,29 @@ RadioState K4Radio::getCurrentState() const
     return m_state;
 }
 
+QList<ModeType> K4Radio::getSupportedModes() const
+{
+    // K4 supports all standard modes
+    return {
+        ModeType::CW,
+        ModeType::CWR,
+        ModeType::USB,
+        ModeType::LSB,
+        ModeType::FM,
+        ModeType::AM,
+        ModeType::DATA,
+        ModeType::DATAR,
+        ModeType::RTTY,
+        ModeType::RTTYR
+    };
+}
+
+bool K4Radio::supportsCWSending() const
+{
+    // K4 fully supports CW sending via KY command
+    return true;
+}
+
 // ============================================================================
 // K4-Specific Features
 // ============================================================================

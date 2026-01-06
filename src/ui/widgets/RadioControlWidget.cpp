@@ -102,6 +102,7 @@ void RadioControlWidget::setupUI() {
     m_modeLabel->setStyleSheet("QLabel { background-color: lightgray; padding: 5px; border-radius: 3px; }");
     m_modeLabel->setContextMenuPolicy(Qt::CustomContextMenu);
     m_modeLabel->setCursor(Qt::PointingHandCursor);  // Show clickable cursor
+    m_modeLabel->installEventFilter(this);  // Handle left-clicks
     connect(m_modeLabel, &QLabel::customContextMenuRequested, this, &RadioControlWidget::onModeContextMenu);
     mainLayout->addWidget(m_modeLabel);
 
@@ -397,7 +398,13 @@ void RadioControlWidget::onModeContextMenu(const QPoint& pos) {
 
 bool RadioControlWidget::eventFilter(QObject* obj, QEvent* event) {
     if (event->type() == QEvent::MouseButtonPress) {
-        if (obj == m_ritWidget) {
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+
+        if (obj == m_modeLabel && mouseEvent->button() == Qt::LeftButton) {
+            // Show mode menu on left-click (same as right-click)
+            onModeContextMenu(mouseEvent->pos());
+            return true;
+        } else if (obj == m_ritWidget) {
             onRitClicked();
             return true;
         } else if (obj == m_xitWidget) {
