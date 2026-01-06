@@ -398,6 +398,19 @@ void RadioController::setFrequency(freq_t freq, VFO vfo) {
     LOG_DEBUG("RadioController", QString("setFrequency invokeMethod returned: %1").arg(queued));
 }
 
+void RadioController::setBand(BandType band, VFO vfo) {
+    LOG_DEBUG("RadioController", QString("setBand called: band=%1, VFO %2")
+              .arg(bandToString(band))
+              .arg(vfo == VFO::VFO_A ? "A" : "B"));
+
+    // Use invokeMethod to call setBand() on the radio in the worker thread
+    bool queued = QMetaObject::invokeMethod(m_radio, "setBand", Qt::QueuedConnection,
+                                            Q_ARG(BandType, band),
+                                            Q_ARG(VFO, vfo));
+
+    LOG_DEBUG("RadioController", QString("setBand invokeMethod returned: %1").arg(queued));
+}
+
 void RadioController::setMode(ModeType mode, VFO vfo) {
     emit requestSetMode(mode, vfo);
 }

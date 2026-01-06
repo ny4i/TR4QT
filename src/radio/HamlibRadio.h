@@ -33,6 +33,7 @@ public slots:
 
     // Frequency control
     bool setFrequency(freq_t freq, VFO vfo = VFO::VFO_A) override;
+    bool setBand(BandType band, VFO vfo = VFO::VFO_A) override;
 
     // Mode control
     bool setMode(ModeType mode, VFO vfo = VFO::VFO_A) override;
@@ -95,6 +96,7 @@ private:
     rmode_t toHamlibMode(ModeType mode) const;
     ModeType fromHamlibMode(rmode_t mode) const;
     BandType frequencyToBand(freq_t freq) const;
+    freq_t bandToFrequency(BandType band) const;
 
     // Error handling
     void logHamlibError(const QString& operation, int retcode) const;

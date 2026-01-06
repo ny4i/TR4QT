@@ -164,6 +164,19 @@ bool HamlibRadio::setFrequency(freq_t freq, VFO vfo) {
     return false;
 }
 
+bool HamlibRadio::setBand(BandType band, VFO vfo) {
+    // Hamlib doesn't have a native "set band" command
+    // Convert band to frequency (band edge) and call setFrequency
+    freq_t freq = bandToFrequency(band);
+    if (freq == 0) {
+        LOG_ERROR("HamlibRadio", QString("Invalid band: %1").arg(static_cast<int>(band)));
+        return false;
+    }
+
+    LOG_DEBUG("HamlibRadio", QString("setBand: %1 -> %2 Hz").arg(bandToString(band)).arg(freq));
+    return setFrequency(freq, vfo);
+}
+
 freq_t HamlibRadio::getFrequency(VFO vfo) const {
     QMutexLocker locker(&m_rigMutex);
     if (!checkRigPointer("getFrequency")) return 0;
@@ -806,6 +819,29 @@ void HamlibRadio::updateState() {
 }
 
 // Conversion helpers
+
+freq_t HamlibRadio::bandToFrequency(BandType band) const {
+    // Convert band to frequency (band edge)
+    // Returns frequency in Hz
+    switch (band) {
+        case BandType::Band160M: return 1800000;    // 1.800 MHz
+        case BandType::Band80M:  return 3500000;    // 3.500 MHz
+        case BandType::Band60M:  return 5330500;    // 5.3305 MHz (channel 1)
+        case BandType::Band40M:  return 7000000;    // 7.000 MHz
+        case BandType::Band30M:  return 10100000;   // 10.100 MHz
+        case BandType::Band20M:  return 14000000;   // 14.000 MHz
+        case BandType::Band17M:  return 18068000;   // 18.068 MHz
+        case BandType::Band15M:  return 21000000;   // 21.000 MHz
+        case BandType::Band12M:  return 24890000;   // 24.890 MHz
+        case BandType::Band10M:  return 28000000;   // 28.000 MHz
+        case BandType::Band6M:   return 50000000;   // 50.000 MHz
+        case BandType::Band2M:   return 144000000;  // 144.000 MHz
+        case BandType::Band70CM: return 420000000;  // 420.000 MHz
+        default:
+            LOG_WARN("HamlibRadio", QString("Unknown band: %1").arg(static_cast<int>(band)));
+            return 0;
+    }
+}
 
 vfo_t HamlibRadio::toHamlibVFO(VFO vfo) const {
     switch (vfo) {
