@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.31.18";  // US phone privilege validation (FCC Part 97)
+constexpr const char* APP_VERSION = "3.31.19";  // Decimal frequency entry + license class refresh fix
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
