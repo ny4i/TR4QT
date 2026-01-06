@@ -36,6 +36,8 @@
 #include <QSerialPortInfo>
 #include <QShowEvent>
 #include <QHideEvent>
+#include <QTreeWidget>
+#include <QHeaderView>
 
 namespace TR4QT {
 
@@ -2106,9 +2108,14 @@ void PreferencesDialog::onCustomizeColors() {
 
     QVBoxLayout* mainLayout = new QVBoxLayout(colorDialog);
 
-    // Create grid for color buttons
-    QGroupBox* colorsGroup = new QGroupBox("Color Elements", colorDialog);
-    QGridLayout* gridLayout = new QGridLayout(colorsGroup);
+    // Add description label
+    QLabel* descLabel = new QLabel(
+        "Customize individual color elements. Click color button to change, "
+        "Reset to restore theme default. Categories can be collapsed/expanded.",
+        colorDialog);
+    descLabel->setWordWrap(true);
+    descLabel->setStyleSheet("color: #666; padding: 5px;");
+    mainLayout->addWidget(descLabel);
 
     ThemeManager& theme = ThemeManager::instance();
 
@@ -2121,42 +2128,19 @@ void PreferencesDialog::onCustomizeColors() {
 
     QList<ColorButton*> colorButtons;
 
-    // All 17 ColorRoles
-    QList<ColorRole> roles = {
-        // Display Colors
-        ColorRole::VfoBackground,
-        ColorRole::VfoText,
-        ColorRole::WindowBackground,
-        ColorRole::TextDisplayBackground,
+    // Create tree widget with columns: Name | Color | Reset
+    QTreeWidget* tree = new QTreeWidget(colorDialog);
+    tree->setHeaderLabels({"Color Element", "Color", "Reset"});
+    tree->setColumnWidth(0, 250);
+    tree->setColumnWidth(1, 120);
+    tree->setColumnWidth(2, 80);
+    tree->setRootIsDecorated(true);
+    tree->setAlternatingRowColors(true);
 
-        // Status Colors
-        ColorRole::ConnectedStatus,
-        ColorRole::DisconnectedStatus,
-        ColorRole::FrozenIndicator,
-
-        // Functional Colors
-        ColorRole::DupeText,
-        ColorRole::NewMultiplierBackground,
-        ColorRole::WorkedStationText,
-        ColorRole::MultiplierText,
-        ColorRole::NeededMultiplierBackground,
-        ColorRole::ConfirmedMultiplierBackground,
-
-        // UI Colors
-        ColorRole::PrimaryText,
-        ColorRole::SecondaryText,
-        ColorRole::HoverHighlight,
-        ColorRole::BorderColor
-    };
-
-    // Create buttons in a 3-column grid
-    int row = 0;
-    int col = 0;
-
-    for (ColorRole role : roles) {
-        // Label with color role name
-        QLabel* label = new QLabel(ThemeManager::colorRoleName(role) + ":", colorDialog);
-        gridLayout->addWidget(label, row, col * 3);
+    // Helper lambda to add color items to a category
+    auto addColorItem = [&](QTreeWidgetItem* parent, ColorRole role) {
+        QTreeWidgetItem* item = new QTreeWidgetItem(parent);
+        item->setText(0, ThemeManager::colorRoleName(role));
 
         // Color preview button
         QPushButton* colorButton = new QPushButton(colorDialog);
@@ -2166,46 +2150,125 @@ void PreferencesDialog::onCustomizeColors() {
         colorButton->setStyleSheet(QString("background-color: %1; border: 1px solid #888; border-radius: 3px;").arg(currentColor.name()));
         colorButton->setToolTip("Click to change color");
 
-        // Store button data for later
+        // Store button data
         ColorButton* btnData = new ColorButton{role, colorButton, currentColor};
         colorButtons.append(btnData);
 
         // Connect to color picker
         connect(colorButton, &QPushButton::clicked, [=, &theme]() mutable {
-            QColor newColor = QColorDialog::getColor(btnData->currentColor, colorDialog, "Select Color");
+            QColor newColor = QColorDialog::getColor(btnData->currentColor, colorDialog,
+                QString("Select Color for %1").arg(ThemeManager::colorRoleName(role)));
             if (newColor.isValid()) {
                 btnData->currentColor = newColor;
                 btnData->button->setStyleSheet(QString("background-color: %1; border: 1px solid #888; border-radius: 3px;").arg(newColor.name()));
             }
         });
 
-        gridLayout->addWidget(colorButton, row, col * 3 + 1);
+        tree->setItemWidget(item, 1, colorButton);
 
         // Reset button
         QPushButton* resetButton = new QPushButton("Reset", colorDialog);
+        resetButton->setFixedSize(70, 25);
         resetButton->setToolTip("Reset to theme default");
         connect(resetButton, &QPushButton::clicked, [=, &theme]() mutable {
-            // Get default color from TR4W theme by temporarily switching
+            // Get default color from current theme
             ThemeType originalTheme = theme.currentTheme();
-            theme.setTheme(ThemeType::TR4WDefault);
-            QColor defaultColor = theme.color(role);
-            theme.setTheme(originalTheme);
+            QColor defaultColor;
+
+            // If Custom theme, reset to TR4W default
+            if (originalTheme == ThemeType::Custom) {
+                theme.setTheme(ThemeType::TR4WDefault);
+                defaultColor = theme.color(role);
+                theme.setTheme(originalTheme);
+            } else {
+                defaultColor = theme.color(role);
+            }
 
             btnData->currentColor = defaultColor;
             btnData->button->setStyleSheet(QString("background-color: %1; border: 1px solid #888; border-radius: 3px;").arg(defaultColor.name()));
         });
 
-        gridLayout->addWidget(resetButton, row, col * 3 + 2);
+        tree->setItemWidget(item, 2, resetButton);
+    };
 
-        // Move to next position
-        col++;
-        if (col >= 2) {  // 2 columns of 3 widgets each = 6 columns total
-            col = 0;
-            row++;
-        }
-    }
+    // Display Colors category
+    QTreeWidgetItem* displayCategory = new QTreeWidgetItem(tree);
+    displayCategory->setText(0, "Display Colors");
+    displayCategory->setExpanded(true);
+    QFont categoryFont = displayCategory->font(0);
+    categoryFont.setBold(true);
+    displayCategory->setFont(0, categoryFont);
 
-    mainLayout->addWidget(colorsGroup);
+    addColorItem(displayCategory, ColorRole::VfoBackground);
+    addColorItem(displayCategory, ColorRole::VfoText);
+    addColorItem(displayCategory, ColorRole::WindowBackground);
+    addColorItem(displayCategory, ColorRole::TextDisplayBackground);
+
+    // Status Colors category
+    QTreeWidgetItem* statusCategory = new QTreeWidgetItem(tree);
+    statusCategory->setText(0, "Status Colors");
+    statusCategory->setExpanded(true);
+    statusCategory->setFont(0, categoryFont);
+
+    addColorItem(statusCategory, ColorRole::ConnectedStatus);
+    addColorItem(statusCategory, ColorRole::DisconnectedStatus);
+    addColorItem(statusCategory, ColorRole::FrozenIndicator);
+
+    // Functional Colors category
+    QTreeWidgetItem* functionalCategory = new QTreeWidgetItem(tree);
+    functionalCategory->setText(0, "Functional Colors");
+    functionalCategory->setExpanded(true);
+    functionalCategory->setFont(0, categoryFont);
+
+    addColorItem(functionalCategory, ColorRole::DupeText);
+    addColorItem(functionalCategory, ColorRole::NewMultiplierBackground);
+    addColorItem(functionalCategory, ColorRole::WorkedStationText);
+    addColorItem(functionalCategory, ColorRole::MultiplierText);
+    addColorItem(functionalCategory, ColorRole::LotwUserText);
+    addColorItem(functionalCategory, ColorRole::NeededMultiplierBackground);
+    addColorItem(functionalCategory, ColorRole::ConfirmedMultiplierBackground);
+
+    // Spot Aging Colors category
+    QTreeWidgetItem* spotAgingCategory = new QTreeWidgetItem(tree);
+    spotAgingCategory->setText(0, "Spot Aging Colors");
+    spotAgingCategory->setExpanded(false);  // Collapsed by default
+    spotAgingCategory->setFont(0, categoryFont);
+
+    addColorItem(spotAgingCategory, ColorRole::NewSpotText);
+    addColorItem(spotAgingCategory, ColorRole::NewSpotBackground);
+    addColorItem(spotAgingCategory, ColorRole::AgingSpotText);
+    addColorItem(spotAgingCategory, ColorRole::AgingSpotBackground);
+
+    // Map Colors category (new!)
+    QTreeWidgetItem* mapCategory = new QTreeWidgetItem(tree);
+    mapCategory->setText(0, "Map Colors");
+    mapCategory->setExpanded(false);  // Collapsed by default
+    mapCategory->setFont(0, categoryFont);
+
+    addColorItem(mapCategory, ColorRole::MapBackground);
+    addColorItem(mapCategory, ColorRole::MapNotWorked);
+    addColorItem(mapCategory, ColorRole::MapFirstContact);
+    addColorItem(mapCategory, ColorRole::MapSecondContact);
+    addColorItem(mapCategory, ColorRole::MapFew);
+    addColorItem(mapCategory, ColorRole::MapSome);
+    addColorItem(mapCategory, ColorRole::MapMany);
+    addColorItem(mapCategory, ColorRole::MapManyMore);
+    addColorItem(mapCategory, ColorRole::MapHundreds);
+    addColorItem(mapCategory, ColorRole::MapHundredsMore);
+    addColorItem(mapCategory, ColorRole::MapThousands);
+
+    // UI Colors category
+    QTreeWidgetItem* uiCategory = new QTreeWidgetItem(tree);
+    uiCategory->setText(0, "UI Colors");
+    uiCategory->setExpanded(false);  // Collapsed by default
+    uiCategory->setFont(0, categoryFont);
+
+    addColorItem(uiCategory, ColorRole::PrimaryText);
+    addColorItem(uiCategory, ColorRole::SecondaryText);
+    addColorItem(uiCategory, ColorRole::HoverHighlight);
+    addColorItem(uiCategory, ColorRole::BorderColor);
+
+    mainLayout->addWidget(tree);
 
     // Dialog buttons
     QDialogButtonBox* buttonBox = new QDialogButtonBox(
@@ -2233,7 +2296,7 @@ void PreferencesDialog::onCustomizeColors() {
 
     mainLayout->addWidget(buttonBox);
 
-    colorDialog->resize(700, 500);
+    colorDialog->resize(500, 600);
     colorDialog->exec();
 
     // Clean up

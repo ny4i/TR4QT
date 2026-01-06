@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.31.15";  // Add map colors to ThemeManager (11 new ColorRoles)
+constexpr const char* APP_VERSION = "3.31.16";  // Grouped tree view for color customization dialog
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
