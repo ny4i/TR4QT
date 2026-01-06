@@ -263,6 +263,15 @@ QString AppSettings::getComputerID() const {
     return m_settings.value("Network/computerID", "A").toString();
 }
 
+void AppSettings::setLicenseClass(const QString& licenseClass) {
+    m_settings.setValue("Station/licenseClass", licenseClass);
+    m_settings.sync();
+}
+
+QString AppSettings::getLicenseClass() const {
+    return m_settings.value("Station/licenseClass", "None").toString();
+}
+
 void AppSettings::setCurrentOperator(const QString& callsign) {
     m_settings.setValue("Station/currentOperator", callsign.toUpper());
     m_settings.sync();

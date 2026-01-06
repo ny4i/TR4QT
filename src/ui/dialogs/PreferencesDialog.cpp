@@ -165,6 +165,12 @@ QWidget* PreferencesDialog::createStationTab() {
     m_callsignEdit->setToolTip("Your callsign (used in contests and logging)");
     formLayout->addRow("Callsign:", m_callsignEdit);
 
+    // License Class (US only)
+    m_licenseClassCombo = new QComboBox(this);
+    m_licenseClassCombo->addItems({"None", "Technician", "General", "Extra"});
+    m_licenseClassCombo->setToolTip("US amateur radio license class (validates phone segment privileges on HF bands). Set to 'None' to disable warnings.");
+    formLayout->addRow("License Class:", m_licenseClassCombo);
+
     // Grid square
     m_gridSquareEdit = new QLineEdit(this);
     m_gridSquareEdit->setPlaceholderText("FN31pr");
@@ -1399,6 +1405,7 @@ void PreferencesDialog::loadSettings() {
     m_stateEdit->setText(settings.getMyState());
     m_arrlSectionEdit->setText(settings.getMyARRLSection());
     m_countyEdit->setText(settings.getMyCounty());
+    m_licenseClassCombo->setCurrentText(settings.getLicenseClass());
     // Operator will be added to AppSettings
 
     // Radio tab
@@ -1575,6 +1582,7 @@ void PreferencesDialog::saveSettings() {
     settings.setMyState(m_stateEdit->text());
     settings.setMyARRLSection(m_arrlSectionEdit->text());
     settings.setMyCounty(m_countyEdit->text());
+    settings.setLicenseClass(m_licenseClassCombo->currentText());
 
     // Radio tab
     RadioConfig config;

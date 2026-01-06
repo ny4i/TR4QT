@@ -29,6 +29,7 @@ set(SOURCES
     radio/RadioFactory.cpp
     radio/RadioController.cpp
     radio/RadioPreflightHelper.cpp
+    radio/HamRadioPrivileges.cpp
     network/TelnetClient.cpp
     network/RadioInfo.cpp
     network/ContactInfo.cpp
@@ -210,8 +211,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.31.11"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.31.11"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.31.18"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.31.18"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

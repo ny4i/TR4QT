@@ -88,6 +88,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_radioReconnectAttempts(0)
     , m_radioFlashTimer(new QTimer(this))
     , m_radioFlashState(false)
+    , m_hamPrivileges(nullptr)
     , m_dxClusterWindow(nullptr)
     , m_bandMapWindow(nullptr)
     , m_radioControlWindow(nullptr)
@@ -129,6 +130,12 @@ MainWindow::MainWindow(QWidget* parent)
     setupUI();
     loadSettings();
     loadUdpBroadcastSettings();
+
+    // Initialize ham radio privileges validator with license class from settings
+    QString licenseClassStr = AppSettings::instance().getLicenseClass();
+    HamRadioPrivileges::LicenseClass licenseClass =
+        HamRadioPrivileges::stringToLicenseClass(licenseClassStr);
+    m_hamPrivileges = new HamRadioPrivileges(licenseClass);
 
     // Initialize backup manager from settings
     loadBackupSettings();
@@ -2306,6 +2313,22 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
 
     m_currentState = state;
     // Radio state is cached for use when logging QSOs
+
+    // Validate phone mode privileges (US only)
+    if (m_hamPrivileges && state.frequencyA > 0) {
+        QString warning = m_hamPrivileges->validatePhoneMode(
+            state.frequencyA,
+            state.bandA,
+            state.modeA
+        );
+        if (!warning.isEmpty()) {
+            // Display privilege warning in status bar with orange color
+            m_statusLabel->setText(QString("⚠ %1").arg(warning));
+            m_statusLabel->setStyleSheet("color: orange; font-weight: bold;");
+            LOG_WARN("MainWindow", QString("Phone privilege violation: %1").arg(warning));
+        }
+        // Note: Don't clear status on valid operation - let other code update as needed
+    }
 
     // Check for AUTO S&P mode trigger (VFO movement)
     if (state.frequencyA > 0) {
