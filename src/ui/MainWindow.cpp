@@ -488,9 +488,8 @@ void MainWindow::createMenuBar() {
     initialExchangeAction->setShortcut(QKeySequence("Alt+Z"));
     connect(initialExchangeAction, &QAction::triggered, this, &MainWindow::onInitialExchange);
 
-    QAction* cwSpeedAction = operatingMenu->addAction("CW Speed");
-    cwSpeedAction->setShortcut(QKeySequence("Alt+S"));
-    connect(cwSpeedAction, &QAction::triggered, this, &MainWindow::onCWSpeed);
+    // Removed: CW Speed menu item (Alt+S conflicted with Download SCP)
+    // Use PgUp/PgDn shortcuts or click WPM label in Radio Control window
 
     operatingMenu->addSeparator();
 
@@ -1253,19 +1252,21 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 void MainWindow::keyPressEvent(QKeyEvent* event) {
     // PgUp: Increase WPM by configurable increment
     if (event->key() == Qt::Key_PageUp) {
-        int increment = AppSettings::instance().getMorseWPMIncrement();
-        int currentWpm = AppSettings::instance().getMorseWPM();
-        int newWpm = qMin(currentWpm + increment, 60);  // Max 60 WPM
-        AppSettings::instance().setMorseWPM(newWpm);
-
-        // Update display
-        updateRadioStatusGrid();
-
-        // Send to radio if in CW mode
+        // Only allow CW speed change in CW mode with radio connected
         bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
-        if (isCWMode && m_radioConnected) {
-            m_radio->setCWSpeed(newWpm);
+        if (!isCWMode || !m_radioConnected) {
+            m_statusLabel->setText("CW speed adjust requires CW mode and radio connection");
+            event->accept();
+            return;
         }
+
+        int increment = AppSettings::instance().getMorseWPMIncrement();
+        int currentWpm = m_currentState.cwSpeed;  // Read from radio's actual speed
+        const int MAX_WPM = 100;  // K4 maximum
+        int newWpm = qMin(currentWpm + increment, MAX_WPM);
+
+        // Send to radio - display will update when radio responds via stateUpdated
+        m_radio->setCWSpeed(newWpm);
 
         m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
         LOG_DEBUG("MainWindow", QString("WPM increased to %1 (PgUp)").arg(newWpm));
@@ -1275,19 +1276,21 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
 
     // PgDown: Decrease WPM by configurable increment
     if (event->key() == Qt::Key_PageDown) {
-        int increment = AppSettings::instance().getMorseWPMIncrement();
-        int currentWpm = AppSettings::instance().getMorseWPM();
-        int newWpm = qMax(currentWpm - increment, 5);  // Min 5 WPM
-        AppSettings::instance().setMorseWPM(newWpm);
-
-        // Update display
-        updateRadioStatusGrid();
-
-        // Send to radio if in CW mode
+        // Only allow CW speed change in CW mode with radio connected
         bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
-        if (isCWMode && m_radioConnected) {
-            m_radio->setCWSpeed(newWpm);
+        if (!isCWMode || !m_radioConnected) {
+            m_statusLabel->setText("CW speed adjust requires CW mode and radio connection");
+            event->accept();
+            return;
         }
+
+        int increment = AppSettings::instance().getMorseWPMIncrement();
+        int currentWpm = m_currentState.cwSpeed;  // Read from radio's actual speed
+        const int MIN_WPM = 8;  // K4 minimum
+        int newWpm = qMax(currentWpm - increment, MIN_WPM);
+
+        // Send to radio - display will update when radio responds via stateUpdated
+        m_radio->setCWSpeed(newWpm);
 
         m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
         LOG_DEBUG("MainWindow", QString("WPM decreased to %1 (PgDn)").arg(newWpm));
@@ -1317,41 +1320,45 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
 
         // PgUp: Increase CW speed
         if (keyEvent->key() == Qt::Key_PageUp) {
-            int increment = AppSettings::instance().getMorseWPMIncrement();
-            int currentWpm = AppSettings::instance().getMorseWPM();
-            int newWpm = qMin(currentWpm + increment, 60);  // Max 60 WPM
-
-            AppSettings::instance().setMorseWPM(newWpm);
-            m_radioWpmLabel->setText(QString("%1 WPM").arg(newWpm));
-
-            // Send speed change to radio if connected and in CW mode
-            if (m_radioConnected && m_radio &&
-                (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR)) {
-                m_radio->setCWSpeed(newWpm);
+            // Only allow CW speed change in CW mode with radio connected
+            bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
+            if (!isCWMode || !m_radioConnected || !m_radio) {
+                m_statusLabel->setText("CW speed adjust requires CW mode and radio connection");
+                return true;  // Event handled, don't propagate
             }
 
+            int increment = AppSettings::instance().getMorseWPMIncrement();
+            int currentWpm = m_currentState.cwSpeed;  // Read from radio's actual speed
+            const int MAX_WPM = 100;  // K4 maximum
+            int newWpm = qMin(currentWpm + increment, MAX_WPM);
+
+            // Send to radio - display will update when radio responds via stateUpdated
+            m_radio->setCWSpeed(newWpm);
+
             m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
-            LOG_DEBUG("MainWindow", QString("WPM increased to %1 (PgUp)").arg(newWpm));
+            LOG_DEBUG("MainWindow", QString("WPM increased to %1 (PgUp - eventFilter)").arg(newWpm));
             return true;  // Event handled, don't propagate
         }
 
         // PgDown: Decrease CW speed
         if (keyEvent->key() == Qt::Key_PageDown) {
-            int increment = AppSettings::instance().getMorseWPMIncrement();
-            int currentWpm = AppSettings::instance().getMorseWPM();
-            int newWpm = qMax(currentWpm - increment, 5);  // Min 5 WPM
-
-            AppSettings::instance().setMorseWPM(newWpm);
-            m_radioWpmLabel->setText(QString("%1 WPM").arg(newWpm));
-
-            // Send speed change to radio if connected and in CW mode
-            if (m_radioConnected && m_radio &&
-                (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR)) {
-                m_radio->setCWSpeed(newWpm);
+            // Only allow CW speed change in CW mode with radio connected
+            bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
+            if (!isCWMode || !m_radioConnected || !m_radio) {
+                m_statusLabel->setText("CW speed adjust requires CW mode and radio connection");
+                return true;  // Event handled, don't propagate
             }
 
+            int increment = AppSettings::instance().getMorseWPMIncrement();
+            int currentWpm = m_currentState.cwSpeed;  // Read from radio's actual speed
+            const int MIN_WPM = 8;  // K4 minimum
+            int newWpm = qMax(currentWpm - increment, MIN_WPM);
+
+            // Send to radio - display will update when radio responds via stateUpdated
+            m_radio->setCWSpeed(newWpm);
+
             m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
-            LOG_DEBUG("MainWindow", QString("WPM decreased to %1 (PgDn)").arg(newWpm));
+            LOG_DEBUG("MainWindow", QString("WPM decreased to %1 (PgDn - eventFilter)").arg(newWpm));
             return true;  // Event handled, don't propagate
         }
 
@@ -4398,7 +4405,7 @@ void MainWindow::updateRadioStatusGrid() {
     // Update WPM label (only enabled in CW mode AND when auto-send is enabled)
     bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
     bool autoSendEnabled = m_autoSendCWAction->isChecked();  // Check actual action state, not settings
-    int wpm = AppSettings::instance().getMorseWPM();
+    int wpm = m_currentState.cwSpeed;  // Display radio's actual CW speed, not app setting
     m_radioWpmLabel->setText(QString("%1 WPM").arg(wpm));
     m_radioWpmLabel->setEnabled(isCWMode && autoSendEnabled);  // Gray out when not in CW mode or auto-send disabled
 
@@ -5914,12 +5921,8 @@ void MainWindow::onInitialExchange() {
                            "This will set/reset the initial exchange information.");
 }
 
-void MainWindow::onCWSpeed() {
-    LOG_DEBUG("MainWindow", "CW Speed (Alt+S) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "CW Speed will be implemented in a future version.\n\n"
-                           "This will adjust the CW sending speed.");
-}
+// Removed: CW Speed menu item (was Alt+S, conflicted with Download SCP)
+// Use PgUp/PgDn shortcuts or click WPM label in Radio Control window instead
 
 void MainWindow::onToggleSidetone() {
     LOG_DEBUG("MainWindow", "Toggle Sidetone (Alt+=) - Not yet implemented");

@@ -12,6 +12,11 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QInputDialog>
+#include <QSlider>
+#include <QLabel>
+#include <QSpinBox>
+#include <QPushButton>
+#include <QDialog>
 
 namespace TR4QT {
 
@@ -402,58 +407,94 @@ void RadioControlWidget::onModeContextMenu(const QPoint& pos) {
 }
 
 void RadioControlWidget::onWpmContextMenu(const QPoint& pos) {
-    // Don't show menu if radio not connected or no radio controller set
+    // Don't show popup if radio not connected or no radio controller set
     if (!m_radioController || !m_radioController->isConnected()) {
-        LOG_DEBUG("RadioControlWidget", "WPM context menu suppressed - radio not connected");
+        LOG_DEBUG("RadioControlWidget", "WPM popup suppressed - radio not connected");
         return;
     }
 
-    // Don't show menu if not in CW mode
+    // Don't show popup if not in CW mode
     bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
     if (!isCWMode) {
-        LOG_DEBUG("RadioControlWidget", "WPM context menu suppressed - not in CW mode");
+        LOG_DEBUG("RadioControlWidget", "WPM popup suppressed - not in CW mode");
         return;
     }
 
-    // Create context menu
-    QMenu menu(this);
-    menu.setTitle("Select CW Speed");
+    const int MIN_WPM = 8;   // K4 minimum
+    const int MAX_WPM = 100; // K4 maximum
 
-    // Common CW speeds
-    const int MIN_WPM = 8;  // K4 minimum
-    const int MAX_WPM = 100;  // K4 maximum
-    QList<int> commonSpeeds = {15, 20, 25, 30, 35, 40};
+    // Create compact popup dialog with slider
+    QDialog popup(this);
+    popup.setWindowTitle("CW Speed");
+    popup.setWindowFlags(Qt::Popup | Qt::FramelessWindowHint);
 
-    for (int speed : commonSpeeds) {
-        bool isCurrent = (speed == m_currentState.cwSpeed);
-        QAction* action = menu.addAction(QString("%1 WPM").arg(speed));
-        action->setCheckable(true);
-        action->setChecked(isCurrent);
+    QVBoxLayout* layout = new QVBoxLayout(&popup);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(8);
 
-        connect(action, &QAction::triggered, this, [this, speed]() {
-            LOG_INFO("RadioControlWidget", QString("CW speed change requested: %1 WPM").arg(speed));
-            emit cwSpeedChangeRequested(speed);
+    // Current speed display
+    QLabel* speedLabel = new QLabel(QString("%1 WPM").arg(m_currentState.cwSpeed), &popup);
+    QFont labelFont = speedLabel->font();
+    labelFont.setPointSize(14);
+    labelFont.setBold(true);
+    speedLabel->setFont(labelFont);
+    speedLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(speedLabel);
+
+    // Horizontal slider
+    QSlider* slider = new QSlider(Qt::Horizontal, &popup);
+    slider->setMinimum(MIN_WPM);
+    slider->setMaximum(MAX_WPM);
+    slider->setValue(m_currentState.cwSpeed);
+    slider->setTickPosition(QSlider::TicksBelow);
+    slider->setTickInterval(10);
+    slider->setMinimumWidth(250);
+    layout->addWidget(slider);
+
+    // Min/Max labels
+    QHBoxLayout* rangeLayout = new QHBoxLayout();
+    QLabel* minLabel = new QLabel(QString("%1").arg(MIN_WPM), &popup);
+    QLabel* maxLabel = new QLabel(QString("%1").arg(MAX_WPM), &popup);
+    QFont rangeFont = minLabel->font();
+    rangeFont.setPointSize(9);
+    minLabel->setFont(rangeFont);
+    maxLabel->setFont(rangeFont);
+    rangeLayout->addWidget(minLabel);
+    rangeLayout->addStretch();
+    rangeLayout->addWidget(maxLabel);
+    layout->addLayout(rangeLayout);
+
+    // Preset buttons
+    QHBoxLayout* presetLayout = new QHBoxLayout();
+    QList<int> presets = {15, 20, 25, 30, 35, 40};
+    for (int preset : presets) {
+        QPushButton* btn = new QPushButton(QString::number(preset), &popup);
+        btn->setMaximumWidth(40);
+        connect(btn, &QPushButton::clicked, [slider, preset]() {
+            slider->setValue(preset);
         });
+        presetLayout->addWidget(btn);
     }
+    layout->addLayout(presetLayout);
 
-    // Add separator and custom option
-    menu.addSeparator();
-    QAction* customAction = menu.addAction("Custom...");
-    connect(customAction, &QAction::triggered, this, [this]() {
-        bool ok;
-        int speed = QInputDialog::getInt(this, "Set CW Speed",
-                                        QString("Enter CW speed (WPM):\nValid range: %1-%2").arg(MIN_WPM).arg(MAX_WPM),
-                                        m_currentState.cwSpeed,  // Current value
-                                        MIN_WPM, MAX_WPM, 1,     // Min, max, step
-                                        &ok);
-        if (ok) {
-            LOG_INFO("RadioControlWidget", QString("Custom CW speed requested: %1 WPM").arg(speed));
-            emit cwSpeedChangeRequested(speed);
-        }
+    // Update label as slider moves
+    connect(slider, &QSlider::valueChanged, [speedLabel](int value) {
+        speedLabel->setText(QString("%1 WPM").arg(value));
     });
 
-    // Show menu at cursor position (relative to WPM label)
-    menu.exec(m_wpmLabel->mapToGlobal(pos));
+    // Send to radio when slider released
+    connect(slider, &QSlider::sliderReleased, [this, slider]() {
+        int newSpeed = slider->value();
+        LOG_INFO("RadioControlWidget", QString("CW speed change requested (slider): %1 WPM").arg(newSpeed));
+        emit cwSpeedChangeRequested(newSpeed);
+    });
+
+    // Position popup near WPM label
+    QPoint globalPos = m_wpmLabel->mapToGlobal(QPoint(0, m_wpmLabel->height()));
+    popup.move(globalPos);
+
+    // Show popup (blocks until closed)
+    popup.exec();
 }
 
 bool RadioControlWidget::eventFilter(QObject* obj, QEvent* event) {
