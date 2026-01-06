@@ -11,6 +11,7 @@
 #include <QEvent>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QInputDialog>
 
 namespace TR4QT {
 
@@ -114,6 +115,10 @@ void RadioControlWidget::setupUI() {
     m_wpmLabel->setFont(wpmFont);
     m_wpmLabel->setAlignment(Qt::AlignCenter);
     m_wpmLabel->setStyleSheet("QLabel { background-color: #E0E0E0; padding: 3px; border-radius: 3px; }");
+    m_wpmLabel->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_wpmLabel->setCursor(Qt::PointingHandCursor);  // Show clickable cursor
+    m_wpmLabel->installEventFilter(this);  // Handle left-clicks
+    connect(m_wpmLabel, &QLabel::customContextMenuRequested, this, &RadioControlWidget::onWpmContextMenu);
     m_wpmLabel->setEnabled(false);  // Grayed out by default
     mainLayout->addWidget(m_wpmLabel);
 
@@ -265,7 +270,7 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
 
     // Update WPM label (only enabled in CW mode)
     bool isCWMode = (state.modeA == ModeType::CW || state.modeA == ModeType::CWR);
-    int wpm = AppSettings::instance().getMorseWPM();
+    int wpm = state.cwSpeed;  // Display radio's CW speed, not app setting
     m_wpmLabel->setText(QString("%1 WPM").arg(wpm));
     m_wpmLabel->setEnabled(isCWMode);  // Gray out when not in CW mode
 
@@ -396,6 +401,61 @@ void RadioControlWidget::onModeContextMenu(const QPoint& pos) {
     menu.exec(m_modeLabel->mapToGlobal(pos));
 }
 
+void RadioControlWidget::onWpmContextMenu(const QPoint& pos) {
+    // Don't show menu if radio not connected or no radio controller set
+    if (!m_radioController || !m_radioController->isConnected()) {
+        LOG_DEBUG("RadioControlWidget", "WPM context menu suppressed - radio not connected");
+        return;
+    }
+
+    // Don't show menu if not in CW mode
+    bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
+    if (!isCWMode) {
+        LOG_DEBUG("RadioControlWidget", "WPM context menu suppressed - not in CW mode");
+        return;
+    }
+
+    // Create context menu
+    QMenu menu(this);
+    menu.setTitle("Select CW Speed");
+
+    // Common CW speeds
+    const int MIN_WPM = 8;  // K4 minimum
+    const int MAX_WPM = 100;  // K4 maximum
+    QList<int> commonSpeeds = {15, 20, 25, 30, 35, 40};
+
+    for (int speed : commonSpeeds) {
+        bool isCurrent = (speed == m_currentState.cwSpeed);
+        QAction* action = menu.addAction(QString("%1 WPM").arg(speed));
+        action->setCheckable(true);
+        action->setChecked(isCurrent);
+
+        connect(action, &QAction::triggered, this, [this, speed]() {
+            LOG_INFO("RadioControlWidget", QString("CW speed change requested: %1 WPM").arg(speed));
+            emit cwSpeedChangeRequested(speed);
+        });
+    }
+
+    // Add separator and custom option
+    menu.addSeparator();
+    QAction* customAction = menu.addAction("Custom...");
+    connect(customAction, &QAction::triggered, this, [this]() {
+        bool ok;
+        int speed = QInputDialog::getInt(this, "Set CW Speed",
+                                        QString("Enter CW speed (WPM):\nValid range: %1-%2").arg(MIN_WPM).arg(MAX_WPM),
+                                        m_currentState.cwSpeed,  // Current value
+                                        MIN_WPM, MAX_WPM, 1,     // Min, max, step
+                                        &ok);
+        if (ok) {
+            LOG_INFO("RadioControlWidget", QString("Custom CW speed requested: %1 WPM").arg(speed));
+            emit cwSpeedChangeRequested(speed);
+        }
+    });
+
+    // Show menu at cursor position (relative to WPM label)
+    menu.exec(m_wpmLabel->mapToGlobal(pos));
+}
+
 bool RadioControlWidget::eventFilter(QObject* obj, QEvent* event) {
     if (event->type() == QEvent::MouseButtonPress) {
         QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
@@ -403,6 +463,10 @@ bool RadioControlWidget::eventFilter(QObject* obj, QEvent* event) {
         if (obj == m_modeLabel && mouseEvent->button() == Qt::LeftButton) {
             // Show mode menu on left-click (same as right-click)
             onModeContextMenu(mouseEvent->pos());
+            return true;
+        } else if (obj == m_wpmLabel && mouseEvent->button() == Qt::LeftButton) {
+            // Show WPM menu on left-click (same as right-click)
+            onWpmContextMenu(mouseEvent->pos());
             return true;
         } else if (obj == m_ritWidget) {
             onRitClicked();

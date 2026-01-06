@@ -71,11 +71,17 @@ signals:
      */
     void modeChangeRequested(ModeType mode);
 
+    /**
+     * User requested CW speed change
+     */
+    void cwSpeedChangeRequested(int wpm);
+
 private slots:
     void onRitClicked();
     void onXitClicked();
     void onSplitClicked();
     void onModeContextMenu(const QPoint& pos);
+    void onWpmContextMenu(const QPoint& pos);
 
 protected:
     bool eventFilter(QObject* obj, QEvent* event) override;
