@@ -9,6 +9,7 @@
 #include <QTimer>
 #include <QDateTime>
 #include "../radio/RadioController.h"
+#include "../radio/HamRadioPrivileges.h"
 #include "../utils/AppSettings.h"
 #include "../utils/CountryFile.h"
 #include "../utils/SCPMatcher.h"
@@ -299,6 +300,9 @@ private:
     static constexpr int MAX_RADIO_RECONNECT_ATTEMPTS = 10;
     QTimer* m_radioFlashTimer;      // Timer for flashing red indicator
     bool m_radioFlashState;          // Current flash state (on/off)
+
+    // Frequency/mode privilege validation (US only)
+    HamRadioPrivileges* m_hamPrivileges;
 
     // Menus
     QAction* m_connectAction;

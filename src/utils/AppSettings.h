@@ -81,6 +81,9 @@ public:
     void setComputerID(const QString& id);
     QString getComputerID() const;  // Default: "A"
 
+    void setLicenseClass(const QString& licenseClass);
+    QString getLicenseClass() const;  // Default: "General"
+
     // Current operator (for multi-op contests)
     void setCurrentOperator(const QString& callsign);
     QString getCurrentOperator() const;
