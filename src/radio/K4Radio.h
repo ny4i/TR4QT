@@ -72,6 +72,10 @@ public:
     int getFilterWidth() const override;
     RadioState getCurrentState() const override;
 
+    // Radio information
+    Q_INVOKABLE QList<ModeType> getSupportedModes() const;
+    Q_INVOKABLE bool supportsCWSending() const;
+
     // K4-specific features not in RadioInterface
     bool setFilterPreset(int preset, VFO vfo = VFO::VFO_A);
     bool queryOptionModules(QStringList& modules);
