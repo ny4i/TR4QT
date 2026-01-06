@@ -94,7 +94,9 @@ private slots:
     void onRadioConnect();
     void onRadioDisconnect();
     void onAbout();
+#ifdef ENABLE_PERFORMANCE_PROFILING
     void onShowPerformanceReport();
+#endif
     void onEmailLogsToSupport();
     void onExit();
 
