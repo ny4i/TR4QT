@@ -1,8 +1,11 @@
 #include "NativeMapViewer.h"
 #include "../ui/models/QSOTableModel.h"
 #include "../utils/MapDataProvider.h"
+#include "../utils/ThemeManager.h"
 #include "../logging/LogMacros.h"
 #include <QVBoxLayout>
+
+using namespace TR4QT;
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -109,7 +112,7 @@ void NativeMapViewer::setupUI() {
 
     // Graphics view and scene
     m_scene = new QGraphicsScene(this);
-    m_scene->setBackgroundBrush(QColor("#E8F4F8"));  // Light blue background
+    m_scene->setBackgroundBrush(ThemeManager::instance().color(ColorRole::MapBackground));
 
     m_view = new QGraphicsView(m_scene, this);
     m_view->setRenderHint(QPainter::Antialiasing);
@@ -166,25 +169,26 @@ void NativeMapViewer::setupUI() {
     legendGroup->setStyleSheet("QGroupBox { font-weight: bold; color: #FFD700; }");
     QVBoxLayout* legendLayout = new QVBoxLayout(legendGroup);
 
-    struct LegendItem { QString color; QString label; };
+    struct LegendItem { ColorRole role; QString label; };
     QVector<LegendItem> legendItems = {
-        {"#CCCCCC", "0 (Not Worked)"},
-        {"#3498DB", "1 QSO"},
-        {"#E74C3C", "2 QSOs"},
-        {"#0D5D0D", "3-9 QSOs"},
-        {"#137A13", "10-19 QSOs"},
-        {"#1A9E1A", "20-49 QSOs"},
-        {"#2ECC71", "50-99 QSOs"},
-        {"#5ED68F", "100-199 QSOs"},
-        {"#8EE0AD", "200-499 QSOs"},
-        {"#C8F0DC", "500+ QSOs"}
+        {ColorRole::MapNotWorked, "0 (Not Worked)"},
+        {ColorRole::MapFirstContact, "1 QSO"},
+        {ColorRole::MapSecondContact, "2 QSOs"},
+        {ColorRole::MapFew, "3-9 QSOs"},
+        {ColorRole::MapSome, "10-19 QSOs"},
+        {ColorRole::MapMany, "20-49 QSOs"},
+        {ColorRole::MapManyMore, "50-99 QSOs"},
+        {ColorRole::MapHundreds, "100-199 QSOs"},
+        {ColorRole::MapHundredsMore, "200-499 QSOs"},
+        {ColorRole::MapThousands, "500+ QSOs"}
     };
 
     for (const auto& item : legendItems) {
         QHBoxLayout* row = new QHBoxLayout();
         QLabel* colorBox = new QLabel();
         colorBox->setFixedSize(30, 20);
-        colorBox->setStyleSheet(QString("background-color: %1; border: 1px solid white;").arg(item.color));
+        QString colorName = ThemeManager::instance().colorName(item.role);
+        colorBox->setStyleSheet(QString("background-color: %1; border: 1px solid white;").arg(colorName));
         row->addWidget(colorBox);
         row->addWidget(new QLabel(item.label));
         row->addStretch();
@@ -398,16 +402,16 @@ void NativeMapViewer::createPolygons() {
 }
 
 QColor NativeMapViewer::getColorForCount(int count) {
-    if (count == 0) return QColor("#CCCCCC");      // Gray - not worked
-    if (count == 1) return QColor("#3498DB");      // Blue - first contact
-    if (count == 2) return QColor("#E74C3C");      // Red - second contact
-    if (count <= 9) return QColor("#0D5D0D");      // Dark green - 3-9
-    if (count <= 19) return QColor("#137A13");     // Green - 10-19
-    if (count <= 49) return QColor("#1A9E1A");     // Medium green - 20-49
-    if (count <= 99) return QColor("#2ECC71");     // Bright green - 50-99
-    if (count <= 199) return QColor("#5ED68F");    // Light green - 100-199
-    if (count <= 499) return QColor("#8EE0AD");    // Lighter green - 200-499
-    return QColor("#C8F0DC");                       // Very light green - 500+
+    if (count == 0) return ThemeManager::instance().color(ColorRole::MapNotWorked);
+    if (count == 1) return ThemeManager::instance().color(ColorRole::MapFirstContact);
+    if (count == 2) return ThemeManager::instance().color(ColorRole::MapSecondContact);
+    if (count <= 9) return ThemeManager::instance().color(ColorRole::MapFew);
+    if (count <= 19) return ThemeManager::instance().color(ColorRole::MapSome);
+    if (count <= 49) return ThemeManager::instance().color(ColorRole::MapMany);
+    if (count <= 99) return ThemeManager::instance().color(ColorRole::MapManyMore);
+    if (count <= 199) return ThemeManager::instance().color(ColorRole::MapHundreds);
+    if (count <= 499) return ThemeManager::instance().color(ColorRole::MapHundredsMore);
+    return ThemeManager::instance().color(ColorRole::MapThousands);
 }
 
 void NativeMapViewer::updatePolygonColors() {

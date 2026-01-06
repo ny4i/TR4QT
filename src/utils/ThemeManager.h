@@ -43,7 +43,20 @@ enum class ColorRole {
     PrimaryText,                // Main text color (default: black)
     SecondaryText,              // Secondary/disabled text (default: dark gray)
     HoverHighlight,             // Hover effect (default: #e0e0e0)
-    BorderColor                 // Widget borders (default: #ccc)
+    BorderColor,                // Widget borders (default: #ccc)
+
+    // Map Colors (QSO count gradient)
+    MapBackground,              // Map background (default: light blue #E8F4F8)
+    MapNotWorked,               // 0 QSOs (default: gray #CCCCCC)
+    MapFirstContact,            // 1 QSO (default: blue #3498DB)
+    MapSecondContact,           // 2 QSOs (default: red #E74C3C)
+    MapFew,                     // 3-9 QSOs (default: dark green #0D5D0D)
+    MapSome,                    // 10-19 QSOs (default: green #137A13)
+    MapMany,                    // 20-49 QSOs (default: medium green #1A9E1A)
+    MapManyMore,                // 50-99 QSOs (default: bright green #2ECC71)
+    MapHundreds,                // 100-199 QSOs (default: light green #5ED68F)
+    MapHundredsMore,            // 200-499 QSOs (default: lighter green #8EE0AD)
+    MapThousands                // 500+ QSOs (default: very light green #C8F0DC)
 };
 
 /**
