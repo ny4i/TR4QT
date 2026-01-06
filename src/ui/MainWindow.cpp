@@ -625,8 +625,10 @@ void MainWindow::createMenuBar() {
     QAction* aboutAction = helpMenu->addAction("&About");
     connect(aboutAction, &QAction::triggered, this, &MainWindow::onAbout);
 
+#ifdef ENABLE_PERFORMANCE_PROFILING
     QAction* perfReportAction = helpMenu->addAction("Show Performance Report...");
     connect(perfReportAction, &QAction::triggered, this, &MainWindow::onShowPerformanceReport);
+#endif
 
     QAction* emailLogsAction = helpMenu->addAction("Email Logs to Support...");
     connect(emailLogsAction, &QAction::triggered, this, &MainWindow::onEmailLogsToSupport);
@@ -1541,6 +1543,7 @@ void MainWindow::onAbout() {
                            .arg(APP_VERSION));
 }
 
+#ifdef ENABLE_PERFORMANCE_PROFILING
 void MainWindow::onShowPerformanceReport() {
     QString report = PerformanceProfiler::instance().generateReport();
 
@@ -1560,6 +1563,7 @@ void MainWindow::onShowPerformanceReport() {
 
     msgBox.exec();
 }
+#endif
 
 void MainWindow::onEmailLogsToSupport() {
     // Get logs from last "PROGRAM STARTUP" banner forward

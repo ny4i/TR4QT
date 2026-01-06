@@ -1,6 +1,10 @@
 #ifndef PERFORMANCEPROFILER_H
 #define PERFORMANCEPROFILER_H
 
+// Conditional compilation for performance profiling
+// Comment out this line to disable profiling (zero overhead)
+// #define ENABLE_PERFORMANCE_PROFILING
+
 #include <QString>
 #include <QHash>
 #include <QMutex>
@@ -90,8 +94,12 @@ private:
 };
 
 // Convenience macro for timing functions
-#define PROFILE_FUNCTION(radioType) \
-    ScopedTimer _profiler_timer(radioType, __FUNCTION__)
+#ifdef ENABLE_PERFORMANCE_PROFILING
+    #define PROFILE_FUNCTION(radioType) \
+        ScopedTimer _profiler_timer(radioType, __FUNCTION__)
+#else
+    #define PROFILE_FUNCTION(radioType) do { } while(0)  // No-op when profiling disabled
+#endif
 
 } // namespace TR4QT
 
