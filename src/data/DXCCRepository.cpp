@@ -1,5 +1,6 @@
 #include "DXCCRepository.h"
 #include "GlobalDatabase.h"
+#include "DatabaseTransaction.h"
 #include "../logging/LogMacros.h"
 #include <QSqlQuery>
 #include <QVariant>
@@ -453,7 +454,8 @@ QString DXCCRepository::getEntityName(int entityCode) const {
 bool DXCCRepository::initializeDXCCEntities() {
     LOG_INFO("DXCCRepository", "Initializing DXCC entities table...");
 
-    if (!m_db.beginTransaction()) {
+    DatabaseTransaction txn(m_db);
+    if (!txn.begin()) {
         LOG_ERROR("DXCCRepository", "Failed to begin transaction");
         return false;
     }
@@ -470,14 +472,13 @@ bool DXCCRepository::initializeDXCCEntities() {
             LOG_ERROR("DXCCRepository", QString("Failed to insert DXCC entity %1: %2")
                 .arg(DXCC_ENTITIES[i].code)
                 .arg(insertQuery.lastError().text()));
-            m_db.rollbackTransaction();
-            return false;
+            return false;  // Auto-rollback via RAII destructor
         }
     }
 
-    if (!m_db.commitTransaction()) {
+    if (!txn.commit()) {
         LOG_ERROR("DXCCRepository", "Failed to commit transaction");
-        return false;
+        return false;  // Auto-rollback already done by commit()
     }
 
     LOG_INFO("DXCCRepository", QString("Successfully initialized %1 DXCC entities").arg(DXCC_ENTITY_COUNT));

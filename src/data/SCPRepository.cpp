@@ -1,5 +1,6 @@
 #include "SCPRepository.h"
 #include "GlobalDatabase.h"
+#include "DatabaseTransaction.h"
 #include "../logging/LogMacros.h"
 #include <QSqlQuery>
 #include <QSqlError>
@@ -184,7 +185,8 @@ int SCPRepository::bulkInsert(const QStringList& callsigns,
     }
 
     // Start transaction for performance
-    if (!db.beginTransaction()) {
+    DatabaseTransaction txn(db);
+    if (!txn.begin()) {
         m_lastError = "Failed to begin transaction";
         LOG_WARN("SCPRepository", m_lastError);
         return 0;
@@ -228,10 +230,10 @@ int SCPRepository::bulkInsert(const QStringList& callsigns,
         }
     }
 
-    if (!db.commitTransaction()) {
+    if (!txn.commit()) {
         m_lastError = "Failed to commit transaction";
         LOG_WARN("SCPRepository", m_lastError);
-        return 0;
+        return 0;  // Auto-rollback already done by commit()
     }
 
     LOG_DEBUG("SCPRepository", QString("Bulk insert: %1 callsigns inserted/updated from source '%2'")

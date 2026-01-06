@@ -1,5 +1,6 @@
 #include "SpotRepository.h"
 #include "GlobalDatabase.h"
+#include "DatabaseTransaction.h"
 #include "../ui/widgets/BandMapWidget.h"
 #include "../logging/LogMacros.h"
 #include <QSqlQuery>
@@ -49,7 +50,8 @@ bool SpotRepository::saveAllSpots(const QList<Spot>& spots) {
     }
 
     // Start transaction for speed
-    if (!db.beginTransaction()) {
+    DatabaseTransaction txn(db);
+    if (!txn.begin()) {
         m_lastError = "Failed to start transaction";
         LOG_WARN("SpotRepository", m_lastError);
         return false;
@@ -59,9 +61,8 @@ bool SpotRepository::saveAllSpots(const QList<Spot>& spots) {
     QSqlQuery clearQuery = db.execute("DELETE FROM dx_spots", {});
     if (!clearQuery.isActive()) {
         m_lastError = db.lastError();
-        db.rollbackTransaction();
         LOG_WARN("SpotRepository", QString("Failed to clear spots: %1").arg(m_lastError));
-        return false;
+        return false;  // Auto-rollback via RAII destructor
     }
 
     // Bulk insert all spots
@@ -90,18 +91,16 @@ bool SpotRepository::saveAllSpots(const QList<Spot>& spots) {
         QSqlQuery insertQuery = db.execute(sql, values);
         if (!insertQuery.isActive()) {
             m_lastError = db.lastError();
-            db.rollbackTransaction();
             LOG_WARN("SpotRepository", QString("Failed to insert spot %1: %2").arg(spot.callsign).arg(m_lastError));
-            return false;
+            return false;  // Auto-rollback via RAII destructor
         }
     }
 
     // Commit transaction
-    if (!db.commitTransaction()) {
+    if (!txn.commit()) {
         m_lastError = "Failed to commit transaction";
-        db.rollbackTransaction();
         LOG_WARN("SpotRepository", m_lastError);
-        return false;
+        return false;  // Auto-rollback already done by commit()
     }
 
     LOG_INFO("SpotRepository", QString("Saved %1 spots to database").arg(spots.size()));

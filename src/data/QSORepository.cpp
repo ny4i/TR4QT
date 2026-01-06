@@ -1,5 +1,6 @@
 #include "QSORepository.h"
 #include "Database.h"
+#include "DatabaseTransaction.h"
 #include "../core/Types.h"
 #include "../logging/LogMacros.h"
 #include <QSqlQuery>
@@ -26,9 +27,10 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
     }
 
     // Begin transaction for atomic save
-    if (!db.beginTransaction()) {
-        m_lastError = "Failed to begin transaction: " + db.lastError();
-        LOG_ERROR("QSORepository", QString("Failed to begin transaction for QSO save: %1").arg(db.lastError()));
+    DatabaseTransaction txn(db);
+    if (!txn.begin()) {
+        m_lastError = txn.lastError();
+        LOG_ERROR("QSORepository", QString("Failed to begin transaction for QSO save: %1").arg(txn.lastError()));
         return false;
     }
 
@@ -111,9 +113,8 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
 
     if (!query.isActive()) {
         m_lastError = db.lastError();
-        db.rollbackTransaction();
-        LOG_ERROR("QSORepository", QString("Failed to insert QSO, rolled back: %1").arg(db.lastError()));
-        return false;
+        LOG_ERROR("QSORepository", QString("Failed to insert QSO: %1").arg(db.lastError()));
+        return false;  // Auto-rollback via RAII destructor
     }
 
     // Set ID on the QSO object
@@ -125,16 +126,14 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         m_lastError = "Save verification failed - QSO not found in database after insert";
         LOG_ERROR("QSORepository", QString("INTEGRITY ERROR: Failed to verify saved QSO id=%1 callsign=%2")
             .arg(qso.id).arg(qso.callsign));
-        db.rollbackTransaction();
-        return false;
+        return false;  // Auto-rollback via RAII destructor
     }
 
     // Commit transaction - QSO successfully saved and verified
-    if (!db.commitTransaction()) {
-        m_lastError = "Failed to commit transaction: " + db.lastError();
-        LOG_ERROR("QSORepository", QString("Failed to commit QSO transaction: %1").arg(db.lastError()));
-        db.rollbackTransaction();
-        return false;
+    if (!txn.commit()) {
+        m_lastError = txn.lastError();
+        LOG_ERROR("QSORepository", QString("Failed to commit QSO transaction: %1").arg(txn.lastError()));
+        return false;  // Auto-rollback already done by commit()
     }
 
     return true;
@@ -149,9 +148,10 @@ bool QSORepository::updateQSO(const QSO& qso) {
     Database& db = Database::instance();
 
     // Begin transaction for atomic update
-    if (!db.beginTransaction()) {
-        m_lastError = "Failed to begin transaction: " + db.lastError();
-        LOG_ERROR("QSORepository", QString("Failed to begin transaction for QSO update: %1").arg(db.lastError()));
+    DatabaseTransaction txn(db);
+    if (!txn.begin()) {
+        m_lastError = txn.lastError();
+        LOG_ERROR("QSORepository", QString("Failed to begin transaction for QSO update: %1").arg(txn.lastError()));
         return false;
     }
 
@@ -219,9 +219,8 @@ bool QSORepository::updateQSO(const QSO& qso) {
 
     if (!query.isActive()) {
         m_lastError = db.lastError();
-        db.rollbackTransaction();
-        LOG_ERROR("QSORepository", QString("Failed to update QSO, rolled back: %1").arg(db.lastError()));
-        return false;
+        LOG_ERROR("QSORepository", QString("Failed to update QSO: %1").arg(db.lastError()));
+        return false;  // Auto-rollback via RAII destructor
     }
 
     // Tier 1 Integrity Check: Verify the update was persisted
@@ -230,8 +229,7 @@ bool QSORepository::updateQSO(const QSO& qso) {
         m_lastError = "Update verification failed - QSO not found after update";
         LOG_ERROR("QSORepository", QString("INTEGRITY ERROR: QSO id=%1 disappeared after update")
             .arg(qso.id));
-        db.rollbackTransaction();
-        return false;
+        return false;  // Auto-rollback via RAII destructor
     }
     // Quick check: verify a key field was updated
     if (verification.callsign != qso.callsign || verification.qsoPoints != qso.qsoPoints) {
@@ -240,11 +238,10 @@ bool QSORepository::updateQSO(const QSO& qso) {
     }
 
     // Commit transaction - QSO successfully updated and verified
-    if (!db.commitTransaction()) {
-        m_lastError = "Failed to commit transaction: " + db.lastError();
-        LOG_ERROR("QSORepository", QString("Failed to commit QSO update transaction: %1").arg(db.lastError()));
-        db.rollbackTransaction();
-        return false;
+    if (!txn.commit()) {
+        m_lastError = txn.lastError();
+        LOG_ERROR("QSORepository", QString("Failed to commit QSO update transaction: %1").arg(txn.lastError()));
+        return false;  // Auto-rollback already done by commit()
     }
 
     return true;
@@ -297,7 +294,8 @@ bool QSORepository::deleteAllQSOs(int contestId) {
     int initialCount = getQSOCount(contestId, true);
 
     // Begin transaction
-    if (!db.beginTransaction()) {
+    DatabaseTransaction txn(db);
+    if (!txn.begin()) {
         m_lastError = "Failed to begin transaction for deleting all QSOs";
         LOG_ERROR("QSORepository", m_lastError);
         return false;
@@ -309,8 +307,7 @@ bool QSORepository::deleteAllQSOs(int contestId) {
     if (!multsQuery.isActive()) {
         m_lastError = db.lastError();
         LOG_ERROR("QSORepository", QString("Failed to delete multipliers: %1").arg(m_lastError));
-        db.rollbackTransaction();
-        return false;
+        return false;  // Auto-rollback via RAII destructor
     }
 
     // Delete all QSOs for this contest
@@ -319,15 +316,14 @@ bool QSORepository::deleteAllQSOs(int contestId) {
     if (!qsosQuery.isActive()) {
         m_lastError = db.lastError();
         LOG_ERROR("QSORepository", QString("Failed to delete QSOs: %1").arg(m_lastError));
-        db.rollbackTransaction();
-        return false;
+        return false;  // Auto-rollback via RAII destructor
     }
 
     // Commit transaction
-    if (!db.commitTransaction()) {
+    if (!txn.commit()) {
         m_lastError = "Failed to commit transaction for deleting all QSOs";
         LOG_ERROR("QSORepository", m_lastError);
-        return false;
+        return false;  // Auto-rollback already done by commit()
     }
 
     // Tier 1 Integrity Check: Verify all QSOs are deleted
