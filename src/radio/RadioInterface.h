@@ -67,6 +67,11 @@ public slots:
     // Frequency control (slots for thread-safe cross-thread invocation)
     virtual bool setFrequency(freq_t freq, VFO vfo = VFO::VFO_A) = 0;
 
+    // Band control - use when user intent is "change band" (not specific frequency)
+    // K4: Uses BN command (radio remembers last frequency for band)
+    // Hamlib: Calls setFrequency with band edge
+    virtual bool setBand(BandType band, VFO vfo = VFO::VFO_A) = 0;
+
     // Mode control
     virtual bool setMode(ModeType mode, VFO vfo = VFO::VFO_A) = 0;
 

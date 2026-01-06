@@ -41,6 +41,7 @@ public slots:
     void disconnect() override;
 
     bool setFrequency(freq_t freq, VFO vfo = VFO::VFO_A) override;
+    bool setBand(BandType band, VFO vfo = VFO::VFO_A) override;
     bool setMode(ModeType mode, VFO vfo = VFO::VFO_A) override;
     bool setPTT(bool transmit) override;
     bool sendCW(const QString& text) override;
@@ -73,7 +74,6 @@ public:
 
     // K4-specific features not in RadioInterface
     bool setFilterPreset(int preset, VFO vfo = VFO::VFO_A);
-    bool setBand(BandType band, VFO vfo = VFO::VFO_A);
     bool queryOptionModules(QStringList& modules);
     bool playDVKMessage(int message);
     bool stopDVK();

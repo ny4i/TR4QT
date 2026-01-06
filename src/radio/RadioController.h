@@ -32,6 +32,7 @@ public slots:
     void connectToRadio(const RadioConfig& config);
     void disconnectFromRadio();
     void setFrequency(freq_t freq, VFO vfo = VFO::VFO_A);
+    void setBand(BandType band, VFO vfo = VFO::VFO_A);
     void setMode(ModeType mode, VFO vfo = VFO::VFO_A);
     void setPTT(bool transmit);
     void sendCW(const QString& text);
@@ -58,6 +59,7 @@ signals:
 
     // Internal signals to trigger worker thread operations (Qt signal/slot pattern)
     void requestSetFrequency(freq_t freq, VFO vfo);
+    void requestSetBand(BandType band, VFO vfo);
     void requestSetMode(ModeType mode, VFO vfo);
     void requestSetPTT(bool transmit);
     void requestSendCW(QString text);

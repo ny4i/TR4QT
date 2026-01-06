@@ -5997,14 +5997,14 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
 
 void MainWindow::onBandClicked(BandType band) {
     if (m_radioConnected) {
-        // Radio connected: Change radio frequency
-        freq_t frequency = getFrequencyForBand(band, m_currentState.modeA);
-        LOG_DEBUG("MainWindow", QString("Band clicked: %1 Setting frequency to: %2 Hz")
-            .arg(QString::number(static_cast<int>(band)))
-            .arg(QString::number(frequency, 'f', 0)));
+        // Radio connected: Change radio band
+        // K4: Uses BN command (radio remembers last frequency for band)
+        // Hamlib: Calls setFrequency with band edge
+        LOG_DEBUG("MainWindow", QString("Band clicked: %1 Sending setBand command")
+            .arg(bandToString(band)));
 
-        // Send frequency change to radio
-        m_radio->setFrequency(frequency);
+        // Send band change to radio
+        m_radio->setBand(band);
     } else {
         // Radio not connected: Manual band selection for logging
         LOG_DEBUG("MainWindow", QString("Manual band selection: %1").arg(bandToString(band)));
