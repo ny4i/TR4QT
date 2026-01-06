@@ -1872,6 +1872,14 @@ void MainWindow::onPreferences() {
         // Reload UDP broadcast settings
         loadUdpBroadcastSettings();
 
+        // Reload license class for phone privilege validation
+        QString licenseClassStr = settings.getLicenseClass();
+        HamRadioPrivileges::LicenseClass licenseClass =
+            HamRadioPrivileges::stringToLicenseClass(licenseClassStr);
+        delete m_hamPrivileges;
+        m_hamPrivileges = new HamRadioPrivileges(licenseClass);
+        LOG_DEBUG("MainWindow", QString("License class updated to: %1").arg(licenseClassStr));
+
         // Check if radio settings actually changed
         bool radioSettingsChanged = false;
         if (settings.hasRadioConfig()) {
@@ -3226,34 +3234,52 @@ void MainWindow::onCallsignEnterPressed() {
     // Check for numeric frequency entry
     // If callsign is a number, treat it as frequency change command
     bool isNumeric = false;
-    unsigned long freqValue = callsign.toULong(&isNumeric);
+    unsigned long targetFreqKHz = 0;
 
-    LOG_DEBUG("MainWindow", QString("Numeric check - isNumeric: %1, freqValue: %2")
-        .arg(isNumeric).arg(freqValue));
-
-    if (isNumeric && freqValue > 0) {
-        // Determine if this is an offset or absolute frequency
-        unsigned long targetFreqKHz = 0;
-
-        if (freqValue < 1000) {
-            // Small number - treat as offset from band edge
-            // e.g., "300" on 15m -> 21000 + 300 = 21300 kHz
-            unsigned long bandEdge = bandToBaseFrequency(m_currentState.bandA);
-            if (bandEdge > 0) {
-                targetFreqKHz = bandEdge + freqValue;
-                LOG_DEBUG("MainWindow", QString("Frequency offset entry: %1 + %2 = %3 kHz")
-                    .arg(bandEdge).arg(freqValue).arg(targetFreqKHz));
-            } else {
-                m_statusLabel->setText("Error: Cannot determine band edge for current band");
-                onClearEntry();
-                return;
-            }
-        } else {
-            // Large number - treat as absolute frequency in kHz
-            // e.g., "14210" -> 14210 kHz
-            targetFreqKHz = freqValue;
-            LOG_DEBUG("MainWindow", QString("Absolute frequency entry: %1 kHz").arg(targetFreqKHz));
+    // Check if input contains a decimal point (e.g., "14.200" for 14.200 MHz)
+    if (callsign.contains('.')) {
+        bool isDouble = false;
+        double freqMHz = callsign.toDouble(&isDouble);
+        if (isDouble && freqMHz > 0) {
+            // Decimal entry - treat as MHz and convert to kHz
+            // e.g., "14.200" -> 14200 kHz
+            targetFreqKHz = static_cast<unsigned long>(freqMHz * 1000.0);
+            isNumeric = true;
+            LOG_DEBUG("MainWindow", QString("Decimal frequency entry: %1 MHz -> %2 kHz")
+                .arg(freqMHz).arg(targetFreqKHz));
         }
+    } else {
+        // No decimal - try to parse as integer (kHz)
+        unsigned long freqValue = callsign.toULong(&isNumeric);
+
+        LOG_DEBUG("MainWindow", QString("Numeric check - isNumeric: %1, freqValue: %2")
+            .arg(isNumeric).arg(freqValue));
+
+        if (isNumeric && freqValue > 0) {
+            // Determine if this is an offset or absolute frequency
+            if (freqValue < 1000) {
+                // Small number - treat as offset from band edge
+                // e.g., "300" on 15m -> 21000 + 300 = 21300 kHz
+                unsigned long bandEdge = bandToBaseFrequency(m_currentState.bandA);
+                if (bandEdge > 0) {
+                    targetFreqKHz = bandEdge + freqValue;
+                    LOG_DEBUG("MainWindow", QString("Frequency offset entry: %1 + %2 = %3 kHz")
+                        .arg(bandEdge).arg(freqValue).arg(targetFreqKHz));
+                } else {
+                    m_statusLabel->setText("Error: Cannot determine band edge for current band");
+                    onClearEntry();
+                    return;
+                }
+            } else {
+                // Large number - treat as absolute frequency in kHz
+                // e.g., "14210" -> 14210 kHz
+                targetFreqKHz = freqValue;
+                LOG_DEBUG("MainWindow", QString("Absolute frequency entry: %1 kHz").arg(targetFreqKHz));
+            }
+        }
+    }
+
+    if (isNumeric && targetFreqKHz > 0) {
 
         // Convert kHz to Hz for hamlib
         freq_t targetFreqHz = static_cast<freq_t>(targetFreqKHz) * 1000;
