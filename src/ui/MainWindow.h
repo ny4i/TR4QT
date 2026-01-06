@@ -141,7 +141,7 @@ private slots:
     void onDeleteLastQSO();         // TODO: Implement delete last QSO
     void onIncNumber();             // TODO: Implement increment number
     void onInitialExchange();       // TODO: Implement initial exchange
-    void onCWSpeed();               // TODO: Implement CW speed
+    // Removed: onCWSpeed() - use PgUp/PgDn or click WPM label instead
     void onToggleSidetone();        // TODO: Implement toggle sidetone
     void onToggleAutosend();        // TODO: Implement toggle autosend
 
