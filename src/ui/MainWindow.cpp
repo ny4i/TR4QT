@@ -5225,6 +5225,13 @@ void MainWindow::onShowRadioControl() {
                     m_radio->setMode(mode, VFO::VFO_A);
                 });
 
+        // Connect CW speed change requests
+        connect(m_radioControlWindow, &RadioControlWidget::cwSpeedChangeRequested,
+                this, [this](int wpm) {
+                    LOG_INFO("MainWindow", QString("CW speed change requested from radio control: %1 WPM").arg(wpm));
+                    m_radio->setCWSpeed(wpm);
+                });
+
         // Connect RIT/XIT/SPLIT toggle requests
         connect(m_radioControlWindow, &RadioControlWidget::ritToggled,
                 this, [this](bool enabled) {

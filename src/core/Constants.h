@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.31.19";  // Decimal frequency entry + license class refresh fix
+constexpr const char* APP_VERSION = "3.31.20";  // Bidirectional CW speed sync (Issue #25)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
