@@ -370,6 +370,21 @@ The git pre-commit hook enforces this rule:
 - Excludes allowed patterns (ThemeManager.cpp, "// Theme default" comments)
 - Can bypass with `git commit --no-verify` if intentional (not recommended)
 
+**Hook Bug Fix (2026-01-06)**:
+The original hook had a bug where `head -5` returns exit code 0 even with no input, causing false positives. Fixed by capturing output in a variable and checking if non-empty:
+
+```bash
+# ❌ OLD (buggy): head -5 returns 0 even with no output, triggers false positive
+if echo "$STAGED_FILES" | xargs grep ... | head -5; then
+
+# ✅ NEW (fixed): Capture output, only trigger if non-empty
+HEX_COLOR_MATCHES=$(echo "$STAGED_FILES" | xargs grep ... | head -5)
+if [ -n "$HEX_COLOR_MATCHES" ]; then
+    echo "$HEX_COLOR_MATCHES"  # Display actual matches
+```
+
+This fix is applied to `.git/hooks/pre-commit` locally. The check is TR4QT-specific (not in general `scripts/pre-commit.sample`).
+
 **This applies to ALL Qt projects with theme support.**
 
 ### NEVER Use setParent(nullptr) on Qt Widgets
