@@ -42,8 +42,41 @@ struct RadioState {
     bool isXitEnabled{false};   // XIT on/off (independent of offset value)
     bool isSplitEnabled{false};
     int cwSpeed{30};            // WPM
+    int cwPitch{600};           // Hz (CW sidetone frequency)
     int filterWidth{0};         // Hz
     int signalStrength{-54};    // Signal strength in dBm (S9 = -73 dBm)
+
+    // Audio & Gain Controls
+    int afGainA{50};            // AF gain VFO A (0-255)
+    int afGainB{50};            // AF gain VFO B (0-255)
+    int rfGainA{250};           // RF gain VFO A (0-255)
+    int rfGainB{250};           // RF gain VFO B (0-255)
+    int micGain{50};            // Microphone gain (0-80)
+    int speechCompression{0};   // Speech compression (0-20)
+    int squelchA{0};            // Squelch VFO A (0-255, FM mode)
+    int squelchB{0};            // Squelch VFO B (0-255, FM mode)
+
+    // Signal Processing
+    int agcModeA{1};            // AGC mode VFO A (0=off, 1=slow, 2=fast)
+    int agcModeB{1};            // AGC mode VFO B
+    int preampA{0};             // Preamp VFO A (0=off, 1=10dB, 2=18/20dB, 3=dual)
+    int preampB{0};             // Preamp VFO B
+    int attenuatorA{0};         // Attenuator VFO A (0-30 dB in 3dB steps)
+    int attenuatorB{0};         // Attenuator VFO B
+    int noiseBlankerA{0};       // Noise blanker VFO A (0=off, 1=on, 2=auto)
+    int noiseBlankerB{0};       // Noise blanker VFO B
+
+    // Antenna & Hardware
+    int txAntenna{1};           // TX antenna (1-6)
+    int rxAntennaA{1};          // RX antenna VFO A (1-6)
+    int rxAntennaB{1};          // RX antenna VFO B
+    bool atuEnabled{false};     // ATU mode (auto tune enabled)
+
+    // Power & Monitoring
+    int powerOutput{0};         // Power output in tenths of watts (50 = 5.0W)
+
+    // Sub Receiver (K4D/K4HD)
+    bool subRxEnabled{false};   // Sub receiver enabled
 
     bool isValid{false};
 };
