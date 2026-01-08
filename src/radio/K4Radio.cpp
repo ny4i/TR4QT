@@ -119,6 +119,13 @@ void K4Radio::onSocketConnected()
     // Query initial state
     queryInitialState();
 
+    // Emit initial state immediately so UI knows radio model
+    // Responses to queryInitialState() will update with actual radio state
+    {
+        QMutexLocker locker(&m_stateMutex);
+        emit stateUpdated(m_state);
+    }
+
     // Emit connected AFTER initialization commands are queued
     // This prevents race conditions where UI handlers run before radio is ready
     emit connectionStatusChanged(true);
@@ -213,6 +220,12 @@ void K4Radio::processMessage(const QString& message)
     VFO vfo = isVFOB ? VFO::VFO_B : VFO::VFO_A;
 
     QMutexLocker locker(&m_stateMutex);
+
+    // DEBUG: Log all processed messages to diagnose state update issues
+    LOG_DEBUG("K4Radio", QString("Processing: cmd=%1 vfo=%2 data=%3")
+              .arg(command)
+              .arg(vfo == VFO::VFO_A ? "A" : "B")
+              .arg(data));
 
     if (command == "AI") {
         // Auto Information mode confirmation

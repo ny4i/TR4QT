@@ -2267,7 +2267,8 @@ void MainWindow::onRadioConnected(bool connected) {
     updateConnectionStatus(connected);
 
     if (connected) {
-        m_statusLabel->setText("Connected to radio (waiting for state...)");
+        // Don't show "waiting for state" - stateUpdated will arrive immediately
+        // m_statusLabel->setText("Connected to radio (waiting for state...)");
 
         // Stop reconnect timer on successful connection
         m_radioReconnectTimer->stop();
@@ -2312,18 +2313,30 @@ void MainWindow::onRadioConnected(bool connected) {
 }
 
 void MainWindow::onRadioStateUpdated(const RadioState& state) {
+    // DEBUG: Confirm this slot is being called
+    static int updateCount = 0;
+    updateCount++;
+    LOG_INFO("MainWindow", QString("onRadioStateUpdated called (count=%1, model=%2, freq=%3)")
+             .arg(updateCount)
+             .arg(state.radioModel)
+             .arg(state.frequencyA));
+
     // Send UDP broadcast for radio state change (throttled in manager)
     QString stationCall = AppSettings::instance().getMyCallsign();
     m_udpBroadcastManager->onRadioStateChanged(state, stationCall);
 
     // WebServer now pulls radio state from RadioController - no need to push
 
-    // Log radio model if it changed
-    static QString lastModel;
-    if (!state.radioModel.isEmpty() && state.radioModel != lastModel) {
-        LOG_DEBUG("MainWindow", QString("MainWindow: Radio model from state: %1").arg(state.radioModel));
+    // Update status with radio model (always, not just when changed)
+    // This ensures status updates even on reconnections to the same radio
+    if (!state.radioModel.isEmpty()) {
+        static QString lastModel;
+        if (state.radioModel != lastModel) {
+            LOG_DEBUG("MainWindow", QString("MainWindow: Radio model from state: %1").arg(state.radioModel));
+            lastModel = state.radioModel;
+        }
+        // Always update status bar with radio model (even on reconnects)
         m_statusLabel->setText(QString("Radio: %1").arg(state.radioModel));
-        lastModel = state.radioModel;
     }
 
     m_currentState = state;
