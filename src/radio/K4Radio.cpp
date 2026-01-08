@@ -1,4 +1,5 @@
 #include "K4Radio.h"
+#include "CWTiming.h"
 #include "../logging/LogMacros.h"
 #include "../utils/PerformanceProfiler.h"
 #include <QMutexLocker>
@@ -332,11 +333,19 @@ void K4Radio::processMessage(const QString& message)
         }
     }
     else if (command == "RX") {
-        // Receive
+        // Receive - radio stopped transmitting
         if (m_state.isTransmitting) {
             m_state.isTransmitting = false;
             emit pttChanged(false);
             emit stateUpdated(m_state);
+        }
+
+        // If we were waiting for CW to complete, stop the timer
+        // Radio has confirmed it's back to receive, so CW transmission is done
+        if (m_cwInProgress) {
+            m_cwInProgress = false;
+            m_cwTimer->stop();
+            LOG_DEBUG("K4Radio", "CW transmission completed (radio confirmed with RX)");
         }
     }
     else if (command == "BN") {
@@ -357,6 +366,187 @@ void K4Radio::processMessage(const QString& message)
     else if (command == "ID") {
         // Radio ID
         LOG_INFO("K4Radio", QString("Radio ID: %1").arg(data));
+    }
+    else if (command == "PO") {
+        // Power output (tenths of watts)
+        bool ok;
+        int power = data.toInt(&ok);
+        if (ok && power != m_state.powerOutput) {
+            m_state.powerOutput = power;
+            emit stateUpdated(m_state);
+        }
+    }
+    else if (command == "CW") {
+        // CW pitch (sidetone frequency)
+        bool ok;
+        int pitch = data.toInt(&ok);
+        if (ok && pitch != m_state.cwPitch) {
+            m_state.cwPitch = pitch;
+            emit stateUpdated(m_state);
+        }
+    }
+    else if (command == "AG") {
+        // AF Gain
+        bool ok;
+        int gain = data.toInt(&ok);
+        if (ok) {
+            int& currentGain = (vfo == VFO::VFO_A) ? m_state.afGainA : m_state.afGainB;
+            if (gain != currentGain) {
+                currentGain = gain;
+                emit stateUpdated(m_state);
+            }
+        }
+    }
+    else if (command == "RG") {
+        // RF Gain
+        bool ok;
+        int gain = data.toInt(&ok);
+        if (ok) {
+            int& currentGain = (vfo == VFO::VFO_A) ? m_state.rfGainA : m_state.rfGainB;
+            if (gain != currentGain) {
+                currentGain = gain;
+                emit stateUpdated(m_state);
+            }
+        }
+    }
+    else if (command == "MG") {
+        // Microphone gain
+        bool ok;
+        int gain = data.toInt(&ok);
+        if (ok && gain != m_state.micGain) {
+            m_state.micGain = gain;
+            emit stateUpdated(m_state);
+        }
+    }
+    else if (command == "CP") {
+        // Speech compression
+        bool ok;
+        int comp = data.toInt(&ok);
+        if (ok && comp != m_state.speechCompression) {
+            m_state.speechCompression = comp;
+            emit stateUpdated(m_state);
+        }
+    }
+    else if (command == "SQ") {
+        // Squelch
+        bool ok;
+        int squelch = data.toInt(&ok);
+        if (ok) {
+            int& currentSq = (vfo == VFO::VFO_A) ? m_state.squelchA : m_state.squelchB;
+            if (squelch != currentSq) {
+                currentSq = squelch;
+                emit stateUpdated(m_state);
+            }
+        }
+    }
+    else if (command == "GT") {
+        // AGC mode
+        bool ok;
+        int agc = data.toInt(&ok);
+        if (ok) {
+            int& currentAgc = (vfo == VFO::VFO_A) ? m_state.agcModeA : m_state.agcModeB;
+            if (agc != currentAgc) {
+                currentAgc = agc;
+                emit stateUpdated(m_state);
+            }
+        }
+    }
+    else if (command == "PA") {
+        // Preamp
+        bool ok;
+        int preamp = data.toInt(&ok);
+        if (ok) {
+            int& currentPreamp = (vfo == VFO::VFO_A) ? m_state.preampA : m_state.preampB;
+            if (preamp != currentPreamp) {
+                currentPreamp = preamp;
+                emit stateUpdated(m_state);
+            }
+        }
+    }
+    else if (command == "RA") {
+        // RX Attenuator
+        bool ok;
+        int atten = data.toInt(&ok);
+        if (ok) {
+            int& currentAtten = (vfo == VFO::VFO_A) ? m_state.attenuatorA : m_state.attenuatorB;
+            if (atten != currentAtten) {
+                currentAtten = atten;
+                emit stateUpdated(m_state);
+            }
+        }
+    }
+    else if (command == "BW") {
+        // Receiver filter bandwidth
+        bool ok;
+        int bw = data.toInt(&ok);
+        if (ok && bw != m_state.filterWidth) {
+            m_state.filterWidth = bw;
+            emit stateUpdated(m_state);
+        }
+    }
+    else if (command == "NB") {
+        // Noise blanker
+        bool ok;
+        int nb = data.toInt(&ok);
+        if (ok) {
+            int& currentNB = (vfo == VFO::VFO_A) ? m_state.noiseBlankerA : m_state.noiseBlankerB;
+            if (nb != currentNB) {
+                currentNB = nb;
+                emit stateUpdated(m_state);
+            }
+        }
+    }
+    else if (command == "AN") {
+        // TX Antenna
+        bool ok;
+        int ant = data.toInt(&ok);
+        if (ok && ant != m_state.txAntenna) {
+            m_state.txAntenna = ant;
+            emit stateUpdated(m_state);
+        }
+    }
+    else if (command == "AR") {
+        // RX Antenna
+        bool ok;
+        int ant = data.toInt(&ok);
+        if (ok) {
+            int& currentAnt = (vfo == VFO::VFO_A) ? m_state.rxAntennaA : m_state.rxAntennaB;
+            if (ant != currentAnt) {
+                currentAnt = ant;
+                emit stateUpdated(m_state);
+            }
+        }
+    }
+    else if (command == "AT") {
+        // ATU mode
+        bool atuOn = (data.left(1) == "1");
+        if (atuOn != m_state.atuEnabled) {
+            m_state.atuEnabled = atuOn;
+            emit stateUpdated(m_state);
+        }
+    }
+    else if (command == "SM") {
+        // S-Meter reading
+        bool ok;
+        int sMeter = data.toInt(&ok);
+        if (ok) {
+            // Convert S-meter value to approximate dBm
+            // K4 SM returns 0-9999, rough conversion: S9=-73dBm, each S-unit is 6dB
+            // For now, just store the raw value (we can refine conversion later)
+            int dBm = -127 + (sMeter / 100);  // Rough approximation
+            if (dBm != m_state.signalStrength) {
+                m_state.signalStrength = dBm;
+                emit stateUpdated(m_state);
+            }
+        }
+    }
+    else if (command == "SB") {
+        // Sub receiver enable
+        bool subRx = (data.left(1) == "1");
+        if (subRx != m_state.subRxEnabled) {
+            m_state.subRxEnabled = subRx;
+            emit stateUpdated(m_state);
+        }
     }
     else {
         // Unknown command - trace for debugging
@@ -750,13 +940,15 @@ bool K4Radio::sendCW(const QString& text)
     // Send CW via KY command
     sendCommand(QString("KY %1").arg(text));
 
-    // Start timer to track CW completion (estimate based on text length and speed)
-    // Average: 5 chars/word, speed in WPM, add 20% buffer
-    int estimatedMs = (text.length() * 1200) / (m_state.cwSpeed * 5) * 1.2;
+    // Calculate accurate transmission duration using Morse code timing units
+    // Add 10% buffer for radio processing and any extra spacing
+    int accurateMs = CWTiming::calculateDuration(text, m_state.cwSpeed);
+    int estimatedMs = static_cast<int>(accurateMs * 1.1);
     m_cwInProgress = true;
     m_cwTimer->start(estimatedMs);
 
-    LOG_DEBUG("K4Radio", QString("Sending CW: '%1' (estimated %2ms)").arg(text).arg(estimatedMs));
+    LOG_DEBUG("K4Radio", QString("Sending CW: '%1' (accurate: %2ms, with buffer: %3ms)")
+              .arg(text).arg(accurateMs).arg(estimatedMs));
 
     return true;
 }
@@ -818,8 +1010,9 @@ bool K4Radio::waitForMorseComplete()
 
 void K4Radio::onCWTimeout()
 {
+    // Timer expired - this is a fallback if we didn't receive RX from radio
     m_cwInProgress = false;
-    LOG_TRACE("K4Radio", "CW transmission estimated complete");
+    LOG_DEBUG("K4Radio", "CW transmission estimated complete (timer expired, RX not received yet)");
 }
 
 // ============================================================================
