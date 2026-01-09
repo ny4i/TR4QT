@@ -73,9 +73,20 @@ set(SOURCES
     logging/LogFormatter.cpp
     logging/FileAppender.cpp
     logging/Logger.cpp
+    controllers/QSOLogger.cpp
+    controllers/DataIntegrityManager.cpp
+    controllers/ContestManager.cpp
+    controllers/ImportExportManager.cpp
+    controllers/RadioManager.cpp
+    controllers/DownloadManager.cpp
+    controllers/CWMessageManager.cpp
+    controllers/BandSwitchingManager.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp
+    ui/managers/SettingsManager.cpp
+    ui/managers/MenuManager.cpp
+    ui/managers/WindowManager.cpp
     ui/dialogs/PreferencesDialog.cpp
     ui/dialogs/OperatorDialog.cpp
     ui/dialogs/ContestChooserDialog.cpp
@@ -173,10 +184,21 @@ set(HEADERS
     logging/FileAppender.h
     logging/Logger.h
     logging/LogMacros.h
+    controllers/QSOLogger.h
+    controllers/DataIntegrityManager.h
+    controllers/ContestManager.h
+    controllers/ImportExportManager.h
+    controllers/RadioManager.h
+    controllers/DownloadManager.h
+    controllers/CWMessageManager.h
+    controllers/BandSwitchingManager.h
     models/QSO.h
     models/StationInfo.h
     ui/MainWindow.h
     ui/models/QSOTableModel.h
+    ui/managers/SettingsManager.h
+    ui/managers/MenuManager.h
+    ui/managers/WindowManager.h
     ui/dialogs/PreferencesDialog.h
     ui/dialogs/OperatorDialog.h
     ui/dialogs/ContestChooserDialog.h
@@ -218,8 +240,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.34.2"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.34.2"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.34.3"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.34.3"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

@@ -20,6 +20,17 @@
 #include "../contests/ContestBase.h"
 #include "../contests/ContestRegistry.h"
 #include "../exchanges/InitialExchangeManager.h"
+#include "../controllers/QSOLogger.h"
+#include "../controllers/DataIntegrityManager.h"
+#include "../controllers/ContestManager.h"
+#include "managers/MenuManager.h"
+#include "managers/SettingsManager.h"
+#include "managers/WindowManager.h"
+#include "../controllers/ImportExportManager.h"
+#include "../controllers/DownloadManager.h"
+#include "../controllers/RadioManager.h"
+#include "../controllers/BandSwitchingManager.h"
+#include "../controllers/CWMessageManager.h"
 
 class QMenuBar;
 class QStatusBar;
@@ -29,14 +40,7 @@ class NativeMapViewer;
 
 namespace TR4QT {
 
-/**
- * Statistics from contest rescore operation
- */
-struct RescoreStats {
-    int qsosUpdated = 0;
-    int multsMarked = 0;
-    int dupesFound = 0;
-};
+// RescoreStats now defined in DataIntegrityManager.h
 
 class DXClusterWindow;
 class BandMapWidget;
@@ -351,6 +355,27 @@ private:
     ContestBase* m_activeContest;
     int m_currentContestDbId;  // Database primary key for current contest
     int m_nextSerialNumber;
+
+    // QSO Logger (handles QSO validation, scoring, duplicate checking)
+    QSOLogger* m_qsoLogger;
+
+    // Data Integrity Manager (handles integrity checks and rescoring)
+    DataIntegrityManager* m_integrityManager;
+
+    // Contest Manager (handles contest activation and configuration)
+    ContestManager* m_contestManager;
+
+    // UI Managers
+    MenuManager* m_menuManager;
+    SettingsManager* m_settingsManager;
+    WindowManager* m_windowManager;
+
+    // Controllers
+    ImportExportManager* m_importExportManager;
+    DownloadManager* m_downloadManager;
+    RadioManager* m_radioManager;
+    BandSwitchingManager* m_bandSwitchingManager;
+    CWMessageManager* m_cwMessageManager;
 
     // Country file for lookups
     CountryFile m_countryFile;

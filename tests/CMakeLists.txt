@@ -254,3 +254,46 @@ add_tr4qt_test(test_adif_mapping_demo
     ../src/logging/LogFormatter.cpp
     ../src/logging/FileAppender.cpp
 )
+
+# QSO Logging tests (QSOLogger class)
+add_tr4qt_test(test_qso_logging
+    test_qso_logging.cpp
+    ../src/controllers/QSOLogger.cpp
+    ../src/utils/CallsignValidator.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/utils/GeographicUtils.cpp
+    ../src/utils/AppSettings.cpp
+    ../src/utils/PathManager.cpp
+    ../src/utils/ArrlSectionHelper.cpp
+    ../src/exchanges/SmartExchangeParser.cpp
+    ../src/contests/CQWWContest.cpp
+    ../src/contests/ContestRegistry.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/data/Database.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
+# Data Integrity tests (DataIntegrityManager class)
+add_tr4qt_test(test_data_integrity
+    test_data_integrity.cpp
+    ../src/controllers/DataIntegrityManager.cpp
+    ../src/data/QSORepository.cpp
+    ../src/data/Database.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/utils/GeographicUtils.cpp
+    ../src/utils/PathManager.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/contests/CQWWContest.cpp
+    ../src/contests/ContestRegistry.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
