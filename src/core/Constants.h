@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.34.0";  // Add Icom Direct network radio support to factory
+constexpr const char* APP_VERSION = "3.34.1";  // Fix CI-V address field overlap in Radio preferences
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
