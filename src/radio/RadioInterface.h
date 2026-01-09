@@ -21,7 +21,12 @@ struct RadioConfig {
     int parity{0};              // Serial parity (0=None, 1=Odd, 2=Even) - default None
     int civAddress{0};          // CI-V address (for Icom radios)
     int pollInterval{100};      // Polling interval in ms
-    int radioType{0};           // RadioFactory::RadioType (0=Hamlib, 1=K4_DIRECT, -1=Auto)
+    int radioType{0};           // RadioFactory::RadioType (0=Hamlib, 1=K4_DIRECT, 2=ICOM_DIRECT, -1=Auto)
+
+    // Icom Network Support
+    QString icomUsername;       // Icom network username (can be blank)
+    QString icomPassword;       // Icom network password (can be blank)
+    QString icomClientName{"TR4QT"};  // Client identifier
 };
 
 // Radio state (from polling)
