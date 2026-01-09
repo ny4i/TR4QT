@@ -5273,6 +5273,10 @@ void MainWindow::onShowRadioControl() {
 
         // Update with current radio state
         if (m_radioConnected) {
+            LOG_DEBUG("MainWindow", QString("Initializing Radio Control Window with state - freq=%1, mode=%2, band=%3")
+                      .arg(m_currentState.frequencyA)
+                      .arg(static_cast<int>(m_currentState.modeA))
+                      .arg(static_cast<int>(m_currentState.bandA)));
             m_radioControlWindow->updateRadioState(m_currentState);
         }
     }
