@@ -65,6 +65,7 @@ private slots:
     void onConnectionTypeChanged();
     void onRadioModelChanged(int index);
     void onRadioStatusFilterChanged();
+    void onRadioTypeChanged(int index);
 
     // UDP Broadcast slots
     void onUdpAddDestination();
@@ -116,6 +117,7 @@ private:
     QWidget* createLoggingTab();
     QWidget* createBackupTab();
     QWidget* createContestTab();
+    QWidget* createCWSettingsTab();
     QWidget* createWebServerTab();
     QWidget* createAdvancedTab();
 
@@ -154,6 +156,9 @@ private:
     QComboBox* m_parityCombo;
     QLineEdit* m_ipAddressEdit;
     QSpinBox* m_portSpin;
+    QLineEdit* m_icomUsernameEdit;
+    QLineEdit* m_icomPasswordEdit;
+    QLineEdit* m_icomClientNameEdit;
     CivAddressWidget* m_civAddressWidget;
     QSpinBox* m_pollIntervalSpin;
     QCheckBox* m_autoConnectCheck;

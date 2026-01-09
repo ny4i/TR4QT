@@ -51,12 +51,9 @@ bool IcomRadio::connect(const RadioConfig& config)
     IcomConnectionConfig netConfig;
     netConfig.ipAddress = parts[0];
     netConfig.controlPort = parts[1].toUInt();
-
-    // These would need to be added to RadioConfig or passed separately
-    // For now, using defaults - you'll need to extend RadioConfig
-    netConfig.username = "";  // TODO: Add to RadioConfig
-    netConfig.password = "";  // TODO: Add to RadioConfig
-    netConfig.clientName = "TR4QT";
+    netConfig.username = config.icomUsername;
+    netConfig.password = config.icomPassword;
+    netConfig.clientName = config.icomClientName;
 
     m_network->connectToRadio(netConfig);
 

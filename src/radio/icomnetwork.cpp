@@ -209,15 +209,28 @@ void IcomNetwork::setState(ConnectionState state)
 
 void IcomNetwork::sendAreYouThere()
 {
-    if (m_areYouThereCounter >= 20) {
+    const int MAX_RETRIES = 10;  // Reduced from 20 since we're using exponential backoff
+    const int INITIAL_INTERVAL_MS = 500;
+    const int MAX_INTERVAL_MS = 5000;
+
+    if (m_areYouThereCounter >= MAX_RETRIES) {
         emit connectionError("Radio not responding");
         disconnectFromRadio();
         return;
     }
 
-    qDebug() << "Sending Are You There...";
+    qDebug() << "Sending Are You There... (attempt" << (m_areYouThereCounter + 1) << "of" << MAX_RETRIES << ")";
     sendControlPacket(0x03, 0x00, false);
     m_areYouThereCounter++;
+
+    // Exponential backoff: 500ms, 1000ms, 2000ms, 4000ms, 5000ms (capped)
+    int nextInterval = INITIAL_INTERVAL_MS * (1 << m_areYouThereCounter);  // 2^counter
+    if (nextInterval > MAX_INTERVAL_MS) {
+        nextInterval = MAX_INTERVAL_MS;
+    }
+
+    // Restart timer with new interval
+    m_areYouThereTimer->start(nextInterval);
 }
 
 void IcomNetwork::sendControlPacket(quint8 type, quint16 seq, bool tracked)

@@ -92,6 +92,7 @@ void PreferencesDialog::setupUI() {
     m_categoryList->addItem("Logging");
     m_categoryList->addItem("Backup");
     m_categoryList->addItem("Contest");
+    m_categoryList->addItem("CW Settings");
     m_categoryList->addItem("Web Server");
     m_categoryList->addItem("Advanced");
 
@@ -118,6 +119,8 @@ void PreferencesDialog::setupUI() {
     m_settingsStack->addWidget(createBackupTab());
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Contest page ***");
     m_settingsStack->addWidget(createContestTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating CW Settings page ***");
+    m_settingsStack->addWidget(createCWSettingsTab());
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Web Server page ***");
     m_settingsStack->addWidget(createWebServerTab());
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Advanced page ***");
@@ -304,16 +307,22 @@ QWidget* PreferencesDialog::createRadioTab() {
     m_radioTypeCombo->addItem("Auto (Recommended)", -1);           // -1 = Auto
     m_radioTypeCombo->addItem("Hamlib (Universal)", 0);            // 0 = HAMLIB
     m_radioTypeCombo->addItem("K4 Direct (K4 only, 5-10x faster)", 1);  // 1 = K4_DIRECT
+    m_radioTypeCombo->addItem("Icom Direct (Icom network radios)", 2);  // 2 = ICOM_DIRECT
     m_radioTypeCombo->setCurrentIndex(0);  // Default to Auto
 
     // Tooltip explaining the options
     m_radioTypeCombo->setToolTip(
-        "Auto: Automatically selects the best interface for your radio (K4 Direct for K4, Hamlib for others)\n"
+        "Auto: Automatically selects the best interface for your radio (K4 Direct for K4, Icom Direct for supported Icom, Hamlib for others)\n"
         "Hamlib: Universal compatibility, works with all radios\n"
-        "K4 Direct: Direct TCP control for Elecraft K4 (5-10x faster than Hamlib, requires K4/K4D/K4HD)"
+        "K4 Direct: Direct TCP control for Elecraft K4 (5-10x faster than Hamlib, requires K4/K4D/K4HD)\n"
+        "Icom Direct: Native Icom network protocol (IC-905, IC-9700, IC-7610, IC-7600, IC-7300MK2, IC-705, IC-R8600, IC-7850, IC-7851, IC-7760)"
     );
 
     interfaceLayout->addRow("Type:", m_radioTypeCombo);
+
+    // Connect to update default port when radio type changes
+    connect(m_radioTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onRadioTypeChanged);
 
     // Add explanatory label
     QLabel* infoLabel = new QLabel(
@@ -409,6 +418,24 @@ QWidget* PreferencesDialog::createRadioTab() {
     networkLayout->addRow("IP Address:", m_ipAddressEdit);
     networkLayout->addRow("Port:", m_portSpin);
 
+    // Icom network credentials (only used for Icom Direct)
+    m_icomUsernameEdit = new QLineEdit(this);
+    m_icomUsernameEdit->setPlaceholderText("Username (optional, usually blank)");
+    m_icomUsernameEdit->setToolTip("Icom network username (can be left blank for most radios)");
+
+    m_icomPasswordEdit = new QLineEdit(this);
+    m_icomPasswordEdit->setPlaceholderText("Password (optional, usually blank)");
+    m_icomPasswordEdit->setEchoMode(QLineEdit::Password);
+    m_icomPasswordEdit->setToolTip("Icom network password (can be left blank for most radios)");
+
+    m_icomClientNameEdit = new QLineEdit(this);
+    m_icomClientNameEdit->setText("TR4QT");
+    m_icomClientNameEdit->setToolTip("Client identifier for Icom network protocol");
+
+    networkLayout->addRow("Icom Username:", m_icomUsernameEdit);
+    networkLayout->addRow("Icom Password:", m_icomPasswordEdit);
+    networkLayout->addRow("Icom Client Name:", m_icomClientNameEdit);
+
     // Find K4 Radios button
     m_findK4Button = new QPushButton("Find K4 Radios on Network", this);
     m_findK4Button->setToolTip("Broadcast UDP discovery message to find Elecraft K4 radios on the network");
@@ -434,32 +461,6 @@ QWidget* PreferencesDialog::createRadioTab() {
 
     advancedLayout->addRow("CI-V Address:", m_civAddressWidget);
     advancedLayout->addRow("Poll Interval:", m_pollIntervalSpin);
-
-    m_morseWpmSpin = new QSpinBox(this);
-    m_morseWpmSpin->setRange(5, 60);
-    m_morseWpmSpin->setValue(25);
-    m_morseWpmSpin->setSuffix(" WPM");
-    m_morseWpmSpin->setToolTip("Morse code speed in words per minute for CW sending");
-    advancedLayout->addRow("Morse Speed:", m_morseWpmSpin);
-
-    m_morseWpmIncrementSpin = new QSpinBox(this);
-    m_morseWpmIncrementSpin->setRange(1, 10);
-    m_morseWpmIncrementSpin->setValue(3);
-    m_morseWpmIncrementSpin->setSuffix(" WPM");
-    m_morseWpmIncrementSpin->setToolTip("WPM change when pressing PgUp/PgDn keys");
-    advancedLayout->addRow("WPM Increment:", m_morseWpmIncrementSpin);
-
-    // CW Cut Numbers and Serial Number Width
-    m_cutNumbersEnabledCheck = new QCheckBox("Enable Cut Numbers", this);
-    m_cutNumbersEnabledCheck->setToolTip("Replace digits with letters for faster CW sending\n(T=0, A=1, U=2, V=3, E=5, B=7, D=8, N=9)");
-    advancedLayout->addRow("", m_cutNumbersEnabledCheck);
-
-    m_serialNumberWidthSpin = new QSpinBox(this);
-    m_serialNumberWidthSpin->setRange(0, 4);
-    m_serialNumberWidthSpin->setValue(3);
-    m_serialNumberWidthSpin->setSuffix(" digits");
-    m_serialNumberWidthSpin->setToolTip("Number of digits for serial numbers\n(0 = no padding, 3 = \"002\", 4 = \"0002\")");
-    advancedLayout->addRow("Serial Width:", m_serialNumberWidthSpin);
 
     m_autoConnectCheck = new QCheckBox("Auto-connect on startup", this);
     m_autoConnectCheck->setChecked(true);
@@ -1323,6 +1324,49 @@ QWidget* PreferencesDialog::createContestTab() {
     return contestTab;
 }
 
+QWidget* PreferencesDialog::createCWSettingsTab() {
+    QWidget* cwTab = new QWidget(this);
+    cwTab->setAutoFillBackground(true);
+    QVBoxLayout* layout = new QVBoxLayout(cwTab);
+
+    QGroupBox* cwGroup = new QGroupBox("CW / Morse Settings", this);
+    QFormLayout* formLayout = new QFormLayout(cwGroup);
+
+    // Morse Speed
+    m_morseWpmSpin = new QSpinBox(this);
+    m_morseWpmSpin->setRange(5, 60);
+    m_morseWpmSpin->setValue(25);
+    m_morseWpmSpin->setSuffix(" WPM");
+    m_morseWpmSpin->setToolTip("Morse code speed in words per minute for CW sending");
+    formLayout->addRow("Morse Speed:", m_morseWpmSpin);
+
+    // WPM Increment
+    m_morseWpmIncrementSpin = new QSpinBox(this);
+    m_morseWpmIncrementSpin->setRange(1, 10);
+    m_morseWpmIncrementSpin->setValue(3);
+    m_morseWpmIncrementSpin->setSuffix(" WPM");
+    m_morseWpmIncrementSpin->setToolTip("WPM change when pressing PgUp/PgDn keys");
+    formLayout->addRow("WPM Increment:", m_morseWpmIncrementSpin);
+
+    // Enable Cut Numbers
+    m_cutNumbersEnabledCheck = new QCheckBox("Enable Cut Numbers", this);
+    m_cutNumbersEnabledCheck->setToolTip("Replace digits with letters for faster CW sending\n(T=0, A=1, U=2, V=3, E=5, B=7, D=8, N=9)");
+    formLayout->addRow("", m_cutNumbersEnabledCheck);
+
+    // Serial Number Width
+    m_serialNumberWidthSpin = new QSpinBox(this);
+    m_serialNumberWidthSpin->setRange(0, 4);
+    m_serialNumberWidthSpin->setValue(3);
+    m_serialNumberWidthSpin->setSuffix(" digits");
+    m_serialNumberWidthSpin->setToolTip("Number of digits for serial numbers\n(0 = no padding, 3 = \"002\", 4 = \"0002\")");
+    formLayout->addRow("Serial Width:", m_serialNumberWidthSpin);
+
+    layout->addWidget(cwGroup);
+    layout->addStretch();
+
+    return cwTab;
+}
+
 QWidget* PreferencesDialog::createWebServerTab() {
     QWidget* webServerTab = new QWidget(this);
     webServerTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
@@ -1472,6 +1516,11 @@ void PreferencesDialog::loadSettings() {
         } else {
             m_radioTypeCombo->setCurrentIndex(0);  // Default to Auto if not found
         }
+
+        // Load Icom network credentials
+        m_icomUsernameEdit->setText(config.icomUsername);
+        m_icomPasswordEdit->setText(config.icomPassword);
+        m_icomClientNameEdit->setText(config.icomClientName);
     }
 
     m_autoConnectCheck->setChecked(settings.getRadioAutoConnect());
@@ -1635,8 +1684,13 @@ void PreferencesDialog::saveSettings() {
 
     config.pollInterval = m_pollIntervalSpin->value();
 
-    // Save radio type selection (-1=Auto, 0=Hamlib, 1=K4_DIRECT)
+    // Save radio type selection (-1=Auto, 0=Hamlib, 1=K4_DIRECT, 2=ICOM_DIRECT)
     config.radioType = m_radioTypeCombo->currentData().toInt();
+
+    // Save Icom network credentials
+    config.icomUsername = m_icomUsernameEdit->text();
+    config.icomPassword = m_icomPasswordEdit->text();
+    config.icomClientName = m_icomClientNameEdit->text();
 
     settings.saveRadioConfig(config);
     settings.setRadioAutoConnect(m_autoConnectCheck->isChecked());
@@ -1811,6 +1865,19 @@ void PreferencesDialog::onRadioModelChanged(int index) {
 
     // Auto-configure CI-V address for known Icom radios
     m_civAddressWidget->autoConfigureForRadio(modelId);
+}
+
+void PreferencesDialog::onRadioTypeChanged(int index) {
+    int radioType = m_radioTypeCombo->currentData().toInt();
+
+    // Set default port based on radio type
+    // Icom Direct (2) uses port 50001
+    // K4 Direct (1) and Hamlib (0) use port 4532 (rigctld default)
+    if (radioType == 2) {  // ICOM_DIRECT
+        m_portSpin->setValue(50001);
+    } else {
+        m_portSpin->setValue(4532);  // rigctld default for Hamlib/K4
+    }
 }
 
 void PreferencesDialog::onTestRadioConnection() {

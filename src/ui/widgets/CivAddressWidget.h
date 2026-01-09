@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QRadioButton>
 #include <QLineEdit>
+#include <QButtonGroup>
 
 namespace TR4QT {
 
@@ -42,12 +43,16 @@ public:
      */
     void autoConfigureForRadio(int hamlibModelId);
 
+    // Override to provide proper size hint for QFormLayout
+    QSize sizeHint() const override;
+
 private slots:
     void onCivAddressModeChanged();
 
 private:
     void setupUI();
 
+    QButtonGroup* m_civButtonGroup;
     QRadioButton* m_civDefaultRadio;
     QRadioButton* m_civCustomRadio;
     QLineEdit* m_civAddressEdit;

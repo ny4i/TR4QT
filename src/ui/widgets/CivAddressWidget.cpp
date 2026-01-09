@@ -2,6 +2,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QButtonGroup>
 
 namespace TR4QT {
 
@@ -16,25 +17,34 @@ CivAddressWidget::CivAddressWidget(QWidget* parent)
 
 void CivAddressWidget::setupUI() {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->setSpacing(6);  // Add spacing between radio buttons
+    // Add bottom margin to create space before the next QFormLayout row
+    mainLayout->setContentsMargins(0, 0, 0, 15);
+    mainLayout->setSpacing(8);  // Spacing between the two radio buttons
+
+    // Set fixed height: 2 radio buttons (20px each) + spacing (8px) + bottom margin (15px) = 63px
+    setFixedHeight(63);
+
+    // Create button group for mutual exclusivity
+    m_civButtonGroup = new QButtonGroup(this);
 
     // Default CI-V address radio button
     m_civDefaultRadio = new QRadioButton("Use Default CI-V Address", this);
     m_civDefaultRadio->setToolTip("Use radio's default CI-V address (0x00)\n"
                                    "Radio will respond to broadcast commands");
     m_civDefaultRadio->setChecked(true);
+    m_civButtonGroup->addButton(m_civDefaultRadio);
     mainLayout->addWidget(m_civDefaultRadio);
 
     // Custom CI-V address radio button + text field
     QWidget* civCustomWidget = new QWidget(this);
     QHBoxLayout* civCustomLayout = new QHBoxLayout(civCustomWidget);
     civCustomLayout->setContentsMargins(0, 0, 0, 0);
-    civCustomLayout->setSpacing(6);  // Add spacing between radio button and text field
+    civCustomLayout->setSpacing(12);  // Increased spacing between radio button and text field
 
     m_civCustomRadio = new QRadioButton("Custom CI-V Address:", this);
     m_civCustomRadio->setToolTip("Specify a custom CI-V address (hex value)\n"
                                   "Used when multiple Icom radios share a bus");
+    m_civButtonGroup->addButton(m_civCustomRadio);
 
     m_civAddressEdit = new QLineEdit(this);
     m_civAddressEdit->setPlaceholderText("e.g., 94");
@@ -136,6 +146,22 @@ void CivAddressWidget::onCivAddressModeChanged() {
         // Clear text when switching to default mode
         m_civAddressEdit->clear();
     }
+}
+
+QSize CivAddressWidget::sizeHint() const {
+    // Return fixed height to match what we set in setupUI()
+    // Height includes: 2 radio buttons + spacing + bottom margin
+    int totalHeight = 63;  // Must match setFixedHeight() value
+
+    // Width: Use the wider of the two radio button rows
+    int spacing = 8;
+    int defaultWidth = m_civDefaultRadio->sizeHint().width();
+    int customWidth = m_civCustomRadio->sizeHint().width() +
+                      spacing +
+                      m_civAddressEdit->sizeHint().width();
+    int totalWidth = qMax(defaultWidth, customWidth);
+
+    return QSize(totalWidth, totalHeight);
 }
 
 } // namespace TR4QT
