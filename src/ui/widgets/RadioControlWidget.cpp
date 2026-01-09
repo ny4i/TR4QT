@@ -228,6 +228,13 @@ void RadioControlWidget::setupUI() {
 void RadioControlWidget::updateRadioState(const RadioState& state) {
     m_currentState = state;
 
+    // Debug logging for mode updates
+    LOG_DEBUG("RadioControlWidget", QString("updateRadioState - freq=%1, mode=%2 (%3), band=%4")
+        .arg(state.frequencyA)
+        .arg(static_cast<int>(state.modeA))
+        .arg(modeToString(state.modeA))
+        .arg(static_cast<int>(state.bandA)));
+
     // Trace logging for RIT/XIT values
     LOG_TRACE("RadioControlWidget", QString("Radio state update - RIT: %1 (offset: %2 Hz), XIT: %3 (offset: %4 Hz), SPLIT: %5")
         .arg(state.isRitEnabled ? "ON" : "OFF").arg(QString::number(state.ritOffsetA))

@@ -215,6 +215,13 @@ void K4Radio::processMessage(const QString& message)
 {
     if (message.length() < 2) return;
 
+    // Skip display commands (start with #) - these are panadapter/spectrum settings we don't track
+    // Examples: #AR, #AVG, #CAL$, #DSM, #FPS, #REF$, #SPN$, #VFA, #WFC$, etc.
+    if (message[0] == '#') {
+        LOG_TRACE("K4Radio", QString("Skipping display command: %1").arg(message));
+        return;
+    }
+
     QString command = message.left(2);
     bool isVFOB = (message.length() > 2 && message[2] == '$');
     QString data = isVFOB ? message.mid(3) : message.mid(2);
