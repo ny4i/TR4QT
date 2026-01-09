@@ -53,6 +53,7 @@ set(SOURCES
     importers/ADIFImporter.cpp
     cw/HamlibCWSender.cpp
     cw/CWSenderFactory.cpp
+    cw/CWTemplateEngine.cpp
     contests/QSOPartyContestBase.cpp
     contests/ARRLDXContest.cpp
     contests/ARRLRTTYRoundupContest.cpp
@@ -80,6 +81,7 @@ set(SOURCES
     ui/dialogs/EditQSODialog.cpp
     ui/dialogs/ExportPreviewDialog.cpp
     ui/dialogs/SendMorseDialog.cpp
+    ui/dialogs/CWMessageEditorDialog.cpp
     ui/dialogs/MacroEditDialog.cpp
     ui/dialogs/FunctionKeysWindow.cpp
     ui/dialogs/ADIFImportDialog.cpp
@@ -148,6 +150,7 @@ set(HEADERS
     cw/CWSender.h
     cw/HamlibCWSender.h
     cw/CWSenderFactory.h
+    cw/CWTemplateEngine.h
     contests/ARRLDXContest.h
     contests/ARRLRTTYRoundupContest.h
     contests/ARRLSweepstakesContest.h
@@ -179,6 +182,7 @@ set(HEADERS
     ui/dialogs/EditQSODialog.h
     ui/dialogs/ExportPreviewDialog.h
     ui/dialogs/SendMorseDialog.h
+    ui/dialogs/CWMessageEditorDialog.h
     ui/dialogs/MacroEditDialog.h
     ui/dialogs/FunctionKeysWindow.h
     ui/dialogs/ADIFImportDialog.h
@@ -212,8 +216,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.31.24"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.31.24"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.33.1"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.33.1"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

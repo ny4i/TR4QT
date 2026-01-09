@@ -122,6 +122,7 @@ private slots:
     // Tools menu actions (ALT- shortcuts from TR4W)
     void onWKMode();                // TODO: Implement WinKeyer re-initialization
     void onSendMorse();             // Send morse code dialog
+    void onEditCWMessages();        // Edit CW messages (F1-F12 templates)
     void onShowFunctionKeysRef();   // Show function keys reference window
     void onBackupLog();             // TODO: Implement backup log
     void onToggleWebServer();       // Start/stop web server
@@ -254,6 +255,10 @@ private:
     // Sent exchange helpers
     QString substituteSentExchangeTemplate(const QString& templateStr, int serialNumber, const QString& rst) const;
 
+    // TR4W-style CW messaging
+    void handleFunctionKey(int fKey, bool ctrlPressed, bool altPressed);
+    void sendCWMessage(const QString& messageTemplate);
+
     // UI Components
     QLabel* m_statusLabel;
     QLabel* m_radioStatusLabel;
@@ -370,6 +375,9 @@ private:
     // Operating mode (CQ vs S&P)
     OperatingMode m_operatingMode;
     QLabel* m_operatingModeLabel;  // Visual indicator
+
+    // CW messaging
+    QString m_lastCWMessage;  // Last CW message sent (for = key repeat)
 
     // AUTO S&P VFO tracking
     freq_t m_lastFrequency;

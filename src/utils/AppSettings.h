@@ -53,6 +53,66 @@ public:
     void setMacroCWText(int index, const QString& text);
     QString getMacroCWText(int index) const;
 
+    // TR4W-style CW Messages (F1-F12 with modifiers)
+    // CQ Mode messages (F1-F12)
+    void setCQMessage(int fKey, const QString& templateStr);
+    QString getCQMessage(int fKey) const;
+
+    // S&P Mode messages (F1-F12)
+    void setSPMessage(int fKey, const QString& templateStr);
+    QString getSPMessage(int fKey) const;
+
+    // Ctrl+F messages (F1-F12, per mode)
+    void setCtrlFMessage(int fKey, bool cqMode, const QString& templateStr);
+    QString getCtrlFMessage(int fKey, bool cqMode) const;
+
+    // Alt+F messages (F1-F12, per mode)
+    void setAltFMessage(int fKey, bool cqMode, const QString& templateStr);
+    QString getAltFMessage(int fKey, bool cqMode) const;
+
+    // CW Auto-send toggle
+    void setCWAutoSendEnabled(bool enabled);
+    bool getCWAutoSendEnabled() const;
+
+    // TR4W-style Auto-Send CW Messages
+    void setCQCWExchange(const QString& message);
+    QString getCQCWExchange() const;
+
+    void setSPCWExchange(const QString& message);
+    QString getSPCWExchange() const;
+
+    void setQSLCWMessage(const QString& message);
+    QString getQSLCWMessage() const;
+
+    void setQuickQSLCWMessage(const QString& message);
+    QString getQuickQSLCWMessage() const;
+
+    void setQSOBeforeCWMessage(const QString& message);
+    QString getQSOBeforeCWMessage() const;
+
+    void setRepeatSPCWExchange(const QString& message);
+    QString getRepeatSPCWExchange() const;
+
+    void setCQCWExchangeNameKnown(const QString& message);
+    QString getCQCWExchangeNameKnown() const;
+
+    void setCallOkNowCWMessage(const QString& message);
+    QString getCallOkNowCWMessage() const;
+
+    void setTailEndCWMessage(const QString& message);
+    QString getTailEndCWMessage() const;
+
+    // CW Cut Numbers (SHORT_0 through SHORT_9 messages)
+    void setCutNumbersEnabled(bool enabled);
+    bool getCutNumbersEnabled() const;
+
+    void setShortMessage(int digit, const QString& message);  // digit 0-9
+    QString getShortMessage(int digit) const;
+
+    // CW Serial Number Formatting
+    void setSerialNumberWidth(int width);  // 0-4 leading zeros
+    int getSerialNumberWidth() const;      // Default: 3 (e.g., "002")
+
     // Station information
     void setMyCallsign(const QString& callsign);
     QString getMyCallsign() const;

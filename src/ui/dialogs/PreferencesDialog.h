@@ -161,6 +161,8 @@ private:
     QGroupBox* m_networkGroup;
     QSpinBox* m_morseWpmSpin;
     QSpinBox* m_morseWpmIncrementSpin;
+    QCheckBox* m_cutNumbersEnabledCheck;
+    QSpinBox* m_serialNumberWidthSpin;
     QPushButton* m_testConnectionButton;
     QLabel* m_connectionStatusLabel;
 

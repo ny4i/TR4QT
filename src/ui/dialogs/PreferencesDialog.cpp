@@ -449,6 +449,18 @@ QWidget* PreferencesDialog::createRadioTab() {
     m_morseWpmIncrementSpin->setToolTip("WPM change when pressing PgUp/PgDn keys");
     advancedLayout->addRow("WPM Increment:", m_morseWpmIncrementSpin);
 
+    // CW Cut Numbers and Serial Number Width
+    m_cutNumbersEnabledCheck = new QCheckBox("Enable Cut Numbers", this);
+    m_cutNumbersEnabledCheck->setToolTip("Replace digits with letters for faster CW sending\n(T=0, A=1, U=2, V=3, E=5, B=7, D=8, N=9)");
+    advancedLayout->addRow("", m_cutNumbersEnabledCheck);
+
+    m_serialNumberWidthSpin = new QSpinBox(this);
+    m_serialNumberWidthSpin->setRange(0, 4);
+    m_serialNumberWidthSpin->setValue(3);
+    m_serialNumberWidthSpin->setSuffix(" digits");
+    m_serialNumberWidthSpin->setToolTip("Number of digits for serial numbers\n(0 = no padding, 3 = \"002\", 4 = \"0002\")");
+    advancedLayout->addRow("Serial Width:", m_serialNumberWidthSpin);
+
     m_autoConnectCheck = new QCheckBox("Auto-connect on startup", this);
     m_autoConnectCheck->setChecked(true);
     m_autoConnectCheck->setToolTip("Automatically connect to radio when application starts");
@@ -1465,6 +1477,8 @@ void PreferencesDialog::loadSettings() {
     m_autoConnectCheck->setChecked(settings.getRadioAutoConnect());
     m_morseWpmSpin->setValue(settings.getMorseWPM());
     m_morseWpmIncrementSpin->setValue(settings.getMorseWPMIncrement());
+    m_cutNumbersEnabledCheck->setChecked(settings.getCutNumbersEnabled());
+    m_serialNumberWidthSpin->setValue(settings.getSerialNumberWidth());
 
     // Radio status filter checkboxes
     m_showStableRadiosCheck->setChecked(settings.getShowStableRadios());
@@ -1628,6 +1642,8 @@ void PreferencesDialog::saveSettings() {
     settings.setRadioAutoConnect(m_autoConnectCheck->isChecked());
     settings.setMorseWPM(m_morseWpmSpin->value());
     settings.setMorseWPMIncrement(m_morseWpmIncrementSpin->value());
+    settings.setCutNumbersEnabled(m_cutNumbersEnabledCheck->isChecked());
+    settings.setSerialNumberWidth(m_serialNumberWidthSpin->value());
 
     // Radio status filter checkboxes
     settings.setShowStableRadios(m_showStableRadiosCheck->isChecked());

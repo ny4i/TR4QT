@@ -229,8 +229,9 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
     m_currentState = state;
 
     // Debug logging for mode updates
-    LOG_DEBUG("RadioControlWidget", QString("updateRadioState - freq=%1, mode=%2 (%3), band=%4")
-        .arg(state.frequencyA)
+    double freqKHz = state.frequencyA / 1000.0;
+    LOG_DEBUG("RadioControlWidget", QString("updateRadioState - freq=%1 kHz, mode=%2 (%3), band=%4")
+        .arg(freqKHz, 0, 'f', 1)
         .arg(static_cast<int>(state.modeA))
         .arg(modeToString(state.modeA))
         .arg(static_cast<int>(state.bandA)));

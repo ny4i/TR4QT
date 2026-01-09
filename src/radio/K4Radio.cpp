@@ -856,8 +856,9 @@ bool K4Radio::setFrequency(freq_t freq, VFO vfo)
     QString command = (vfo == VFO::VFO_A) ? QString("FA%1").arg(freqStr)
                                            : QString("FB%1").arg(freqStr);
 
-    LOG_DEBUG("K4Radio", QString("setFrequency: freq=%1 Hz, VFO %2, command='%3'")
-              .arg(static_cast<qulonglong>(freq))
+    double freqKHz = freq / 1000.0;
+    LOG_DEBUG("K4Radio", QString("setFrequency: freq=%1 kHz, VFO %2, command='%3'")
+              .arg(freqKHz, 0, 'f', 1)
               .arg(vfo == VFO::VFO_A ? "A" : "B")
               .arg(command));
 

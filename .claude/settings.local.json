@@ -69,7 +69,23 @@
       "Bash(PATH=\"/c/Qt/Tools/CMake_64/bin:/c/Qt/Tools/mingw1310_64/bin:/c/Qt/6.10.1/mingw_64/bin:$PATH\" cmake:*)",
       "WebFetch(domain:ftp.elecraft.com)",
       "Bash(pskill:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(pkill:*)",
+      "Bash(./build/src/tr4qt.app/Contents/MacOS/tr4qt)",
+      "Bash(.git/hooks/pre-commit)",
+      "Bash(bash -c '\n# Write staged version to temp file\ngit show :src/utils/ThemeManager.cpp > /tmp/ThemeManager.cpp.staged\n# Test the exact pattern from the hook\ngrep -nE \"\"=\\\\s*\\\\\"\"#[0-9A-Fa-f]{6}\\\\\"\"\"\" /tmp/ThemeManager.cpp.staged | head -10\n')",
+      "Bash(bash -x .git/hooks/pre-commit)",
+      "Bash(bash -c '\nif echo \"\"test\"\" | grep \"\"nomatch\"\" | head -5; then\n  echo \"\"IF triggered \\(exit code 0\\)\"\"\nelse\n  echo \"\"IF not triggered \\(exit code non-zero\\)\"\"\nfi\n')",
+      "Bash(bash:*)",
+      "Bash(chmod:*)",
+      "Bash(/tmp/create_issues.sh)",
+      "Bash(/tmp/create_refactoring_issues.sh)",
+      "Bash(grep:*)",
+      "Bash(git restore:*)",
+      "Bash(./MacOS/tr4qt)",
+      "Bash(gh release:*)",
+      "Bash(done)",
+      "Bash(git pull:*)"
     ]
   },
   "enabledMcpjsonServers": [

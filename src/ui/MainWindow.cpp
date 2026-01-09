@@ -6,6 +6,7 @@
 #include "dialogs/ADIFImportDialog.h"
 #include "dialogs/ExportPreviewDialog.h"
 #include "dialogs/SendMorseDialog.h"
+#include "dialogs/CWMessageEditorDialog.h"
 #include "dialogs/FunctionKeysWindow.h"
 #include "dialogs/GraylineMapDialog.h"
 #include "widgets/DXClusterWindow.h"
@@ -38,6 +39,7 @@
 #include "../data/ExchangeMemoryRepository.h"
 #include "../data/SCPRepository.h"
 #include "../contests/RSTValidator.h"
+#include "../cw/CWTemplateEngine.h"
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
@@ -264,6 +266,15 @@ MainWindow::MainWindow(QWidget* parent)
             }
         }
     });
+
+    // Check auto-send status and show message if disabled
+    QTimer::singleShot(100, this, [this]() {
+        if (!AppSettings::instance().getCWAutoSendEnabled()) {
+            m_statusLabel->setText("⚠ CW Auto-Send is OFF - Enable in Radio menu");
+            m_statusLabel->setStyleSheet("QLabel { color: #ff6600; font-weight: bold; }");
+            LOG_INFO("MainWindow", "Auto-Send is disabled at startup");
+        }
+    });
 }
 
 MainWindow::~MainWindow() {
@@ -365,12 +376,12 @@ void MainWindow::createMenuBar() {
 
     radioMenu->addSeparator();
 
-    m_autoSendCWAction = radioMenu->addAction("&Auto Send CW");
+    m_autoSendCWAction = radioMenu->addAction("Auto-Send CW (&ESM)");
     m_autoSendCWAction->setCheckable(true);
-    m_autoSendCWAction->setChecked(true);  // Always default to enabled on startup (non-persistent)
-    m_autoSendCWAction->setStatusTip("Automatically send callsign via CW when Enter is pressed in CW mode");
+    m_autoSendCWAction->setChecked(AppSettings::instance().getCWAutoSendEnabled());  // Load from settings
+    m_autoSendCWAction->setStatusTip("Enter Send Mode: Automatically send CW messages when Enter is pressed in CW mode");
     connect(m_autoSendCWAction, &QAction::toggled, this, [this](bool checked) {
-        // Note: This setting is not persisted - always resets to enabled on startup
+        AppSettings::instance().setCWAutoSendEnabled(checked);  // Persist setting
         LOG_DEBUG("MainWindow", QString("Auto Send CW %1").arg(checked ? "enabled" : "disabled"));
         updateRadioStatusGrid();  // Update WPM display
     });
@@ -570,6 +581,10 @@ void MainWindow::createMenuBar() {
     QAction* sendMorseAction = windowMenu->addAction("Send &Morse Code");
     sendMorseAction->setShortcut(QKeySequence("Alt+K"));
     connect(sendMorseAction, &QAction::triggered, this, &MainWindow::onSendMorse);
+
+    QAction* editCWMessagesAction = windowMenu->addAction("Edit CW &Messages");
+    editCWMessagesAction->setShortcut(QKeySequence("Alt+M"));
+    connect(editCWMessagesAction, &QAction::triggered, this, &MainWindow::onEditCWMessages);
 
     QAction* functionKeysAction = windowMenu->addAction("&Function Keys Reference");
     functionKeysAction->setShortcut(QKeySequence("Ctrl+F1"));
@@ -1371,6 +1386,13 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
 
         // ESC key handling for callsign and exchange fields
         if (keyEvent->key() == Qt::Key_Escape) {
+            // ALWAYS stop CW transmission first, regardless of where focus is
+            if (m_radioConnected && m_radio) {
+                m_radio->stopCW();
+                m_statusLabel->setText("CW transmission aborted");
+                LOG_DEBUG("MainWindow", "CW transmission aborted via ESC key");
+            }
+
             // ESC in callsign field: clear if not empty, or switch to CQ if empty & in S&P
             if (obj == m_callsignEntry) {
                 if (!m_callsignEntry->text().isEmpty()) {
@@ -1392,6 +1414,50 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
                 LOG_DEBUG("MainWindow", "ESC pressed in exchange field - cleared and returned to callsign");
                 return true;  // Event handled
             }
+        }
+
+        // F1-F12 keys: TR4W-style CW messages (with optional Ctrl/Alt modifiers)
+        if (keyEvent->key() >= Qt::Key_F1 && keyEvent->key() <= Qt::Key_F12) {
+            int fKey = keyEvent->key() - Qt::Key_F1 + 1;  // Convert to 1-12
+
+            Qt::KeyboardModifiers mods = keyEvent->modifiers();
+            bool ctrlPressed = mods & Qt::ControlModifier;
+            bool altPressed = mods & Qt::AltModifier;
+
+            handleFunctionKey(fKey, ctrlPressed, altPressed);
+            return true;  // Event handled
+        }
+
+        // = key: Repeat last CW message
+        if (keyEvent->key() == Qt::Key_Equal) {
+            if (!m_radioConnected || !m_radio) {
+                LOG_WARN("MainWindow", "Cannot send CW: radio not connected");
+                m_statusLabel->setText("CW requires radio connection");
+                return true;
+            }
+
+            bool isCWMode = (m_currentState.modeA == ModeType::CW ||
+                             m_currentState.modeA == ModeType::CWR);
+            if (!isCWMode) {
+                LOG_WARN("MainWindow", "Cannot send CW: not in CW mode");
+                m_statusLabel->setText("CW requires CW mode");
+                return true;
+            }
+
+            if (m_lastCWMessage.isEmpty()) {
+                LOG_INFO("MainWindow", "= key pressed but no previous CW message to repeat");
+                m_statusLabel->setText("No previous CW message to repeat");
+                return true;
+            }
+
+            // Resend the last message
+            int wpm = AppSettings::instance().getMorseWPM();
+            m_radio->setCWSpeed(wpm);
+            m_radio->sendCW(m_lastCWMessage);
+
+            m_statusLabel->setText(QString("Repeating CW: %1").arg(m_lastCWMessage));
+            LOG_INFO("MainWindow", QString("Repeated CW: %1 (via = key)").arg(m_lastCWMessage));
+            return true;  // Event handled
         }
     }
 
@@ -2316,10 +2382,11 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
     // DEBUG: Confirm this slot is being called
     static int updateCount = 0;
     updateCount++;
-    LOG_INFO("MainWindow", QString("onRadioStateUpdated called (count=%1, model=%2, freq=%3)")
+    double freqKHz = state.frequencyA / 1000.0;
+    LOG_INFO("MainWindow", QString("onRadioStateUpdated called (count=%1, model=%2, freq=%3 kHz)")
              .arg(updateCount)
              .arg(state.radioModel)
-             .arg(state.frequencyA));
+             .arg(freqKHz, 0, 'f', 1));
 
     // Send UDP broadcast for radio state change (throttled in manager)
     QString stationCall = AppSettings::instance().getMyCallsign();
@@ -2870,6 +2937,15 @@ void MainWindow::onLogQSO() {
         m_qsosSinceLastIntegrityCheck = 0;
     }
 
+    // Auto-send QSL message after logging (both CQ and S&P modes)
+    bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
+    bool autoSendEnabled = m_autoSendCWAction->isChecked();
+    if (isCWMode && m_radioConnected && m_radio && autoSendEnabled) {
+        QString qslMessage = AppSettings::instance().getQSLCWMessage();
+        sendCWMessage(qslMessage);
+        LOG_DEBUG("MainWindow", QString("Auto-sent QSL message: %1").arg(qslMessage));
+    }
+
     // Clear entry fields and focus callsign
     onClearEntry();
 
@@ -3347,17 +3423,21 @@ void MainWindow::onCallsignEnterPressed() {
     // Auto-populate exchange based on callsign
     autoPopulateExchange(callsign);
 
-    // Auto-send callsign via CW when in CW mode (if enabled)
+    // Auto-send CW message when in CW mode (if enabled)
     bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
     bool autoSendEnabled = m_autoSendCWAction->isChecked();  // Check actual action state
     if (isCWMode && m_radioConnected && m_radio && autoSendEnabled) {
-        // Set CW speed from settings
-        int wpm = AppSettings::instance().getMorseWPM();
-        m_radio->setCWSpeed(wpm);
-
-        // Send the callsign
-        LOG_DEBUG("MainWindow", QString("Auto-sending callsign via CW: '%1' at %2 WPM").arg(callsign).arg(wpm));
-        m_radio->sendCW(callsign);
+        if (m_operatingMode == OperatingMode::SP) {
+            // S&P mode: Send your exchange after entering callsign
+            QString messageTemplate = AppSettings::instance().getSPCWExchange();
+            sendCWMessage(messageTemplate);
+            LOG_DEBUG("MainWindow", QString("Auto-sent S&P exchange: %1").arg(messageTemplate));
+        } else {
+            // CQ mode: Send your exchange after entering their callsign
+            QString messageTemplate = AppSettings::instance().getCQCWExchange();
+            sendCWMessage(messageTemplate);
+            LOG_DEBUG("MainWindow", QString("Auto-sent CQ exchange: %1").arg(messageTemplate));
+        }
     }
 
     // Move focus to exchange field
@@ -5273,8 +5353,9 @@ void MainWindow::onShowRadioControl() {
 
         // Update with current radio state
         if (m_radioConnected) {
-            LOG_DEBUG("MainWindow", QString("Initializing Radio Control Window with state - freq=%1, mode=%2, band=%3")
-                      .arg(m_currentState.frequencyA)
+            double freqKHz = m_currentState.frequencyA / 1000.0;
+            LOG_DEBUG("MainWindow", QString("Initializing Radio Control Window with state - freq=%1 kHz, mode=%2, band=%3")
+                      .arg(freqKHz, 0, 'f', 1)
                       .arg(static_cast<int>(m_currentState.modeA))
                       .arg(static_cast<int>(m_currentState.bandA)));
             m_radioControlWindow->updateRadioState(m_currentState);
@@ -5415,6 +5496,95 @@ void MainWindow::onSendMorse() {
 
     SendMorseDialog dialog(m_radio, this);
     dialog.exec();
+}
+
+void MainWindow::onEditCWMessages() {
+    CWMessageEditorDialog dialog(m_radio, m_activeContest, this);
+    dialog.exec();
+    LOG_DEBUG("MainWindow", "CW Messages Editor closed");
+}
+
+void MainWindow::handleFunctionKey(int fKey, bool ctrlPressed, bool altPressed) {
+    bool isCQMode = (m_operatingMode == OperatingMode::CQ);
+    QString messageTemplate;
+
+    // Determine which message to send based on modifier keys
+    if (ctrlPressed) {
+        // Ctrl+F1-F12
+        messageTemplate = AppSettings::instance().getCtrlFMessage(fKey, isCQMode);
+    } else if (altPressed) {
+        // Alt+F1-F12
+        messageTemplate = AppSettings::instance().getAltFMessage(fKey, isCQMode);
+    } else {
+        // Regular F1-F12
+        messageTemplate = isCQMode
+            ? AppSettings::instance().getCQMessage(fKey)
+            : AppSettings::instance().getSPMessage(fKey);
+    }
+
+    // Log which key was pressed
+    QString keyName = QString("F%1").arg(fKey);
+    if (ctrlPressed) keyName = "Ctrl+" + keyName;
+    if (altPressed) keyName = "Alt+" + keyName;
+    QString modeStr = isCQMode ? "CQ" : "S&P";
+
+    if (messageTemplate.isEmpty()) {
+        LOG_INFO("MainWindow", QString("%1 (%2 mode): No message defined").arg(keyName).arg(modeStr));
+        m_statusLabel->setText(QString("%1: No message defined").arg(keyName));
+        return;
+    }
+
+    LOG_INFO("MainWindow", QString("%1 (%2 mode): Sending template: %3").arg(keyName).arg(modeStr).arg(messageTemplate));
+    sendCWMessage(messageTemplate);
+}
+
+void MainWindow::sendCWMessage(const QString& messageTemplate) {
+    // Check preconditions
+    if (!m_radioConnected || !m_radio) {
+        LOG_WARN("MainWindow", "Cannot send CW: radio not connected");
+        m_statusLabel->setText("CW requires radio connection");
+        return;
+    }
+
+    bool isCWMode = (m_currentState.modeA == ModeType::CW ||
+                     m_currentState.modeA == ModeType::CWR);
+    if (!isCWMode) {
+        LOG_WARN("MainWindow", "Cannot send CW: not in CW mode");
+        m_statusLabel->setText("CW requires CW mode");
+        return;
+    }
+
+    // Build substitution context
+    CWTemplateEngine::Context ctx;
+    ctx.myCall = AppSettings::instance().getMyCallsign();
+    ctx.hisCall = m_callsignEntry->text().trimmed().toUpper();
+    ctx.qsoNumber = m_nextSerialNumber;
+    ctx.mode = m_currentState.modeA;
+    ctx.band = m_currentState.bandA;
+
+    // Get sent exchange from contest (for S&P_EXCHANGE substitution)
+    if (m_activeContest) {
+        ctx.contestName = m_activeContest->getContestName();
+
+        // Use the contest's formatSentExchange method to get properly formatted exchange
+        QString rst = RSTValidator::getDefault(ctx.mode);
+        ctx.sentExchange = m_activeContest->formatSentExchange(ctx.qsoNumber, rst);
+    }
+
+    // Substitute template variables
+    QString cwText = CWTemplateEngine::substitute(messageTemplate, ctx);
+
+    // Send via radio
+    int wpm = AppSettings::instance().getMorseWPM();
+    m_radio->setCWSpeed(wpm);
+    m_radio->sendCW(cwText);
+
+    // Save for repeat (= key)
+    m_lastCWMessage = cwText;
+
+    m_statusLabel->setText(QString("Sending CW: %1").arg(cwText));
+    LOG_INFO("MainWindow", QString("Sent CW: %1 (from template: %2)")
+             .arg(cwText).arg(messageTemplate));
 }
 
 void MainWindow::onShowFunctionKeysRef() {
@@ -6008,13 +6178,15 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
                 freq_t spotMHz = (spot.frequency / 1000000) * 1000000;
                 // Add kHz fragment (e.g., 210 kHz = 210000 Hz)
                 spot.qsx = spotMHz + static_cast<freq_t>(qsxValue * 1000);
-                LOG_DEBUG("MainWindow", QString("Parsed QSX fragment: %1 kHz on %2 MHz band = %3 Hz")
-                    .arg(qsxValue).arg(spotMHz / 1000000).arg(spot.qsx));
+                double qsxKHz = spot.qsx / 1000.0;
+                LOG_DEBUG("MainWindow", QString("Parsed QSX fragment: %1 kHz on %2 MHz band = %3 kHz")
+                    .arg(qsxValue).arg(spotMHz / 1000000).arg(qsxKHz, 0, 'f', 1));
             } else {
                 // Full frequency in MHz (e.g., 14.210)
                 spot.qsx = static_cast<freq_t>(qsxValue * 1000000);
-                LOG_DEBUG("MainWindow", QString("Parsed QSX full frequency: %1 MHz = %2 Hz")
-                    .arg(qsxValue).arg(spot.qsx));
+                double qsxKHz = spot.qsx / 1000.0;
+                LOG_DEBUG("MainWindow", QString("Parsed QSX full frequency: %1 MHz = %2 kHz")
+                    .arg(qsxValue).arg(qsxKHz, 0, 'f', 1));
             }
         } else {
             // Try UP pattern (offset in kHz)
@@ -6026,8 +6198,10 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
                 // spot.frequency is in Hz, offset is in kHz
                 // QSX = transmit frequency + offset (for VFO B)
                 spot.qsx = spot.frequency + static_cast<freq_t>(offsetKHz * 1000);
-                LOG_DEBUG("MainWindow", QString("Parsed UP offset: TX=%1 Hz + %2 kHz = RX=%3 Hz")
-                    .arg(spot.frequency).arg(offsetKHz).arg(spot.qsx));
+                double txKHz = spot.frequency / 1000.0;
+                double rxKHz = spot.qsx / 1000.0;
+                LOG_DEBUG("MainWindow", QString("Parsed UP offset: TX=%1 kHz + %2 kHz = RX=%3 kHz")
+                    .arg(txKHz, 0, 'f', 1).arg(offsetKHz).arg(rxKHz, 0, 'f', 1));
             }
         }
 
@@ -6095,8 +6269,9 @@ void MainWindow::onBandClicked(BandType band) {
         updateRadioStatusGrid();
 
         // Emit signals so all interested components (Band Map, etc.) can update
-        LOG_DEBUG("MainWindow", QString("Manual band selection emitting - band: %1, frequency: %2 Hz")
-            .arg(bandToString(band)).arg(m_currentState.frequencyA));
+        double freqKHz = m_currentState.frequencyA / 1000.0;
+        LOG_DEBUG("MainWindow", QString("Manual band selection emitting - band: %1, frequency: %2 kHz")
+            .arg(bandToString(band)).arg(freqKHz, 0, 'f', 1));
         emit currentFrequencyChanged(m_currentState.frequencyA);
         emit currentBandChanged(band);
 

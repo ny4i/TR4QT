@@ -182,6 +182,244 @@ QString AppSettings::getMacroCWText(int index) const {
     return m_settings.value(QString("Morse/macro%1_text").arg(index), "").toString();
 }
 
+// TR4W-style CW Message defaults
+static const QMap<int, QString> getDefaultCQMessages() {
+    static QMap<int, QString> defaults;
+    if (defaults.isEmpty()) {
+        defaults[1] = "CQ WFD \\ \\ TEST";              // F1: CQ
+        defaults[2] = "CQ^WFD CQ^WFD \\ \\ TEST";      // F2: CQ repeated
+        defaults[3] = "";                               // F3: Empty
+        defaults[4] = "TU \\ TEST";                     // F4: TU (thanks)
+        defaults[5] = "";                               // F5: Empty
+        defaults[6] = "DE \\";                          // F6: DE (this is)
+        defaults[7] = "SRI QSO B4 TU \\ TEST";         // F7: Dupe
+        defaults[8] = "AGN";                            // F8: Again
+        defaults[9] = "?";                              // F9: Question
+        defaults[10] = "";                              // F10: Empty
+        defaults[11] = "%MM_GRABLASTCALL&";            // F11: Grab last call (Phase 4)
+        defaults[12] = "";                              // F12: Empty
+    }
+    return defaults;
+}
+
+static const QMap<int, QString> getDefaultSPMessages() {
+    static QMap<int, QString> defaults;
+    if (defaults.isEmpty()) {
+        defaults[1] = "Set_by_the_MY_CALL";            // F1: My call
+        defaults[2] = "Set_by_S&P_EXCHANGE";           // F2: My exchange
+        defaults[3] = "";                               // F3: Empty
+        defaults[4] = "";                               // F4: Empty
+        defaults[5] = "";                               // F5: Empty
+        defaults[6] = "";                               // F6: Empty
+        defaults[7] = "";                               // F7: Empty
+        defaults[8] = "EE";                             // F8: EE (copy that)
+        defaults[9] = "?";                              // F9: Question
+        defaults[10] = "";                              // F10: Empty
+        defaults[11] = "%MM_GRABLASTCALL&";            // F11: Grab last call (Phase 4)
+        defaults[12] = "";                              // F12: Empty
+    }
+    return defaults;
+}
+
+void AppSettings::setCQMessage(int fKey, const QString& templateStr) {
+    if (fKey < 1 || fKey > 12) return;
+    m_settings.setValue(QString("CWMessages/CQ/F%1").arg(fKey), templateStr);
+    m_settings.sync();
+}
+
+QString AppSettings::getCQMessage(int fKey) const {
+    if (fKey < 1 || fKey > 12) return QString();
+    QString key = QString("CWMessages/CQ/F%1").arg(fKey);
+    return m_settings.value(key, getDefaultCQMessages().value(fKey, "")).toString();
+}
+
+void AppSettings::setSPMessage(int fKey, const QString& templateStr) {
+    if (fKey < 1 || fKey > 12) return;
+    m_settings.setValue(QString("CWMessages/SP/F%1").arg(fKey), templateStr);
+    m_settings.sync();
+}
+
+QString AppSettings::getSPMessage(int fKey) const {
+    if (fKey < 1 || fKey > 12) return QString();
+    QString key = QString("CWMessages/SP/F%1").arg(fKey);
+    return m_settings.value(key, getDefaultSPMessages().value(fKey, "")).toString();
+}
+
+void AppSettings::setCtrlFMessage(int fKey, bool cqMode, const QString& templateStr) {
+    if (fKey < 1 || fKey > 12) return;
+    QString mode = cqMode ? "CQ" : "SP";
+    m_settings.setValue(QString("CWMessages/%1/CtrlF%2").arg(mode).arg(fKey), templateStr);
+    m_settings.sync();
+}
+
+QString AppSettings::getCtrlFMessage(int fKey, bool cqMode) const {
+    if (fKey < 1 || fKey > 12) return QString();
+    QString mode = cqMode ? "CQ" : "SP";
+    QString key = QString("CWMessages/%1/CtrlF%2").arg(mode).arg(fKey);
+    return m_settings.value(key, "").toString();  // Default: empty
+}
+
+void AppSettings::setAltFMessage(int fKey, bool cqMode, const QString& templateStr) {
+    if (fKey < 1 || fKey > 12) return;
+    QString mode = cqMode ? "CQ" : "SP";
+    m_settings.setValue(QString("CWMessages/%1/AltF%2").arg(mode).arg(fKey), templateStr);
+    m_settings.sync();
+}
+
+QString AppSettings::getAltFMessage(int fKey, bool cqMode) const {
+    if (fKey < 1 || fKey > 12) return QString();
+    QString mode = cqMode ? "CQ" : "SP";
+    QString key = QString("CWMessages/%1/AltF%2").arg(mode).arg(fKey);
+    return m_settings.value(key, "").toString();  // Default: empty
+}
+
+void AppSettings::setCWAutoSendEnabled(bool enabled) {
+    m_settings.setValue("CWMessages/autoSendEnabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getCWAutoSendEnabled() const {
+    return m_settings.value("CWMessages/autoSendEnabled", true).toBool();  // Default: enabled
+}
+
+// TR4W-style Auto-Send CW Messages
+void AppSettings::setCQCWExchange(const QString& message) {
+    m_settings.setValue("CWMessages/CQ_CW_EXCHANGE", message);
+    m_settings.sync();
+}
+
+QString AppSettings::getCQCWExchange() const {
+    return m_settings.value("CWMessages/CQ_CW_EXCHANGE", "Set_by_S&P_EXCHANGE").toString();
+}
+
+void AppSettings::setSPCWExchange(const QString& message) {
+    m_settings.setValue("CWMessages/SP_CW_EXCHANGE", message);
+    m_settings.sync();
+}
+
+QString AppSettings::getSPCWExchange() const {
+    return m_settings.value("CWMessages/SP_CW_EXCHANGE", "Set_by_S&P_EXCHANGE").toString();
+}
+
+void AppSettings::setQSLCWMessage(const QString& message) {
+    m_settings.setValue("CWMessages/QSL_CW_MESSAGE", message);
+    m_settings.sync();
+}
+
+QString AppSettings::getQSLCWMessage() const {
+    return m_settings.value("CWMessages/QSL_CW_MESSAGE", "73 \\ WFD").toString();
+}
+
+void AppSettings::setQuickQSLCWMessage(const QString& message) {
+    m_settings.setValue("CWMessages/QUICK_QSL_CW_MESSAGE", message);
+    m_settings.sync();
+}
+
+QString AppSettings::getQuickQSLCWMessage() const {
+    return m_settings.value("CWMessages/QUICK_QSL_CW_MESSAGE", "TU").toString();
+}
+
+void AppSettings::setQSOBeforeCWMessage(const QString& message) {
+    m_settings.setValue("CWMessages/QSO_BEFORE_CW_MESSAGE", message);
+    m_settings.sync();
+}
+
+QString AppSettings::getQSOBeforeCWMessage() const {
+    return m_settings.value("CWMessages/QSO_BEFORE_CW_MESSAGE", "SRI QSO B4 TU \\ TEST").toString();
+}
+
+void AppSettings::setRepeatSPCWExchange(const QString& message) {
+    m_settings.setValue("CWMessages/REPEAT_SP_CW_EXCHANGE", message);
+    m_settings.sync();
+}
+
+QString AppSettings::getRepeatSPCWExchange() const {
+    return m_settings.value("CWMessages/REPEAT_SP_CW_EXCHANGE", "Set_by_S&P_EXCHANGE Set_by_S&P_EXCHANGE").toString();
+}
+
+void AppSettings::setCQCWExchangeNameKnown(const QString& message) {
+    m_settings.setValue("CWMessages/CQ_CW_EXCHANGE_NAME_KNOWN", message);
+    m_settings.sync();
+}
+
+QString AppSettings::getCQCWExchangeNameKnown() const {
+    return m_settings.value("CWMessages/CQ_CW_EXCHANGE_NAME_KNOWN", "").toString();
+}
+
+// TODO: Discuss implementation of CALL_OK_NOW_CW_MESSAGE
+// This message is defined in TR4W but the specific trigger condition for auto-send is unclear.
+// Need to determine:
+// 1. When should this message be sent automatically? (callsign entry? exchange entry? specific mode?)
+// 2. What distinguishes it from CQ_CW_EXCHANGE and S&P_CW_EXCHANGE?
+// 3. Is it triggered by a specific key combination or workflow state?
+// Default template: "! OK %" (serial + "OK" + name from database)
+void AppSettings::setCallOkNowCWMessage(const QString& message) {
+    m_settings.setValue("CWMessages/CALL_OK_NOW_CW_MESSAGE", message);
+    m_settings.sync();
+}
+
+QString AppSettings::getCallOkNowCWMessage() const {
+    return m_settings.value("CWMessages/CALL_OK_NOW_CW_MESSAGE", "! OK %").toString();
+}
+
+void AppSettings::setTailEndCWMessage(const QString& message) {
+    m_settings.setValue("CWMessages/TAIL_END_CW_MESSAGE", message);
+    m_settings.sync();
+}
+
+QString AppSettings::getTailEndCWMessage() const {
+    return m_settings.value("CWMessages/TAIL_END_CW_MESSAGE", "").toString();
+}
+
+// CW Cut Numbers defaults (standard TR4W mapping)
+static const QMap<int, QString> getDefaultShortMessages() {
+    static QMap<int, QString> defaults;
+    if (defaults.isEmpty()) {
+        defaults[0] = "T";  // Zero = T
+        defaults[1] = "A";  // One = A
+        defaults[2] = "U";  // Two = U
+        defaults[3] = "V";  // Three = V
+        defaults[4] = "4";  // Four = 4 (no cut)
+        defaults[5] = "E";  // Five = E
+        defaults[6] = "6";  // Six = 6 (no cut)
+        defaults[7] = "B";  // Seven = B
+        defaults[8] = "D";  // Eight = D
+        defaults[9] = "N";  // Nine = N
+    }
+    return defaults;
+}
+
+void AppSettings::setCutNumbersEnabled(bool enabled) {
+    m_settings.setValue("CW/cutNumbersEnabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getCutNumbersEnabled() const {
+    return m_settings.value("CW/cutNumbersEnabled", false).toBool();  // Default: disabled
+}
+
+void AppSettings::setShortMessage(int digit, const QString& message) {
+    if (digit < 0 || digit > 9) return;
+    m_settings.setValue(QString("CW/SHORT_%1").arg(digit), message);
+    m_settings.sync();
+}
+
+QString AppSettings::getShortMessage(int digit) const {
+    if (digit < 0 || digit > 9) return QString::number(digit);
+    QString key = QString("CW/SHORT_%1").arg(digit);
+    return m_settings.value(key, getDefaultShortMessages().value(digit, QString::number(digit))).toString();
+}
+
+void AppSettings::setSerialNumberWidth(int width) {
+    if (width < 0 || width > 4) return;
+    m_settings.setValue("CW/serialNumberWidth", width);
+    m_settings.sync();
+}
+
+int AppSettings::getSerialNumberWidth() const {
+    return m_settings.value("CW/serialNumberWidth", 3).toInt();  // Default: 3 digits (e.g., "002")
+}
+
 void AppSettings::setMyCallsign(const QString& callsign) {
     m_settings.setValue("Station/callsign", callsign.toUpper());
     m_settings.sync();
