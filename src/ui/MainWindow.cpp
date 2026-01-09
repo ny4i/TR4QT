@@ -17,6 +17,9 @@
 #include "NativeMapViewer.h"
 #include "../network/UdpBroadcastManager.h"
 #include "../network/WebServer.h"
+#include "../controllers/ImportExportManager.h"
+#include "../controllers/CWMessageManager.h"
+#include "../controllers/BandSwitchingManager.h"
 #include "../core/Constants.h"
 #include "../logging/LogMacros.h"
 #include "../logging/Logger.h"
@@ -83,7 +86,7 @@ namespace TR4QT {
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
-    , m_radio(new RadioController(this))
+    , m_radio(nullptr)  // Will be set from RadioManager after it's created
     , m_radioConnected(false)
     , m_radioAutoReconnect(false)
     , m_radioReconnectTimer(new QTimer(this))
@@ -106,6 +109,17 @@ MainWindow::MainWindow(QWidget* parent)
     , m_activeContest(nullptr)
     , m_currentContestDbId(-1)
     , m_nextSerialNumber(1)
+    , m_qsoLogger(nullptr)
+    , m_integrityManager(nullptr)
+    , m_contestManager(nullptr)
+    , m_menuManager(nullptr)
+    , m_settingsManager(nullptr)
+    , m_windowManager(nullptr)
+    , m_importExportManager(nullptr)
+    , m_downloadManager(nullptr)
+    , m_radioManager(nullptr)
+    , m_bandSwitchingManager(nullptr)
+    , m_cwMessageManager(nullptr)
     , m_qsoTableModel(new QSOTableModel(this))
     , m_scpMatcher(new SCPMatcher())
     , m_countryFileDownloader(new CountryFileDownloader(this))
@@ -129,7 +143,28 @@ MainWindow::MainWindow(QWidget* parent)
         }
     }
 
+    // Create ContestManager with country file
+    ContestManager::Config contestManagerConfig;
+    contestManagerConfig.countryFile = &m_countryFile;
+    m_contestManager = new ContestManager(contestManagerConfig);
+    LOG_DEBUG("MainWindow", "ContestManager created");
+
+    // Create MenuManager (will be used in setupUI -> createMenuBar)
+    m_menuManager = new MenuManager(this);
+    LOG_DEBUG("MainWindow", "MenuManager created");
+
     setupUI();
+
+    // Create managers after setupUI (some need UI widgets)
+    m_downloadManager = new DownloadManager({&m_countryFile}, this);
+    m_radioManager = new RadioManager(this);
+    m_radio = m_radioManager->radioController();  // Get RadioController from RadioManager
+    m_bandSwitchingManager = new BandSwitchingManager(this);
+    m_cwMessageManager = new CWMessageManager({m_radio, nullptr});  // Contest set later
+    m_windowManager = new WindowManager(this);
+    m_settingsManager = new SettingsManager();
+    LOG_DEBUG("MainWindow", "Controllers and UI managers created");
+
     loadSettings();
     loadUdpBroadcastSettings();
 
@@ -144,6 +179,17 @@ MainWindow::MainWindow(QWidget* parent)
 
     // Reopen last contest if available
     reopenLastContest();
+
+    // Create ImportExportManager (needs contest context)
+    ImportExportManager::Config importExportConfig;
+    importExportConfig.countryFile = &m_countryFile;
+    importExportConfig.qsoTableModel = m_qsoTableModel;
+    importExportConfig.activeContest = m_activeContest;
+    importExportConfig.currentContestDbId = m_currentContestDbId;
+    importExportConfig.currentContestName = m_currentContest.contestName;
+    importExportConfig.hasActiveContest = m_hasActiveContest;
+    m_importExportManager = new ImportExportManager(importExportConfig, this);
+    LOG_DEBUG("MainWindow", "ImportExportManager created");
 
     // Initialize web server with current operator (only if explicitly set)
     AppSettings& webSettings = AppSettings::instance();
@@ -181,37 +227,26 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_integrityCheckTimer, &QTimer::timeout, this, &MainWindow::onPeriodicIntegrityCheck);
     m_integrityCheckTimer->start(5 * 60 * 1000);  // Check every 5 minutes
 
-    // Connect radio signals (RadioController automatically uses Qt::QueuedConnection for cross-thread)
-    connect(m_radio, &RadioController::connectionStatusChanged,
+    // Connect radio signals from RadioManager (already connected to RadioController internally)
+    connect(m_radioManager, &RadioManager::connectionStatusChanged,
             this, &MainWindow::onRadioConnected);
-    connect(m_radio, &RadioController::stateUpdated,
+    connect(m_radioManager, &RadioManager::radioStateUpdated,
             this, &MainWindow::onRadioStateUpdated);
-    connect(m_radio, &RadioController::errorOccurred,
+    connect(m_radioManager, &RadioManager::radioErrorOccurred,
             this, &MainWindow::onRadioError);
-    connect(m_radio, &RadioController::radioModelChanged,
+    connect(m_radioManager, &RadioManager::radioModelChanged,
             this, &MainWindow::onRadioModelChanged);
+    connect(m_radioManager, &RadioManager::statusMessage,
+            this, [this](const QString& message) { m_statusLabel->setText(message); });
+    connect(m_radioManager, &RadioManager::flashStateChanged,
+            this, [this](bool flashState) {
+                m_radioFlashState = flashState;
+                updateRadioStatusFlash();
+            });
 
-    // Setup radio reconnection timer (10 seconds between attempts)
-    m_radioReconnectTimer->setSingleShot(true);
-    m_radioReconnectTimer->setInterval(10000);  // 10 seconds
-    connect(m_radioReconnectTimer, &QTimer::timeout, this, [this]() {
-        if (m_radioAutoReconnect) {
-            m_radioReconnectAttempts++;
-            m_statusLabel->setText(QString("Reconnecting to radio (attempt %1)...")
-                .arg(m_radioReconnectAttempts));
-            LOG_DEBUG("MainWindow", QString("Auto-reconnect: Attempt %1")
-                .arg(m_radioReconnectAttempts));
-            m_radio->connectToRadio(m_lastRadioConfig);
-            // Note: No attempt limit - will keep trying until radio comes back or user clicks Disconnect
-        }
-    });
-
-    // Setup radio status flash timer (500ms flash rate)
-    m_radioFlashTimer->setInterval(500);  // Flash every 500ms
-    connect(m_radioFlashTimer, &QTimer::timeout, this, [this]() {
-        m_radioFlashState = !m_radioFlashState;
-        updateRadioStatusFlash();
-    });
+    // NOTE: Radio reconnection and flash timers are now handled by RadioManager
+    // These local timers and variables (m_radioReconnectTimer, m_radioFlashTimer, etc.)
+    // can be removed in a future cleanup
 
     // Connect CTY.DAT update notification
     connect(m_countryFileDownloader, &CountryFileDownloader::updateAvailable,
@@ -305,354 +340,132 @@ void MainWindow::setupUI() {
 }
 
 void MainWindow::createMenuBar() {
-    QMenuBar* menuBar = new QMenuBar(this);
-    setMenuBar(menuBar);
-
+    // Configure MenuManager callbacks
+    MenuManager::Config config;
+    
     // File menu
-    QMenu* fileMenu = menuBar->addMenu("&File");
-
-    QAction* newContestAction = fileMenu->addAction("&New/Open Contest...");
-    newContestAction->setShortcut(QKeySequence("Ctrl+N"));
-    connect(newContestAction, &QAction::triggered, this, &MainWindow::onNewOpenContest);
-
-    fileMenu->addSeparator();
-
-    QAction* clearLogAction = fileMenu->addAction("&Clear Log...");
-    connect(clearLogAction, &QAction::triggered, this, &MainWindow::onClearLog);
-
-    fileMenu->addSeparator();
-
-    // Import submenu
-    QMenu* importMenu = fileMenu->addMenu("&Import");
-    QAction* importADIFAction = importMenu->addAction("Import &ADIF...");
-    connect(importADIFAction, &QAction::triggered, this, &MainWindow::onImportADIF);
-
-    // Export submenu
-    QMenu* exportMenu = fileMenu->addMenu("&Export");
-    QAction* exportADIFAction = exportMenu->addAction("Export &ADIF...");
-    connect(exportADIFAction, &QAction::triggered, this, &MainWindow::onExportADIF);
-
-    QAction* exportCabrilloAction = exportMenu->addAction("Export &Cabrillo...");
-    exportCabrilloAction->setShortcut(QKeySequence("Ctrl+Alt+B"));
-    connect(exportCabrilloAction, &QAction::triggered, this, &MainWindow::onExportCabrillo);
-
-    fileMenu->addSeparator();
-
-    QAction* preferencesAction = fileMenu->addAction("&Preferences...");
-    preferencesAction->setShortcut(QKeySequence::Preferences);
-    preferencesAction->setMenuRole(QAction::PreferencesRole);  // Explicitly set macOS menu role
-    connect(preferencesAction, &QAction::triggered, this, [this]() {
-        LOG_DEBUG("MainWindow", "*** Preferences action triggered ***");
-        onPreferences();
-    });
-    LOG_DEBUG("MainWindow", QString("*** Preferences menu created with shortcut: %1 menuRole: %2").arg(preferencesAction->shortcut().toString()).arg(preferencesAction->menuRole()));
-
-    fileMenu->addSeparator();
-
-    QAction* exitAction = fileMenu->addAction("E&xit");
-    connect(exitAction, &QAction::triggered, this, &MainWindow::onExit);
-
+    config.onNewOpenContest = [this]() { onNewOpenContest(); };
+    config.onClearLog = [this]() { onClearLog(); };
+    config.onImportADIF = [this]() { onImportADIF(); };
+    config.onExportADIF = [this]() { onExportADIF(); };
+    config.onExportCabrillo = [this]() { onExportCabrillo(); };
+    config.onPreferences = [this]() { onPreferences(); };
+    config.onExit = [this]() { onExit(); };
+    
     // Radio menu
-    QMenu* radioMenu = menuBar->addMenu("&Radio");
-
-    QAction* configAction = radioMenu->addAction("&Configure...");
-    configAction->setMenuRole(QAction::NoRole);  // Prevent macOS from moving this to app menu
-    connect(configAction, &QAction::triggered, this, [this]() {
-        LOG_DEBUG("MainWindow", "*** Radio Configure action triggered ***");
-        onRadioConfigure();
-    });
-    LOG_DEBUG("MainWindow", QString("*** Radio Configure menu created with menuRole: %1").arg(configAction->menuRole()));
-
-    radioMenu->addSeparator();
-
-    m_connectAction = radioMenu->addAction("C&onnect/Reconnect");
-    m_connectAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
-    m_connectAction->setStatusTip("Connect or reconnect to radio");
-    connect(m_connectAction, &QAction::triggered, this, &MainWindow::onRadioConnect);
-
-    m_disconnectAction = radioMenu->addAction("&Disconnect");
-    m_disconnectAction->setEnabled(false);
-    connect(m_disconnectAction, &QAction::triggered, this, &MainWindow::onRadioDisconnect);
-
-    radioMenu->addSeparator();
-
-    m_autoSendCWAction = radioMenu->addAction("Auto-Send CW (&ESM)");
-    m_autoSendCWAction->setCheckable(true);
-    m_autoSendCWAction->setChecked(AppSettings::instance().getCWAutoSendEnabled());  // Load from settings
-    m_autoSendCWAction->setStatusTip("Enter Send Mode: Automatically send CW messages when Enter is pressed in CW mode");
-    connect(m_autoSendCWAction, &QAction::toggled, this, [this](bool checked) {
-        AppSettings::instance().setCWAutoSendEnabled(checked);  // Persist setting
+    config.onRadioConfigure = [this]() { onRadioConfigure(); };
+    config.onRadioConnect = [this]() { onRadioConnect(); };
+    config.onRadioDisconnect = [this]() { onRadioDisconnect(); };
+    config.onAutoSendCWToggled = [this](bool checked) {
+        AppSettings::instance().setCWAutoSendEnabled(checked);
         LOG_DEBUG("MainWindow", QString("Auto Send CW %1").arg(checked ? "enabled" : "disabled"));
-        updateRadioStatusGrid();  // Update WPM display
-    });
-
-    // Edit menu (CTRL- shortcuts matching TR4W)
-    QMenu* editMenu = menuBar->addMenu("&Edit");
-
-    QAction* viewEditLogAction = editMenu->addAction("View/&Edit Log");
-    viewEditLogAction->setShortcut(QKeySequence("Ctrl+L"));
-    connect(viewEditLogAction, &QAction::triggered, this, &MainWindow::onViewEditLog);
-
-    QAction* clearDupesAction = editMenu->addAction("Clear &Dupes");
-    clearDupesAction->setShortcut(QKeySequence("Ctrl+K"));
-    connect(clearDupesAction, &QAction::triggered, this, &MainWindow::onClearDupes);
-
-    QAction* noteAction = editMenu->addAction("&Note");
-    noteAction->setShortcut(QKeySequence("Ctrl+N"));
-    connect(noteAction, &QAction::triggered, this, &MainWindow::onNote);
-
-    QAction* recallLastAction = editMenu->addAction("&Recall Last Entry");
-    recallLastAction->setShortcut(QKeySequence("Ctrl+R"));
-    connect(recallLastAction, &QAction::triggered, this, &MainWindow::onRecallLast);
-
-    // Tools menu (ALT- shortcuts matching TR4W)
-    QMenu* toolsMenu = menuBar->addMenu("&Tools");
-
-    QAction* wkModeAction = toolsMenu->addAction("WK Mode (Re-initialize WinKeyer)");
-    wkModeAction->setShortcut(QKeySequence("Alt+A"));
-    connect(wkModeAction, &QAction::triggered, this, &MainWindow::onWKMode);
-
-    QAction* backupLogAction = toolsMenu->addAction("Backup Log");
-    backupLogAction->setShortcut(QKeySequence("Alt+F"));
-    connect(backupLogAction, &QAction::triggered, this, &MainWindow::onBackupLog);
-
-    // Download submenu
-    QMenu* downloadMenu = toolsMenu->addMenu("&Download");
-
-    QAction* downloadCTYAction = downloadMenu->addAction("CTY.dat (Country File)");
-    downloadCTYAction->setShortcut(QKeySequence("Alt+O"));
-    connect(downloadCTYAction, &QAction::triggered, this, &MainWindow::onDownloadCTY);
-
-    QAction* downloadLOTWAction = downloadMenu->addAction("LOTW Users");
-    downloadLOTWAction->setShortcut(QKeySequence("Alt+L"));
-    connect(downloadLOTWAction, &QAction::triggered, this, &MainWindow::onDownloadLOTW);
-
-    QAction* downloadSCPAction = downloadMenu->addAction("MASTER.SCP (Callsign Database)");
-    downloadSCPAction->setShortcut(QKeySequence("Alt+S"));
-    connect(downloadSCPAction, &QAction::triggered, this, &MainWindow::onDownloadSCP);
-
-    QAction* initializeAction = toolsMenu->addAction("Initialize");
-    initializeAction->setShortcut(QKeySequence("Alt+W"));
-    connect(initializeAction, &QAction::triggered, this, &MainWindow::onInitialize);
-
-    toolsMenu->addSeparator();
-
-    // Rescore contest (recalculate points and multipliers)
-    QAction* rescoreAction = toolsMenu->addAction("Rescore Contest");
-    connect(rescoreAction, &QAction::triggered, this, &MainWindow::onRescoreContest);
-
-    // Data integrity check
-    QAction* integrityCheckAction = toolsMenu->addAction("Validate Log Integrity");
-    integrityCheckAction->setShortcut(QKeySequence("Alt+I"));
-    connect(integrityCheckAction, &QAction::triggered, this, &MainWindow::onFullIntegrityCheck);
-
-    toolsMenu->addSeparator();
-
-    m_webServerAction = toolsMenu->addAction("Start Web Server");
-    connect(m_webServerAction, &QAction::triggered, this, &MainWindow::onToggleWebServer);
-
-    toolsMenu->addSeparator();
-
-    QAction* resetWindowsAction = toolsMenu->addAction("Reset Window Positions");
-    connect(resetWindowsAction, &QAction::triggered, this, &MainWindow::onResetWindowPositions);
-
-    QAction* optionsAction = toolsMenu->addAction("Options");
-    optionsAction->setShortcut(QKeySequence("Ctrl+J"));
-    connect(optionsAction, &QAction::triggered, this, &MainWindow::onPreferences);
-
-    // Operating menu (ALT- shortcuts for operating functions)
-    QMenu* operatingMenu = menuBar->addMenu("&Operating");
-
-    QAction* autoCQAction = operatingMenu->addAction("Auto CQ");
-    autoCQAction->setShortcut(QKeySequence("Alt+Q"));
-    connect(autoCQAction, &QAction::triggered, this, &MainWindow::onAutoCQ);
-
-    QAction* autoCQResumeAction = operatingMenu->addAction("Auto CQ Resume");
-    autoCQResumeAction->setShortcut(QKeySequence("Alt+C"));
-    connect(autoCQResumeAction, &QAction::triggered, this, &MainWindow::onAutoCQResume);
-
-    QAction* killCWAction = operatingMenu->addAction("Kill CW");
-    killCWAction->setShortcut(QKeySequence("Alt+K"));
-    connect(killCWAction, &QAction::triggered, this, &MainWindow::onKillCW);
-
-    operatingMenu->addSeparator();
-
-    QAction* dupeCheckAction = operatingMenu->addAction("Dupe Check");
-    dupeCheckAction->setShortcut(QKeySequence("Alt+D"));
-    connect(dupeCheckAction, &QAction::triggered, this, &MainWindow::onDupeCheck);
-
-    QAction* searchLogAction = operatingMenu->addAction("Search Log");
-    searchLogAction->setShortcut(QKeySequence("Alt+L"));
-    connect(searchLogAction, &QAction::triggered, this, &MainWindow::onSearchLog);
-
-    QAction* deleteLastQSOAction = operatingMenu->addAction("Delete Last QSO");
-    deleteLastQSOAction->setShortcut(QKeySequence("Alt+Y"));
-    connect(deleteLastQSOAction, &QAction::triggered, this, &MainWindow::onDeleteLastQSO);
-
-    operatingMenu->addSeparator();
-
-    QAction* incNumberAction = operatingMenu->addAction("Inc Number");
-    incNumberAction->setShortcut(QKeySequence("Alt+I"));
-    connect(incNumberAction, &QAction::triggered, this, &MainWindow::onIncNumber);
-
-    QAction* initialExchangeAction = operatingMenu->addAction("Initial Exchange");
-    initialExchangeAction->setShortcut(QKeySequence("Alt+Z"));
-    connect(initialExchangeAction, &QAction::triggered, this, &MainWindow::onInitialExchange);
-
-    // Removed: CW Speed menu item (Alt+S conflicted with Download SCP)
-    // Use PgUp/PgDn shortcuts or click WPM label in Radio Control window
-
-    operatingMenu->addSeparator();
-
-    QAction* toggleSidetoneAction = operatingMenu->addAction("Toggle Sidetone");
-    toggleSidetoneAction->setShortcut(QKeySequence("Alt+="));
-    connect(toggleSidetoneAction, &QAction::triggered, this, &MainWindow::onToggleSidetone);
-
-    QAction* toggleAutosendAction = operatingMenu->addAction("Toggle Autosend");
-    toggleAutosendAction->setShortcut(QKeySequence("Alt+-"));
-    connect(toggleAutosendAction, &QAction::triggered, this, &MainWindow::onToggleAutosend);
-
-    // Commands menu (operating mode switching)
-    QMenu* commandsMenu = menuBar->addMenu("&Commands");
-
-    QAction* cqModeAction = commandsMenu->addAction("CQ Mode");
-    cqModeAction->setShortcut(QKeySequence("Shift+Tab"));
-    connect(cqModeAction, &QAction::triggered, this, &MainWindow::onCQMode);
-
-    QAction* spModeAction = commandsMenu->addAction("Search && Pounce Mode");
-    spModeAction->setShortcut(QKeySequence("Tab"));
-    connect(spModeAction, &QAction::triggered, this, &MainWindow::onSPMode);
-
-    // Automation menu (AUTO S&P settings)
-    QMenu* automationMenu = menuBar->addMenu("&Automation");
-
-    QAction* autoSPEnableAction = automationMenu->addAction("AUTO S&&P ENABLE");
-    autoSPEnableAction->setCheckable(true);
-    autoSPEnableAction->setChecked(AppSettings::instance().getAutoSPEnable());
-    connect(autoSPEnableAction, &QAction::toggled, this, [](bool checked) {
+        updateRadioStatusGrid();
+    };
+    config.onUpdateRadioStatusGrid = [this]() { updateRadioStatusGrid(); };
+    
+    // Edit menu
+    config.onViewEditLog = [this]() { onViewEditLog(); };
+    config.onClearDupes = [this]() { onClearDupes(); };
+    config.onNote = [this]() { onNote(); };
+    config.onRecallLast = [this]() { onRecallLast(); };
+    
+    // Tools menu
+    config.onWKMode = [this]() { onWKMode(); };
+    config.onBackupLog = [this]() { onBackupLog(); };
+    config.onDownloadCTY = [this]() { onDownloadCTY(); };
+    config.onDownloadLOTW = [this]() { onDownloadLOTW(); };
+    config.onDownloadSCP = [this]() { onDownloadSCP(); };
+    config.onInitialize = [this]() { onInitialize(); };
+    config.onRescoreContest = [this]() { onRescoreContest(); };
+    config.onFullIntegrityCheck = [this]() { onFullIntegrityCheck(); };
+    config.onToggleWebServer = [this]() { onToggleWebServer(); };
+    config.onResetWindowPositions = [this]() { onResetWindowPositions(); };
+    
+    // Operating menu
+    config.onAutoCQ = [this]() { onAutoCQ(); };
+    config.onAutoCQResume = [this]() { onAutoCQResume(); };
+    config.onKillCW = [this]() { onKillCW(); };
+    config.onDupeCheck = [this]() { onDupeCheck(); };
+    config.onSearchLog = [this]() { onSearchLog(); };
+    config.onDeleteLastQSO = [this]() { onDeleteLastQSO(); };
+    config.onIncNumber = [this]() { onIncNumber(); };
+    config.onInitialExchange = [this]() { onInitialExchange(); };
+    config.onToggleSidetone = [this]() { onToggleSidetone(); };
+    config.onToggleAutosend = [this]() { onToggleAutosend(); };
+    
+    // Commands menu
+    config.onCQMode = [this]() { onCQMode(); };
+    config.onSPMode = [this]() { onSPMode(); };
+    
+    // Automation menu
+    config.onAutoSPEnableToggled = [this](bool checked) {
         AppSettings::instance().setAutoSPEnable(checked);
-        LOG_DEBUG("MainWindow", QString("AUTO S&P ENABLE %1").arg(checked ? "ON" : "OFF"));
-    });
-
-    QAction* autoSPSensitivityAction = automationMenu->addAction("Auto S&&P Sensitivity...");
-    connect(autoSPSensitivityAction, &QAction::triggered, this, [this, autoSPEnableAction]() {
+        LOG_DEBUG("MainWindow", QString("AUTO S&P %1").arg(checked ? "enabled" : "disabled"));
+    };
+    config.onAutoSPSensitivity = [this]() {
         bool ok;
-        int currentValue = AppSettings::instance().getAutoSPSensitivity();
-        int newValue = QInputDialog::getInt(this,
-            "Auto S&P Sensitivity",
-            "Controls how quickly you must move the VFO (in Hz/sec)\n"
-            "in order for the program to jump automatically into S&P Mode\n"
-            "if AUTO S&P ENABLE is TRUE.\n\n"
-            "Sensitivity (Hz/sec):",
-            currentValue,
-            50,      // minimum
-            10000,   // maximum
-            50,      // step
-            &ok);
-
+        int currentSensitivity = AppSettings::instance().getAutoSPSensitivity();
+        int newSensitivity = QInputDialog::getInt(
+            this,
+            "AUTO S&P Sensitivity",
+            "Frequency change threshold (Hz):",
+            currentSensitivity,
+            100,
+            100000,
+            100,
+            &ok
+        );
         if (ok) {
-            AppSettings::instance().setAutoSPSensitivity(newValue);
-            LOG_DEBUG("MainWindow", QString("Auto S&P Sensitivity set to %1 Hz/sec").arg(newValue));
-
-            DialogHelper::information(this,
-                "AUTO S&P Sensitivity Updated",
-                QString("Auto S&P sensitivity set to %1 Hz/sec.\n\n"
-                        "The program will switch to S&P mode when you move\n"
-                        "the VFO faster than %1 Hz per second.")
-                    .arg(newValue));
+            AppSettings::instance().setAutoSPSensitivity(newSensitivity);
+            LOG_DEBUG("MainWindow", QString("AUTO S&P sensitivity: %1 Hz").arg(newSensitivity));
         }
-    });
-
-    // Window menu (window display functions)
-    QMenu* windowMenu = menuBar->addMenu("&Window");
-
-    m_bandMapAction = windowMenu->addAction("&Band Map");
-    m_bandMapAction->setCheckable(true);
-    connect(m_bandMapAction, &QAction::triggered, this, &MainWindow::onShowBandMap);
-
-    m_dxClusterAction = windowMenu->addAction("DX &Cluster");
-    m_dxClusterAction->setCheckable(true);
-    connect(m_dxClusterAction, &QAction::triggered, this, &MainWindow::onShowDXCluster);
-
-    m_radioControlAction = windowMenu->addAction("&Radio Control");
-    m_radioControlAction->setCheckable(true);
-    connect(m_radioControlAction, &QAction::triggered, this, &MainWindow::onShowRadioControl);
-
-    QAction* sendMorseAction = windowMenu->addAction("Send &Morse Code");
-    sendMorseAction->setShortcut(QKeySequence("Alt+K"));
-    connect(sendMorseAction, &QAction::triggered, this, &MainWindow::onSendMorse);
-
-    QAction* editCWMessagesAction = windowMenu->addAction("Edit CW &Messages");
-    editCWMessagesAction->setShortcut(QKeySequence("Alt+M"));
-    connect(editCWMessagesAction, &QAction::triggered, this, &MainWindow::onEditCWMessages);
-
-    QAction* functionKeysAction = windowMenu->addAction("&Function Keys Reference");
-    functionKeysAction->setShortcut(QKeySequence("Ctrl+F1"));
-    connect(functionKeysAction, &QAction::triggered, this, &MainWindow::onShowFunctionKeysRef);
-
-    m_multipliersAction = windowMenu->addAction("&Multipliers");
-    m_multipliersAction->setCheckable(true);
-    connect(m_multipliersAction, &QAction::triggered, this, &MainWindow::onShowMultipliers);
-
-    m_statisticsAction = windowMenu->addAction("&Statistics");
-    m_statisticsAction->setCheckable(true);
-    connect(m_statisticsAction, &QAction::triggered, this, &MainWindow::onShowStatistics);
-
-    m_sectionsMapAction = windowMenu->addAction("S&ections Map");
-    m_sectionsMapAction->setCheckable(true);
-    connect(m_sectionsMapAction, &QAction::triggered, this, &MainWindow::onShowSectionsMap);
-
-    m_statesMapAction = windowMenu->addAction("St&ates Map (WAS)");
-    m_statesMapAction->setCheckable(true);
-    connect(m_statesMapAction, &QAction::triggered, this, &MainWindow::onShowStatesMap);
-
-    m_graylineMapAction = windowMenu->addAction("&Grayline Map");
-    m_graylineMapAction->setCheckable(true);
-    connect(m_graylineMapAction, &QAction::triggered, this, &MainWindow::onShowGraylineMap);
-
-    windowMenu->addSeparator();
-
-    QAction* swapMultViewAction = windowMenu->addAction("Swap Mult View");
-    swapMultViewAction->setShortcut(QKeySequence("Alt+G"));
-    connect(swapMultViewAction, &QAction::triggered, this, &MainWindow::onSwapMultView);
-
-    QAction* missingMultsAction = windowMenu->addAction("Missing Mults Report");
-    missingMultsAction->setShortcut(QKeySequence("Ctrl+O"));
-    connect(missingMultsAction, &QAction::triggered, this, &MainWindow::onMissingMultsReport);
-
-    // Band menu (band changing shortcuts)
-    QMenu* bandMenu = menuBar->addMenu("&Band");
-
-    QAction* bandUpAction = bandMenu->addAction("Band Up");
-    bandUpAction->setShortcut(QKeySequence("Alt+B"));
-    connect(bandUpAction, &QAction::triggered, this, &MainWindow::onBandUp);
-
-    QAction* bandDownAction = bandMenu->addAction("Band Down");
-    bandDownAction->setShortcut(QKeySequence("Alt+V"));
-    connect(bandDownAction, &QAction::triggered, this, &MainWindow::onBandDown);
-
-    bandMenu->addSeparator();
-
-    QAction* toggleRigsAction = bandMenu->addAction("Toggle Rigs (SO2R)");
-    toggleRigsAction->setShortcut(QKeySequence("Alt+R"));
-    connect(toggleRigsAction, &QAction::triggered, this, &MainWindow::onToggleRigs);
-
-    QAction* editSO2RAction = bandMenu->addAction("Edit SO2R");
-    editSO2RAction->setShortcut(QKeySequence("Alt+E"));
-    connect(editSO2RAction, &QAction::triggered, this, &MainWindow::onEditSO2R);
-
+    };
+    
+    // Window menu
+    config.onShowBandMap = [this]() { onShowBandMap(); };
+    config.onShowDXCluster = [this]() { onShowDXCluster(); };
+    config.onShowRadioControl = [this]() { onShowRadioControl(); };
+    config.onSendMorse = [this]() { onSendMorse(); };
+    config.onEditCWMessages = [this]() { onEditCWMessages(); };
+    config.onShowFunctionKeysRef = [this]() { onShowFunctionKeysRef(); };
+    config.onShowMultipliers = [this]() { onShowMultipliers(); };
+    config.onShowStatistics = [this]() { onShowStatistics(); };
+    config.onShowSectionsMap = [this]() { onShowSectionsMap(); };
+    config.onShowStatesMap = [this]() { onShowStatesMap(); };
+    config.onShowGraylineMap = [this]() { onShowGraylineMap(); };
+    config.onSwapMultView = [this]() { onSwapMultView(); };
+    config.onMissingMultsReport = [this]() { onMissingMultsReport(); };
+    
+    // Band menu
+    config.onBandUp = [this]() { onBandUp(); };
+    config.onBandDown = [this]() { onBandDown(); };
+    config.onToggleRigs = [this]() { onToggleRigs(); };
+    config.onEditSO2R = [this]() { onEditSO2R(); };
+    
     // Help menu
-    QMenu* helpMenu = menuBar->addMenu("&Help");
-    QAction* aboutAction = helpMenu->addAction("&About");
-    connect(aboutAction, &QAction::triggered, this, &MainWindow::onAbout);
-
+    config.onAbout = [this]() { onAbout(); };
 #ifdef ENABLE_PERFORMANCE_PROFILING
-    QAction* perfReportAction = helpMenu->addAction("Show Performance Report...");
-    connect(perfReportAction, &QAction::triggered, this, &MainWindow::onShowPerformanceReport);
+    config.onShowPerformanceReport = [this]() { onShowPerformanceReport(); };
 #endif
-
-    QAction* emailLogsAction = helpMenu->addAction("Email Logs to Support...");
-    connect(emailLogsAction, &QAction::triggered, this, &MainWindow::onEmailLogsToSupport);
+    config.onEmailLogsToSupport = [this]() { onEmailLogsToSupport(); };
+    
+    // Create menu bar using MenuManager
+    QMenuBar* menuBar = m_menuManager->createMenuBar(config);
+    setMenuBar(menuBar);
+    
+    // Store action references for MainWindow to update
+    m_connectAction = m_menuManager->connectAction();
+    m_disconnectAction = m_menuManager->disconnectAction();
+    m_autoSendCWAction = m_menuManager->autoSendCWAction();
+    m_webServerAction = m_menuManager->webServerAction();
+    m_bandMapAction = m_menuManager->bandMapAction();
+    m_dxClusterAction = m_menuManager->dxClusterAction();
+    m_radioControlAction = m_menuManager->radioControlAction();
+    m_multipliersAction = m_menuManager->multipliersAction();
+    m_statisticsAction = m_menuManager->statisticsAction();
+    m_sectionsMapAction = m_menuManager->sectionsMapAction();
+    m_statesMapAction = m_menuManager->statesMapAction();
+    m_graylineMapAction = m_menuManager->graylineMapAction();
 }
 
 void MainWindow::createCentralWidget() {
@@ -1048,16 +861,25 @@ void MainWindow::createStatusBar() {
 }
 
 void MainWindow::loadSettings() {
-    AppSettings& settings = AppSettings::instance();
-
-    QByteArray geometry = settings.loadWindowGeometry();
-    if (!geometry.isEmpty()) {
-        restoreGeometry(geometry);
+    if (!m_settingsManager) {
+        return;
     }
 
-    QByteArray state = settings.loadWindowState();
-    if (!state.isEmpty()) {
-        restoreState(state);
+    // Load and restore window geometry
+    WindowGeometry geometry = m_settingsManager->loadWindowGeometry();
+
+    if (!geometry.mainWindowGeometry.isNull()) {
+        restoreGeometry(geometry.mainWindowGeometry);
+    }
+    if (!geometry.mainWindowState.isNull()) {
+        restoreState(geometry.mainWindowState);
+    }
+
+    // Restore operator
+    if (!geometry.currentOperator.isEmpty()) {
+        if (m_operatorLabel) {
+            m_operatorLabel->setText(geometry.currentOperator);
+        }
     }
 
     // Apply font settings
@@ -1069,154 +891,102 @@ void MainWindow::loadSettings() {
     applyTheme();
 
     // Restore child windows if they were visible
-    LOG_DEBUG("MainWindow", QString("DX Cluster was visible: %1").arg(settings.getDXClusterVisible() ? "true" : "false"));
-    if (settings.getDXClusterVisible()) {
-        LOG_DEBUG("MainWindow", "Restoring DX Cluster window");
+    if (geometry.dxClusterVisible) {
         onShowDXCluster();
-        QByteArray dxGeometry = settings.loadDXClusterGeometry();
-        if (!dxGeometry.isEmpty()) {
-            m_dxClusterWindow->restoreGeometry(dxGeometry);
+        if (m_dxClusterWindow && !geometry.dxClusterGeometry.isEmpty()) {
+            m_dxClusterWindow->restoreGeometry(geometry.dxClusterGeometry);
         }
     }
 
-    LOG_DEBUG("MainWindow", QString("Band Map was visible: %1").arg(settings.getBandMapVisible() ? "true" : "false"));
-    if (settings.getBandMapVisible()) {
-        LOG_DEBUG("MainWindow", "Restoring Band Map window");
+    if (geometry.bandMapVisible) {
         onShowBandMap();
-        QByteArray bmGeometry = settings.loadBandMapGeometry();
-        if (!bmGeometry.isEmpty()) {
-            m_bandMapWindow->restoreGeometry(bmGeometry);
+        if (m_bandMapWindow && !geometry.bandMapGeometry.isEmpty()) {
+            m_bandMapWindow->restoreGeometry(geometry.bandMapGeometry);
         }
     }
 
-    LOG_DEBUG("MainWindow", QString("Radio Control was visible: %1").arg(settings.getRadioControlVisible() ? "true" : "false"));
-    if (settings.getRadioControlVisible()) {
-        LOG_DEBUG("MainWindow", "Restoring Radio Control window");
+    if (geometry.radioControlVisible) {
         onShowRadioControl();
-        QByteArray rcGeometry = settings.loadRadioControlGeometry();
-        if (!rcGeometry.isEmpty()) {
-            m_radioControlWindow->restoreGeometry(rcGeometry);
+        if (m_radioControlWindow && !geometry.radioControlGeometry.isEmpty()) {
+            m_radioControlWindow->restoreGeometry(geometry.radioControlGeometry);
         }
     }
 
-    LOG_DEBUG("MainWindow", QString("Multipliers was visible: %1").arg(settings.getMultipliersVisible() ? "true" : "false"));
-    if (settings.getMultipliersVisible()) {
-        LOG_DEBUG("MainWindow", "Restoring Multipliers window");
+    if (geometry.multipliersVisible) {
         onShowMultipliers();
-        QByteArray multGeometry = settings.loadMultipliersGeometry();
-        if (!multGeometry.isEmpty()) {
-            m_multiplierWindow->restoreGeometry(multGeometry);
+        if (m_multiplierWindow && !geometry.multipliersGeometry.isEmpty()) {
+            m_multiplierWindow->restoreGeometry(geometry.multipliersGeometry);
         }
     }
 
-    // Restore Statistics window
-    QSettings qsettings("TR4QT", "TR4QT");
-    bool statisticsVisible = qsettings.value("Windows/Statistics/Visible", false).toBool();
-    LOG_DEBUG("MainWindow", QString("Statistics was visible: %1").arg(statisticsVisible ? "true" : "false"));
-    if (statisticsVisible) {
-        LOG_DEBUG("MainWindow", "Restoring Statistics window");
+    if (geometry.statisticsVisible) {
         onShowStatistics();
-        QByteArray statsGeometry = qsettings.value("Windows/Statistics/Geometry").toByteArray();
-        if (!statsGeometry.isEmpty()) {
-            m_statisticsWindow->restoreGeometry(statsGeometry);
+        if (m_statisticsWindow && !geometry.statisticsGeometry.isEmpty()) {
+            m_statisticsWindow->restoreGeometry(geometry.statisticsGeometry);
         }
     }
 
-    // Restore map viewer windows
-    bool sectionsMapVisible = qsettings.value("MapViewer/Sections/Visible", false).toBool();
-    LOG_DEBUG("MainWindow", QString("Sections Map was visible: %1").arg(sectionsMapVisible ? "true" : "false"));
-    if (sectionsMapVisible) {
-        LOG_DEBUG("MainWindow", "Restoring Sections Map window");
+    if (geometry.sectionsMapVisible) {
         onShowSectionsMap();
     }
 
-    bool statesMapVisible = qsettings.value("MapViewer/States/Visible", false).toBool();
-    LOG_DEBUG("MainWindow", QString("States Map was visible: %1").arg(statesMapVisible ? "true" : "false"));
-    if (statesMapVisible) {
-        LOG_DEBUG("MainWindow", "Restoring States Map window");
+    if (geometry.statesMapVisible) {
         onShowStatesMap();
     }
 
-    LOG_DEBUG("MainWindow", QString("Grayline Map was visible: %1").arg(settings.getGraylineMapVisible() ? "true" : "false"));
-    if (settings.getGraylineMapVisible()) {
-        LOG_DEBUG("MainWindow", "Restoring Grayline Map window");
+    if (geometry.graylineMapVisible) {
         onShowGraylineMap();
-        QByteArray graylineGeometry = settings.loadGraylineMapGeometry();
-        if (!graylineGeometry.isEmpty()) {
-            m_graylineMapDialog->restoreGeometry(graylineGeometry);
+        if (m_graylineMapDialog && !geometry.graylineMapGeometry.isEmpty()) {
+            m_graylineMapDialog->restoreGeometry(geometry.graylineMapGeometry);
         }
-    }
-
-    // Load and display current operator
-    QString currentOperator = settings.getCurrentOperator();
-    if (!currentOperator.isEmpty()) {
-        m_operatorLabel->setText(currentOperator);
     }
 }
 
 void MainWindow::saveSettings() {
-    AppSettings& settings = AppSettings::instance();
-    settings.saveWindowGeometry(saveGeometry());
-    settings.saveWindowState(saveState());
+    if (!m_settingsManager) {
+        return;
+    }
 
-    // Save child window geometry and visibility states
+    // Build geometry struct
+    WindowGeometry geometry;
+    geometry.mainWindowGeometry = saveGeometry();
+    geometry.mainWindowState = saveState();
+    geometry.currentOperator = AppSettings::instance().getCurrentOperator();
+
+    // Save child window geometries and visibility
     if (m_dxClusterWindow) {
-        bool visible = m_dxClusterWindow->isVisible();
-        LOG_DEBUG("MainWindow", QString("Saving DX Cluster window - visible: %1").arg(visible ? "true" : "false"));
-        settings.saveDXClusterGeometry(m_dxClusterWindow->saveGeometry());
-        settings.setDXClusterVisible(visible);
+        geometry.dxClusterGeometry = m_dxClusterWindow->saveGeometry();
+        geometry.dxClusterVisible = m_dxClusterWindow->isVisible();
     }
-
     if (m_bandMapWindow) {
-        bool visible = m_bandMapWindow->isVisible();
-        LOG_DEBUG("MainWindow", QString("Saving Band Map window - visible: %1").arg(visible ? "true" : "false"));
-        settings.saveBandMapGeometry(m_bandMapWindow->saveGeometry());
-        settings.setBandMapVisible(visible);
+        geometry.bandMapGeometry = m_bandMapWindow->saveGeometry();
+        geometry.bandMapVisible = m_bandMapWindow->isVisible();
     }
-
     if (m_radioControlWindow) {
-        bool visible = m_radioControlWindow->isVisible();
-        LOG_DEBUG("MainWindow", QString("Saving Radio Control window - visible: %1").arg(visible ? "true" : "false"));
-        settings.saveRadioControlGeometry(m_radioControlWindow->saveGeometry());
-        settings.setRadioControlVisible(visible);
+        geometry.radioControlGeometry = m_radioControlWindow->saveGeometry();
+        geometry.radioControlVisible = m_radioControlWindow->isVisible();
     }
-
     if (m_multiplierWindow) {
-        bool visible = m_multiplierWindow->isVisible();
-        LOG_DEBUG("MainWindow", QString("Saving Multipliers window - visible: %1").arg(visible ? "true" : "false"));
-        settings.saveMultipliersGeometry(m_multiplierWindow->saveGeometry());
-        settings.setMultipliersVisible(visible);
+        geometry.multipliersGeometry = m_multiplierWindow->saveGeometry();
+        geometry.multipliersVisible = m_multiplierWindow->isVisible();
     }
-
     if (m_statisticsWindow) {
-        bool visible = m_statisticsWindow->isVisible();
-        LOG_DEBUG("MainWindow", QString("Saving Statistics window - visible: %1").arg(visible ? "true" : "false"));
-        QSettings qsettings("TR4QT", "TR4QT");
-        qsettings.setValue("Windows/Statistics/Geometry", m_statisticsWindow->saveGeometry());
-        qsettings.setValue("Windows/Statistics/Visible", visible);
+        geometry.statisticsGeometry = m_statisticsWindow->saveGeometry();
+        geometry.statisticsVisible = m_statisticsWindow->isVisible();
     }
-
-    // Save map viewer visibility states (geometry is saved by the viewers themselves)
     if (m_sectionsMapViewer) {
-        bool visible = m_sectionsMapViewer->isVisible();
-        LOG_DEBUG("MainWindow", QString("Saving Sections Map window - visible: %1").arg(visible ? "true" : "false"));
-        QSettings qsettings("TR4QT", "TR4QT");
-        qsettings.setValue("MapViewer/Sections/Visible", visible);
+        geometry.sectionsMapVisible = m_sectionsMapViewer->isVisible();
     }
-
     if (m_statesMapViewer) {
-        bool visible = m_statesMapViewer->isVisible();
-        LOG_DEBUG("MainWindow", QString("Saving States Map window - visible: %1").arg(visible ? "true" : "false"));
-        QSettings qsettings("TR4QT", "TR4QT");
-        qsettings.setValue("MapViewer/States/Visible", visible);
+        geometry.statesMapVisible = m_statesMapViewer->isVisible();
+    }
+    if (m_graylineMapDialog) {
+        geometry.graylineMapGeometry = m_graylineMapDialog->saveGeometry();
+        geometry.graylineMapVisible = m_graylineMapDialog->isVisible();
     }
 
-    if (m_graylineMapDialog) {
-        bool visible = m_graylineMapDialog->isVisible();
-        LOG_DEBUG("MainWindow", QString("Saving Grayline Map window - visible: %1").arg(visible ? "true" : "false"));
-        settings.saveGraylineMapGeometry(m_graylineMapDialog->saveGeometry());
-        settings.setGraylineMapVisible(visible);
-    }
+    // Delegate save to SettingsManager
+    m_settingsManager->saveWindowGeometry(geometry);
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
@@ -1491,44 +1261,15 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
 }
 
 void MainWindow::raiseAllWindows() {
-    // Prevent infinite recursion - raising windows triggers WindowActivate events
-    // which would call this function again
-    if (m_inRaiseAllWindows) {
+    if (!m_windowManager) {
         return;
     }
 
-    m_inRaiseAllWindows = true;
-
-    // Raise main window - use raise() only, not activateWindow() to avoid event loops
+    // Raise main window first
     raise();
 
-    // Raise all child windows that are visible
-    // Only call raise(), not activateWindow(), to prevent WindowActivate event loops on Windows
-    if (m_dxClusterWindow && m_dxClusterWindow->isVisible()) {
-        m_dxClusterWindow->raise();
-    }
-
-    if (m_bandMapWindow && m_bandMapWindow->isVisible()) {
-        m_bandMapWindow->raise();
-    }
-
-    if (m_radioControlWindow && m_radioControlWindow->isVisible()) {
-        m_radioControlWindow->raise();
-    }
-
-    if (m_multiplierWindow && m_multiplierWindow->isVisible()) {
-        m_multiplierWindow->raise();
-    }
-
-    if (m_statisticsWindow && m_statisticsWindow->isVisible()) {
-        m_statisticsWindow->raise();
-    }
-
-    // Use a timer to reset the flag after queued events are processed
-    // This prevents re-entry from WindowActivate events triggered by raise()
-    QTimer::singleShot(100, this, [this]() {
-        m_inRaiseAllWindows = false;
-    });
+    // Delegate child window raising to WindowManager
+    m_windowManager->raiseAllWindows();
 }
 
 void MainWindow::setStatusMessage(const QString& message) {
@@ -1562,49 +1303,34 @@ void MainWindow::onRadioConfigure() {
 }
 
 void MainWindow::onRadioConnect() {
-    AppSettings& settings = AppSettings::instance();
-
-    if (!settings.hasRadioConfig()) {
-        DialogHelper::warning(this, "No Configuration",
-                           "Please configure your radio first (Radio → Configure).");
-        onRadioConfigure();
+    if (!m_radioManager) {
         return;
     }
 
-    RadioConfig config = settings.loadRadioConfig();
+    // RadioManager validates configuration and initiates connection
+    bool success = m_radioManager->connectToRadio();
 
-    // Validate that a valid radio model is selected
-    if (config.hamlibModelId <= 0) {
-        DialogHelper::warning(this, "Invalid Radio Model",
-                           "Please select a valid radio model (Radio → Configure).\n\n"
-                           "Model ID 0 or 'Select radio...' is not a valid radio.");
-        onRadioConfigure();
-        return;
+    // If validation failed, show configuration dialog
+    if (!success) {
+        AppSettings& settings = AppSettings::instance();
+        if (!settings.hasRadioConfig() || settings.loadRadioConfig().hamlibModelId <= 0) {
+            DialogHelper::warning(this, "Radio Configuration Required",
+                               "Please configure your radio first (Radio → Configure).");
+            onRadioConfigure();
+        }
     }
 
-    // Enable auto-reconnect when user initiates connection
-    m_radioAutoReconnect = true;
-    m_radioReconnectTimer->stop();  // Stop any pending reconnect attempt
-    m_radioReconnectAttempts = 0;   // Reset retry counter
-    m_lastRadioConfig = config;  // Save config for reconnection attempts
-
-    m_statusLabel->setText(QString("Connecting to radio: Model %1, Port %2...")
-                              .arg(config.hamlibModelId)
-                              .arg(config.port));
-    QApplication::processEvents();  // Update UI
-
-    // Connect happens asynchronously in worker thread
-    // connectionStatusChanged signal will indicate success/failure
-    m_radio->connectToRadio(config);
+    // RadioManager will emit statusMessage signal for UI feedback
+    // MainWindow slots will handle UI updates via those signals
 }
 
 void MainWindow::onRadioDisconnect() {
-    // Disable auto-reconnect when user manually disconnects
-    m_radioAutoReconnect = false;
-    m_radioReconnectTimer->stop();
+    if (!m_radioManager) {
+        return;
+    }
 
-    m_statusLabel->setText("Disconnecting from radio...");
-    m_radio->disconnectFromRadio();
+    // Delegate disconnection to RadioManager
+    m_radioManager->disconnectFromRadio();
 }
 
 void MainWindow::onAbout() {
@@ -1992,264 +1718,61 @@ void MainWindow::onPreferences() {
 }
 
 void MainWindow::onImportADIF() {
-    // Check if we have an active contest
-    if (!m_hasActiveContest) {
-        DialogHelper::warning(this, "Import ADIF",
-                            "Please create or open a contest before importing QSOs.");
+    if (!m_importExportManager) {
+        LOG_ERROR("MainWindow", "ImportExportManager is null");
         return;
     }
 
-    // Open import dialog with pointer to CountryFile
-    ADIFImportDialog dialog(&m_countryFile, this);
+    // Delegate to ImportExportManager
+    ImportResult result = m_importExportManager->importADIF();
 
-    if (dialog.exec() == QDialog::Accepted) {
-        QList<QSO> importedQSOs = dialog.getImportedQSOs();
-
-        if (importedQSOs.isEmpty()) {
-            m_statusLabel->setText("No QSOs imported");
-            return;
-        }
-
-        // Save imported QSOs to database
-        QSORepository repo;
-        int successCount = 0;
-        int failureCount = 0;
-
-        for (const QSO& qsoConst : importedQSOs) {
-            QSO qso = qsoConst;  // Make mutable copy (saveQSO modifies GUID if needed)
-            if (repo.saveQSO(qso, m_currentContestDbId)) {
-                successCount++;
-            } else {
-                failureCount++;
-                LOG_WARN("MainWindow", QString("Failed to import QSO: %1 - %2")
-                    .arg(qso.callsign)
-                    .arg(repo.lastError()));
-            }
-        }
-
+    // Handle result: reload QSOs if successful
+    if (result.success && result.successCount > 0) {
         // Reload QSOs from database to refresh UI
-        if (successCount > 0) {
-            QList<QSO> allQSOs = repo.findByContest(m_currentContestDbId);
-            m_qsoTableModel->clear();
-            for (const QSO& qso : allQSOs) {
-                m_qsoTableModel->addQSO(qso);
-            }
-            m_statusLabel->setText(QString("Imported %1 QSO%2%3")
-                .arg(successCount)
-                .arg(successCount == 1 ? "" : "s")
-                .arg(failureCount > 0 ? QString(" (%1 failed)").arg(failureCount) : ""));
-
-            LOG_INFO("MainWindow", QString("ADIF import completed: %1 successful, %2 failed")
-                .arg(successCount)
-                .arg(failureCount));
-
-            // Rescore if user enabled the checkbox
-            if (dialog.shouldRescore()) {
-                RescoreStats stats = rescoreContestSilent();
-                m_statusLabel->setText(QString("Imported %1 QSO%2, rescored: %3 updated, %4 mults, %5 dupes")
-                    .arg(successCount)
-                    .arg(successCount == 1 ? "" : "s")
-                    .arg(stats.qsosUpdated)
-                    .arg(stats.multsMarked)
-                    .arg(stats.dupesFound));
-                LOG_INFO("MainWindow", QString("Auto-rescore after import: %1 updated, %2 mults, %3 dupes")
-                    .arg(stats.qsosUpdated).arg(stats.multsMarked).arg(stats.dupesFound));
-            }
-        } else {
-            DialogHelper::critical(this, "Import Failed",
-                QString("Failed to import any QSOs.\n\nError: %1").arg(repo.lastError()));
+        QSORepository repo;
+        QList<QSO> allQSOs = repo.findByContest(m_currentContestDbId);
+        m_qsoTableModel->clear();
+        for (const QSO& qso : allQSOs) {
+            m_qsoTableModel->addQSO(qso);
         }
+
+        // Update score display
+        updateScoreDisplay();
+    }
+
+    // Update status label
+    if (!result.statusMessage.isEmpty()) {
+        m_statusLabel->setText(result.statusMessage);
     }
 }
 
 void MainWindow::onExportADIF() {
-    // Get all QSOs from the table model
-    QList<QSO> qsos;
-    for (int i = 0; i < m_qsoTableModel->count(); ++i) {
-        qsos.append(m_qsoTableModel->getQSO(i));
-    }
-
-    if (qsos.isEmpty()) {
-        DialogHelper::information(this, "Export ADIF", "No QSOs to export.");
+    if (!m_importExportManager) {
+        LOG_ERROR("MainWindow", "ImportExportManager is null");
         return;
     }
 
-    // Run full integrity check before export (all issues)
-    if (m_hasActiveContest) {
-        QString integrityReport = fullIntegrityCheck(false);  // Check all issues
+    // Delegate to ImportExportManager
+    ExportResult result = m_importExportManager->exportADIF();
 
-        // Check if there are any critical issues in the report
-        if (integrityReport.contains("✗ CRITICAL ISSUES DETECTED")) {
-            QMessageBox::StandardButton reply = DialogHelper::warning(
-                this,
-                "Data Integrity Warning",
-                "Log integrity check found CRITICAL issues!\n\n"
-                "Exporting may result in incomplete or incorrect data.\n\n"
-                "View integrity report?",
-                QMessageBox::Yes | QMessageBox::No,
-                QMessageBox::Yes);
-
-            if (reply == QMessageBox::Yes) {
-                // Show full report
-                DialogHelper::information(this, "Integrity Check Report", integrityReport);
-                return;  // Abort export so user can fix issues
-            }
-        } else if (integrityReport.contains("ℹ INFO:")) {
-            // Informational issues only - just log them, don't block export
-            LOG_INFO("MainWindow", QString("Pre-export ADIF integrity check found informational issues:\n%1")
-                .arg(integrityReport));
-        } else {
-            LOG_INFO("MainWindow", "Pre-export ADIF integrity check passed");
-        }
-    }
-
-    // Generate ADIF content
-    ADIFExporter exporter;
-    QString operatorCall = AppSettings::instance().getMyCallsign();
-    QString adifContent = exporter.generateADIF(qsos, m_activeContest, operatorCall);
-
-    // Generate default filename
-    QString defaultFileName = m_hasActiveContest ?
-        m_currentContest.contestName.toLower().replace(" ", "_") + ".adi" :
-        "log.adi";
-
-    // Show preview dialog
-    ExportPreviewDialog preview(
-        QString("ADIF Export Preview - %1 QSOs").arg(qsos.size()),
-        adifContent,
-        "ADIF Files (*.adi *.adif);;All Files (*)",
-        defaultFileName,
-        this);
-
-    preview.exec();
-
-    // Update status if saved
-    if (preview.wasSaved()) {
-        m_statusLabel->setText(QString("Exported %1 QSOs to %2")
-                                  .arg(qsos.size())
-                                  .arg(QFileInfo(preview.getSaveFilePath()).fileName()));
+    // Update status label
+    if (!result.statusMessage.isEmpty()) {
+        m_statusLabel->setText(result.statusMessage);
     }
 }
 
 void MainWindow::onExportCabrillo() {
-    // Check if we have QSOs to export
-    if (m_qsoTableModel->count() == 0) {
-        DialogHelper::information(this, "Export Cabrillo", "No QSOs to export.");
+    if (!m_importExportManager) {
+        LOG_ERROR("MainWindow", "ImportExportManager is null");
         return;
     }
 
-    // Run full integrity check before export (all issues)
-    if (m_hasActiveContest) {
-        QString integrityReport = fullIntegrityCheck(false);  // Check all issues
+    // Delegate to ImportExportManager
+    ExportResult result = m_importExportManager->exportCabrillo();
 
-        // Check if there are any critical issues in the report
-        if (integrityReport.contains("✗ CRITICAL ISSUES DETECTED")) {
-            QMessageBox::StandardButton reply = DialogHelper::warning(
-                this,
-                "Data Integrity Warning",
-                "Log integrity check found CRITICAL issues!\n\n"
-                "Exporting may result in incomplete or incorrect data.\n\n"
-                "View integrity report?",
-                QMessageBox::Yes | QMessageBox::No,
-                QMessageBox::Yes);
-
-            if (reply == QMessageBox::Yes) {
-                // Show full report
-                DialogHelper::information(this, "Integrity Check Report", integrityReport);
-                return;  // Abort export so user can fix issues
-            }
-        } else if (integrityReport.contains("ℹ INFO:")) {
-            // Informational issues only - just log them, don't block export
-            LOG_INFO("MainWindow", QString("Pre-export Cabrillo integrity check found informational issues:\n%1")
-                .arg(integrityReport));
-        } else {
-            LOG_INFO("MainWindow", "Pre-export Cabrillo integrity check passed");
-        }
-    }
-
-    // Warn if no contest is active
-    if (!m_hasActiveContest || !m_activeContest) {
-        QMessageBox::StandardButton reply = DialogHelper::question(
-            this, "Export Cabrillo",
-            "No active contest selected. Export anyway with generic formatting?",
-            QMessageBox::Yes | QMessageBox::No,
-            QMessageBox::No);
-
-        if (reply == QMessageBox::No) {
-            return;
-        }
-    }
-
-    // Get all QSOs from the table model
-    QList<QSO> qsos;
-    for (int i = 0; i < m_qsoTableModel->count(); ++i) {
-        qsos.append(m_qsoTableModel->getQSO(i));
-    }
-
-    if (qsos.isEmpty()) {
-        DialogHelper::information(this, "Export Cabrillo", "No QSOs to export.");
-        return;
-    }
-
-    // Generate default filename
-    QString defaultFileName;
-    if (m_hasActiveContest && !m_currentContest.contestName.isEmpty()) {
-        defaultFileName = QString("%1.cbr").arg(m_currentContest.contestName.replace(' ', '_'));
-    } else {
-        defaultFileName = "log.cbr";
-    }
-
-    // Set up exporter with station information
-    CabrilloExporter exporter;
-    exporter.setStationInfo(
-        AppSettings::instance().getMyCallsign(),
-        AppSettings::instance().getMyGridSquare(),
-        AppSettings::instance().getMyCallsign(),  // Name
-        "",  // Address
-        "",  // City
-        "",  // State/Province
-        "",  // Postal Code
-        "",  // Country
-        ""   // Email
-    );
-
-    // TODO: Get category information from contest dialog
-    exporter.setCategory(
-        "NON-ASSISTED",  // Assisted
-        "ALL",           // Band
-        "MIXED",         // Mode
-        "SINGLE-OP",     // Operator
-        "LOW",           // Power
-        "FIXED",         // Station
-        "",              // Time
-        "ONE",           // Transmitter
-        ""               // Overlay
-    );
-
-    // Calculate claimed score
-    // TODO: Get actual score from scoring engine
-    int claimedScore = 0;
-    exporter.setClaimedScore(claimedScore);
-    exporter.setOperators(AppSettings::instance().getMyCallsign());
-
-    // Generate Cabrillo content
-    QString cabrilloContent = exporter.generateCabrillo(qsos, m_activeContest);
-
-    // Show preview dialog
-    ExportPreviewDialog preview(
-        QString("Cabrillo Export Preview - %1 QSOs").arg(qsos.size()),
-        cabrilloContent,
-        "Cabrillo Files (*.cbr *.log);;All Files (*)",
-        defaultFileName,
-        this);
-
-    preview.exec();
-
-    // Update status if saved
-    if (preview.wasSaved()) {
-        m_statusLabel->setText(QString("Exported %1 QSOs to %2")
-                                  .arg(qsos.size())
-                                  .arg(QFileInfo(preview.getSaveFilePath()).fileName()));
+    // Update status label
+    if (!result.statusMessage.isEmpty()) {
+        m_statusLabel->setText(result.statusMessage);
     }
 }
 
@@ -2333,81 +1856,34 @@ void MainWindow::onRadioConnected(bool connected) {
     updateConnectionStatus(connected);
 
     if (connected) {
-        // Don't show "waiting for state" - stateUpdated will arrive immediately
-        // m_statusLabel->setText("Connected to radio (waiting for state...)");
-
-        // Stop reconnect timer on successful connection
-        m_radioReconnectTimer->stop();
-        m_radioReconnectAttempts = 0;  // Reset retry counter on success
-
-        // Stop flashing indicator
-        m_radioFlashTimer->stop();
-        m_radioFlashState = false;
-        updateRadioStatusFlash();  // Update to normal color
+        LOG_INFO("MainWindow", "Radio connected successfully");
 
         // Enable band selection buttons when radio connected
         if (m_bandSummaryGrid) {
             m_bandSummaryGrid->setBandSelectionEnabled(true);
         }
     } else {
-        m_statusLabel->setText("Radio disconnected");
-
-        // Start flashing red indicator only if a radio is configured
-        // If no radio is selected in settings, the "Radio not connected" label is sufficient
-        if (AppSettings::instance().hasRadioConfig()) {
-            m_radioFlashTimer->start();
-        }
-
         // Clear radio control display when disconnected
         if (m_radioControlWindow) {
             m_radioControlWindow->clearDisplay();
         }
 
         // Disable band selection buttons when radio disconnected
-        // Statistics remain visible
         if (m_bandSummaryGrid) {
             m_bandSummaryGrid->setBandSelectionEnabled(false);
-        }
-
-        // Start auto-reconnect timer if enabled
-        if (m_radioAutoReconnect) {
-            LOG_DEBUG("MainWindow", "Radio disconnected - will attempt reconnect in 10 seconds");
-            m_statusLabel->setText("Radio disconnected - will retry in 10 seconds...");
-            m_radioReconnectTimer->start();
         }
     }
 }
 
 void MainWindow::onRadioStateUpdated(const RadioState& state) {
-    // DEBUG: Confirm this slot is being called
-    static int updateCount = 0;
-    updateCount++;
-    double freqKHz = state.frequencyA / 1000.0;
-    LOG_INFO("MainWindow", QString("onRadioStateUpdated called (count=%1, model=%2, freq=%3 kHz)")
-             .arg(updateCount)
-             .arg(state.radioModel)
-             .arg(freqKHz, 0, 'f', 1));
+    // Update cached state
+    bool frequencyChanged = (state.frequencyA != m_currentState.frequencyA);
+    bool bandChanged = (state.bandA != m_currentState.bandA);
+    m_currentState = state;
 
     // Send UDP broadcast for radio state change (throttled in manager)
     QString stationCall = AppSettings::instance().getMyCallsign();
     m_udpBroadcastManager->onRadioStateChanged(state, stationCall);
-
-    // WebServer now pulls radio state from RadioController - no need to push
-
-    // Update status with radio model (always, not just when changed)
-    // This ensures status updates even on reconnections to the same radio
-    if (!state.radioModel.isEmpty()) {
-        static QString lastModel;
-        if (state.radioModel != lastModel) {
-            LOG_DEBUG("MainWindow", QString("MainWindow: Radio model from state: %1").arg(state.radioModel));
-            lastModel = state.radioModel;
-        }
-        // Always update status bar with radio model (even on reconnects)
-        m_statusLabel->setText(QString("Radio: %1").arg(state.radioModel));
-    }
-
-    m_currentState = state;
-    // Radio state is cached for use when logging QSOs
 
     // Validate phone mode privileges (US only)
     if (m_hamPrivileges && state.frequencyA > 0) {
@@ -2422,11 +1898,10 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
             m_statusLabel->setStyleSheet("color: orange; font-weight: bold;");
             LOG_WARN("MainWindow", QString("Phone privilege violation: %1").arg(warning));
         }
-        // Note: Don't clear status on valid operation - let other code update as needed
     }
 
     // Check for AUTO S&P mode trigger (VFO movement)
-    if (state.frequencyA > 0) {
+    if (state.frequencyA > 0 && frequencyChanged) {
         checkAutoSP(state.frequencyA);
     }
 
@@ -2443,26 +1918,23 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
     // Update radio status grid with new state
     updateRadioStatusGrid();
 
-    // Update radio control window if it exists (even if not visible, so state is current when shown)
+    // Update radio control window if it exists
     if (m_radioControlWindow) {
         m_radioControlWindow->updateRadioState(state);
     }
 
-    // Emit signals so all interested components (Band Map, etc.) can update
-    emit currentFrequencyChanged(state.frequencyA);
-    emit currentBandChanged(state.bandA);
+    // Emit signals for frequency/band changes
+    if (frequencyChanged) {
+        emit currentFrequencyChanged(state.frequencyA);
+    }
+    if (bandChanged) {
+        emit currentBandChanged(state.bandA);
+    }
 }
 
 void MainWindow::onRadioError(const QString& error) {
-    m_statusLabel->setText(QString("Radio error: %1").arg(error));
-
-    // If auto-reconnect is enabled and we're not connected, restart the reconnect timer
-    // This handles pre-flight failures during reconnect attempts
-    if (m_radioAutoReconnect && !m_radioConnected) {
-        LOG_DEBUG("MainWindow", QString("Radio error during reconnect (attempt %1), will retry in 10 seconds")
-            .arg(m_radioReconnectAttempts));
-        m_radioReconnectTimer->start();
-    }
+    LOG_ERROR("MainWindow", QString("Radio error: %1").arg(error));
+    // Status message already set by RadioManager via statusMessage signal
 }
 
 void MainWindow::onRadioModelChanged(const QString& model) {
@@ -2531,217 +2003,61 @@ void MainWindow::onLogQSO() {
         return;
     }
 
-    if (callsign.isEmpty()) {
-        m_statusLabel->setText("Error: Callsign is required");
-        m_callsignEntry->setFocus();
+    // Use QSOLogger for validation, QSO creation, and scoring
+    if (!m_qsoLogger) {
+        m_statusLabel->setText("Error: No active contest - open a contest first");
+        QApplication::beep();
         return;
     }
 
-    // Validate callsign format (non-blocking warning)
-    QString validationError;
-    if (!CallsignValidator::validate(callsign, &validationError)) {
-        // Show warning in status bar - user can still proceed if they want
-        QString warningMsg = QString("⚠️ %1 - Press Enter again to log anyway").arg(
-            validationError.split('\n').first()  // Use first line of error message
-        );
-        statusBar()->showMessage(warningMsg, 5000);  // Show for 5 seconds
-        LOG_WARN("MainWindow", QString("Invalid callsign format: %1 - %2")
-            .arg(callsign).arg(validationError));
-        // Note: Not returning - allowing user to proceed despite warning
+    // Build input for QSOLogger
+    QSOLogger::Input input;
+    input.callsign = callsign;
+    input.exchange = exchange;
+    input.radioState = m_currentState;
+    input.operatorCallsign = AppSettings::instance().getCurrentOperator();
+    input.serialNumber = m_nextSerialNumber;
+    input.operatingMode = m_operatingMode;
+
+    // Get existing QSOs for duplicate checking and multiplier tracking
+    QList<QSO> existingQSOs;
+    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
+        existingQSOs.append(m_qsoTableModel->getQSO(row));
     }
 
-    // Exchange validation - check if contest requires an exchange
-    if (m_activeContest) {
-        // Check if exchange is required for this contest
-        if (exchange.isEmpty() && m_activeContest->requiresExchange()) {
-            m_statusLabel->setText("Error: Exchange is required");
-            m_exchangeEntry->setFocus();
-            return;
-        }
+    // Call QSOLogger to validate, create, and score the QSO
+    QSOLogger::Result result = m_qsoLogger->logQSO(input, existingQSOs);
 
-        // Validate exchange format (skip validation if empty and not required)
-        if (!exchange.isEmpty()) {
-            QString errorMsg;
-            if (!m_activeContest->validateReceivedExchange(exchange, errorMsg)) {
-                setStatusMessage(QString("Invalid exchange: %1").arg(errorMsg));
-                m_exchangeEntry->setFocus();
-                // Move cursor to end (don't select all) so user can backspace to fix
-                m_exchangeEntry->setCursorPosition(m_exchangeEntry->text().length());
-                return;
-            }
-        }
-    } else {
-        // No active contest - exchange is optional
-        // (Will default to RST based on mode)
-    }
-
-    // CRITICAL: Prevent logging QSO with invalid band/mode
-    // Band/Mode can be None if:
-    // 1. App started with contest already open (didn't run contest open initialization)
-    // 2. Radio disconnected and user hasn't manually selected band with Band Up/Down
-    if (m_currentState.bandA == BandType::None || m_currentState.modeA == ModeType::None) {
-        QString errorMsg;
-        if (m_currentState.bandA == BandType::None && m_currentState.modeA == ModeType::None) {
-            errorMsg = "Error: Band and Mode not set - use Band Up/Down (ALT-B/ALT-V) to select band";
-        } else if (m_currentState.bandA == BandType::None) {
-            errorMsg = "Error: Band not set - use Band Up/Down (ALT-B/ALT-V) to select band";
-        } else {
-            errorMsg = "Error: Mode not set - radio not connected and mode unknown";
-        }
-        m_statusLabel->setText(errorMsg);
+    // Handle validation errors
+    if (!result.success) {
+        m_statusLabel->setText(result.errorMessage);
         m_statusLabel->setStyleSheet("QLabel { color: #ff0000; font-weight: bold; }");  // Theme default: #ff0000 (error red)
         QApplication::beep();
-        LOG_ERROR("MainWindow", QString("Cannot log QSO: bandA=%1 modeA=%2 (invalid state)")
-            .arg(bandToString(m_currentState.bandA))
-            .arg(modeToString(m_currentState.modeA)));
+
+        // Set focus to appropriate field based on error
+        if (result.errorMessage.contains("Callsign")) {
+            m_callsignEntry->setFocus();
+        } else if (result.errorMessage.contains("Exchange")) {
+            m_exchangeEntry->setFocus();
+        } else if (result.errorMessage.contains("Band") || result.errorMessage.contains("Mode")) {
+            // Band/Mode error - can't fix with input, just show error
+        }
         return;
     }
 
-    // Create QSO object with current radio state (snapshot!)
-    QSO qso;
-    qso.timestamp = QDateTime::currentDateTimeUtc();
-    qso.callsign = callsign;
-    qso.operatorCall = AppSettings::instance().getCurrentOperator();
+    // Update serial number if contest uses them
+    m_nextSerialNumber = result.updatedSerialNumber;
 
-    // Snapshot radio state
-    qso.frequency = m_currentState.frequencyA;
-    qso.mode = m_currentState.modeA;
-    qso.band = m_currentState.bandA;
+    // Extract QSO from result
+    QSO qso = result.qso;
+    bool isDuplicate = result.isDuplicate;
+    QString dupeInfo = result.dupeInfo;
+    QStringList multiplierValues = result.multiplierValues;
 
-    // Track operating mode (CQ vs S&P)
-    qso.isRunQSO = (m_operatingMode == OperatingMode::CQ);
-
-    // Exchange - set default sent RST based on mode
-    qso.rstSent = RSTValidator::getDefault(qso.mode);
-
-    // Parse exchange into QSO fields
-    // Contest class handles all exchange formatting including RST prepending
-    if (m_activeContest) {
-        // Contest populates QSO fields AND sets qso.exchangeReceived
-        m_activeContest->parseReceivedExchange(exchange, qso);
-
-        // Set default RST if not populated by contest
-        if (qso.rstReceived.isEmpty()) {
-            qso.rstReceived = RSTValidator::getDefault(qso.mode);
-        }
-    } else {
-        // No active contest - use defaults
-        qso.rstReceived = RSTValidator::getDefault(qso.mode);
-        qso.exchangeReceived = exchange;
-    }
-
-    // Sent exchange handling - get template from contest and substitute values
-    if (m_activeContest) {
-        // Get the exchange template from the contest (e.g., "599 {ZONE}" for CQ WW)
-        QString exchangeTemplate = m_activeContest->formatSentExchange(m_nextSerialNumber, qso.rstSent);
-
-        // Substitute template placeholders with actual values from settings
-        qso.exchangeSent = substituteSentExchangeTemplate(exchangeTemplate, m_nextSerialNumber, qso.rstSent);
-
-        // Increment serial number if contest uses them
-        if (m_activeContest->usesSerialNumbers()) {
-            m_nextSerialNumber++;
-        }
-    } else {
-        qso.exchangeSent = "";  // No contest active
-    }
-
-    // Lookup country/zone from cty.dat
-    // Populate all DXCC fields using centralized function (single source of truth)
-    m_countryFile.populateQSODXCCFields(qso);
-
-    if (!qso.dxccEntity.isEmpty()) {
-        LOG_DEBUG("MainWindow", QString("Looked up %1: %2 (Zone %3, %4)")
-            .arg(callsign)
-            .arg(qso.dxccEntity)
-            .arg(qso.cqZone)
-            .arg(qso.continent));
-    } else {
-        LOG_WARN("MainWindow", QString("Country lookup failed for callsign: %1").arg(callsign));
-    }
-
-    // Check for duplicate QSO (BEFORE calculating points)
-    QString dupeInfo;
-    bool isDuplicate = checkForDuplicate(callsign, qso.band, qso.mode, dupeInfo);
-    qso.isDupe = isDuplicate;
-
-    // Calculate QSO points via contest scoring
-    if (m_activeContest) {
-        StationInfo myStation;
-        myStation.callsign = AppSettings::instance().getMyCallsign();
-        myStation.continent = AppSettings::instance().getMyContinent();
-        myStation.cqZone = AppSettings::instance().getMyCQZone();
-
-        // Lookup my country from callsign via cty.dat
-        CountryData myCountryData = m_countryFile.lookup(myStation.callsign);
-        if (myCountryData.isValid()) {
-            myStation.country = myCountryData.name;
-        }
-
-        qso.qsoPoints = m_activeContest->calculateQSOPoints(qso, myStation);
-
-        LOG_DEBUG("MainWindow", QString("QSO points calculated: %1").arg(qso.qsoPoints));
-    } else {
-        qso.qsoPoints = 1;  // Default 1 point if no contest
-    }
-
-    // Duplicates get 0 points
-    if (qso.isDupe) {
-        qso.qsoPoints = 0;
+    // Log duplicate info if present
+    if (isDuplicate) {
         LOG_INFO("MainWindow", QString("Duplicate QSO detected: %1 - %2").arg(callsign, dupeInfo));
     }
-
-    // Check for new multipliers
-    qso.isMultiplier = false;
-    QStringList multiplierValues;
-
-    if (m_activeContest) {
-        QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
-
-        // Get list of already worked multipliers from all existing QSOs
-        // IMPORTANT: Respect MultiplierScope when building this list
-        QMap<MultiplierType, QStringList> workedMults;
-        for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-            QSO existingQSO = m_qsoTableModel->getQSO(row);
-
-            for (const MultiplierDefinition& multDef : multDefs) {
-                // For PerBand multipliers, only include mults from the SAME band
-                // For AllBands multipliers, include all mults regardless of band
-                bool includeMult = (multDef.scope == MultiplierScope::AllBands) ||
-                                   (multDef.scope == MultiplierScope::PerBand && existingQSO.band == qso.band);
-
-                if (includeMult) {
-                    QString multValue = m_activeContest->getMultiplierValue(
-                        existingQSO, multDef.type, QStringList());
-                    if (!multValue.isEmpty()) {
-                        workedMults[multDef.type].append(multValue);
-                    }
-                }
-            }
-        }
-
-        // Check if this QSO provides any new multipliers
-        for (const MultiplierDefinition& multDef : multDefs) {
-            QString multValue = m_activeContest->getMultiplierValue(
-                qso, multDef.type, workedMults[multDef.type]);
-
-            if (!multValue.isEmpty()) {
-                // This is a new multiplier!
-                qso.isMultiplier = true;
-                // Store as "Type:Value" for display (e.g., "Prefix:W1", "CQZone:5")
-                QString typeStr = multDef.type == MultiplierType::Country ? "Country" :
-                                 multDef.type == MultiplierType::CQZone ? "CQZone" :
-                                 multDef.type == MultiplierType::ITUZone ? "ITUZone" :
-                                 multDef.type == MultiplierType::State ? "State" :
-                                 multDef.type == MultiplierType::Section ? "Section" :
-                                 multDef.type == MultiplierType::Prefix ? "Prefix" : "Custom";
-                multiplierValues.append(QString("%1:%2").arg(typeStr, multValue));
-            }
-        }
-    }
-
-    // Store multiplier values for later use
-    qso.multipliers = multiplierValues;
 
     // Add to table model (UI)
     m_qsoTableModel->addQSO(qso);
@@ -3742,35 +3058,28 @@ void MainWindow::onPeriodicIntegrityCheck() {
 }
 
 bool MainWindow::quickIntegrityCheck() {
-    if (!m_hasActiveContest || !m_qsoTableModel) {
+    if (!m_hasActiveContest || !m_qsoTableModel || !m_integrityManager) {
         return true;  // Nothing to check
     }
 
-    // Quick count comparison
+    // Delegate to DataIntegrityManager
     int memoryCount = m_qsoTableModel->count();
-    QSORepository repo;
+    bool result = m_integrityManager->quickIntegrityCheck(memoryCount);
 
-    // Count non-deleted QSOs in database
-    Database& db = Database::instance();
-    QSqlQuery query = db.execute(
-        "SELECT COUNT(*) FROM qsos WHERE contest_id = ? AND deleted = 0",
-        {m_currentContestDbId});
-
-    int dbCount = 0;
-    if (query.next()) {
-        dbCount = query.value(0).toInt();
-    }
-
-    if (memoryCount != dbCount) {
-        LOG_ERROR("MainWindow", QString("INTEGRITY CHECK FAILED: Memory=%1 DB=%2")
-            .arg(memoryCount).arg(dbCount));
-
+    if (!result) {
+        // Get actual counts for mismatch handler
+        Database& db = Database::instance();
+        QSqlQuery query = db.execute(
+            "SELECT COUNT(*) FROM qsos WHERE contest_id = ? AND deleted = 0",
+            {m_currentContestDbId});
+        int dbCount = 0;
+        if (query.next()) {
+            dbCount = query.value(0).toInt();
+        }
         handleIntegrityMismatch(memoryCount, dbCount);
-        return false;
     }
 
-    LOG_DEBUG("MainWindow", QString("Integrity check passed: %1 QSOs").arg(memoryCount));
-    return true;
+    return result;
 }
 
 void MainWindow::handleIntegrityMismatch(int memoryCount, int dbCount) {
@@ -3802,7 +3111,7 @@ void MainWindow::handleIntegrityMismatch(int memoryCount, int dbCount) {
 RescoreStats MainWindow::rescoreContestSilent() {
     RescoreStats stats;
 
-    if (!m_hasActiveContest || !m_activeContest || !m_qsoTableModel) {
+    if (!m_hasActiveContest || !m_activeContest || !m_qsoTableModel || !m_integrityManager) {
         return stats;  // Return empty stats if no contest
     }
 
@@ -3817,116 +3126,18 @@ RescoreStats MainWindow::rescoreContestSilent() {
         myStation.country = myCountryData.name;
     }
 
-    QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
-
-    // Track worked multipliers as we go through QSOs in chronological order
-    QMap<MultiplierType, QStringList> workedMults;
-
-    // Track worked QSOs for duplicate detection
-    QSet<QString> workedQSOs;
-    DuplicateCheckingRule dupeRule = m_activeContest->getDuplicateCheckingRule();
-
-    // Iterate through all QSOs in chronological order
+    // Get all QSOs from table model
+    QList<QSO> qsos;
     for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-        QSO qso = m_qsoTableModel->getQSO(row);
+        qsos.append(m_qsoTableModel->getQSO(row));
+    }
 
-        // Check for duplicate based on contest rules
-        QString dupeKey;
-        switch (dupeRule) {
-            case DuplicateCheckingRule::PerBandMode:
-                dupeKey = QString("%1_%2_%3")
-                    .arg(qso.callsign)
-                    .arg(bandToString(qso.band))
-                    .arg(modeToString(qso.mode));
-                break;
-            case DuplicateCheckingRule::AllBandMode:
-                dupeKey = QString("%1_%2")
-                    .arg(qso.callsign)
-                    .arg(modeToString(qso.mode));
-                break;
-            case DuplicateCheckingRule::PerBand:
-                dupeKey = QString("%1_%2")
-                    .arg(qso.callsign)
-                    .arg(bandToString(qso.band));
-                break;
-            case DuplicateCheckingRule::AllBand:
-                dupeKey = qso.callsign;
-                break;
-        }
+    // Delegate to DataIntegrityManager for rescoring
+    stats = m_integrityManager->rescoreContestSilent(qsos, m_activeContest, myStation);
 
-        // Check if this is a duplicate
-        bool isDupe = workedQSOs.contains(dupeKey);
-        qso.isDupe = isDupe;
-
-        // Recalculate QSO points
-        if (isDupe) {
-            qso.qsoPoints = 0;
-            stats.dupesFound++;
-        } else {
-            qso.qsoPoints = m_activeContest->calculateQSOPoints(qso, myStation);
-            workedQSOs.insert(dupeKey);
-        }
-
-        // Check for multipliers
-        qso.isMultiplier = false;
-        QStringList multiplierValues;
-
-        for (const MultiplierDefinition& multDef : multDefs) {
-            QStringList relevantWorked;
-            if (multDef.scope == MultiplierScope::PerBand) {
-                QString bandPrefix = bandToString(qso.band) + ":";
-                for (const QString& worked : workedMults[multDef.type]) {
-                    if (worked.startsWith(bandPrefix)) {
-                        relevantWorked.append(worked.mid(bandPrefix.length()));
-                    }
-                }
-            } else {
-                relevantWorked = workedMults[multDef.type];
-            }
-
-            QString multValue = m_activeContest->getMultiplierValue(qso, multDef.type, relevantWorked);
-
-            if (!multValue.isEmpty()) {
-                qso.isMultiplier = true;
-                stats.multsMarked++;
-                QString typeStr = multDef.type == MultiplierType::Country ? "Country" :
-                                 multDef.type == MultiplierType::CQZone ? "CQZone" :
-                                 multDef.type == MultiplierType::ITUZone ? "ITUZone" :
-                                 multDef.type == MultiplierType::State ? "State" :
-                                 multDef.type == MultiplierType::Section ? "Section" :
-                                 multDef.type == MultiplierType::Prefix ? "Prefix" : "Custom";
-                multiplierValues.append(QString("%1:%2").arg(typeStr, multValue));
-
-                if (multDef.scope == MultiplierScope::PerBand) {
-                    workedMults[multDef.type].append(bandToString(qso.band) + ":" + multValue);
-                } else {
-                    workedMults[multDef.type].append(multValue);
-                }
-            } else {
-                QString existingValue = m_activeContest->getMultiplierValue(qso, multDef.type, QStringList());
-                if (!existingValue.isEmpty()) {
-                    QString trackValue = (multDef.scope == MultiplierScope::PerBand) ?
-                                            bandToString(qso.band) + ":" + existingValue :
-                                            existingValue;
-                    if (!workedMults[multDef.type].contains(trackValue)) {
-                        workedMults[multDef.type].append(trackValue);
-                    }
-                }
-            }
-        }
-
-        qso.multipliers = multiplierValues;
-
-        // Update in memory
-        m_qsoTableModel->updateQSO(row, qso);
-
-        // Update in database
-        QSORepository repo;
-        if (repo.updateQSO(qso)) {
-            stats.qsosUpdated++;
-        } else {
-            LOG_WARN("MainWindow", QString("Failed to update QSO %1 in database").arg(qso.id));
-        }
+    // Update table model with rescored QSOs
+    for (int row = 0; row < qsos.size(); ++row) {
+        m_qsoTableModel->updateQSO(row, qsos[row]);
     }
 
     // Refresh display
@@ -4718,148 +3929,73 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         }
     }
 
-    // Open database
-    Database& db = Database::instance();
-    if (!db.open(contestInfo.databasePath)) {
-        DialogHelper::critical(this, "Database Error",
-                            QString("Failed to open database:\n%1").arg(db.lastError()));
+    // Delegate contest activation to ContestManager
+    if (!m_contestManager) {
+        DialogHelper::critical(this, "Configuration Error",
+            "ContestManager not initialized. Cannot activate contest.");
         return;
     }
 
-    LOG_DEBUG("MainWindow", QString("Database opened: %1").arg(contestInfo.databasePath));
+    ActivateContestResult result = m_contestManager->activateContest(contestInfo);
 
-    // Find or create contest record
-    QSqlQuery query = db.execute(
-        "SELECT id, current_serial FROM contests WHERE contest_id = ?",
-        {contestInfo.contestId});
-
-    if (query.next()) {
-        // Existing contest - load data
-        m_currentContestDbId = query.value(0).toInt();
-        m_nextSerialNumber = query.value(1).toInt();
-        LOG_DEBUG("MainWindow", QString("Resumed contest with DB ID: %1 next serial: %2")
-            .arg(m_currentContestDbId)
-            .arg(m_nextSerialNumber));
-
-        // Load existing QSOs into table
-        QSORepository repo;
-        QList<QSO> existingQSOs = repo.findByContest(m_currentContestDbId);
-        m_qsoTableModel->clear();
-        m_bandSummaryGrid->clearAll();  // Clear band grid when switching contests
-
-        // Clear multiplier window when loading new contest
-        if (m_multiplierWindow) {
-            m_multiplierWindow->clear();
-        }
-
-        for (QSO& qso : existingQSOs) {
-            m_qsoTableModel->addQSO(qso);
-        }
-
-        // Note: Multiplier window will be updated after contest is activated
-        // and we know the contest's multiplier types
-        LOG_DEBUG("MainWindow", QString("Loaded %1 existing QSOs").arg(existingQSOs.size()));
-
-        // Calculate next serial number from loaded QSOs (for contests that use serial numbers)
-        // This ensures we don't reuse serial numbers even if current_serial in DB is out of sync
-        if (!existingQSOs.isEmpty()) {
-            int maxSerial = 0;
-            for (const QSO& qso : existingQSOs) {
-                // exchangeSent contains the sent serial number as a string (e.g., "1", "2", "3")
-                bool ok;
-                int serial = qso.exchangeSent.toInt(&ok);
-                if (ok && serial > maxSerial) {
-                    maxSerial = serial;
-                }
-            }
-            m_nextSerialNumber = maxSerial + 1;
-            LOG_DEBUG("MainWindow", QString("Calculated next serial number from QSOs: %1 (max was %2)")
-                .arg(m_nextSerialNumber).arg(maxSerial));
-        }
-
-        // Update band summary grid with loaded QSOs
-        updateScoreDisplay();
-
-        // WebServer pulls recent QSOs from QSOTableModel - no need to push
-
-        // Scroll to bottom to show latest QSO and ensure scroll bars are visible
-        if (!existingQSOs.isEmpty()) {
-            m_qsoTableView->scrollToBottom();
-            // Select the last row (most recent QSO)
-            int lastRow = m_qsoTableModel->rowCount() - 1;
-            m_qsoTableView->selectRow(lastRow);
-        }
-
-    } else {
-        // New contest - create record
-        AppSettings& settings = AppSettings::instance();
-        QDateTime now = QDateTime::currentDateTimeUtc();
-
-        query = db.execute(
-            "INSERT INTO contests (contest_id, contest_name, start_time, contest_type, my_call, "
-            "my_grid, my_continent, my_cq_zone, my_itu_zone, "
-            "current_serial, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            {contestInfo.contestId, contestInfo.contestName,
-             contestInfo.startDate.toSecsSinceEpoch(),
-             contestInfo.contestType,  // Store contest type (registry ID)
-             settings.getMyCallsign(), settings.getMyGridSquare(),
-             settings.getMyContinent(),
-             settings.getMyCQZone(), settings.getMyITUZone(),
-             1, now.toSecsSinceEpoch()});
-
-        if (!query.isActive()) {
-            DialogHelper::critical(this, "Database Error",
-                                QString("Failed to create contest record:\n%1").arg(db.lastError()));
-            return;
-        }
-
-        m_currentContestDbId = db.lastInsertId();
-        m_nextSerialNumber = 1;
-        m_qsoTableModel->clear();
-        m_bandSummaryGrid->clearAll();  // Clear band grid for new contest
-        LOG_DEBUG("MainWindow", QString("Created new contest with DB ID: %1").arg(m_currentContestDbId));
-    }
-
-    // Create contest instance using factory pattern
-    // Determine mode from contestInfo.mode string
-    ModeType contestMode = ModeType::None;  // Default for mixed-mode contests
-    if (contestInfo.mode == "CW") {
-        contestMode = ModeType::CW;
-    } else if (contestInfo.mode == "SSB") {
-        contestMode = ModeType::USB;  // SSB mode is represented as USB
-    } else {
-        contestMode = ModeType::None;  // Mixed mode
-    }
-
-    // Build StationInfo from application settings
-    StationInfo myStation;
-    myStation.callsign = AppSettings::instance().getMyCallsign();
-    myStation.continent = AppSettings::instance().getMyContinent();
-    myStation.cqZone = AppSettings::instance().getMyCQZone();
-    myStation.ituZone = AppSettings::instance().getMyITUZone();
-    myStation.state = AppSettings::instance().getMyState();
-    // TODO: Add getMyCounty() to AppSettings for QSO Parties
-
-    // Lookup country and other geographic data from cty.dat
-    CountryData myCountryData = m_countryFile.lookup(myStation.callsign);
-    if (myCountryData.isValid()) {
-        myStation.country = myCountryData.name;
-        myStation.dxccPrefix = myCountryData.primaryPrefix;
-        myStation.dxccEntity = myCountryData.dxccEntity;
-    }
-
-    // Try to create contest from registry
-    m_activeContest = ContestRegistry::instance().createContest(contestInfo.contestType, contestMode, myStation);
-
-    if (!m_activeContest) {
-        LOG_WARN("MainWindow", QString("Failed to create contest: %1").arg(contestInfo.contestType));
+    // Handle activation errors
+    if (!result.success) {
+        DialogHelper::critical(this, "Contest Activation Error", result.errorMessage);
         return;
     }
 
-    // Store contest info
+    // Activation successful - update MainWindow state
+    m_activeContest = result.contest;  // Transfer ownership
+    m_currentContestDbId = result.contestDbId;
+    m_nextSerialNumber = result.nextSerialNumber;
     m_currentContest = contestInfo;
     m_hasActiveContest = true;
+
+    // Load existing QSOs into table model
+    m_qsoTableModel->clear();
+    m_bandSummaryGrid->clearAll();
+
+    // Clear multiplier window when loading new contest
+    if (m_multiplierWindow) {
+        m_multiplierWindow->clear();
+    }
+
+    for (const QSO& qso : result.loadedQSOs) {
+        m_qsoTableModel->addQSO(qso);
+    }
+
+    LOG_DEBUG("MainWindow", QString("Loaded %1 existing QSOs").arg(result.loadedQSOs.size()));
+
+    // Update band summary grid with loaded QSOs
+    updateScoreDisplay();
+
+    // Scroll to bottom to show latest QSO
+    if (!result.loadedQSOs.isEmpty()) {
+        m_qsoTableView->scrollToBottom();
+        int lastRow = m_qsoTableModel->rowCount() - 1;
+        m_qsoTableView->selectRow(lastRow);
+    }
+
+    // Create QSOLogger instance with contest configuration
+    if (m_qsoLogger) {
+        delete m_qsoLogger;
+    }
+    QSOLogger::Config loggerConfig;
+    loggerConfig.contest = m_activeContest;
+    loggerConfig.countryFile = &m_countryFile;
+    loggerConfig.myStation = result.myStation;  // Use myStation from ContestManager
+    m_qsoLogger = new QSOLogger(loggerConfig);
+    LOG_DEBUG("MainWindow", "QSOLogger created for contest");
+
+    // Create DataIntegrityManager instance with contest configuration
+    if (m_integrityManager) {
+        delete m_integrityManager;
+    }
+    DataIntegrityManager::Config integrityConfig;
+    integrityConfig.countryFile = &m_countryFile;
+    integrityConfig.currentContestDbId = m_currentContestDbId;
+    m_integrityManager = new DataIntegrityManager(integrityConfig);
+    LOG_DEBUG("MainWindow", "DataIntegrityManager created for contest");
 
     // Update DX Cluster window with active contest (for dupe/mult checking)
     if (m_dxClusterWindow) {
@@ -4874,51 +4010,37 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
 
     // Update UI based on contest capabilities
     if (m_bandSummaryGrid) {
-        m_bandSummaryGrid->setMultipliersEnabled(m_activeContest->usesMultipliers());
+        m_bandSummaryGrid->setMultipliersEnabled(result.usesMultipliers);
 
         // Set visible bands based on contest restrictions (e.g., RTTY excludes 160m)
-        m_bandSummaryGrid->setVisibleBands(m_activeContest->getAllowedBands());
+        m_bandSummaryGrid->setVisibleBands(result.allowedBands);
 
         // Configure grid for mode group breakdown and zone tracking
-        bool usesZones = false;
-        for (const MultiplierDefinition& multDef : m_activeContest->getMultiplierTypes()) {
-            if (multDef.type == MultiplierType::CQZone || multDef.type == MultiplierType::ITUZone) {
-                usesZones = true;
-                break;
-            }
-        }
-        bool usesModeGroups = m_activeContest->usesModeGroupBreakdown();
-
         m_bandSummaryGrid->configureForContest(
-            usesModeGroups,
-            usesZones
+            result.usesModeGroupBreakdown,
+            result.usesZones
         );
 
         // Update web server with contest settings
-        m_webServer->setUsesZoneMultipliers(usesZones);
-        m_webServer->setUsesModeGroupBreakdown(usesModeGroups);
+        m_webServer->setUsesZoneMultipliers(result.usesZones);
+        m_webServer->setUsesModeGroupBreakdown(result.usesModeGroupBreakdown);
     }
 
     // Configure multiplier window to show contest-specific multipliers
-    if (m_multiplierWindow) {
-        QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
-        if (!multDefs.isEmpty()) {
-            // Set to the first (primary) multiplier type
-            // For contests with multiple types (like RTTY Roundup: State + Country),
-            // the window will show the first type. Future enhancement: tabs or multiple views.
-            m_multiplierWindow->setMultiplierType(multDefs.first().type);
+    if (m_multiplierWindow && !result.multiplierTypes.isEmpty()) {
+        // Set to the first (primary) multiplier type
+        m_multiplierWindow->setMultiplierType(result.multiplierTypes.first().type);
 
-            // For Country type, load the list from CountryFile instead of hardcoded
-            if (multDefs.first().type == MultiplierType::Country) {
-                m_multiplierWindow->setCountryList(m_countryFile.getAllPrimaryPrefixes());
-            }
-
-            LOG_DEBUG("MainWindow", QString("Set multiplier window to type: %1")
-                .arg(multDefs.first().displayName));
-        } else {
-            // Default to sections if contest doesn't define multipliers
-            m_multiplierWindow->setMultiplierType(MultiplierType::Section);
+        // For Country type, load the list from CountryFile instead of hardcoded
+        if (result.multiplierTypes.first().type == MultiplierType::Country) {
+            m_multiplierWindow->setCountryList(m_countryFile.getAllPrimaryPrefixes());
         }
+
+        LOG_DEBUG("MainWindow", QString("Set multiplier window to type: %1")
+            .arg(result.multiplierTypes.first().displayName));
+    } else if (m_multiplierWindow) {
+        // Default to sections if contest doesn't define multipliers
+        m_multiplierWindow->setMultiplierType(MultiplierType::Section);
     }
 
     // Update window title to include contest name and type
@@ -4965,26 +4087,24 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     }
 
     // Update multiplier window with all loaded QSOs (must be after contest is created)
-    if (m_multiplierWindow && m_activeContest && m_qsoTableModel->count() > 0) {
-        QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
-        if (!multDefs.isEmpty()) {
-            MultiplierType primaryMultType = multDefs.first().type;
+    if (m_multiplierWindow && m_activeContest && m_qsoTableModel->count() > 0 &&
+        !result.multiplierTypes.isEmpty()) {
+        MultiplierType primaryMultType = result.multiplierTypes.first().type;
 
-            for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-                QSO qso = m_qsoTableModel->getQSO(row);
+        for (int row = 0; row < m_qsoTableModel->count(); ++row) {
+            QSO qso = m_qsoTableModel->getQSO(row);
 
-                // Use contest's getMultiplierValue() method which has contest-specific
-                // filtering logic (e.g., RTTY Roundup excludes US/Canada from countries)
-                QString multValue = m_activeContest->getMultiplierValue(qso, primaryMultType, QStringList());
+            // Use contest's getMultiplierValue() method which has contest-specific
+            // filtering logic (e.g., RTTY Roundup excludes US/Canada from countries)
+            QString multValue = m_activeContest->getMultiplierValue(qso, primaryMultType, QStringList());
 
-                if (!multValue.isEmpty()) {
-                    m_multiplierWindow->setMultiplierWorked(multValue, qso.band);
-                }
+            if (!multValue.isEmpty()) {
+                m_multiplierWindow->setMultiplierWorked(multValue, qso.band);
             }
-
-            LOG_DEBUG("MainWindow", QString("Loaded %1 worked multipliers into multiplier window")
-                .arg(m_qsoTableModel->count()));
         }
+
+        LOG_DEBUG("MainWindow", QString("Loaded %1 worked multipliers into multiplier window")
+            .arg(m_qsoTableModel->count()));
     }
 
     // Update exchange fields for this contest
@@ -5256,10 +4376,32 @@ void MainWindow::onShowDXCluster() {
                         LOG_DEBUG("MainWindow", QString("DX Cluster click-to-QSY: Radio not connected, cannot QSY to %1 Hz").arg(QString::number(frequency, 'f', 0)));
                     }
                 });
+
+        // Update WindowManager config with new window
+        if (m_windowManager) {
+            WindowManager::Config config;
+            config.dxClusterWindow = m_dxClusterWindow;
+            config.bandMapWindow = m_bandMapWindow;
+            config.radioControlWindow = m_radioControlWindow;
+            config.multiplierWindow = m_multiplierWindow;
+            config.statisticsWindow = m_statisticsWindow;
+            config.sectionsMapViewer = m_sectionsMapViewer;
+            config.statesMapViewer = m_statesMapViewer;
+            config.graylineMapDialog = m_graylineMapDialog;
+            m_windowManager->setWindows(config);
+        }
     }
-    m_dxClusterWindow->show();
-    m_dxClusterWindow->raise();
-    m_dxClusterWindow->activateWindow();
+
+    // Delegate show/raise to WindowManager
+    if (m_windowManager) {
+        m_windowManager->showWindow(m_dxClusterWindow);
+    } else {
+        // Fallback if WindowManager not available
+        m_dxClusterWindow->show();
+        m_dxClusterWindow->raise();
+        m_dxClusterWindow->activateWindow();
+    }
+
     updateWindowMenuCheckmarks();
 }
 
@@ -5505,86 +4647,53 @@ void MainWindow::onEditCWMessages() {
 }
 
 void MainWindow::handleFunctionKey(int fKey, bool ctrlPressed, bool altPressed) {
-    bool isCQMode = (m_operatingMode == OperatingMode::CQ);
-    QString messageTemplate;
-
-    // Determine which message to send based on modifier keys
-    if (ctrlPressed) {
-        // Ctrl+F1-F12
-        messageTemplate = AppSettings::instance().getCtrlFMessage(fKey, isCQMode);
-    } else if (altPressed) {
-        // Alt+F1-F12
-        messageTemplate = AppSettings::instance().getAltFMessage(fKey, isCQMode);
-    } else {
-        // Regular F1-F12
-        messageTemplate = isCQMode
-            ? AppSettings::instance().getCQMessage(fKey)
-            : AppSettings::instance().getSPMessage(fKey);
-    }
-
-    // Log which key was pressed
-    QString keyName = QString("F%1").arg(fKey);
-    if (ctrlPressed) keyName = "Ctrl+" + keyName;
-    if (altPressed) keyName = "Alt+" + keyName;
-    QString modeStr = isCQMode ? "CQ" : "S&P";
-
-    if (messageTemplate.isEmpty()) {
-        LOG_INFO("MainWindow", QString("%1 (%2 mode): No message defined").arg(keyName).arg(modeStr));
-        m_statusLabel->setText(QString("%1: No message defined").arg(keyName));
+    if (!m_cwMessageManager) {
+        LOG_ERROR("MainWindow", "CWMessageManager is null");
         return;
     }
 
-    LOG_INFO("MainWindow", QString("%1 (%2 mode): Sending template: %3").arg(keyName).arg(modeStr).arg(messageTemplate));
-    sendCWMessage(messageTemplate);
+    // Build input context
+    CWMessageManager::Input input;
+    input.callsign = m_callsignEntry->text();
+    input.qsoNumber = m_nextSerialNumber;
+    input.radioState = m_currentState;
+    input.operatingMode = m_operatingMode;
+
+    // Delegate to CWMessageManager
+    CWMessageManager::Result result = m_cwMessageManager->sendFunctionKey(fKey, ctrlPressed, altPressed, input);
+
+    // Update status and last CW message
+    if (!result.statusMessage.isEmpty()) {
+        m_statusLabel->setText(result.statusMessage);
+    }
+    if (result.success && !result.cwTextSent.isEmpty()) {
+        m_lastCWMessage = result.cwTextSent;
+    }
 }
 
 void MainWindow::sendCWMessage(const QString& messageTemplate) {
-    // Check preconditions
-    if (!m_radioConnected || !m_radio) {
-        LOG_WARN("MainWindow", "Cannot send CW: radio not connected");
-        m_statusLabel->setText("CW requires radio connection");
+    if (!m_cwMessageManager) {
+        LOG_ERROR("MainWindow", "CWMessageManager is null");
         return;
     }
 
-    bool isCWMode = (m_currentState.modeA == ModeType::CW ||
-                     m_currentState.modeA == ModeType::CWR);
-    if (!isCWMode) {
-        LOG_WARN("MainWindow", "Cannot send CW: not in CW mode");
-        m_statusLabel->setText("CW requires CW mode");
-        return;
+    // Build input context
+    CWMessageManager::Input input;
+    input.callsign = m_callsignEntry->text();
+    input.qsoNumber = m_nextSerialNumber;
+    input.radioState = m_currentState;
+    input.operatingMode = m_operatingMode;
+
+    // Delegate to CWMessageManager
+    CWMessageManager::Result result = m_cwMessageManager->sendCWMessage(messageTemplate, input);
+
+    // Update status and last CW message
+    if (!result.statusMessage.isEmpty()) {
+        m_statusLabel->setText(result.statusMessage);
     }
-
-    // Build substitution context
-    CWTemplateEngine::Context ctx;
-    ctx.myCall = AppSettings::instance().getMyCallsign();
-    ctx.hisCall = m_callsignEntry->text().trimmed().toUpper();
-    ctx.qsoNumber = m_nextSerialNumber;
-    ctx.mode = m_currentState.modeA;
-    ctx.band = m_currentState.bandA;
-
-    // Get sent exchange from contest (for S&P_EXCHANGE substitution)
-    if (m_activeContest) {
-        ctx.contestName = m_activeContest->getContestName();
-
-        // Use the contest's formatSentExchange method to get properly formatted exchange
-        QString rst = RSTValidator::getDefault(ctx.mode);
-        ctx.sentExchange = m_activeContest->formatSentExchange(ctx.qsoNumber, rst);
+    if (result.success && !result.cwTextSent.isEmpty()) {
+        m_lastCWMessage = result.cwTextSent;
     }
-
-    // Substitute template variables
-    QString cwText = CWTemplateEngine::substitute(messageTemplate, ctx);
-
-    // Send via radio
-    int wpm = AppSettings::instance().getMorseWPM();
-    m_radio->setCWSpeed(wpm);
-    m_radio->sendCW(cwText);
-
-    // Save for repeat (= key)
-    m_lastCWMessage = cwText;
-
-    m_statusLabel->setText(QString("Sending CW: %1").arg(cwText));
-    LOG_INFO("MainWindow", QString("Sent CW: %1 (from template: %2)")
-             .arg(cwText).arg(messageTemplate));
 }
 
 void MainWindow::onShowFunctionKeysRef() {
@@ -5748,300 +4857,48 @@ void MainWindow::onCTYUpdateAvailable(int currentVersion, int latestVersion, con
 
 void MainWindow::onDownloadCTY(bool headless) {
     LOG_DEBUG("MainWindow", QString("Download CTY.dat (Alt+O) - Starting download (headless=%1)").arg(headless));
-
-    // Get the save directory (platform-native app data directory)
-    QString saveDir = PathManager::getAppDataDir();
-
-    // Create progress dialog (only if not headless)
-    QProgressDialog* progressDialog = nullptr;
-    if (!headless) {
-        progressDialog = new QProgressDialog("Downloading country file...", "Cancel", 0, 100, this);
-        progressDialog->setWindowTitle("Download CTY.dat");
-        progressDialog->setWindowModality(Qt::WindowModal);
-        progressDialog->setMinimumDuration(0);
-        progressDialog->setAutoClose(false);  // Don't auto-close when reaching 100%
-        progressDialog->setAutoReset(false);  // Don't auto-reset when reaching 100%
-        progressDialog->setValue(0);
+    
+    CTYDownloadResult result = m_downloadManager->downloadCTY(headless);
+    
+    if (result.success) {
+        m_statusLabel->setText(result.statusMessage);
+        LOG_INFO("MainWindow", result.statusMessage);
+    } else {
+        m_statusLabel->setText(QString("CTY download failed: %1").arg(result.errorMessage));
+        LOG_ERROR("MainWindow", QString("CTY download failed: %1").arg(result.errorMessage));
     }
-
-    // Create downloader
-    CountryFileDownloader* downloader = new CountryFileDownloader(this);
-
-    // Connect progress signal (only if not headless)
-    if (!headless) {
-        connect(downloader, &CountryFileDownloader::downloadProgress,
-                this, [progressDialog](qint64 bytesReceived, qint64 bytesTotal) {
-                    if (progressDialog && bytesTotal > 0) {
-                        int percentage = (bytesReceived * 100) / bytesTotal;
-                        progressDialog->setValue(percentage);
-                        progressDialog->setLabelText(QString("Downloading country file... %1 KB / %2 KB")
-                                                    .arg(bytesReceived / 1024)
-                                                    .arg(bytesTotal / 1024));
-                    }
-                });
-    }
-
-    // Connect finished signal
-    connect(downloader, &CountryFileDownloader::downloadFinished,
-            this, [this, progressDialog, downloader, headless](bool success, const QString& filePath, const QString& version, int numericalVersion) {
-                if (success) {
-                    LOG_DEBUG("MainWindow", QString("Download successful: %1 Version: %2 (CTY-%3)").arg(filePath).arg(version).arg(numericalVersion));
-
-                    // Auto-reload the country file
-                    if (m_countryFile.loadFromFile(filePath)) {
-                        // Set the version from the download
-                        m_countryFile.setVersion(version);
-                        LOG_DEBUG("MainWindow", QString("Country file reloaded successfully. Version: %1")
-                            .arg(m_countryFile.getVersion()));
-
-                        // Save the numerical version to AppSettings to prevent re-notification
-                        if (numericalVersion > 0) {
-                            AppSettings::instance().setCountryFileVersion(numericalVersion);
-                            LOG_DEBUG("MainWindow", QString("Saved CTY version to settings: %1").arg(numericalVersion));
-                        }
-
-                        // Update status bar with success message (5 second timeout, then clear)
-                        statusBar()->showMessage(QString("CTY.DAT %1 loaded successfully").arg(version), 5000);
-
-                        if (progressDialog) {
-                            // Update progress dialog to show completion (user clicks OK to dismiss)
-                            progressDialog->setLabelText(QString("Country file downloaded and loaded successfully!\n\nVersion: %1").arg(version));
-                            progressDialog->setCancelButtonText("OK");
-                            progressDialog->setValue(100);
-
-                            // Wait for user to click OK, then close
-                            connect(progressDialog, &QProgressDialog::canceled, progressDialog, &QProgressDialog::deleteLater);
-                        }
-                    } else {
-                        LOG_WARN("MainWindow", "Failed to reload country file after download");
-                        statusBar()->showMessage("Failed to reload CTY.DAT");
-
-                        if (progressDialog) {
-                            progressDialog->close();
-                            progressDialog->deleteLater();
-                        }
-
-                        // Show error dialog only if reload fails
-                        if (!headless) {
-                            DialogHelper::warning(this, "Reload Failed",
-                                "Failed to reload the country file after download.\n\n"
-                                "Please restart the application.");
-                        }
-                    }
-                } else {
-                    if (progressDialog) {
-                        progressDialog->close();
-                        progressDialog->deleteLater();
-                    }
-                    if (!headless) {
-                        DialogHelper::critical(this, "Download Failed",
-                            "Failed to download country file.\n\n"
-                            "Please check your internet connection and try again.");
-                    } else {
-                        LOG_WARN("MainWindow", "Failed to download country file (headless)");
-                    }
-                }
-
-                downloader->deleteLater();
-            });
-
-    // Connect error signal (only if not headless)
-    if (!headless) {
-        connect(downloader, &CountryFileDownloader::errorOccurred,
-                this, [progressDialog](const QString& error) {
-                    LOG_DEBUG("MainWindow", QString("Download error: %1").arg(error));
-                    if (progressDialog) {
-                        progressDialog->setLabelText("Error: " + error);
-                    }
-                });
-
-        // Connect cancel button
-        connect(progressDialog, &QProgressDialog::canceled,
-                downloader, &CountryFileDownloader::cancel);
-    }
-
-    // Start download
-    downloader->downloadLatest(saveDir);
 }
 
 void MainWindow::onDownloadLOTW(bool headless) {
-    LOG_DEBUG("MainWindow", QString("Download LOTW Users (Alt+L) - Starting download (headless=%1)").arg(headless));
-
-    // Create progress dialog (only if not headless)
-    QProgressDialog* progressDialog = nullptr;
-    if (!headless) {
-        progressDialog = new QProgressDialog("Downloading LOTW user list...", "Cancel", 0, 100, this);
-        progressDialog->setWindowTitle("Download LOTW Users");
-        progressDialog->setWindowModality(Qt::WindowModal);
-        progressDialog->setMinimumDuration(0);
-        progressDialog->setAutoClose(false);  // Don't auto-close when reaching 100%
-        progressDialog->setAutoReset(false);  // Don't auto-reset when reaching 100%
-        progressDialog->setValue(0);
+    LOG_DEBUG("MainWindow", QString("Download LOTW (Alt+L) - Starting download (headless=%1)").arg(headless));
+    
+    LOTWDownloadResult result = m_downloadManager->downloadLOTW(headless);
+    
+    if (result.success) {
+        m_statusLabel->setText(result.statusMessage);
+        LOG_INFO("MainWindow", result.statusMessage);
+    } else {
+        m_statusLabel->setText(QString("LOTW download failed: %1").arg(result.errorMessage));
+        LOG_ERROR("MainWindow", QString("LOTW download failed: %1").arg(result.errorMessage));
     }
-
-    // Create downloader
-    LOTWUserDownloader* downloader = new LOTWUserDownloader(this);
-
-    // Connect progress signal (only if not headless)
-    if (!headless) {
-        connect(downloader, &LOTWUserDownloader::downloadProgress,
-                this, [progressDialog](qint64 bytesReceived, qint64 bytesTotal) {
-                    if (progressDialog && bytesTotal > 0) {
-                        int percentage = (bytesReceived * 100) / bytesTotal;
-                        progressDialog->setValue(percentage);
-                        progressDialog->setLabelText(QString("Downloading LOTW user list... %1 KB / %2 KB")
-                                                    .arg(bytesReceived / 1024)
-                                                    .arg(bytesTotal / 1024));
-                    }
-                });
-    }
-
-    // Connect finished signal
-    connect(downloader, &LOTWUserDownloader::downloadFinished,
-            this, [this, progressDialog, downloader, headless](bool success, int userCount, const QString& error) {
-                if (success) {
-                    LOG_DEBUG("MainWindow", QString("LOTW download successful: %1 users imported").arg(userCount));
-
-                    // Update last update timestamp
-                    AppSettings& settings = AppSettings::instance();
-                    settings.setLotwLastUpdateTime(QDateTime::currentDateTime());
-
-                    // Update status bar permanently (no timeout)
-                    statusBar()->showMessage(QString("LOTW user list downloaded: %1 users imported").arg(userCount));
-
-                    if (progressDialog) {
-                        // Update progress dialog to show completion (user clicks OK to dismiss)
-                        progressDialog->setLabelText(QString("LOTW user list downloaded successfully!\n\n%1 users imported").arg(userCount));
-                        progressDialog->setCancelButtonText("OK");
-                        progressDialog->setValue(100);
-
-                        // Wait for user to click OK, then close
-                        connect(progressDialog, &QProgressDialog::canceled, progressDialog, &QProgressDialog::deleteLater);
-                    }
-                } else {
-                    if (progressDialog) {
-                        progressDialog->close();
-                        progressDialog->deleteLater();
-                    }
-                    if (!headless) {
-                        DialogHelper::critical(this, "Download Failed",
-                            QString("Failed to download LOTW user list.\n\n%1\n\n"
-                                   "Please check your internet connection and try again.").arg(error));
-                    } else {
-                        LOG_WARN("MainWindow", QString("Failed to download LOTW user list (headless): %1").arg(error));
-                    }
-                }
-
-                downloader->deleteLater();
-            });
-
-    // Connect error signal (only if not headless)
-    if (!headless) {
-        connect(downloader, &LOTWUserDownloader::errorOccurred,
-                this, [progressDialog](const QString& error) {
-                    LOG_DEBUG("MainWindow", QString("LOTW download error: %1").arg(error));
-                    if (progressDialog) {
-                        progressDialog->setLabelText("Error: " + error);
-                    }
-                });
-
-        // Connect cancel button
-        connect(progressDialog, &QProgressDialog::canceled,
-                downloader, &LOTWUserDownloader::cancel);
-    }
-
-    // Start download
-    downloader->downloadLatest();
 }
 
 void MainWindow::onDownloadSCP(bool headless) {
-    LOG_DEBUG("MainWindow", QString("Download MASTER.SCP (Alt+S) - Starting download (headless=%1)").arg(headless));
-
-    // Create progress dialog (only if not headless)
-    QProgressDialog* progressDialog = nullptr;
-    if (!headless) {
-        progressDialog = new QProgressDialog("Downloading MASTER.SCP...", "Cancel", 0, 100, this);
-        progressDialog->setWindowTitle("Download MASTER.SCP");
-        progressDialog->setWindowModality(Qt::WindowModal);
-        progressDialog->setMinimumDuration(0);
-        progressDialog->setAutoClose(false);  // Don't auto-close when reaching 100%
-        progressDialog->setAutoReset(false);  // Don't auto-reset when reaching 100%
-        progressDialog->setValue(0);
+    LOG_DEBUG("MainWindow", QString("Download SCP (Alt+S) - Starting download (headless=%1)").arg(headless));
+    
+    SCPDownloadResult result = m_downloadManager->downloadSCP(headless);
+    
+    if (result.success) {
+        // Reload SCP matcher with new data
+        delete m_scpMatcher;
+        m_scpMatcher = new SCPMatcher();
+        
+        m_statusLabel->setText(result.statusMessage);
+        LOG_INFO("MainWindow", result.statusMessage);
+    } else {
+        m_statusLabel->setText(QString("SCP download failed: %1").arg(result.errorMessage));
+        LOG_ERROR("MainWindow", QString("SCP download failed: %1").arg(result.errorMessage));
     }
-
-    // Create downloader
-    SCPDownloader* downloader = new SCPDownloader(this);
-
-    // Connect progress signal (only if not headless)
-    if (!headless) {
-        connect(downloader, &SCPDownloader::downloadProgress,
-                this, [progressDialog](qint64 bytesReceived, qint64 bytesTotal) {
-                    if (progressDialog && bytesTotal > 0) {
-                        int percentage = (bytesReceived * 100) / bytesTotal;
-                        progressDialog->setValue(percentage);
-                        progressDialog->setLabelText(QString("Downloading MASTER.SCP... %1 KB / %2 KB")
-                                                    .arg(bytesReceived / 1024)
-                                                    .arg(bytesTotal / 1024));
-                    }
-                });
-    }
-
-    // Connect finished signal
-    connect(downloader, &SCPDownloader::downloadFinished,
-            this, [this, progressDialog, downloader, headless](bool success, int callsignCount, const QString& error) {
-                if (success) {
-                    LOG_DEBUG("MainWindow", QString("SCP download successful: %1 callsigns imported").arg(callsignCount));
-
-                    // Update last update timestamp
-                    AppSettings& settings = AppSettings::instance();
-                    settings.setSCPLastUpdate(QDateTime::currentDateTime());
-
-                    // Update status bar permanently (no timeout)
-                    statusBar()->showMessage(QString("MASTER.SCP downloaded: %1 callsigns imported").arg(callsignCount));
-
-                    if (progressDialog) {
-                        // Update progress dialog to show completion (user clicks OK to dismiss)
-                        progressDialog->setLabelText(QString("MASTER.SCP downloaded successfully!\n\n%1 callsigns imported").arg(callsignCount));
-                        progressDialog->setCancelButtonText("OK");
-                        progressDialog->setValue(100);
-
-                        // Wait for user to click OK, then close
-                        connect(progressDialog, &QProgressDialog::canceled, progressDialog, &QProgressDialog::deleteLater);
-                    }
-                } else {
-                    if (progressDialog) {
-                        progressDialog->close();
-                        progressDialog->deleteLater();
-                    }
-                    if (!headless) {
-                        DialogHelper::critical(this, "Download Failed",
-                            QString("Failed to download MASTER.SCP.\n\n%1\n\n"
-                                   "Please check your internet connection and try again.").arg(error));
-                    } else {
-                        LOG_WARN("MainWindow", QString("Failed to download MASTER.SCP (headless): %1").arg(error));
-                    }
-                }
-
-                downloader->deleteLater();
-            });
-
-    // Connect error signal (only if not headless)
-    if (!headless) {
-        connect(downloader, &SCPDownloader::errorOccurred,
-                this, [progressDialog](const QString& error) {
-                    LOG_DEBUG("MainWindow", QString("SCP download error: %1").arg(error));
-                    if (progressDialog) {
-                        progressDialog->setLabelText("Error: " + error);
-                    }
-                });
-
-        // Connect cancel button
-        connect(progressDialog, &QProgressDialog::canceled,
-                downloader, &SCPDownloader::cancel);
-    }
-
-    // Start download
-    downloader->downloadLatest();
 }
 
 void MainWindow::onInitialize() {
@@ -6247,49 +5104,49 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
 
 void MainWindow::onBandClicked(BandType band) {
     if (m_radioConnected) {
-        // Radio connected: Change radio band
-        // K4: Uses BN command (radio remembers last frequency for band)
-        // Hamlib: Calls setFrequency with band edge
+        // Radio connected: Send band change to radio
         LOG_DEBUG("MainWindow", QString("Band clicked: %1 Sending setBand command")
             .arg(bandToString(band)));
-
-        // Send band change to radio
         m_radio->setBand(band);
     } else {
-        // Radio not connected: Manual band selection for logging
-        LOG_DEBUG("MainWindow", QString("Manual band selection: %1").arg(bandToString(band)));
+        // Radio not connected: Manual band selection
+        if (!m_bandSwitchingManager) {
+            LOG_ERROR("MainWindow", "BandSwitchingManager is null");
+            return;
+        }
 
-        // Update current state with manually selected band and frequency
+        // Delegate to BandSwitchingManager
+        m_bandSwitchingManager->selectBand(band, m_currentState, false);
+
+        // Update current state (manager doesn't modify state directly)
         m_currentState.bandA = band;
-
-        // Set frequency to low end of band for logging purposes
-        m_currentState.frequencyA = getFrequencyForBand(band, m_currentState.modeA);
+        m_currentState.frequencyA = m_bandSwitchingManager->getFrequencyForBand(band, m_currentState.modeA);
 
         // Update radio status display
         updateRadioStatusGrid();
 
-        // Emit signals so all interested components (Band Map, etc.) can update
-        double freqKHz = m_currentState.frequencyA / 1000.0;
-        LOG_DEBUG("MainWindow", QString("Manual band selection emitting - band: %1, frequency: %2 kHz")
-            .arg(bandToString(band)).arg(freqKHz, 0, 'f', 1));
+        // Emit signals for other components
         emit currentFrequencyChanged(m_currentState.frequencyA);
         emit currentBandChanged(band);
 
-        // Update status message
+        // Update status
         m_statusLabel->setText(QString("Band: %1 (manual)").arg(bandToString(band)));
     }
 }
 
 void MainWindow::onBandUp() {
+    if (!m_bandSwitchingManager) {
+        LOG_ERROR("MainWindow", "BandSwitchingManager is null");
+        return;
+    }
+
     BandType currentBand = m_currentState.bandA;
-    BandType nextBand = getNextBand(currentBand);
+    BandType nextBand = m_bandSwitchingManager->getNextBand(currentBand, m_activeContest);
 
     if (nextBand != currentBand) {
         LOG_DEBUG("MainWindow", QString("Band up: %1 -> %2")
             .arg(bandToString(currentBand))
             .arg(bandToString(nextBand)));
-
-        // Use band click handler (works for both connected and disconnected radio)
         onBandClicked(nextBand);
     } else {
         LOG_DEBUG("MainWindow", "Already at highest band");
@@ -6297,15 +5154,18 @@ void MainWindow::onBandUp() {
 }
 
 void MainWindow::onBandDown() {
+    if (!m_bandSwitchingManager) {
+        LOG_ERROR("MainWindow", "BandSwitchingManager is null");
+        return;
+    }
+
     BandType currentBand = m_currentState.bandA;
-    BandType prevBand = getPreviousBand(currentBand);
+    BandType prevBand = m_bandSwitchingManager->getPreviousBand(currentBand, m_activeContest);
 
     if (prevBand != currentBand) {
         LOG_DEBUG("MainWindow", QString("Band down: %1 -> %2")
             .arg(bandToString(currentBand))
             .arg(bandToString(prevBand)));
-
-        // Use band click handler (works for both connected and disconnected radio)
         onBandClicked(prevBand);
     } else {
         LOG_DEBUG("MainWindow", "Already at lowest band");
