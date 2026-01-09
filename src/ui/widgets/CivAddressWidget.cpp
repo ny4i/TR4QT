@@ -17,6 +17,7 @@ CivAddressWidget::CivAddressWidget(QWidget* parent)
 void CivAddressWidget::setupUI() {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(6);  // Add spacing between radio buttons
 
     // Default CI-V address radio button
     m_civDefaultRadio = new QRadioButton("Use Default CI-V Address", this);
@@ -29,6 +30,7 @@ void CivAddressWidget::setupUI() {
     QWidget* civCustomWidget = new QWidget(this);
     QHBoxLayout* civCustomLayout = new QHBoxLayout(civCustomWidget);
     civCustomLayout->setContentsMargins(0, 0, 0, 0);
+    civCustomLayout->setSpacing(6);  // Add spacing between radio button and text field
 
     m_civCustomRadio = new QRadioButton("Custom CI-V Address:", this);
     m_civCustomRadio->setToolTip("Specify a custom CI-V address (hex value)\n"
