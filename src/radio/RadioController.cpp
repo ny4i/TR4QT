@@ -386,8 +386,9 @@ void RadioController::disconnectFromRadio() {
 }
 
 void RadioController::setFrequency(freq_t freq, VFO vfo) {
-    LOG_DEBUG("RadioController", QString("setFrequency called: freq=%1 Hz, VFO %2")
-              .arg(static_cast<qulonglong>(freq))
+    double freqKHz = freq / 1000.0;
+    LOG_DEBUG("RadioController", QString("setFrequency called: freq=%1 kHz, VFO %2")
+              .arg(freqKHz, 0, 'f', 1)
               .arg(vfo == VFO::VFO_A ? "A" : "B"));
 
     // Use invokeMethod instead of signal/slot - this DOES work (proven by connect() method)

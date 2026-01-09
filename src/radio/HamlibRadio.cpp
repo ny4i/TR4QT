@@ -173,7 +173,8 @@ bool HamlibRadio::setBand(BandType band, VFO vfo) {
         return false;
     }
 
-    LOG_DEBUG("HamlibRadio", QString("setBand: %1 -> %2 Hz").arg(bandToString(band)).arg(freq));
+    double freqKHz = freq / 1000.0;
+    LOG_DEBUG("HamlibRadio", QString("setBand: %1 -> %2 kHz").arg(bandToString(band)).arg(freqKHz, 0, 'f', 1));
     return setFrequency(freq, vfo);
 }
 

@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.31.24";  // Add accurate CW timing + K4 command parsers for audio/RF/signal controls
+constexpr const char* APP_VERSION = "3.33.1";  // Fix frequency log scientific notation, add ESM label, CALL_OK_NOW TODO
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
