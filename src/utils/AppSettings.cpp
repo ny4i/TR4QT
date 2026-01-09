@@ -77,6 +77,9 @@ void AppSettings::saveRadioConfig(const RadioConfig& config) {
     m_settings.setValue("civAddress", config.civAddress);
     m_settings.setValue("pollInterval", config.pollInterval);
     m_settings.setValue("radioType", config.radioType);  // Save radio interface type
+    m_settings.setValue("icomUsername", config.icomUsername);
+    m_settings.setValue("icomPassword", config.icomPassword);
+    m_settings.setValue("icomClientName", config.icomClientName);
     m_settings.endGroup();
     m_settings.sync();
 }
@@ -90,6 +93,9 @@ RadioConfig AppSettings::loadRadioConfig() const {
     config.civAddress = m_settings.value("civAddress", 0).toInt();
     config.pollInterval = m_settings.value("pollInterval", 100).toInt();
     config.radioType = m_settings.value("radioType", -1).toInt();  // Default: -1 (Auto)
+    config.icomUsername = m_settings.value("icomUsername", "").toString();
+    config.icomPassword = m_settings.value("icomPassword", "").toString();
+    config.icomClientName = m_settings.value("icomClientName", "TR4QT").toString();
     m_settings.endGroup();
     return config;
 }

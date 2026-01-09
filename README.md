@@ -138,6 +138,10 @@ Based on TR4W (Delphi) at `/Users/toms/projects/TR4W/`
 
 Thanks to [n1mm_view](https://github.com/n1kdo/n1mm_view) for the use of the ARRL section shapefiles.
 
+Special thanks to the developers of [wfview](https://gitlab.com/eliggett/wfview) and [QLog](https://github.com/foldynl/QLog) for their pioneering work on Icom network protocol implementation and Qt-based amateur radio logging applications. Their open-source projects provided valuable reference material and inspiration for TR4QT's Icom network support.
+
 ## License
 
-TBD
+GPL v3 - See LICENSE file for details.
+
+Copyright (C) 2024-2026 Thomas M. Schaefer, NY4I

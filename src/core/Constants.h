@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.34.1";  // Fix CI-V address field overlap in Radio preferences
+constexpr const char* APP_VERSION = "3.34.2";  // Icom UI enhancements: credentials fields, CI-V button group, exponential backoff, port default
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
