@@ -26,6 +26,8 @@ set(SOURCES
     utils/PerformanceProfiler.cpp
     radio/HamlibRadio.cpp
     radio/K4Radio.cpp
+    radio/IcomRadio.cpp
+    radio/icomnetwork.cpp
     radio/CWTiming.cpp
     radio/RadioFactory.cpp
     radio/RadioController.cpp
@@ -216,8 +218,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.33.1"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.33.1"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.34.0"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.34.0"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
