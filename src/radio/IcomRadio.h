@@ -88,6 +88,7 @@ private slots:
     void onNetworkConnected();
     void onNetworkDisconnected();
     void onCivDataReceived(const QByteArray& data);
+    void onCivSocketReady();  // Called when CI-V socket is ready to receive commands
     void onNetworkError(const QString& error);
     void onNetworkAuthFailed(const QString& reason);
     void pollRadio();

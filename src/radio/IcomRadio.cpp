@@ -13,6 +13,7 @@ IcomRadio::IcomRadio(QObject* parent)
     QObject::connect(m_network, &IcomNetwork::connected, this, &IcomRadio::onNetworkConnected);
     QObject::connect(m_network, &IcomNetwork::disconnected, this, &IcomRadio::onNetworkDisconnected);
     QObject::connect(m_network, &IcomNetwork::civDataReceived, this, &IcomRadio::onCivDataReceived);
+    QObject::connect(m_network, &IcomNetwork::civSocketReady, this, &IcomRadio::onCivSocketReady);
     QObject::connect(m_network, &IcomNetwork::connectionError, this, &IcomRadio::onNetworkError);
     QObject::connect(m_network, &IcomNetwork::authenticationFailed, this, &IcomRadio::onNetworkAuthFailed);
 
@@ -444,8 +445,8 @@ void IcomRadio::onNetworkConnected()
     // This allows RadioManager to update status: "Radio: IC-7760"
     emit stateUpdated(getCurrentState());
 
-    // Request initial state (frequency, mode, etc.)
-    pollRadio();
+    // Don't poll yet - wait for civSocketReady signal from network
+    // The radio sends a "CI-V socket ready" control packet when it's ready
 }
 
 void IcomRadio::onNetworkDisconnected()
@@ -463,6 +464,13 @@ void IcomRadio::onCivDataReceived(const QByteArray& data)
 {
     LOG_DEBUG("IcomRadio", QString("Received CI-V data: %1 bytes").arg(data.size()));
     parseCivResponse(data);
+}
+
+void IcomRadio::onCivSocketReady()
+{
+    LOG_INFO("IcomRadio", "CI-V socket ready - starting to poll radio");
+    // Radio is now ready to receive CI-V commands
+    pollRadio();
 }
 
 void IcomRadio::onNetworkError(const QString& error)
