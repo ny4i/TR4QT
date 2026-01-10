@@ -1,4 +1,5 @@
 #include "BandSwitchingManager.h"
+#include "../core/BandConstants.h"
 #include "../utils/AppSettings.h"
 #include "../logging/LogMacros.h"
 #include <QtMath>
@@ -70,38 +71,14 @@ freq_t BandSwitchingManager::getFrequencyForBand(BandType band, ModeType mode) c
 
     // Return low band edge as visual reminder this is manually set, not from radio
     // Real radio would show frequency within CW/SSB segments
-    switch (band) {
-    case BandType::Band160M:
-        return 1800000;   // 1.800 MHz (band edge)
-    case BandType::Band80M:
-        return 3500000;   // 3.500 MHz (band edge)
-    case BandType::Band60M:
-        return 5330000;   // 5.330 MHz (band edge)
-    case BandType::Band40M:
-        return 7000000;   // 7.000 MHz (band edge)
-    case BandType::Band30M:
-        return 10100000;  // 10.100 MHz (band edge)
-    case BandType::Band20M:
-        return 14000000;  // 14.000 MHz (band edge)
-    case BandType::Band17M:
-        return 18068000;  // 18.068 MHz (band edge)
-    case BandType::Band15M:
-        return 21000000;  // 21.000 MHz (band edge)
-    case BandType::Band12M:
-        return 24890000;  // 24.890 MHz (band edge)
-    case BandType::Band10M:
-        return 28000000;  // 28.000 MHz (band edge)
-    case BandType::Band6M:
-        return 50000000;  // 50.000 MHz (band edge)
-    case BandType::Band4M:
-        return 70000000;  // 70.000 MHz (band edge)
-    case BandType::Band2M:
-        return 144000000; // 144.000 MHz (band edge)
-    case BandType::Band70CM:
-        return 420000000; // 420.000 MHz (band edge)
-    default:
-        return 14000000;  // Default to 20m band edge
+    freq_t freq = BandConstants::bandToFrequency(band);
+
+    // If invalid band, default to 20m
+    if (freq == 0) {
+        return BandConstants::BAND_20M_EDGE;
     }
+
+    return freq;
 }
 
 BandType BandSwitchingManager::getBandFromFrequency(freq_t frequency) const {
