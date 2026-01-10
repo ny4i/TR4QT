@@ -168,13 +168,16 @@ void RadioController::recreateRadio(int radioType, const RadioConfig& config) {
 
     // Disconnect old radio
     if (m_radio) {
-        // Disconnect in worker thread
+        // CRITICAL: Disconnect signals FIRST before calling disconnect()
+        // Otherwise, disconnect() will emit connectionStatusChanged(false) which is still connected
+        // This would cause RadioManager to think the radio disconnected when we're actually
+        // just switching radio types (e.g., from Hamlib to Icom Direct)
+        QObject::disconnect(m_radio, nullptr, this, nullptr);
+
+        // Now disconnect in worker thread (won't emit signals since they're disconnected)
         QMetaObject::invokeMethod(m_radio, [this]() {
             static_cast<RadioInterface*>(m_radio)->disconnect();
         }, Qt::BlockingQueuedConnection);
-
-        // Disconnect signals
-        QObject::disconnect(m_radio, nullptr, this, nullptr);
 
         // Delete old radio (will be deleted when thread processes deleteLater)
         m_radio->deleteLater();

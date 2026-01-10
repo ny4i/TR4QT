@@ -4,10 +4,64 @@
 #include <QEventLoop>
 #include <QTimer>
 #include <QElapsedTimer>
+#include <QProcess>
 
 namespace TR4QT {
 
-// TODO: Add ICMP ping as first preflight step
+bool RadioPreflightHelper::icmpPing(const QString& host, int timeoutMs)
+{
+    LOG_DEBUG("RadioPreflight", QString("ICMP ping: Testing %1 (timeout %2ms)")
+        .arg(host).arg(timeoutMs));
+
+    QProcess pingProcess;
+    pingProcess.setProgram("ping");
+
+    // Platform-specific ping arguments
+#ifdef Q_OS_WIN
+    // Windows: ping -n 1 -w timeout_ms host
+    pingProcess.setArguments({"-n", "1", "-w", QString::number(timeoutMs), host});
+#else
+    // macOS/Linux: ping -c 1 -W timeout_seconds host
+    int timeoutSec = (timeoutMs + 999) / 1000;  // Round up to nearest second
+    pingProcess.setArguments({"-c", "1", "-W", QString::number(timeoutSec), host});
+#endif
+
+    QElapsedTimer timer;
+    timer.start();
+    pingProcess.start();
+
+    // Wait for ping to complete (with timeout)
+    bool finished = pingProcess.waitForFinished(timeoutMs + 500);  // Add 500ms margin
+    qint64 elapsed = timer.elapsed();
+
+    if (!finished) {
+        pingProcess.kill();
+        LOG_WARN("RadioPreflight", QString("ICMP ping: TIMEOUT - %1 did not respond within %2ms")
+            .arg(host).arg(timeoutMs));
+        return false;
+    }
+
+    int exitCode = pingProcess.exitCode();
+    if (exitCode == 0) {
+        LOG_DEBUG("RadioPreflight", QString("ICMP ping: SUCCESS - %1 is reachable (took %2ms)")
+            .arg(host).arg(elapsed));
+        return true;
+    } else {
+        QString output = QString::fromLocal8Bit(pingProcess.readAllStandardOutput());
+        QString error = QString::fromLocal8Bit(pingProcess.readAllStandardError());
+        LOG_WARN("RadioPreflight", QString("ICMP ping: FAILED - %1 unreachable (exit code %2, took %3ms)")
+            .arg(host).arg(exitCode).arg(elapsed));
+        if (!output.isEmpty()) {
+            LOG_DEBUG("RadioPreflight", QString("Ping output: %1").arg(output.trimmed()));
+        }
+        if (!error.isEmpty()) {
+            LOG_DEBUG("RadioPreflight", QString("Ping error: %1").arg(error.trimmed()));
+        }
+        return false;
+    }
+}
+
+// TODO: Add ICMP ping as first preflight step for all radios (not just Icom)
 // Enhancement: Before attempting TCP connection, perform ICMP ping test
 // Rationale:
 //   1. If host doesn't respond to ping, skip TCP connection attempt (faster failure)
@@ -15,6 +69,33 @@ namespace TR4QT {
 //   3. Helps distinguish network routing issues from radio configuration issues
 // Implementation: Use QProcess to run system ping command or implement ICMP directly
 // Note: ICMP ping doesn't use ports - this is a host-level reachability test
+
+// TODO: Architecture Improvement - Make preflight strategy configurable per radio class
+// Current implementation hardcodes preflight strategy in RadioPreflightHelper switch statement.
+// Better design: Each radio class should specify its preflight requirements.
+//
+// Proposed approach:
+//   1. Add PreflightStrategy enum to RadioInterface base class:
+//      - PING_ONLY (Icom UDP radios)
+//      - TCP_CONNECT (generic network connectivity)
+//      - TCP_WITH_COMMAND (K4, verify with ID command)
+//      - PING_THEN_TCP (belt-and-suspenders approach)
+//      - PING_THEN_TCP_WITH_COMMAND (full verification)
+//
+//   2. Each radio class overrides getPreflightStrategy():
+//      - IcomRadio::getPreflightStrategy() returns PING_ONLY
+//      - K4Radio::getPreflightStrategy() returns TCP_WITH_COMMAND
+//      - HamlibRadio::getPreflightStrategy() returns TCP_CONNECT
+//
+//   3. RadioPreflightHelper::radioSpecificPreflight() asks the radio class:
+//      PreflightStrategy strategy = radioClass->getPreflightStrategy();
+//      switch (strategy) { ... }
+//
+// Benefits:
+//   - No hardcoded model ID lists (maintainability)
+//   - Radio class encapsulates its own preflight requirements (cohesion)
+//   - Easy to add new radios without touching RadioPreflightHelper (open/closed principle)
+//   - Radio-specific commands/protocol details stay in radio class (separation of concerns)
 
 bool RadioPreflightHelper::generalPreflight(const QString& host, quint16 port, int timeoutMs)
 {
@@ -97,9 +178,20 @@ bool RadioPreflightHelper::radioSpecificPreflight(rig_model_t radioModel, const 
             LOG_DEBUG("RadioPreflight", "Using K4-specific verification (ID command)");
             return verifyK4(host, port, timeoutMs);
 
-        // Add other radio-specific verifications here in the future
-        // case RIG_MODEL_IC7300:
-        //     return verifyIcom7300(host, port, timeoutMs);
+        // Icom network radios use UDP protocol, so we can only verify host reachability via ICMP ping
+        // Supported Icom network radios (model IDs 3000-3999)
+        case 3090:  // IC-905
+        case 3077:  // IC-9700
+        case 3078:  // IC-7610
+        case 3071:  // IC-7600
+        case 3074:  // IC-7300MK2
+        case 3087:  // IC-705
+        case 3095:  // IC-R8600
+        case 3075:  // IC-7850/7851
+        case 3092:  // IC-7760
+            LOG_DEBUG("RadioPreflight", QString("Using ICMP ping for Icom radio model %1 (UDP protocol)")
+                .arg(radioModel));
+            return icmpPing(host, timeoutMs);
 
         default:
             // No specific verification implemented for this radio model

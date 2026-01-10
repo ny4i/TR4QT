@@ -50,6 +50,17 @@ public:
 
 private:
     /**
+     * @brief ICMP ping test: verify host is reachable
+     * @param host Hostname or IP address to ping
+     * @param timeoutMs Timeout in milliseconds
+     * @return true if host responds to ping, false otherwise
+     *
+     * Uses system ping command (cross-platform).
+     * Useful for radios that use UDP protocols (e.g., Icom network).
+     */
+    static bool icmpPing(const QString& host, int timeoutMs);
+
+    /**
      * @brief Verify Elecraft K4 by sending ID command
      * @param host K4 hostname or IP address
      * @param port K4 port number (typically 9200)
