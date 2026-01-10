@@ -668,8 +668,9 @@ void IcomNetwork::processCivPacket(const QByteArray& data)
     if (data.length() == CONTROL_SIZE) {
         qDebug() << "IcomNetwork::processCivPacket: Control packet (type" << ctrl->type << ")";
         if (ctrl->type == 0x04) {
-            // CI-V socket "I am here"
-            qDebug() << "CI-V socket ready";
+            // CI-V socket "I am here" - radio is ready to receive CI-V commands
+            qDebug() << "CI-V socket ready - emitting civSocketReady signal";
+            emit civSocketReady();
         } else if (ctrl->type == 0x06) {
             // "I am ready" - start sending CI-V data requests
             m_remoteId = ctrl->sentid;

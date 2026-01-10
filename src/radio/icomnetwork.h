@@ -86,6 +86,7 @@ signals:
 
     // CI-V data
     void civDataReceived(const QByteArray& data);
+    void civSocketReady();  // Emitted when CI-V socket acknowledges it's ready
 
     // Status updates
     void statusUpdate(const QString& message);
