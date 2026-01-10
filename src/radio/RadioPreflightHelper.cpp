@@ -7,6 +7,15 @@
 
 namespace TR4QT {
 
+// TODO: Add ICMP ping as first preflight step
+// Enhancement: Before attempting TCP connection, perform ICMP ping test
+// Rationale:
+//   1. If host doesn't respond to ping, skip TCP connection attempt (faster failure)
+//   2. Provides diagnostic info: "Radio unreachable (ping failed)" vs "Radio port not responding"
+//   3. Helps distinguish network routing issues from radio configuration issues
+// Implementation: Use QProcess to run system ping command or implement ICMP directly
+// Note: ICMP ping doesn't use ports - this is a host-level reachability test
+
 bool RadioPreflightHelper::generalPreflight(const QString& host, quint16 port, int timeoutMs)
 {
     QTcpSocket socket;
