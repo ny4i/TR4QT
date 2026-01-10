@@ -1,4 +1,5 @@
 #include "StatisticsWindow.h"
+#include "../../core/Constants.h"
 #include <QVBoxLayout>
 #include <QTabWidget>
 #include <QDateTime>
@@ -33,8 +34,8 @@ void StatisticsWindow::setupUI() {
     mainLayout->addWidget(tabWidget);
 
     // Set window size
-    resize(800, 600);
-    setMinimumSize(600, 400);
+    resize(UIDefaults::STATISTICS_WIDTH, UIDefaults::STATISTICS_HEIGHT);
+    setMinimumSize(UIDefaults::STATISTICS_MIN_WIDTH, UIDefaults::STATISTICS_MIN_HEIGHT);
 }
 
 void StatisticsWindow::createQSOsOverTimePlot() {

@@ -30,7 +30,7 @@ ContestChooserDialog::ContestChooserDialog(QWidget* parent)
     setWindowTitle("Contest Chooser");
     setupUI();
     loadExistingContests();
-    resize(700, 500);
+    resize(UIDefaults::CONTEST_CHOOSER_WIDTH, UIDefaults::CONTEST_CHOOSER_HEIGHT);
 }
 
 void ContestChooserDialog::setupUI() {

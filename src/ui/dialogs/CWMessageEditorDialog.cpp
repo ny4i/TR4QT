@@ -1,5 +1,6 @@
 #include "CWMessageEditorDialog.h"
 #include "../../utils/AppSettings.h"
+#include "../../utils/DialogHelper.h"
 #include "../../cw/CWTemplateEngine.h"
 #include "../../contests/ContestBase.h"
 #include "../../contests/RSTValidator.h"
@@ -10,7 +11,6 @@
 #include <QHeaderView>
 #include <QDialogButtonBox>
 #include <QGroupBox>
-#include <QMessageBox>
 
 namespace TR4QT {
 
@@ -340,7 +340,7 @@ void CWMessageEditorDialog::onApply() {
 
 void CWMessageEditorDialog::onLoadDefaults() {
     // TODO: Load TR4W default messages
-    QMessageBox::information(this, "Load Defaults",
+    DialogHelper::information(this, "Load Defaults",
         "TR4W default messages will be loaded in Phase 2 completion.");
 }
 
@@ -351,7 +351,7 @@ void CWMessageEditorDialog::onTestSelected() {
 
     QList<QTableWidgetItem*> selected = currentTable->selectedItems();
     if (selected.isEmpty()) {
-        QMessageBox::warning(this, "No Selection", "Please select a message to test.");
+        DialogHelper::warning(this, "No Selection", "Please select a message to test.");
         return;
     }
 
@@ -359,12 +359,12 @@ void CWMessageEditorDialog::onTestSelected() {
     QString templateStr = currentTable->item(row, 1)->text();
 
     if (templateStr.isEmpty()) {
-        QMessageBox::warning(this, "Empty Message", "The selected message is empty.");
+        DialogHelper::warning(this, "Empty Message", "The selected message is empty.");
         return;
     }
 
     if (!m_radio) {
-        QMessageBox::warning(this, "No Radio", "Radio not available for testing.");
+        DialogHelper::warning(this, "No Radio", "Radio not available for testing.");
         return;
     }
 
@@ -388,7 +388,7 @@ void CWMessageEditorDialog::onTestSelected() {
 }
 
 void CWMessageEditorDialog::onShowHelp() {
-    QMessageBox::information(this, "CW Message Template Help",
+    DialogHelper::information(this, "CW Message Template Help",
         "Template Variables:\n\n"
         "\\  = My Call\n"
         "@  = His Call\n"

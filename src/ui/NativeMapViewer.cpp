@@ -3,6 +3,7 @@
 #include "../utils/MapDataProvider.h"
 #include "../utils/ThemeManager.h"
 #include "../logging/LogMacros.h"
+#include "../core/Constants.h"
 #include <QVBoxLayout>
 
 using namespace TR4QT;
@@ -87,8 +88,8 @@ NativeMapViewer::~NativeMapViewer() {
 
 void NativeMapViewer::setupUI() {
     // Set window properties
-    resize(1200, 800);
-    setMinimumSize(600, 400);  // Allow shrinking
+    resize(UIDefaults::NATIVE_MAP_WIDTH, UIDefaults::NATIVE_MAP_HEIGHT);
+    setMinimumSize(UIDefaults::NATIVE_MAP_MIN_WIDTH, UIDefaults::NATIVE_MAP_MIN_HEIGHT);  // Allow shrinking
     setSizeGripEnabled(true);   // Enable resize grip
 
     QString title;

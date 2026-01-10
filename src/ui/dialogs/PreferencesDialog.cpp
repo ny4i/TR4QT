@@ -22,7 +22,6 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QDialogButtonBox>
-#include <QMessageBox>
 #include <QInputDialog>
 #include <QFileDialog>
 #include <QColorDialog>
@@ -58,7 +57,7 @@ PreferencesDialog::PreferencesDialog(QWidget* parent)
     LOG_DEBUG("PreferencesDialog", "*** setupUI completed, calling loadSettings ***");
     loadSettings();
     LOG_DEBUG("PreferencesDialog", "*** loadSettings completed, resizing ***");
-    resize(800, 550);  // Wider for sidebar layout
+    resize(UIDefaults::PREFERENCES_WIDTH, UIDefaults::PREFERENCES_HEIGHT);  // Wider for sidebar layout
     LOG_DEBUG("PreferencesDialog", QString("*** PreferencesDialog fully initialized with window title: %1").arg(windowTitle()));
 
     // Connect K4 Discovery signals
@@ -2096,7 +2095,7 @@ void PreferencesDialog::onClearLogFile() {
         logPath = QDir::homePath() + logPath.mid(1);
     }
 
-    QMessageBox::StandardButton reply = QMessageBox::question(
+    QMessageBox::StandardButton reply = DialogHelper::question(
         this,
         "Clear Log File",
         QString("Are you sure you want to clear the log file?\n\n%1\n\n"
@@ -2729,7 +2728,7 @@ void PreferencesDialog::onK4DiscoveryFinished(int count) {
                 // Single K4 found - ask if they want to use it
                 message += QString("Use IP address %1?").arg(m_foundK4Radios.first().ipAddress);
 
-                QMessageBox::StandardButton reply = QMessageBox::question(
+                QMessageBox::StandardButton reply = DialogHelper::question(
                     this,
                     "K4 Discovery",
                     message,

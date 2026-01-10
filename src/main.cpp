@@ -3,7 +3,6 @@
 #include <QDir>
 #include <QFile>
 #include <QCommandLineParser>
-#include <QMessageBox>
 #include <QTimer>
 #include <QLockFile>
 #include <QStandardPaths>
@@ -15,6 +14,7 @@
 #include "utils/CountryFileDownloader.h"
 #include "utils/AppSettings.h"
 #include "utils/PathManager.h"
+#include "utils/DialogHelper.h"
 #include "data/GlobalDatabase.h"
 #include "radio/RadioInterface.h"
 #include "logging/Logger.h"
@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
     lockFile.setStaleLockTime(0);  // Never consider lock file stale
 
     if (!lockFile.tryLock(100)) {  // 100ms timeout
-        QMessageBox::warning(
+        DialogHelper::warning(
             nullptr,
             "TR4QT Already Running",
             "Another instance of TR4QT is already running.\n\n"

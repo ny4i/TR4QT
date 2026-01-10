@@ -1,4 +1,5 @@
 #include "FileAppender.h"
+#include "../core/Constants.h"
 #include <QDir>
 #include <QMutexLocker>
 #include <QDebug>
@@ -8,7 +9,7 @@ namespace TR4QT {
 FileAppender::FileAppender(const QString& filePath, QObject* parent)
     : QObject(parent)
     , m_filePath(filePath)
-    , m_maxFileSize(10 * 1024 * 1024)  // 10 MB default
+    , m_maxFileSize(DEFAULT_MAX_LOG_FILE_SIZE)
     , m_maxBackupFiles(5)               // 5 backup files default
     , m_currentSize(0)
 {
