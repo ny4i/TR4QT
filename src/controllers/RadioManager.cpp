@@ -3,6 +3,30 @@
 #include "../utils/DialogHelper.h"
 #include <QApplication>
 
+// TODO: UX Improvement - Don't show Hamlib model ID when using direct interfaces
+// When radioType is K4_DIRECT or ICOM_DIRECT, the Hamlib model ID is only used
+// internally for configuration (e.g., CI-V address auto-config) but NOT for
+// actual radio communication. Displaying it in status messages/tooltips is
+// misleading because it implies Hamlib is being used.
+//
+// Suggested changes:
+// 1. Status messages: Show radio name instead of model ID for direct interfaces
+//    - CURRENT: "Connecting to radio: Model 3092, Port 192.168.1.100:50001..."
+//    - BETTER:  "Connecting to radio: IC-7760 (Icom Direct), Port 192.168.1.100:50001..."
+//    - BETTER:  "Connecting to radio: K4 (K4 Direct), Port 192.168.73.108:9200..."
+//
+// 2. Error messages: Clarify which interface failed
+//    - CURRENT: "Failed to connect to radio Model 3092"
+//    - BETTER:  "Failed to connect to IC-7760 via Icom Direct"
+//
+// 3. Tooltips: Only mention Hamlib when actually using Hamlib interface
+//
+// Implementation approach:
+// - Add RadioFactory::getRadioDisplayName(hamlibModelId, radioType) helper
+// - Returns model name from rig_get_caps() for all types
+// - Appends interface type for clarity: "(K4 Direct)", "(Icom Direct)", "(Hamlib)"
+// - Use this helper throughout status messages instead of raw model ID
+
 namespace TR4QT {
 
 RadioManager::RadioManager(QObject* parent)
@@ -65,6 +89,8 @@ bool RadioManager::connectToRadio()
     m_radioReconnectAttempts = 0;   // Reset retry counter
     m_lastRadioConfig = config;     // Save config for reconnection attempts
 
+    // TODO: Show radio name + interface type instead of model ID (see TODO at top of file)
+    // Should be: "Connecting to radio: IC-7760 (Icom Direct), Port 192.168.1.100:50001..."
     emit statusMessage(QString("Connecting to radio: Model %1, Port %2...")
                           .arg(config.hamlibModelId)
                           .arg(config.port));
