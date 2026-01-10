@@ -274,7 +274,8 @@ void IcomNetwork::sendIdlePacket()
 
 void IcomNetwork::sendLogin()
 {
-    qInfo() << "Sending login packet";
+    qInfo() << "Sending login packet - Username:" << m_config.username
+            << "Password length:" << m_config.password.length() << "chars";
 
     m_tokRequest = static_cast<quint16>(QRandomGenerator::global()->generate());
 
@@ -483,6 +484,8 @@ void IcomNetwork::onCivDataReceived()
 
     while (m_civSocket->hasPendingDatagrams()) {
         QNetworkDatagram datagram = m_civSocket->receiveDatagram();
+        qDebug() << "IcomNetwork: Received CI-V datagram:" << datagram.data().size() << "bytes"
+                 << "Data:" << datagram.data().toHex(' ');
         processCivPacket(datagram.data());
     }
 }
@@ -606,7 +609,7 @@ void IcomNetwork::processControlPacket(const QByteArray& data)
             // Check if it's a capabilities packet
             if ((data.length() - CAPABILITIES_SIZE) % RADIO_CAP_SIZE == 0) {
                 const capabilities_packet* cap = reinterpret_cast<const capabilities_packet*>(data.constData());
-                quint16 numRadios = cap->numradios;
+                quint16 numRadios = qFromBigEndian(cap->numradios);
 
                 m_radios.clear();
 
@@ -615,7 +618,8 @@ void IcomNetwork::processControlPacket(const QByteArray& data)
                     const radio_cap_packet* radio = reinterpret_cast<const radio_cap_packet*>(data.constData() + offset);
 
                     IcomRadioInfo info;
-                    info.name = QString::fromLatin1(radio->name, 32).trimmed();
+                    // Stop at first NUL instead of reading all 32 bytes (prevents NUL chars in status)
+                    info.name = QString::fromLatin1(radio->name).trimmed();
                     info.civAddress = radio->civ;
                     info.baudRate = qFromBigEndian(radio->baudrate);
 
@@ -645,15 +649,24 @@ void IcomNetwork::processControlPacket(const QByteArray& data)
     }
 }
 
+// TODO: Change all data packet debug messages to TRACE level
+// The qDebug() calls in this function and related CI-V processing functions
+// (onCivDataReceived, pollRadio, sendCommand) should be changed to TRACE level
+// to reduce log verbosity during normal operation. Keep them as DEBUG for now
+// during initial CI-V debugging.
 void IcomNetwork::processCivPacket(const QByteArray& data)
 {
+    qDebug() << "IcomNetwork::processCivPacket: Processing packet of" << data.length() << "bytes";
+
     if (data.length() < CONTROL_SIZE) {
+        qDebug() << "IcomNetwork::processCivPacket: Packet too small, ignoring";
         return;
     }
 
     const control_packet* ctrl = reinterpret_cast<const control_packet*>(data.constData());
 
     if (data.length() == CONTROL_SIZE) {
+        qDebug() << "IcomNetwork::processCivPacket: Control packet (type" << ctrl->type << ")";
         if (ctrl->type == 0x04) {
             // CI-V socket "I am here"
             qDebug() << "CI-V socket ready";
@@ -668,6 +681,7 @@ void IcomNetwork::processCivPacket(const QByteArray& data)
     } else if (data.length() > CIV_SIZE) {
         // CI-V data packet
         const data_packet* dp = reinterpret_cast<const data_packet*>(data.constData());
+        qDebug() << "IcomNetwork::processCivPacket: Data packet (type" << dp->type << "datalen" << dp->datalen << ")";
         if (dp->type != 0x01 && quint16(dp->datalen + 0x15) == (quint16)dp->len) {
             // Stop requesting CI-V data - we're getting it
             if (m_civStartTimer && m_civStartTimer->isActive()) {
@@ -678,8 +692,13 @@ void IcomNetwork::processCivPacket(const QByteArray& data)
 
             // Extract CI-V data (skip 0x15 byte header)
             QByteArray civData = data.mid(0x15);
+            qDebug() << "IcomNetwork::processCivPacket: Emitting civDataReceived with" << civData.size() << "bytes";
             emit civDataReceived(civData);
+        } else {
+            qDebug() << "IcomNetwork::processCivPacket: Data packet validation failed";
         }
+    } else {
+        qDebug() << "IcomNetwork::processCivPacket: Unknown packet type/length";
     }
 }
 
@@ -758,4 +777,9 @@ void IcomNetwork::cleanup()
     m_streamOpened = false;
     m_remoteId = 0;
     m_areYouThereCounter = 0;
+
+    // CRITICAL: Reset connection state to Disconnected
+    // Without this, failed connection attempts leave state in intermediate state
+    // (e.g., WaitingForHere, WaitingForLogin) preventing subsequent connection attempts
+    setState(Disconnected);
 }

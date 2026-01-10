@@ -60,6 +60,9 @@ bool IcomRadio::connect(const RadioConfig& config)
     // Start polling timer
     if (config.pollInterval > 0) {
         m_pollTimer->start(config.pollInterval);
+        LOG_DEBUG("IcomRadio", QString("Poll timer started with interval %1ms").arg(config.pollInterval));
+    } else {
+        LOG_WARN("IcomRadio", "Poll timer NOT started (pollInterval is 0)");
     }
 
     return true;
@@ -428,9 +431,20 @@ void IcomRadio::onNetworkConnected()
     m_state.radioModel = m_network->currentRadio().name;
     m_stateMutex.unlock();
 
+    // If CI-V address is 0 (auto/default), use the address discovered from radio
+    if (m_civAddress == 0) {
+        m_civAddress = m_network->currentRadio().civAddress;
+        LOG_INFO("IcomRadio", QString("Using discovered CI-V address: 0x%1")
+            .arg(m_civAddress, 2, 16, QChar('0')));
+    }
+
     emit connectionStatusChanged(true);
 
-    // Request initial state
+    // Emit initial state with radio model name
+    // This allows RadioManager to update status: "Radio: IC-7760"
+    emit stateUpdated(getCurrentState());
+
+    // Request initial state (frequency, mode, etc.)
     pollRadio();
 }
 
@@ -447,6 +461,7 @@ void IcomRadio::onNetworkDisconnected()
 
 void IcomRadio::onCivDataReceived(const QByteArray& data)
 {
+    LOG_DEBUG("IcomRadio", QString("Received CI-V data: %1 bytes").arg(data.size()));
     parseCivResponse(data);
 }
 
@@ -465,8 +480,12 @@ void IcomRadio::onNetworkAuthFailed(const QString& reason)
 void IcomRadio::pollRadio()
 {
     if (!isConnected()) {
+        LOG_DEBUG("IcomRadio", "pollRadio called but not connected, skipping");
         return;
     }
+
+    LOG_DEBUG("IcomRadio", QString("pollRadio: Sending CI-V commands (address=0x%1)")
+        .arg(m_civAddress, 2, 16, QChar('0')));
 
     // Request frequency VFO A (command 0x03)
     sendCommand(0x03, QByteArray());
@@ -497,10 +516,16 @@ QByteArray IcomRadio::buildCivCommand(quint8 command, const QByteArray& data)
 bool IcomRadio::sendCommand(quint8 command, const QByteArray& data)
 {
     if (!isConnected()) {
+        LOG_DEBUG("IcomRadio", QString("sendCommand(0x%1) called but not connected")
+            .arg(command, 2, 16, QChar('0')));
         return false;
     }
 
     QByteArray cmd = buildCivCommand(command, data);
+    LOG_DEBUG("IcomRadio", QString("Sending CI-V command 0x%1 to address 0x%2 (%3 bytes)")
+        .arg(command, 2, 16, QChar('0'))
+        .arg(m_civAddress, 2, 16, QChar('0'))
+        .arg(cmd.size()));
     m_network->sendCivCommand(cmd);
 
     return true;
