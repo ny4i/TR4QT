@@ -1464,11 +1464,21 @@ void PreferencesDialog::loadSettings() {
     m_licenseClassCombo->setCurrentText(settings.getLicenseClass());
     // Operator will be added to AppSettings
 
+    // Radio status filter checkboxes - MUST be loaded BEFORE radio model selection
+    // so that the radio list is properly filtered when we try to find the saved model
+    m_showStableRadiosCheck->setChecked(settings.getShowStableRadios());
+    m_showBetaRadiosCheck->setChecked(settings.getShowBetaRadios());
+    m_showAlphaRadiosCheck->setChecked(settings.getShowAlphaRadios());
+    m_showUntestedRadiosCheck->setChecked(settings.getShowUntestedRadios());
+
+    // Repopulate radio list with correct filter settings BEFORE loading saved model
+    populateRadioList();
+
     // Radio tab
     if (settings.hasRadioConfig()) {
         RadioConfig config = settings.loadRadioConfig();
 
-        // Set model
+        // Set model (now the list has been filtered correctly)
         int comboIndex = m_radioModelCombo->findData(config.hamlibModelId);
         if (comboIndex >= 0) {
             m_radioModelCombo->setCurrentIndex(comboIndex);
@@ -1529,11 +1539,7 @@ void PreferencesDialog::loadSettings() {
     m_cutNumbersEnabledCheck->setChecked(settings.getCutNumbersEnabled());
     m_serialNumberWidthSpin->setValue(settings.getSerialNumberWidth());
 
-    // Radio status filter checkboxes
-    m_showStableRadiosCheck->setChecked(settings.getShowStableRadios());
-    m_showBetaRadiosCheck->setChecked(settings.getShowBetaRadios());
-    m_showAlphaRadiosCheck->setChecked(settings.getShowAlphaRadios());
-    m_showUntestedRadiosCheck->setChecked(settings.getShowUntestedRadios());
+    // Note: Radio status filter checkboxes loaded earlier (before radio model selection)
 
     onConnectionTypeChanged();
 
