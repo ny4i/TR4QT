@@ -604,16 +604,24 @@ ModeType IcomRadio::icomToMode(quint8 icomMode)
 void IcomRadio::parseCivResponse(const QByteArray& data)
 {
     if (data.length() < 6) {
+        LOG_DEBUG("IcomRadio", QString("parseCivResponse: packet too short (%1 bytes)").arg(data.length()));
         return;
     }
 
     // Check for valid CI-V response: FE FE E0 <radio> <cmd> <data> FD
     if (data[0] != (char)0xFE || data[1] != (char)0xFE) {
+        LOG_DEBUG("IcomRadio", QString("parseCivResponse: invalid preamble (got %1 %2)")
+            .arg((quint8)data[0], 2, 16, QChar('0'))
+            .arg((quint8)data[1], 2, 16, QChar('0')));
         return;
     }
 
     quint8 cmd = (quint8)data[4];
     QByteArray responseData = data.mid(5, data.length() - 6);  // Strip preamble and FD
+
+    LOG_DEBUG("IcomRadio", QString("parseCivResponse: command=0x%1 dataLen=%2")
+        .arg(cmd, 2, 16, QChar('0'))
+        .arg(responseData.length()));
 
     switch (cmd) {
         case 0x03:  // Frequency response
@@ -630,8 +638,15 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
             }
             break;
 
+        case 0x27:  // Scope/transceive data (IC-7610/IC-7760 push updates)
+            parseScopeData(responseData);
+            break;
+
         default:
             // Unknown or unhandled response
+            LOG_DEBUG("IcomRadio", QString("parseCivResponse: unhandled command 0x%1 (ignoring %2 bytes)")
+                .arg(cmd, 2, 16, QChar('0'))
+                .arg(responseData.length()));
             break;
     }
 
@@ -689,6 +704,45 @@ void IcomRadio::parsePTTResponse(const QByteArray& data)
     m_state.isTransmitting = transmitting;
 
     emit pttChanged(transmitting);
+}
+
+void IcomRadio::parseScopeData(const QByteArray& data)
+{
+    // Command 0x27 scope/transceive data from IC-7610/IC-7760
+    // Structure (after command byte):
+    //   Bytes 0-1: Sub-command (0x00 0x00)
+    //   Bytes 2-3: Fixed/Edge indicator (0x01 0x01)
+    //   Byte 4: Unknown (0x00)
+    //   Bytes 5-9: Frequency (5 bytes BCD, little-endian)
+    //   Byte 10: Mode
+    //   Byte 11+: Filter and scope data
+
+    if (data.length() < 11) {
+        LOG_DEBUG("IcomRadio", QString("parseScopeData: packet too short (%1 bytes, need 11+)")
+            .arg(data.length()));
+        return;
+    }
+
+    // Extract frequency (bytes 5-9)
+    QByteArray freqData = data.mid(5, 5);
+    freq_t freq = bcdToFrequency(freqData);
+
+    // Extract mode (byte 10)
+    ModeType mode = icomToMode((quint8)data[10]);
+
+    LOG_DEBUG("IcomRadio", QString("parseScopeData: freq=%1 Hz, mode=%2")
+        .arg(freq)
+        .arg(modeToString(mode)));
+
+    // Update state
+    QMutexLocker lock(&m_stateMutex);
+    m_state.frequencyA = freq;
+    m_state.bandA = frequencyToBand(freq);
+    m_state.modeA = mode;
+
+    // Emit signals
+    emit frequencyChanged(freq, VFO::VFO_A);
+    emit modeChanged(mode, VFO::VFO_A);
 }
 
 } // namespace TR4QT

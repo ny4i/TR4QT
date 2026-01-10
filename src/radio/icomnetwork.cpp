@@ -682,7 +682,10 @@ void IcomNetwork::processCivPacket(const QByteArray& data)
     } else if (data.length() > CIV_SIZE) {
         // CI-V data packet
         const data_packet* dp = reinterpret_cast<const data_packet*>(data.constData());
-        qDebug() << "IcomNetwork::processCivPacket: Data packet (type" << dp->type << "datalen" << dp->datalen << ")";
+        qDebug() << "IcomNetwork::processCivPacket: Data packet (type" << dp->type << "datalen" << dp->datalen << "len" << dp->len << ")";
+        qDebug() << "IcomNetwork::processCivPacket: Validation check: type!= 0x01?" << (dp->type != 0x01)
+                 << "length match?" << (quint16(dp->datalen + 0x15) == (quint16)dp->len)
+                 << "(" << (quint16)(dp->datalen + 0x15) << "==" << (quint16)dp->len << ")";
         if (dp->type != 0x01 && quint16(dp->datalen + 0x15) == (quint16)dp->len) {
             // Stop requesting CI-V data - we're getting it
             if (m_civStartTimer && m_civStartTimer->isActive()) {
