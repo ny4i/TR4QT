@@ -6,7 +6,49 @@ None currently.
 
 ## Medium Priority
 
-None currently.
+### Implement Secure Credential Storage
+**Added**: 2026-01-10 (v3.34.3)
+**Priority**: Medium (Security improvement)
+
+**Problem**:
+Passwords are currently stored in plain text in QSettings (RadioConfig, etc.). This is a security risk if the settings file is compromised.
+
+**Solution**:
+Implement a `CredentialStore` class using QtKeychain library, similar to QLog's implementation in `../qlog/core/CredentialStore.cpp`.
+
+**Implementation Details**:
+- Use QtKeychain library (qt6keychain) for OS-native secure storage:
+  - macOS: Keychain
+  - Windows: Credential Manager
+  - Linux: Secret Service API / KWallet / Gnome Keyring
+- API:
+  ```cpp
+  int savePassword(const QString &storage_key, const QString &user, const QString &pass);
+  QString getPassword(const QString &storage_key, const QString &user);
+  int deletePassword(const QString &storage_key, const QString &user);
+  ```
+- Storage keys to migrate:
+  - `RadioConfig::password` (Icom Direct password)
+  - Future: Any other passwords added to the system
+
+**Dependencies**:
+- Add `qtkeychain` to CMakeLists.txt (available via Homebrew on macOS, vcpkg on Windows)
+- Update GitHub Actions CI to install qtkeychain
+
+**Migration Strategy**:
+1. On first run with CredentialStore, migrate existing plain-text passwords to secure storage
+2. Clear plain-text passwords from QSettings after successful migration
+3. Add migration flag to prevent re-migration
+
+**Reference Implementation**:
+- QLog: `/Users/toms/projects/qlog/core/CredentialStore.{h,cpp}`
+- QtKeychain docs: https://github.com/frankosterfeld/qtkeychain
+
+**Affected Files**:
+- New: `/src/utils/CredentialStore.{h,cpp}`
+- Update: `/src/config/Settings.cpp` (RadioConfig load/save)
+- Update: `/CMakeLists.txt` (add qtkeychain dependency)
+- Update: `/.github/workflows/build.yml` (CI dependencies)
 
 ## Low Priority
 
