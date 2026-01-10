@@ -106,6 +106,7 @@ private:
     void parseFrequencyResponse(const QByteArray& data, VFO vfo);
     void parseModeResponse(const QByteArray& data, VFO vfo);
     void parsePTTResponse(const QByteArray& data);
+    void parseScopeData(const QByteArray& data);  // Command 0x27 transceive/scope data
 
     // Send CI-V command and optionally wait for response
     bool sendCommand(quint8 command, const QByteArray& data = QByteArray());
