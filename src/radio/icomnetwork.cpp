@@ -759,12 +759,14 @@ void IcomNetwork::cleanup()
 
     // Close sockets
     if (m_controlSocket) {
+        disconnect(m_controlSocket, nullptr, this, nullptr);  // Disconnect all signals before deletion
         m_controlSocket->close();
         m_controlSocket->deleteLater();
         m_controlSocket = nullptr;
     }
 
     if (m_civSocket) {
+        disconnect(m_civSocket, nullptr, this, nullptr);  // Disconnect all signals before deletion
         m_civSocket->close();
         m_civSocket->deleteLater();
         m_civSocket = nullptr;
