@@ -2,6 +2,7 @@
 #include "../../utils/GeographicUtils.h"
 #include "../../utils/ThemeManager.h"
 #include "../../logging/LogMacros.h"
+#include "../../core/Constants.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -33,7 +34,7 @@ GraylineMapDialog::GraylineMapDialog(QWidget* parent)
 {
     setupUi();
     setWindowTitle("Grayline Propagation Map");
-    resize(1100, 600);
+    resize(UIDefaults::GRAYLINE_MAP_WIDTH, UIDefaults::GRAYLINE_MAP_HEIGHT);
 }
 
 GraylineMapDialog::~GraylineMapDialog() {

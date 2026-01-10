@@ -334,10 +334,10 @@ void MainWindow::setupUI() {
     createStatusBar();
 
     // Set minimum height
-    setMinimumHeight(600);
+    setMinimumHeight(UIDefaults::MAIN_WINDOW_MIN_HEIGHT);
 
     // Set initial size (user can resize larger or smaller, but not below minimum)
-    resize(1024, 768);
+    resize(UIDefaults::MAIN_WINDOW_WIDTH, UIDefaults::MAIN_WINDOW_HEIGHT);
 }
 
 void MainWindow::createMenuBar() {
@@ -411,9 +411,9 @@ void MainWindow::createMenuBar() {
             "AUTO S&P Sensitivity",
             "Frequency change threshold (Hz):",
             currentSensitivity,
-            100,
-            100000,
-            100,
+            AUTO_SP_SENSITIVITY_MIN_HZ,
+            AUTO_SP_SENSITIVITY_MAX_HZ,
+            AUTO_SP_SENSITIVITY_STEP_HZ,
             &ok
         );
         if (ok) {
@@ -496,7 +496,7 @@ void MainWindow::createCentralWidget() {
 
     // Needs display widget (top)
     m_needsDisplayWidget = new NeedsDisplayWidget(this);
-    m_needsDisplayWidget->setMinimumWidth(200);
+    m_needsDisplayWidget->setMinimumWidth(UIDefaults::NEEDS_DISPLAY_MIN_WIDTH);
     rightLayout->addWidget(m_needsDisplayWidget);
 
     rightLayout->addStretch();  // Push needs widget to top
@@ -636,14 +636,14 @@ QWidget* MainWindow::createBottomPanel() {
     // Band/Mode label (e.g., "15SSB")
     m_radioFreqBandLabel = new QLabel("--", radioStatusWidget);
     m_radioFreqBandLabel->setFont(labelFont);
-    m_radioFreqBandLabel->setMinimumWidth(80);
+    m_radioFreqBandLabel->setMinimumWidth(UIDefaults::RADIO_FREQ_BAND_LABEL_WIDTH);
     m_radioFreqBandLabel->setAlignment(Qt::AlignCenter);
 
     // Frequency label
     QFont freqFont("Monospace", 10);
     m_radioFreqLabel = new QLabel("0.000 MHz", radioStatusWidget);
     m_radioFreqLabel->setFont(freqFont);
-    m_radioFreqLabel->setMinimumWidth(100);
+    m_radioFreqLabel->setMinimumWidth(UIDefaults::RADIO_FREQ_LABEL_WIDTH);
     m_radioFreqLabel->setAlignment(Qt::AlignCenter);
 
     // Vertical layout for band/mode and frequency
@@ -656,7 +656,7 @@ QWidget* MainWindow::createBottomPanel() {
     m_radioWpmLabel = new QLabel("-- WPM", radioStatusWidget);
     m_radioWpmLabel->setFont(labelFont);
     m_radioWpmLabel->setAlignment(Qt::AlignCenter);
-    m_radioWpmLabel->setMinimumWidth(80);
+    m_radioWpmLabel->setMinimumWidth(UIDefaults::RADIO_WPM_LABEL_WIDTH);
     m_radioWpmLabel->setEnabled(false);  // Grayed out by default
 
     // Date/Time labels - stacked vertically to save width
@@ -665,12 +665,12 @@ QWidget* MainWindow::createBottomPanel() {
     m_radioDateLabel = new QLabel("", radioStatusWidget);
     m_radioDateLabel->setFont(dateTimeFont);
     m_radioDateLabel->setAlignment(Qt::AlignCenter);
-    m_radioDateLabel->setMinimumWidth(120);  // Narrower than single label
+    m_radioDateLabel->setMinimumWidth(UIDefaults::RADIO_DATE_LABEL_WIDTH);  // Narrower than single label
 
     m_radioTimeLabel = new QLabel("", radioStatusWidget);
     m_radioTimeLabel->setFont(dateTimeFont);
     m_radioTimeLabel->setAlignment(Qt::AlignCenter);
-    m_radioTimeLabel->setMinimumWidth(120);
+    m_radioTimeLabel->setMinimumWidth(UIDefaults::RADIO_TIME_LABEL_WIDTH);
 
     // Vertical layout for date and time
     QVBoxLayout* dateTimeLayout = new QVBoxLayout();
@@ -699,7 +699,7 @@ QWidget* MainWindow::createBottomPanel() {
     // CENTER: Entry fields (vertical layout)
     QWidget* entryWidget = new QWidget(this);
     entryWidget->setAutoFillBackground(true);  // Prevent transparent/blank rendering
-    entryWidget->setMinimumWidth(350);  // Prevent SCP label from overlapping entry fields
+    entryWidget->setMinimumWidth(UIDefaults::ENTRY_WIDGET_MIN_WIDTH);  // Prevent SCP label from overlapping entry fields
     QGridLayout* entryLayout = new QGridLayout(entryWidget);
     entryLayout->setSpacing(4);
     entryLayout->setContentsMargins(0, 0, 0, 0);
@@ -737,8 +737,8 @@ QWidget* MainWindow::createBottomPanel() {
     int scpFontSize = settings.getSCPFontSize();
     m_scpMatchesLabel = new QLabel(this);
     m_scpMatchesLabel->setStyleSheet(QString("QLabel { color: #0066cc; font-size: %1pt; }").arg(scpFontSize));
-    m_scpMatchesLabel->setMinimumWidth(120);
-    m_scpMatchesLabel->setMaximumWidth(120);
+    m_scpMatchesLabel->setMinimumWidth(UIDefaults::SCP_MATCHES_LABEL_WIDTH);
+    m_scpMatchesLabel->setMaximumWidth(UIDefaults::SCP_MATCHES_LABEL_WIDTH);
 
     // Calculate max height based on entry field heights (spans 2 rows)
     int entryRowHeight = m_callsignEntry->sizeHint().height();
@@ -784,7 +784,7 @@ QWidget* MainWindow::createBottomPanel() {
     QHBoxLayout* timeRow = new QHBoxLayout();
     m_timeLabel = new QLabel("00:00:00", this);
     m_timeLabel->setFont(monoFont);
-    m_timeLabel->setMinimumWidth(70);  // Fixed width to prevent layout shifts
+    m_timeLabel->setMinimumWidth(UIDefaults::TIME_LABEL_MIN_WIDTH);  // Fixed width to prevent layout shifts
     m_timeLabel->setAlignment(Qt::AlignLeft);
     m_thisHrLabel = new QLabel("This Hr = 0", this);
     m_thisHrLabel->setFont(monoFont);
@@ -822,8 +822,8 @@ QWidget* MainWindow::createBottomPanel() {
 
     // Set size policy: prefer fixed width but can shrink if needed
     statsWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-    statsWidget->setMinimumWidth(200);
-    statsWidget->setMaximumWidth(300);
+    statsWidget->setMinimumWidth(UIDefaults::STATS_WIDGET_MIN_WIDTH);
+    statsWidget->setMaximumWidth(UIDefaults::STATS_WIDGET_MAX_WIDTH);
     bottomLayout->addWidget(statsWidget);
 
     // Connect signals
@@ -2510,7 +2510,6 @@ void MainWindow::updateStationInfo(const QString& callsign) {
     QTime currentTime = now.time();
 
     // Check which specific times are in grayline
-    const int GRAYLINE_WINDOW_MINUTES = 30;
     bool homeInGrayline = GeographicUtils::isInGraylineWindow(now, homeSunrise, homeSunset, GRAYLINE_WINDOW_MINUTES);
 
     // Check DX sunrise grayline
@@ -3236,7 +3235,7 @@ void MainWindow::onFullIntegrityCheck() {
     // Display report
     QDialog* dialog = new QDialog(this);
     dialog->setWindowTitle("Log Integrity Check Report");
-    dialog->resize(600, 400);
+    dialog->resize(UIDefaults::ADIF_IMPORT_PREVIEW_WIDTH, UIDefaults::ADIF_IMPORT_PREVIEW_HEIGHT);
 
     QVBoxLayout* layout = new QVBoxLayout(dialog);
 

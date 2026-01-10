@@ -1,5 +1,6 @@
 #include "Logger.h"
 #include "LogFormatter.h"
+#include "../core/Constants.h"
 #include <QDateTime>
 #include <QThread>
 #include <QFileInfo>
@@ -153,7 +154,7 @@ qint64 Logger::getMaxFileSize() const {
     if (m_fileAppender) {
         return m_fileAppender->maxFileSize();
     }
-    return 10 * 1024 * 1024;  // Default 10MB
+    return DEFAULT_MAX_LOG_FILE_SIZE;
 }
 
 void Logger::setMaxBackupFiles(int count) {

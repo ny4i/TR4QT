@@ -4,6 +4,7 @@
 #include "../../logging/Logger.h"
 #include "../../logging/LogMacros.h"
 #include "../../cw/CWSenderFactory.h"
+#include "../../core/Constants.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
@@ -49,7 +50,7 @@ SendMorseDialog::SendMorseDialog(RadioController* radio, QWidget* parent)
     setupUI();
     loadMacroSettings();
     setWindowTitle("Send Morse Code");
-    resize(500, 300);
+    resize(UIDefaults::SEND_MORSE_WIDTH, UIDefaults::SEND_MORSE_HEIGHT);
 
     // Install event filter on self to catch key events
     installEventFilter(this);

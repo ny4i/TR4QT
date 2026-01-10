@@ -968,8 +968,9 @@ bool K4Radio::setCWSpeed(int wpm)
         return false;
     }
 
-    if (wpm < 8 || wpm > 100) {
-        LOG_ERROR("K4Radio", QString("CW speed out of range: %1 (must be 8-100 WPM)").arg(wpm));
+    if (wpm < MIN_CW_SPEED_WPM || wpm > MAX_CW_SPEED_WPM) {
+        LOG_ERROR("K4Radio", QString("CW speed out of range: %1 (must be %2-%3 WPM)")
+            .arg(wpm).arg(MIN_CW_SPEED_WPM).arg(MAX_CW_SPEED_WPM));
         return false;
     }
 

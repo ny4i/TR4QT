@@ -1,6 +1,7 @@
 #include "FunctionKeysWindow.h"
 #include "SendMorseDialog.h"
 #include "../../utils/AppSettings.h"
+#include "../../core/Constants.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -20,7 +21,7 @@ FunctionKeysWindow::FunctionKeysWindow(QWidget* parent)
     m_autoRefreshTimer->start(2000);  // 2 seconds
 
     setWindowTitle("CW Function Keys Reference");
-    resize(600, 450);
+    resize(UIDefaults::FUNCTION_KEYS_WIDTH, UIDefaults::FUNCTION_KEYS_HEIGHT);
 }
 
 void FunctionKeysWindow::setupUI() {

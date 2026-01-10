@@ -29,6 +29,10 @@ class K4Radio : public RadioInterface {
     Q_OBJECT
 
 public:
+    // K4 CW speed limits (WPM - Words Per Minute)
+    static constexpr int MIN_CW_SPEED_WPM = 8;
+    static constexpr int MAX_CW_SPEED_WPM = 100;
+
     explicit K4Radio(QObject* parent = nullptr);
     ~K4Radio() override;
 

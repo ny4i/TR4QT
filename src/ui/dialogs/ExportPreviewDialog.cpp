@@ -1,5 +1,6 @@
 #include "ExportPreviewDialog.h"
 #include "../../utils/AppSettings.h"
+#include "../../core/Constants.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFileDialog>
@@ -40,7 +41,7 @@ ExportPreviewDialog::ExportPreviewDialog(const QString& title,
 }
 
 void ExportPreviewDialog::setupUI() {
-    resize(800, 600);
+    resize(UIDefaults::EXPORT_PREVIEW_WIDTH, UIDefaults::EXPORT_PREVIEW_HEIGHT);
     
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     

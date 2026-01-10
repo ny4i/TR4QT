@@ -1080,7 +1080,7 @@ void AppSettings::setLogMaxFileSize(qint64 bytes) {
 }
 
 qint64 AppSettings::getLogMaxFileSize() const {
-    return m_settings.value("Logging/maxFileSize", 10 * 1024 * 1024).toLongLong(); // 10 MB default
+    return m_settings.value("Logging/maxFileSize", DEFAULT_MAX_LOG_FILE_SIZE).toLongLong();
 }
 
 void AppSettings::setLogMaxBackupFiles(int count) {
