@@ -21,6 +21,7 @@
 #include "../controllers/CWMessageManager.h"
 #include "../controllers/BandSwitchingManager.h"
 #include "../core/Constants.h"
+#include "../core/BandConstants.h"
 #include "../logging/LogMacros.h"
 #include "../logging/Logger.h"
 #include "../utils/ThemeManager.h"
@@ -5177,22 +5178,14 @@ freq_t MainWindow::getFrequencyForBand(BandType band, ModeType mode) const {
 
     // Return low band edge as visual reminder this is manually set, not from radio
     // Real radio would show frequency within CW/SSB segments
-    switch (band) {
-    case BandType::Band160M:
-        return 1800000;   // 1.800 MHz (band edge)
-    case BandType::Band80M:
-        return 3500000;   // 3.500 MHz (band edge)
-    case BandType::Band40M:
-        return 7000000;   // 7.000 MHz (band edge)
-    case BandType::Band20M:
-        return 14000000;  // 14.000 MHz (band edge)
-    case BandType::Band15M:
-        return 21000000;  // 21.000 MHz (band edge)
-    case BandType::Band10M:
-        return 28000000;  // 28.000 MHz (band edge)
-    default:
-        return 14000000;  // Default to 20m band edge
+    freq_t freq = BandConstants::bandToFrequency(band);
+
+    // If invalid band, default to 20m
+    if (freq == 0) {
+        return BandConstants::BAND_20M_EDGE;
     }
+
+    return freq;
 }
 
 BandType MainWindow::getNextBand(BandType currentBand) const {
