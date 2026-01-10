@@ -3,8 +3,18 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QButtonGroup>
+#include <QMap>
 
 namespace TR4QT {
+
+// Map Hamlib model IDs to default CI-V addresses for known Icom radios
+// Single source of truth - used for both tooltip and auto-configuration
+static const QMap<int, QString> HAMLIB_MODEL_TO_DEFAULT_CIV = {
+    {3073, "94"},  // IC-7300
+    {3078, "98"},  // IC-7610
+    {3092, "B2"},  // IC-7760 (0xB2 per Hamlib and IC-7760 manual)
+    {3093, "A2"}   // IC-9700
+};
 
 CivAddressWidget::CivAddressWidget(QWidget* parent)
     : QWidget(parent)
@@ -50,12 +60,13 @@ void CivAddressWidget::setupUI() {
     m_civAddressEdit->setPlaceholderText("e.g., 94");
     m_civAddressEdit->setMaximumWidth(80);
     m_civAddressEdit->setEnabled(false);  // Disabled by default
-    m_civAddressEdit->setToolTip("Enter CI-V address in hex (without 0x prefix)\n"
-                                   "Common values:\n"
-                                   "  IC-7300: 94\n"
-                                   "  IC-7610: 98\n"
-                                   "  IC-9700: A2\n"
-                                   "  IC-7760: 7C");
+    // Build tooltip dynamically from HAMLIB_MODEL_TO_DEFAULT_CIV map
+    QString tooltip = "Enter CI-V address in hex (without 0x prefix)\nCommon values:\n";
+    tooltip += QString("  IC-7300: %1\n").arg(HAMLIB_MODEL_TO_DEFAULT_CIV.value(3073));
+    tooltip += QString("  IC-7610: %1\n").arg(HAMLIB_MODEL_TO_DEFAULT_CIV.value(3078));
+    tooltip += QString("  IC-9700: %1\n").arg(HAMLIB_MODEL_TO_DEFAULT_CIV.value(3093));
+    tooltip += QString("  IC-7760: %1").arg(HAMLIB_MODEL_TO_DEFAULT_CIV.value(3092));
+    m_civAddressEdit->setToolTip(tooltip);
 
     civCustomLayout->addWidget(m_civCustomRadio);
     civCustomLayout->addWidget(m_civAddressEdit);
@@ -114,17 +125,8 @@ void CivAddressWidget::autoConfigureForRadio(int hamlibModelId) {
         return;
     }
 
-    // Map known Icom radios to their default CI-V addresses
-    QString civAddress;
-    if (hamlibModelId == 3078) {  // IC-7610
-        civAddress = "98";
-    } else if (hamlibModelId == 3092) {  // IC-7760
-        civAddress = "7C";
-    } else if (hamlibModelId == 3073) {  // IC-7300
-        civAddress = "94";
-    } else if (hamlibModelId == 3093) {  // IC-9700
-        civAddress = "A2";
-    }
+    // Look up CI-V address from HAMLIB_MODEL_TO_DEFAULT_CIV map (single source of truth)
+    QString civAddress = HAMLIB_MODEL_TO_DEFAULT_CIV.value(hamlibModelId, QString());
 
     // If we found a known address, set it
     if (!civAddress.isEmpty()) {
