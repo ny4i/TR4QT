@@ -3693,11 +3693,18 @@ void MainWindow::updateTimeDisplay() {
 
 void MainWindow::updateRadioStatusGrid() {
     // Update band/mode (e.g., "15SSB") and frequency
-    // Display even when radio not connected if we have valid band/mode/frequency from manual selection
-    if (m_currentState.frequencyA > 0 && m_currentState.bandA != BandType::None) {
-        QString bandStr = bandToString(m_currentState.bandA).remove('M');  // Remove 'M' from "15M" -> "15"
-        QString modeStr = modeToString(m_currentState.modeA);
-        m_radioFreqBandLabel->setText(QString("%1%2").arg(bandStr).arg(modeStr));
+    // Display frequency and mode even when band is unknown (e.g., outside amateur bands)
+    if (m_currentState.frequencyA > 0) {
+        // Show band+mode if band is known (e.g., "40LSB"), otherwise just mode (e.g., "LSB")
+        if (m_currentState.bandA != BandType::None) {
+            QString bandStr = bandToString(m_currentState.bandA).remove('M');  // Remove 'M' from "15M" -> "15"
+            QString modeStr = modeToString(m_currentState.modeA);
+            m_radioFreqBandLabel->setText(QString("%1%2").arg(bandStr).arg(modeStr));
+        } else {
+            // Unknown band (e.g., outside amateur bands) - just show mode
+            QString modeStr = modeToString(m_currentState.modeA);
+            m_radioFreqBandLabel->setText(modeStr);
+        }
 
         // Update frequency (in MHz with 3 decimal places)
         double freqMHz = m_currentState.frequencyA / 1000000.0;
