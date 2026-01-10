@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.34.4";  // Fix IcomNetwork socket cleanup crash when radio disconnected
+constexpr const char* APP_VERSION = "3.34.5";  // Display frequency/mode even when band unknown (outside amateur bands)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
