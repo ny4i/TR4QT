@@ -4,6 +4,7 @@
 #include "../../contests/ContestMetadata.h"
 #include "../../utils/DialogHelper.h"
 #include "../../utils/PathManager.h"
+#include "../../utils/AppSettings.h"
 #include "../../logging/LogMacros.h"
 #include "../../data/Database.h"
 #include <QVBoxLayout>
@@ -111,6 +112,14 @@ void ContestChooserDialog::setupUI() {
     m_modeCombo = new QComboBox(this);
     m_modeCombo->addItems({"CW", "SSB", "Mixed"});
     newLayout->addRow("Mode:", m_modeCombo);
+
+    // Exchange sent (contest-specific, shown when contest type selected)
+    m_exchangeSentEdit = new QLineEdit(this);
+    m_exchangeSentEdit->setPlaceholderText("e.g., 1H WCF for Winter Field Day");
+    m_exchangeSentLabel = new QLabel("Sent Exchange:", this);
+    newLayout->addRow(m_exchangeSentLabel, m_exchangeSentEdit);
+    m_exchangeSentEdit->setVisible(false);
+    m_exchangeSentLabel->setVisible(false);
 
     // Create button
     QHBoxLayout* createButtonLayout = new QHBoxLayout();
@@ -284,9 +293,11 @@ void ContestChooserDialog::onContestTypeChanged(int index) {
     bool hasValidSelection = !contestType.isEmpty();
     m_createButton->setEnabled(hasValidSelection);
 
-    // If placeholder selected, clear the contest name
+    // If placeholder selected, clear the contest name and hide exchange field
     if (!hasValidSelection) {
         m_contestNameEdit->clear();
+        m_exchangeSentEdit->setVisible(false);
+        m_exchangeSentLabel->setVisible(false);
         return;
     }
     QDateTime now = QDateTime::currentDateTime();
@@ -315,6 +326,23 @@ void ContestChooserDialog::onContestTypeChanged(int index) {
 
         m_contestNameEdit->setText(name);
         m_modeCombo->setCurrentText(modeStr);
+
+        // Show exchange field for contests that need it (currently Winter Field Day)
+        // TODO: Make this more generic by adding needsExchangeConfig to ContestMetadata
+        bool needsExchange = (contestId == "WFD");
+        m_exchangeSentEdit->setVisible(needsExchange);
+        m_exchangeSentLabel->setVisible(needsExchange);
+
+        if (needsExchange) {
+            // Pre-fill exchange from station settings where available
+            // Format for WFD: "Class Section" (e.g., "1H WCF")
+            QString section = AppSettings::instance().getMyARRLSection();
+            QString defaultExchange = section;  // Just section for now, user adds class
+            if (!section.isEmpty()) {
+                m_exchangeSentEdit->setPlaceholderText(QString("e.g., 1H %1").arg(section));
+                m_exchangeSentEdit->setText(defaultExchange);
+            }
+        }
     }
 }
 
@@ -346,8 +374,8 @@ void ContestChooserDialog::onResumeContest() {
         return;
     }
 
-    // Read contest_id, contest_name, contest_type, and start_time from database
-    QSqlQuery query = db.execute("SELECT contest_id, contest_name, contest_type, start_time FROM contests LIMIT 1", {});
+    // Read contest_id, contest_name, contest_type, start_time, and exchange_sent from database
+    QSqlQuery query = db.execute("SELECT contest_id, contest_name, contest_type, start_time, exchange_sent FROM contests LIMIT 1", {});
     if (!query.next()) {
         DialogHelper::warning(this, "Invalid Database",
                            "Contest database has no contest record. The database may be corrupted.");
@@ -359,6 +387,7 @@ void ContestChooserDialog::onResumeContest() {
     QString contestName = query.value(1).toString();
     QString contestType = query.value(2).toString();
     qint64 startTime = query.value(3).toLongLong();
+    QString exchangeSent = query.value(4).toString();
 
     db.close();
 
@@ -369,6 +398,7 @@ void ContestChooserDialog::onResumeContest() {
     m_contestInfo.contestName = contestName;
     m_contestInfo.contestType = contestType;  // Read from database, not filename!
     m_contestInfo.startDate = QDateTime::fromSecsSinceEpoch(startTime);
+    m_contestInfo.exchangeSent = exchangeSent;  // Load exchange from database
 
     // Determine mode from contest_id for backward compatibility
     if (contestId.contains("_CW")) {
@@ -379,8 +409,8 @@ void ContestChooserDialog::onResumeContest() {
         m_contestInfo.mode = "Mixed";
     }
 
-    LOG_DEBUG("ContestChooserDialog", QString("Resume contest: type='%1', mode='%2', name='%3'")
-        .arg(contestType, m_contestInfo.mode, contestName));
+    LOG_DEBUG("ContestChooserDialog", QString("Resume contest: type='%1', mode='%2', name='%3', exchange='%4'")
+        .arg(contestType, m_contestInfo.mode, contestName, exchangeSent));
 
     accept();
 }
@@ -478,9 +508,10 @@ void ContestChooserDialog::onNewContest() {
     m_contestInfo.startDate = startDate;
     m_contestInfo.mode = mode;
     m_contestInfo.databasePath = dbPath;
+    m_contestInfo.exchangeSent = m_exchangeSentEdit->text().trimmed().toUpper();
 
-    LOG_DEBUG("ContestChooserDialog", QString("New contest: id='%1', type='%2', name='%3'")
-        .arg(contestId, contestType, contestName));
+    LOG_DEBUG("ContestChooserDialog", QString("New contest: id='%1', type='%2', name='%3', exchange='%4'")
+        .arg(contestId, contestType, contestName, m_contestInfo.exchangeSent));
 
     accept();
 }

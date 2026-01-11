@@ -27,6 +27,7 @@ struct ActivateContestResult {
     // Contest database info
     int contestDbId = -1;
     int nextSerialNumber = 1;
+    QString exchangeSent;  // Sent exchange (e.g., "1H WCF" for WFD)
 
     // Loaded QSOs (for existing contests)
     QList<QSO> loadedQSOs;
@@ -107,6 +108,7 @@ private:
      * @param contestInfo Contest info
      * @param contestDbId Output: database ID
      * @param nextSerialNumber Output: next serial number
+     * @param exchangeSent Output: sent exchange from database (or contestInfo for new contests)
      * @param loadedQSOs Output: existing QSOs (empty for new contests)
      * @return true on success, false on error
      */
@@ -114,6 +116,7 @@ private:
         const ContestInfo& contestInfo,
         int& contestDbId,
         int& nextSerialNumber,
+        QString& exchangeSent,
         QList<QSO>& loadedQSOs);
 
     /**

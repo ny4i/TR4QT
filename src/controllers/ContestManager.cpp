@@ -36,7 +36,7 @@ ActivateContestResult ContestManager::activateContest(const ContestInfo& contest
     LOG_DEBUG("ContestManager", QString("Database opened: %1").arg(contestInfo.databasePath));
 
     // Find or create contest record, load existing QSOs
-    if (!findOrCreateContestRecord(contestInfo, result.contestDbId, result.nextSerialNumber, result.loadedQSOs)) {
+    if (!findOrCreateContestRecord(contestInfo, result.contestDbId, result.nextSerialNumber, result.exchangeSent, result.loadedQSOs)) {
         result.success = false;
         result.errorMessage = QString("Failed to create/load contest record:\n%1").arg(db.lastError());
         return result;
@@ -60,6 +60,9 @@ ActivateContestResult ContestManager::activateContest(const ContestInfo& contest
         LOG_WARN("ContestManager", QString("Failed to create contest: %1").arg(contestInfo.contestType));
         return result;
     }
+
+    // Configure contest with sent exchange from database
+    result.contest->setExchangeSent(result.exchangeSent);
 
     // Extract exchange field definitions
     result.receivedFields = result.contest->getReceivedExchangeFields();
@@ -86,19 +89,21 @@ bool ContestManager::findOrCreateContestRecord(
     const ContestInfo& contestInfo,
     int& contestDbId,
     int& nextSerialNumber,
+    QString& exchangeSent,
     QList<QSO>& loadedQSOs)
 {
     Database& db = Database::instance();
 
     // Try to find existing contest record
     QSqlQuery query = db.execute(
-        "SELECT id, current_serial FROM contests WHERE contest_id = ?",
+        "SELECT id, current_serial, exchange_sent FROM contests WHERE contest_id = ?",
         {contestInfo.contestId});
 
     if (query.next()) {
         // Existing contest - load data
         contestDbId = query.value(0).toInt();
         nextSerialNumber = query.value(1).toInt();
+        exchangeSent = query.value(2).toString();
         LOG_DEBUG("ContestManager", QString("Resumed contest with DB ID: %1 next serial: %2")
             .arg(contestDbId)
             .arg(nextSerialNumber));
@@ -121,18 +126,21 @@ bool ContestManager::findOrCreateContestRecord(
         AppSettings& settings = AppSettings::instance();
         QDateTime now = QDateTime::currentDateTimeUtc();
 
+        // Use exchange from contestInfo (from ContestChooserDialog)
+        exchangeSent = contestInfo.exchangeSent;
+
         query = db.execute(
             "INSERT INTO contests (contest_id, contest_name, start_time, contest_type, my_call, "
             "my_grid, my_continent, my_cq_zone, my_itu_zone, "
-            "current_serial, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "current_serial, exchange_sent, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             {contestInfo.contestId, contestInfo.contestName,
              contestInfo.startDate.toSecsSinceEpoch(),
              contestInfo.contestType,  // Store contest type (registry ID)
              settings.getMyCallsign(), settings.getMyGridSquare(),
              settings.getMyContinent(),
              settings.getMyCQZone(), settings.getMyITUZone(),
-             1, now.toSecsSinceEpoch()});
+             1, exchangeSent, now.toSecsSinceEpoch()});
 
         if (!query.isActive()) {
             LOG_ERROR("ContestManager", QString("Failed to create contest record: %1").arg(db.lastError()));
@@ -142,7 +150,8 @@ bool ContestManager::findOrCreateContestRecord(
         contestDbId = db.lastInsertId();
         nextSerialNumber = 1;
         loadedQSOs.clear();  // No QSOs for new contest
-        LOG_DEBUG("ContestManager", QString("Created new contest with DB ID: %1").arg(contestDbId));
+        LOG_DEBUG("ContestManager", QString("Created new contest with DB ID: %1 exchange: '%2'")
+            .arg(contestDbId).arg(exchangeSent));
     }
 
     return true;
