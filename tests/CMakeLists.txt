@@ -297,3 +297,35 @@ add_tr4qt_test(test_data_integrity
     ../src/logging/LogFormatter.cpp
     ../src/logging/FileAppender.cpp
 )
+
+# K4Radio Simulator Integration tests (Direct K4 protocol implementation)
+# Tests K4Radio's direct Elecraft K4 protocol using Hamlib's K4 simulator
+# Note: Requires Hamlib K4 simulator built at ../hamlib/build/simelecraftk4
+#       Test will SKIP gracefully if simulator not found (optional integration test)
+add_executable(test_k4radio_simulator
+    test_k4radio_simulator.cpp
+    TcpToPtyBridge.h  # Glue code: bridges TCP (K4Radio) to PTY (simulator)
+)
+
+# Link against tr4qt_core object library (provides K4Radio, logging, types)
+target_link_libraries(test_k4radio_simulator PRIVATE
+    tr4qt_core  # Object library with K4Radio, RadioInterface, Logger, Types
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    Qt6::SerialPort
+    ${HAMLIB_LIBRARIES}
+)
+
+# Add include directories
+target_include_directories(test_k4radio_simulator PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${HAMLIB_INCLUDE_DIRS}
+)
+
+# Register with CTest
+add_test(NAME test_k4radio_simulator COMMAND test_k4radio_simulator)
+
+# Set longer timeout for simulator integration tests (startup overhead)
+set_tests_properties(test_k4radio_simulator PROPERTIES TIMEOUT 60)
