@@ -149,38 +149,19 @@ void ContestChooserDialog::populateContestTypes() {
     QList<ContestWithDate> undatedContests;
 
     // Separate contests into dated (has floating dates) and undated
+    // Each contest appears once in the dropdown - mode is selected separately
     for (const ContestMetadata& meta : allContests) {
-        if (meta.hasSeparateContests) {
-            // Add separate entries for CW and SSB/Phone
-            for (ModeType mode : meta.supportedModes) {
-                if (mode == ModeType::None) continue;  // Skip "Mixed" mode indicator
+        ContestWithDate cwd;
+        cwd.meta = meta;
+        cwd.mode = ModeType::None;  // Mode will be selected separately in Mode combo
+        cwd.displayName = meta.displayName;
 
-                ContestWithDate cwd;
-                cwd.meta = meta;
-                cwd.mode = mode;
-                cwd.displayName = meta.getDisplayName(mode);
-
-                // Calculate next occurrence if floating dates exist
-                if (!meta.floatingDates.isEmpty()) {
-                    cwd.nextOccurrence = meta.floatingDates[0].calculateNextOccurrence();
-                    datedContests.append(cwd);
-                } else {
-                    undatedContests.append(cwd);
-                }
-            }
+        // Calculate next occurrence if floating dates exist
+        if (!meta.floatingDates.isEmpty()) {
+            cwd.nextOccurrence = meta.floatingDates[0].calculateNextOccurrence();
+            datedContests.append(cwd);
         } else {
-            // Single entry for mixed-mode contests
-            ContestWithDate cwd;
-            cwd.meta = meta;
-            cwd.mode = ModeType::None;  // Mixed mode
-            cwd.displayName = meta.displayName;
-
-            if (!meta.floatingDates.isEmpty()) {
-                cwd.nextOccurrence = meta.floatingDates[0].calculateNextOccurrence();
-                datedContests.append(cwd);
-            } else {
-                undatedContests.append(cwd);
-            }
+            undatedContests.append(cwd);
         }
     }
 
