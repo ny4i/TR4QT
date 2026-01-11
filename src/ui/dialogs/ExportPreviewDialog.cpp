@@ -14,6 +14,7 @@
 #include <QFont>
 #include <QTimer>
 #include <QDir>
+#include <QStandardPaths>
 
 namespace TR4QT {
 
@@ -100,10 +101,11 @@ void ExportPreviewDialog::onCopyToClipboard() {
 }
 
 void ExportPreviewDialog::onSaveToFile() {
+    QString desktopPath = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
     QString fileName = QFileDialog::getSaveFileName(
         this,
         "Save Export File",
-        QDir::homePath() + "/" + m_defaultFileName,
+        desktopPath + "/" + m_defaultFileName,  // Default to Desktop
         m_fileFilter);
     
     if (fileName.isEmpty()) {

@@ -14,6 +14,8 @@
 #include "../../utils/DialogHelper.h"
 #include <QFileInfo>
 #include <QCheckBox>
+#include <QDir>
+#include <QStandardPaths>
 
 namespace TR4QT {
 
@@ -104,7 +106,7 @@ void ADIFImportDialog::onSelectFileClicked() {
     QString fileName = QFileDialog::getOpenFileName(
         this,
         "Select ADIF File",
-        QString(),
+        QStandardPaths::writableLocation(QStandardPaths::DesktopLocation),  // Default to Desktop
         "ADIF Files (*.adi *.adif);;All Files (*.*)"
     );
 

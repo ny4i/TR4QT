@@ -4004,6 +4004,20 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     m_integrityManager = new DataIntegrityManager(integrityConfig);
     LOG_DEBUG("MainWindow", "DataIntegrityManager created for contest");
 
+    // Update ImportExportManager with new contest configuration (if it exists)
+    // Note: During startup, reopenLastContest() runs before ImportExportManager is created
+    if (m_importExportManager) {
+        ImportExportManager::Config importExportConfig;
+        importExportConfig.countryFile = &m_countryFile;
+        importExportConfig.qsoTableModel = m_qsoTableModel;
+        importExportConfig.activeContest = m_activeContest;
+        importExportConfig.currentContestDbId = m_currentContestDbId;
+        importExportConfig.currentContestName = m_currentContest.contestName;
+        importExportConfig.hasActiveContest = m_hasActiveContest;
+        m_importExportManager->updateConfig(importExportConfig);
+        LOG_DEBUG("MainWindow", "ImportExportManager updated for contest");
+    }
+
     // Update DX Cluster window with active contest (for dupe/mult checking)
     if (m_dxClusterWindow) {
         m_dxClusterWindow->setActiveContest(m_activeContest, m_currentContestDbId);
