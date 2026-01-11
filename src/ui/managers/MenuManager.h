@@ -53,6 +53,7 @@ public:
         std::function<void()> onDownloadSCP;
         std::function<void()> onInitialize;
         std::function<void()> onRescoreContest;
+        std::function<void()> onEditContestSettings;
         std::function<void()> onFullIntegrityCheck;
         std::function<void()> onToggleWebServer;
         std::function<void()> onResetWindowPositions;

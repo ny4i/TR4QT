@@ -7,6 +7,7 @@
 #include <QLineEdit>
 #include <QDateTimeEdit>
 #include <QPushButton>
+#include <QLabel>
 
 namespace TR4QT {
 
@@ -21,6 +22,7 @@ struct ContestInfo {
     QString mode;               // "CW", "SSB", "Mixed"
     bool isExisting;            // true if resuming existing contest
     QString databasePath;       // Full path to database file
+    QString exchangeSent;       // Contest-specific sent exchange (e.g., "1H WCF" for WFD)
 };
 
 /**
@@ -67,6 +69,8 @@ private:
     QLineEdit* m_contestNameEdit;
     QDateTimeEdit* m_startDateEdit;
     QComboBox* m_modeCombo;
+    QLineEdit* m_exchangeSentEdit;
+    QLabel* m_exchangeSentLabel;
     QPushButton* m_createButton;
 
     // Selected contest info

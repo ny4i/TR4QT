@@ -69,6 +69,7 @@ struct MultiplierDefinition {
 class ContestBase {
 protected:
     StationInfo m_myStation;  // Operating station information
+    QString m_exchangeSent;    // Contest-specific sent exchange (e.g., "1H WCF" for WFD)
 
 public:
     /**
@@ -87,6 +88,23 @@ public:
      */
     virtual void updateStationInfo(const StationInfo& station) {
         m_myStation = station;
+    }
+
+    /**
+     * Set contest-specific sent exchange
+     * Called after contest creation to configure the exchange from database
+     * @param exchangeSent Sent exchange string (e.g., "1H WCF" for WFD)
+     */
+    virtual void setExchangeSent(const QString& exchangeSent) {
+        m_exchangeSent = exchangeSent;
+    }
+
+    /**
+     * Get contest-specific sent exchange
+     * @return Sent exchange string (e.g., "1H WCF" for WFD)
+     */
+    virtual QString getExchangeSent() const {
+        return m_exchangeSent;
     }
 
     // ===== Contest Identity =====

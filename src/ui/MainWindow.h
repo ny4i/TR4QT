@@ -192,6 +192,7 @@ private slots:
     void onPeriodicIntegrityCheck();  // Tier 2: Periodic check
     void onFullIntegrityCheck();      // Tier 3: On-demand full check
     void onRescoreContest();          // Rescore entire contest (points + mults)
+    void onEditContestSettings();     // Edit contest-specific settings (exchange, etc.)
 
     // UDP log rebroadcast
     void onRebroadcastLog();          // UDP command: rebroadcast entire log

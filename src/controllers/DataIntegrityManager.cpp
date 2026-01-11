@@ -19,8 +19,14 @@ bool DataIntegrityManager::quickIntegrityCheck(int memoryCount)
         return true;  // No active contest
     }
 
-    // Count non-deleted QSOs in database
+    // Check if database is open before running integrity check
     Database& db = Database::instance();
+    if (!db.isOpen()) {
+        LOG_DEBUG("DataIntegrityManager", "Skipping integrity check - database is not open");
+        return true;  // Not an error, just skip the check
+    }
+
+    // Count non-deleted QSOs in database
     QSqlQuery query = db.execute(
         "SELECT COUNT(*) FROM qsos WHERE contest_id = ? AND deleted = 0",
         {m_config.currentContestDbId});
@@ -49,6 +55,15 @@ QString DataIntegrityManager::fullIntegrityCheck(const QList<QSO>& memoryQSOs, b
 
     int memoryCount = memoryQSOs.size();
     Database& db = Database::instance();
+
+    // Check if database is open before running integrity checks
+    if (!db.isOpen()) {
+        report += "✗ CRITICAL: Database is not open!\n\n";
+        report += "Cannot perform integrity check on closed database.\n";
+        report += "This may occur if the contest was closed or the database connection failed.\n\n";
+        report += "=== END OF REPORT ===\n";
+        return report;
+    }
 
     // CRITICAL: Checkpoint WAL to ensure all recent writes are visible
     // Without this, the integrity check may report false positives for recently-logged QSOs

@@ -116,10 +116,9 @@ QString WinterFieldDayContest::formatSentExchange(int serialNumber, const QStrin
     Q_UNUSED(serialNumber);
     Q_UNUSED(rst);
 
-    // Exchange should come from station settings
-    // Format: "Class Section" (e.g., "1O WMA")
-    // This will be populated from StationInfo in the logging system
-    return "1O WMA";  // Placeholder - actual value from settings
+    // Return configured exchange from database (e.g., "1H WCF")
+    // This was set by ContestManager after reading from contests.exchange_sent
+    return m_exchangeSent;
 }
 
 bool WinterFieldDayContest::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {

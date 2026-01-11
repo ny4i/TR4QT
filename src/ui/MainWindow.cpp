@@ -378,6 +378,7 @@ void MainWindow::createMenuBar() {
     config.onDownloadSCP = [this]() { onDownloadSCP(); };
     config.onInitialize = [this]() { onInitialize(); };
     config.onRescoreContest = [this]() { onRescoreContest(); };
+    config.onEditContestSettings = [this]() { onEditContestSettings(); };
     config.onFullIntegrityCheck = [this]() { onFullIntegrityCheck(); };
     config.onToggleWebServer = [this]() { onToggleWebServer(); };
     config.onResetWindowPositions = [this]() { onResetWindowPositions(); };
@@ -3062,13 +3063,19 @@ bool MainWindow::quickIntegrityCheck() {
         return true;  // Nothing to check
     }
 
+    // Check if database is open before running integrity check
+    Database& db = Database::instance();
+    if (!db.isOpen()) {
+        LOG_DEBUG("MainWindow", "Skipping integrity check - database is not open");
+        return true;  // Not an error, just skip the check
+    }
+
     // Delegate to DataIntegrityManager
     int memoryCount = m_qsoTableModel->count();
     bool result = m_integrityManager->quickIntegrityCheck(memoryCount);
 
     if (!result) {
         // Get actual counts for mismatch handler
-        Database& db = Database::instance();
         QSqlQuery query = db.execute(
             "SELECT COUNT(*) FROM qsos WHERE contest_id = ? AND deleted = 0",
             {m_currentContestDbId});
@@ -3220,6 +3227,121 @@ void MainWindow::onRescoreContest() {
         .arg(stats.qsosUpdated).arg(stats.multsMarked).arg(stats.dupesFound));
 }
 
+void MainWindow::onEditContestSettings() {
+    if (!m_hasActiveContest || !m_activeContest) {
+        DialogHelper::information(this, "Edit Contest Settings",
+            "No active contest. Create or resume a contest first.");
+        return;
+    }
+
+    // Get current exchange sent from the active contest
+    QString currentExchange = m_activeContest->getExchangeSent();
+
+    // Show input dialog to edit exchange
+    bool ok;
+    QString newExchange = QInputDialog::getText(
+        this,
+        "Edit Contest Settings",
+        QString("Sent Exchange for %1:\n\nEnter the exchange you are sending (e.g., \"1H WCF\" for Winter Field Day)").arg(m_currentContest.contestName),
+        QLineEdit::Normal,
+        currentExchange,
+        &ok
+    );
+
+    if (!ok || newExchange.trimmed().isEmpty()) {
+        return;  // User cancelled or entered empty exchange
+    }
+
+    newExchange = newExchange.trimmed().toUpper();
+
+    // Check if exchange actually changed
+    if (newExchange == currentExchange) {
+        DialogHelper::information(this, "Edit Contest Settings",
+            "Exchange not changed.");
+        return;
+    }
+
+    // Update database
+    Database& db = Database::instance();
+    QSqlQuery query = db.execute(
+        "UPDATE contests SET exchange_sent = ? WHERE id = ?",
+        {newExchange, m_currentContestDbId}
+    );
+
+    if (query.lastError().isValid()) {
+        DialogHelper::critical(this, "Database Error",
+            QString("Failed to update contest settings:\n%1").arg(query.lastError().text()));
+        return;
+    }
+
+    // Update active contest instance
+    m_activeContest->setExchangeSent(newExchange);
+
+    // Log the change
+    LOG_INFO("MainWindow", QString("Updated contest exchange from \"%1\" to \"%2\"")
+        .arg(currentExchange).arg(newExchange));
+
+    // Update all existing QSOs with the new exchange
+    int qsoCount = m_qsoTableModel->count();
+    if (qsoCount > 0) {
+        m_statusLabel->setText(QString("Updating %1 QSO records with new exchange...").arg(qsoCount));
+        QApplication::processEvents();
+
+        int updatedCount = 0;
+        for (int row = 0; row < qsoCount; ++row) {
+            QSO qso = m_qsoTableModel->getQSO(row);
+
+            // Generate new exchangeSent using contest's formatSentExchange method
+            // For WFD, this will use the new m_exchangeSent value
+            QString newExchangeSent = m_activeContest->formatSentExchange(qso.serialNumber, qso.rstSent);
+
+            // Update QSO record
+            qso.exchangeSent = newExchangeSent;
+
+            // Update in database
+            QSqlQuery updateQuery = db.execute(
+                "UPDATE qsos SET exchange_sent = ? WHERE id = ?",
+                {newExchangeSent, qso.id}
+            );
+
+            if (updateQuery.lastError().isValid()) {
+                LOG_WARN("MainWindow", QString("Failed to update QSO %1: %2")
+                    .arg(qso.id).arg(updateQuery.lastError().text()));
+            } else {
+                updatedCount++;
+            }
+
+            // Update in table model
+            m_qsoTableModel->updateQSO(row, qso);
+        }
+
+        LOG_INFO("MainWindow", QString("Updated exchangeSent for %1 QSOs").arg(updatedCount));
+        m_statusLabel->setText(QString("Updated %1 QSO records with new exchange: %2").arg(updatedCount).arg(newExchange));
+    } else {
+        m_statusLabel->setText(QString("Contest exchange updated to: %1").arg(newExchange));
+    }
+
+    // Ask if user wants to rescore (to recalculate points and multipliers)
+    if (qsoCount > 0) {
+        QMessageBox::StandardButton reply = DialogHelper::question(
+            this,
+            "Rescore Contest?",
+            QString("Exchange updated successfully for %1 QSOs!\n\n"
+                    "Old exchange: %2\n"
+                    "New exchange: %3\n\n"
+                    "Would you like to rescore the contest to recalculate points and multipliers?")
+                .arg(qsoCount)
+                .arg(currentExchange.isEmpty() ? "(none)" : currentExchange)
+                .arg(newExchange),
+            QMessageBox::Yes | QMessageBox::No
+        );
+
+        if (reply == QMessageBox::Yes) {
+            onRescoreContest();
+        }
+    }
+}
+
 void MainWindow::onFullIntegrityCheck() {
     if (!m_hasActiveContest || !m_qsoTableModel) {
         DialogHelper::information(this, "Integrity Check",
@@ -3265,6 +3387,15 @@ QString MainWindow::fullIntegrityCheck(bool criticalOnly) {
 
     int memoryCount = m_qsoTableModel->count();
     Database& db = Database::instance();
+
+    // Check if database is open before running integrity checks
+    if (!db.isOpen()) {
+        report += "✗ CRITICAL: Database is not open!\n\n";
+        report += "Cannot perform integrity check on closed database.\n";
+        report += "This may occur if the contest was closed or the database connection failed.\n\n";
+        report += "=== END OF REPORT ===\n";
+        return report;
+    }
 
     // CRITICAL: Checkpoint WAL to ensure all recent writes are visible
     // Without this, the integrity check may report false positives for recently-logged QSOs

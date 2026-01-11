@@ -185,6 +185,10 @@ void MenuManager::createToolsMenu(QMenuBar* menuBar, const Config& config) {
     QAction* rescoreAction = toolsMenu->addAction("Rescore Contest");
     connect(rescoreAction, &QAction::triggered, this, config.onRescoreContest);
 
+    // Edit contest settings (exchange, etc.)
+    QAction* editContestAction = toolsMenu->addAction("Edit Contest Settings...");
+    connect(editContestAction, &QAction::triggered, this, config.onEditContestSettings);
+
     // Data integrity check
     QAction* integrityCheckAction = toolsMenu->addAction("Validate Log Integrity");
     integrityCheckAction->setShortcut(QKeySequence("Alt+I"));
