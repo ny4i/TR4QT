@@ -29,7 +29,10 @@ ContestMetadata WinterFieldDayContest::getMetadata() {
     meta.adifContestIdSSB = "";
     meta.adifContestIdMixed = ADIF_CONTEST_ID;
 
-    meta.schedule = "Last full weekend of January";
+    meta.schedule = "4th full weekend of January";
+    meta.floatingDates = {
+        FloatingDate(1, "4th full weekend")  // January
+    };
     meta.website = "https://www.winterfieldday.com/";
     meta.description = "Portable operations in winter conditions. Exchange: Class + ARRL/RAC Section.";
 

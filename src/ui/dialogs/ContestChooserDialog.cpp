@@ -21,6 +21,7 @@
 #include <QHeaderView>
 #include <QBrush>
 #include <QSqlQuery>
+#include <algorithm>
 
 namespace TR4QT {
 
@@ -89,6 +90,7 @@ void ContestChooserDialog::setupUI() {
 
     // Contest type
     m_contestTypeCombo = new QComboBox(this);
+    m_contestTypeCombo->addItem("-- Select Contest Type --", "");  // Placeholder
     populateContestTypes();
     connect(m_contestTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &ContestChooserDialog::onContestTypeChanged);
@@ -126,29 +128,94 @@ void ContestChooserDialog::setupUI() {
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     mainLayout->addWidget(buttonBox);
 
-    // Initialize with default contest type
-    onContestTypeChanged(0);
+    // Start with placeholder selected (don't auto-select first contest)
+    m_contestTypeCombo->setCurrentIndex(0);  // Placeholder
+    m_createButton->setEnabled(false);  // Disable until contest selected
 }
 
 void ContestChooserDialog::populateContestTypes() {
     // Get all registered contests from the factory
-    QList<ContestMetadata> contests = ContestRegistry::instance().availableContests();
+    QList<ContestMetadata> allContests = ContestRegistry::instance().availableContests();
 
-    for (const ContestMetadata& meta : contests) {
+    // Structure to hold contest info with next occurrence date
+    struct ContestWithDate {
+        ContestMetadata meta;
+        ModeType mode;
+        QDate nextOccurrence;
+        QString displayName;
+    };
+
+    QList<ContestWithDate> datedContests;
+    QList<ContestWithDate> undatedContests;
+
+    // Separate contests into dated (has floating dates) and undated
+    for (const ContestMetadata& meta : allContests) {
         if (meta.hasSeparateContests) {
             // Add separate entries for CW and SSB/Phone
             for (ModeType mode : meta.supportedModes) {
                 if (mode == ModeType::None) continue;  // Skip "Mixed" mode indicator
 
-                QString displayName = meta.getDisplayName(mode);
-                // Store base contest ID without mode suffix
-                // Mode is selected separately via mode combo box
-                m_contestTypeCombo->addItem(displayName, meta.id);
+                ContestWithDate cwd;
+                cwd.meta = meta;
+                cwd.mode = mode;
+                cwd.displayName = meta.getDisplayName(mode);
+
+                // Calculate next occurrence if floating dates exist
+                if (!meta.floatingDates.isEmpty()) {
+                    cwd.nextOccurrence = meta.floatingDates[0].calculateNextOccurrence();
+                    datedContests.append(cwd);
+                } else {
+                    undatedContests.append(cwd);
+                }
             }
         } else {
             // Single entry for mixed-mode contests
-            m_contestTypeCombo->addItem(meta.displayName, meta.id);
+            ContestWithDate cwd;
+            cwd.meta = meta;
+            cwd.mode = ModeType::None;  // Mixed mode
+            cwd.displayName = meta.displayName;
+
+            if (!meta.floatingDates.isEmpty()) {
+                cwd.nextOccurrence = meta.floatingDates[0].calculateNextOccurrence();
+                datedContests.append(cwd);
+            } else {
+                undatedContests.append(cwd);
+            }
         }
+    }
+
+    // Sort dated contests by next occurrence (soonest first)
+    std::sort(datedContests.begin(), datedContests.end(),
+              [](const ContestWithDate& a, const ContestWithDate& b) {
+                  // Put invalid dates at the end
+                  if (!a.nextOccurrence.isValid()) return false;
+                  if (!b.nextOccurrence.isValid()) return true;
+                  return a.nextOccurrence < b.nextOccurrence;
+              });
+
+    // Add dated contests with next occurrence date in label
+    for (const ContestWithDate& cwd : datedContests) {
+        QString label = cwd.displayName;
+        if (cwd.nextOccurrence.isValid()) {
+            // Format: "ARRL Sweepstakes - CW (Nov 2)"
+            label += QString(" (%1)").arg(cwd.nextOccurrence.toString("MMM d"));
+        }
+        m_contestTypeCombo->addItem(label, cwd.meta.id);
+    }
+
+    // Add separator between dated and undated contests
+    if (!datedContests.isEmpty() && !undatedContests.isEmpty()) {
+        m_contestTypeCombo->insertSeparator(m_contestTypeCombo->count());
+    }
+
+    // Add undated contests (alphabetically)
+    std::sort(undatedContests.begin(), undatedContests.end(),
+              [](const ContestWithDate& a, const ContestWithDate& b) {
+                  return a.displayName < b.displayName;
+              });
+
+    for (const ContestWithDate& cwd : undatedContests) {
+        m_contestTypeCombo->addItem(cwd.displayName, cwd.meta.id);
     }
 }
 
@@ -231,6 +298,16 @@ void ContestChooserDialog::onContestTypeChanged(int index) {
     Q_UNUSED(index);
 
     QString contestType = m_contestTypeCombo->currentData().toString();
+
+    // Enable/disable create button based on selection
+    bool hasValidSelection = !contestType.isEmpty();
+    m_createButton->setEnabled(hasValidSelection);
+
+    // If placeholder selected, clear the contest name
+    if (!hasValidSelection) {
+        m_contestNameEdit->clear();
+        return;
+    }
     QDateTime now = QDateTime::currentDateTime();
 
     // Parse contest ID and mode from contestType (e.g., "CQWW_CW" or "WFD")

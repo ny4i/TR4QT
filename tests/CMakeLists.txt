@@ -329,3 +329,10 @@ add_test(NAME test_k4radio_simulator COMMAND test_k4radio_simulator)
 
 # Set longer timeout for simulator integration tests (startup overhead)
 set_tests_properties(test_k4radio_simulator PROPERTIES TIMEOUT 60)
+
+# FloatingDate calculation tests (contest date scheduling)
+add_tr4qt_test(test_floating_dates
+    test_floating_dates.cpp
+    ../src/contests/ContestMetadata.cpp
+    ../src/core/Types.cpp
+)

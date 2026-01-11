@@ -1,6 +1,4 @@
-#include "ARRLDXContest.h"
-#include "ContestRegistry.h"
-#include "ContestMetadata.h"
+#include "ARRLDXBase.h"
 #include "../models/QSO.h"
 #include "../utils/ArrlSectionHelper.h"
 #include "RSTValidator.h"
@@ -8,64 +6,13 @@
 
 namespace TR4QT {
 
-ContestMetadata ARRLDXContest::getMetadata() {
-    ContestMetadata meta;
-    meta.id = "ARRL_DX";
-    meta.displayName = "ARRL International DX Contest";
-    meta.shortName = "ARRL DX";
-    meta.supportedModes = {ModeType::CW, ModeType::USB};
-    meta.hasSeparateContests = true;  // Separate CW and SSB contests
-
-    meta.wa7bnmIdCW = WA7BNM_ID_CW;
-    meta.wa7bnmIdSSB = WA7BNM_ID_SSB;
-    meta.wa7bnmIdMixed = 0;
-
-    meta.cabrilloNameCW = CABRILLO_NAME_CW;
-    meta.cabrilloNameSSB = CABRILLO_NAME_SSB;
-    meta.cabrilloNameMixed = "";
-
-    meta.adifContestIdCW = ADIF_CONTEST_ID_CW;
-    meta.adifContestIdSSB = ADIF_CONTEST_ID_SSB;
-    meta.adifContestIdMixed = "";
-
-    meta.schedule = "CW: 3rd full weekend of February, Phone: 1st full weekend of March";
-    meta.website = "https://contests.arrl.org/";
-    meta.description = "W/VE stations work DX only. W/VE send RST+State, DX sends RST+Power.";
-
-    return meta;
-}
-
-ContestBase* ARRLDXContest::create(ModeType mode, const StationInfo& myStation) {
-    return new ARRLDXContest(mode, myStation);
-}
-
-ARRLDXContest::ARRLDXContest(ModeType mode, const StationInfo& myStation)
-    : ContestBase(myStation)
-    , m_mode(mode)
-{
-}
-
-QString ARRLDXContest::getContestId() const {
-    return m_mode == ModeType::CW ? "ARRL_DX_CW" : "ARRL_DX_SSB";
-}
-
-QString ARRLDXContest::getContestName() const {
-    return m_mode == ModeType::CW ?
-           "ARRL International DX Contest - CW" :
-           "ARRL International DX Contest - SSB";
-}
-
-QString ARRLDXContest::getADIFContestId() const {
-    return m_mode == ModeType::CW ? ADIF_CONTEST_ID_CW : ADIF_CONTEST_ID_SSB;
-}
-
-QList<ExchangeField> ARRLDXContest::getReceivedExchangeFields() const {
+QList<ExchangeField> ARRLDXBase::getReceivedExchangeFields() const {
     QList<ExchangeField> fields;
 
     // RST
     ExchangeField rst;
     rst.name = "RST";
-    rst.hint = RSTValidator::getDefault(m_mode);
+    rst.hint = RSTValidator::getDefault(getContestMode());
     rst.autoFill = true;
     rst.maxLength = 3;
     fields.append(rst);
@@ -81,7 +28,7 @@ QList<ExchangeField> ARRLDXContest::getReceivedExchangeFields() const {
     return fields;
 }
 
-QList<ExchangeField> ARRLDXContest::getSentExchangeFields() const {
+QList<ExchangeField> ARRLDXBase::getSentExchangeFields() const {
     QList<ExchangeField> fields;
 
     // W/VE sends State/Province
@@ -95,18 +42,18 @@ QList<ExchangeField> ARRLDXContest::getSentExchangeFields() const {
     return fields;
 }
 
-QList<TableColumn> ARRLDXContest::getTableColumns() const {
+QList<TableColumn> ARRLDXBase::getTableColumns() const {
     return {
         TableColumn("State", "QTH/Pwr", 80, TableColumn::Alignment::Left)
     };
 }
 
-QString ARRLDXContest::formatSentExchange(int serialNumber, const QString& rst) const {
+QString ARRLDXBase::formatSentExchange(int serialNumber, const QString& rst) const {
     Q_UNUSED(serialNumber);
     return rst + " {STATE}";
 }
 
-bool ARRLDXContest::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
+bool ARRLDXBase::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     if (parts.isEmpty()) {
@@ -120,8 +67,9 @@ bool ARRLDXContest::validateReceivedExchange(const QString& exchange, QString& e
     } else if (parts.size() == 2) {
         // RST + State/Power
         QString rst = parts[0];
-        if (!RSTValidator::isValid(rst, m_mode)) {
-            QString expectedFormat = (m_mode == ModeType::CW) ?
+        ModeType mode = getContestMode();
+        if (!RSTValidator::isValid(rst, mode)) {
+            QString expectedFormat = (mode == ModeType::CW || mode == ModeType::CWR) ?
                 "3 digits (e.g., 599)" : "2-3 digits (e.g., 59)";
             errorMsg = QString("Invalid RST format. Expected %1").arg(expectedFormat);
             return false;
@@ -144,10 +92,10 @@ bool ARRLDXContest::validateReceivedExchange(const QString& exchange, QString& e
     return true;
 }
 
-void ARRLDXContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
+void ARRLDXBase::parseReceivedExchange(const QString& exchange, QSO& qso) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
-    QString rst = RSTValidator::getDefault(m_mode);
+    QString rst = RSTValidator::getDefault(getContestMode());
     QString stateOrPower;
 
     if (parts.size() == 1) {
@@ -173,7 +121,7 @@ void ARRLDXContest::parseReceivedExchange(const QString& exchange, QSO& qso) con
     formatExchangeReceived(exchange, qso);
 }
 
-int ARRLDXContest::calculateQSOPoints(
+int ARRLDXBase::calculateQSOPoints(
     const QSO& qso,
     const StationInfo& myStation) const
 {
@@ -182,7 +130,7 @@ int ARRLDXContest::calculateQSOPoints(
     return 3;  // 3 points per QSO
 }
 
-int ARRLDXContest::calculateTotalScore(
+int ARRLDXBase::calculateTotalScore(
     int totalQSOPoints,
     const QMap<MultiplierType, int>& multiplierCounts) const
 {
@@ -195,7 +143,7 @@ int ARRLDXContest::calculateTotalScore(
     return totalQSOPoints * totalMults;
 }
 
-QList<MultiplierDefinition> ARRLDXContest::getMultiplierTypes() const {
+QList<MultiplierDefinition> ARRLDXBase::getMultiplierTypes() const {
     // Location-dependent multipliers:
     // - W/VE stations work DX countries (DXCC)
     // - DX stations work W/VE states/provinces
@@ -210,7 +158,7 @@ QList<MultiplierDefinition> ARRLDXContest::getMultiplierTypes() const {
     }
 }
 
-QString ARRLDXContest::getMultiplierValue(
+QString ARRLDXBase::getMultiplierValue(
     const QSO& qso,
     MultiplierType multType,
     const QStringList& alreadyWorkedValues) const
@@ -235,7 +183,7 @@ QString ARRLDXContest::getMultiplierValue(
     return value;
 }
 
-bool ARRLDXContest::isValidQSO(
+bool ARRLDXBase::isValidQSO(
     const QSO& qso,
     const StationInfo& myStation,
     QString& errorMsg) const
@@ -258,13 +206,7 @@ bool ARRLDXContest::isValidQSO(
     return true;
 }
 
-QMap<QString, QString> ARRLDXContest::getCabrilloHeaders() const {
-    QMap<QString, QString> headers;
-    headers["CONTEST"] = (m_mode == ModeType::CW) ? CABRILLO_NAME_CW : CABRILLO_NAME_SSB;
-    return headers;
-}
-
-bool ARRLDXContest::isWVEStation(const StationInfo& station) {
+bool ARRLDXBase::isWVEStation(const StationInfo& station) {
     QString country = station.country.toUpper();
     return (country.contains("UNITED STATES") ||
             country.contains("CANADA") ||
@@ -273,13 +215,10 @@ bool ARRLDXContest::isWVEStation(const StationInfo& station) {
             country == "CANADA");
 }
 
-bool ARRLDXContest::isValidPower(const QString& power) {
+bool ARRLDXBase::isValidPower(const QString& power) {
     bool ok;
     int p = power.toInt(&ok);
     return ok && p >= 1 && p <= 2000;  // Typical range: 5, 10, 50, 100, 500, 1000, 1500
 }
 
 } // namespace TR4QT
-
-// Deprecated: Contest has been split into ARRLDXCWContest and ARRLDXPhoneContest
-// REGISTER_CONTEST(TR4QT::ARRLDXContest, "ARRL_DX");

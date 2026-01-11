@@ -106,7 +106,26 @@
       "Bash(./verify_band_constants)",
       "Bash(defaults read:*)",
       "Bash(plutil:*)",
-      "Bash(rigctl --list:*)"
+      "Bash(rigctl --list:*)",
+      "Bash(wait)",
+      "Bash(tcpdump:*)",
+      "Bash(codesign:*)",
+      "Bash(security find-identity:*)",
+      "Bash(gcc:*)",
+      "Bash(./configure:*)",
+      "Bash(./tests/test_k4radio_simulator:*)",
+      "Bash(/Users/toms/projects/hamlib/build/simelecraftk4:*)",
+      "Bash(echo:*)",
+      "Bash(./build/simelecraftk4:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(./build/tests/test_k4radio_simulator:*)",
+      "Bash(perl -i -pe:*)",
+      "Bash(perl -i -0777 -pe:*)",
+      "Bash(claude:*)",
+      "Bash(xattr:*)",
+      "Bash(~/.claude/skills/hello.md)",
+      "Bash(find:*)"
     ]
   },
   "enabledMcpjsonServers": [

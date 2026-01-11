@@ -28,6 +28,9 @@ ContestMetadata IARUHFContest::getMetadata() {
     meta.adifContestIdMixed = "";
 
     meta.schedule = "Second full weekend of July";
+    meta.floatingDates = {
+        FloatingDate(7, "2nd full weekend")  // July
+    };
     meta.website = "https://www.arrl.org/iaru-hf-world-championship";
     meta.description = "Work as many ITU zones and IARU HQ stations as possible. Exchange: RST + ITU Zone or HQ/AC/R1/R2/R3.";
 
@@ -417,6 +420,5 @@ QMap<QString, QString> IARUHFContest::getCabrilloHeaders() const {
 
 } // namespace TR4QT
 
-// Auto-register with factory - register both CW and SSB variants
-REGISTER_CONTEST(TR4QT::IARUHFContest, "IARU_HF_CW");
-REGISTER_CONTEST(TR4QT::IARUHFContest, "IARU_HF_SSB");
+// Auto-register with factory - single registration, hasSeparateContests handles CW/SSB split
+REGISTER_CONTEST(TR4QT::IARUHFContest, "IARU_HF");

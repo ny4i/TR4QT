@@ -30,6 +30,9 @@ ContestMetadata ARRLRTTYRoundupContest::getMetadata() {
     meta.adifContestIdMixed = ADIF_CONTEST_ID;
 
     meta.schedule = "First full weekend of January";
+    meta.floatingDates = {
+        FloatingDate(1, "1st full weekend")  // January
+    };
     meta.website = "https://contests.arrl.org/rttyru/";
     meta.description = "Work as many states, provinces, and DX countries as possible. W/VE send RST+State, DX sends RST+Serial.";
 

@@ -240,5 +240,5 @@ bool ARRLSweepstakesContest::isValidSection(const QString& section) const {
 
 } // namespace TR4QT
 
-// Auto-register contest with registry
-REGISTER_CONTEST(TR4QT::ARRLSweepstakesContest, "ARRL_SS");
+// Deprecated: Contest has been split into ARRLSSCWContest and ARRLSSSSBContest
+// REGISTER_CONTEST(TR4QT::ARRLSweepstakesContest, "ARRL_SS");
