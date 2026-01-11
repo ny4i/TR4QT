@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.35.1";  // Fix FloatingDate calculation (contests start Saturday not Friday), add tests
+constexpr const char* APP_VERSION = "3.35.2";  // Fix contest dropdown - one entry per contest (mode selected separately)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
