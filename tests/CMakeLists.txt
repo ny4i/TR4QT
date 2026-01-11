@@ -164,6 +164,29 @@ add_tr4qt_test(test_winterfieldday
     ../src/logging/FileAppender.cpp
 )
 
+# Phase 1 CLAUDE.md compliance tests - written BEFORE extraction
+add_tr4qt_test(test_contest_exchange_update
+    test_contest_exchange_update.cpp
+    ../src/contests/WinterFieldDayContest.cpp
+    ../src/contests/ContestRegistry.cpp
+    ../src/controllers/ContestManager.cpp
+    ../src/exchanges/SmartExchangeParser.cpp
+    ../src/utils/ArrlSectionHelper.cpp
+    ../src/data/Database.cpp
+    ../src/data/QSORepository.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/utils/GeographicUtils.cpp
+    ../src/utils/PathManager.cpp
+    ../src/utils/AppSettings.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
 add_tr4qt_test(test_smartexchangeparser
     test_smartexchangeparser.cpp
     ../src/exchanges/SmartExchangeParser.cpp
