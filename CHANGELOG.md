@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.35.0] - 2026-01-11
+
+### Added
+- **K4Radio Integration Tests**: POC integration tests using Hamlib simulator following "test what you're running" principle
+  - 13 integration tests covering frequency, mode, band, CW speed, PTT, and reconnection (all passing)
+  - Tests use real K4Radio production code with Hamlib's K4 simulator as test double
+  - TcpToPtyBridge glue code connects K4Radio (TCP) to simulator (PTY) without modifying production code
+  - `tr4qt_core` object library enables testing without full app linking (zero impact to production binary)
+  - Test gracefully SKIPs if simulator not found
+  - Test coverage: 13/13 passing (~8 seconds)
+  - Files: `tests/test_k4radio_simulator.cpp`, `tests/TcpToPtyBridge.h`, `src/CMakeLists.txt`, `tests/CMakeLists.txt`
+
 ## [3.31.11] - 2026-01-04
 
 ### Fixed
