@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.34.6";  // Code refactoring: Extract constants, fix QMessageBox violations
+constexpr const char* APP_VERSION = "3.35.0";  // Add K4Radio integration tests using Hamlib simulator
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

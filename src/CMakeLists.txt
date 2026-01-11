@@ -1,8 +1,54 @@
 # TR4QT Source Files
 
+# Create object library for core components (enables testing without full app linking)
+# This library contains radio control, logging, and other testable components
+add_library(tr4qt_core OBJECT
+    # Radio control (K4Radio, HamlibRadio, etc.)
+    radio/RadioInterface.h
+    radio/K4Radio.cpp
+    radio/K4Radio.h
+    radio/HamlibRadio.cpp
+    radio/HamlibRadio.h
+    radio/IcomRadio.cpp
+    radio/CWTiming.cpp
+    radio/RadioFactory.cpp
+    radio/RadioController.cpp
+    radio/RadioPreflightHelper.cpp
+    radio/HamRadioPrivileges.cpp
+    radio/icomnetwork.cpp
+
+    # Core types
+    core/Types.cpp
+    core/Types.h
+    core/Constants.h
+
+    # Logging system
+    logging/Logger.cpp
+    logging/Logger.h
+    logging/LogLevel.cpp
+    logging/LogLevel.h
+    logging/LogFormatter.cpp
+    logging/LogFormatter.h
+    logging/FileAppender.cpp
+    logging/FileAppender.h
+    logging/LogMacros.h
+)
+
+# Object library needs same includes/links as main app
+target_include_directories(tr4qt_core PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${HAMLIB_INCLUDE_DIRS}
+)
+
+target_link_libraries(tr4qt_core PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::SerialPort
+    ${HAMLIB_LIBRARIES}
+)
+
 set(SOURCES
     main.cpp
-    core/Types.cpp
     utils/ADIFExporter.cpp
     utils/AppSettings.cpp
     utils/ArrlSectionHelper.cpp
@@ -24,15 +70,7 @@ set(SOURCES
     utils/RadioEnumerator.cpp
     utils/ThemeManager.cpp
     utils/PerformanceProfiler.cpp
-    radio/HamlibRadio.cpp
-    radio/K4Radio.cpp
-    radio/IcomRadio.cpp
-    radio/icomnetwork.cpp
-    radio/CWTiming.cpp
-    radio/RadioFactory.cpp
-    radio/RadioController.cpp
-    radio/RadioPreflightHelper.cpp
-    radio/HamRadioPrivileges.cpp
+    # Radio files now in tr4qt_core object library
     network/TelnetClient.cpp
     network/RadioInfo.cpp
     network/ContactInfo.cpp
@@ -69,10 +107,7 @@ set(SOURCES
     contests/WinterFieldDayContest.cpp
     contests/ARRLFieldDayContest.cpp
     contests/IARUHFContest.cpp
-    logging/LogLevel.cpp
-    logging/LogFormatter.cpp
-    logging/FileAppender.cpp
-    logging/Logger.cpp
+    # Logging files now in tr4qt_core object library
     controllers/QSOLogger.cpp
     controllers/DataIntegrityManager.cpp
     controllers/ContestManager.cpp
@@ -262,8 +297,9 @@ else()
     )
 endif()
 
-# Link Qt6 libraries
+# Link Qt6 libraries and tr4qt_core object library
 target_link_libraries(tr4qt PRIVATE
+    tr4qt_core  # Core components (radio, logging, types)
     Qt6::Core
     Qt6::Widgets
     Qt6::Sql
