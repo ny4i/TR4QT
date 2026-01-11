@@ -70,6 +70,57 @@ If you encounter an "automatic" tool that doesn't work reliably:
 
 ## ⚠️ CRITICAL REMINDERS
 
+### 🚨 ARCHITECTURE: MainWindow is 5,564 lines - STOP Adding Features
+
+**MainWindow has exceeded all limits:**
+- ✗ 500 lines (Yellow flag) - **EXCEEDED BY 11X**
+- ✗ 1,000 lines (Red flag) - **EXCEEDED BY 5.5X**
+- ✗ 1,500 lines (STOP) - **EXCEEDED BY 3.7X**
+
+**BEFORE implementing any new feature, CHECK:**
+
+1. **Will this add SQL to MainWindow?** → Create Repository/Service instead
+2. **Will this add business logic to MainWindow?** → Create Service instead
+3. **Will the event handler exceed 20 lines?** → Extract to Service method
+4. **Does MainWindow already exceed 1,500 lines?** → STOP, extract services first
+
+**See ARCHITECTURE_RULES.md for complete guidance on:**
+- ❌ What's forbidden in MainWindow
+- ✅ What's allowed in MainWindow
+- 📐 TR4QT architecture layers
+- 🎯 Where new features should go
+- 🔍 Pre-feature checklist
+
+**Example of WRONG approach (what we just did):**
+```cpp
+// ❌ MainWindow::onEditContestSettings() - 73 lines
+void MainWindow::onEditContestSettings() {
+    // SQL queries - belongs in Repository
+    db.execute("UPDATE contests SET ...");
+
+    // Business logic loops - belongs in Service
+    for (int row = 0; row < count; ++row) {
+        qso.exchangeSent = formatExchange(...);
+        db.execute("UPDATE qsos SET ...");
+    }
+}
+```
+
+**Example of CORRECT approach:**
+```cpp
+// ✅ MainWindow delegates to Service
+void MainWindow::onEditContestSettings() {
+    auto result = m_contestService->showEditExchangeDialog(m_currentContestDbId);
+    if (!result.success) showError(result.error);
+}
+
+// Service handles business logic
+class ContestService {
+    Result<void> showEditExchangeDialog(int contestId);
+    // Encapsulates: validation, database updates, model refresh
+};
+```
+
 ### Always Bump Version Before Building
 **NEVER build without updating the version constant first!**
 
