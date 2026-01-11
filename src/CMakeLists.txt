@@ -96,14 +96,30 @@ set(SOURCES
     cw/CWTemplateEngine.cpp
     contests/QSOPartyContestBase.cpp
     contests/ARRLDXContest.cpp
+    contests/ARRLDXBase.cpp
+    contests/ARRLDXCWContest.cpp
+    contests/ARRLDXPhoneContest.cpp
     contests/ARRLRTTYRoundupContest.cpp
     contests/ARRLSweepstakesContest.cpp
+    contests/ARRLSSBase.cpp
+    contests/ARRLSSCWContest.cpp
+    contests/ARRLSSSSBContest.cpp
     contests/ContestRegistry.cpp
+    contests/ContestMetadata.cpp
     contests/CQWWContest.cpp
+    contests/CQWWBase.cpp
+    contests/CQWWCWContest.cpp
+    contests/CQWWSSBContest.cpp
     contests/CQWPXContest.cpp
+    contests/CQWPXBase.cpp
+    contests/CQWPXCWContest.cpp
+    contests/CQWPXSSBContest.cpp
     contests/FloridaQSOPartyContest.cpp
     contests/GeneralLoggingContest.cpp
-    contests/NAQPContest.cpp
+    contests/NAQPBase.cpp
+    contests/NAQPCWContest.cpp
+    contests/NAQPSSBContest.cpp
+    contests/NAQPRTTYContest.cpp
     contests/WinterFieldDayContest.cpp
     contests/ARRLFieldDayContest.cpp
     contests/IARUHFContest.cpp
@@ -169,12 +185,7 @@ set(HEADERS
     utils/PathManager.h
     utils/RadioEnumerator.h
     utils/ThemeManager.h
-    radio/RadioInterface.h
-    radio/HamlibRadio.h
-    radio/K4Radio.h
-    radio/RadioFactory.h
-    radio/RadioController.h
-    radio/RadioPreflightHelper.h
+    # Radio headers now in tr4qt_core object library (removed to prevent duplicate MOC)
     network/TelnetClient.h
     network/RadioInfo.h
     network/ContactInfo.h
@@ -214,11 +225,7 @@ set(HEADERS
     contests/WinterFieldDayContest.h
     contests/ARRLFieldDayContest.h
     contests/IARUHFContest.h
-    logging/LogLevel.h
-    logging/LogFormatter.h
-    logging/FileAppender.h
-    logging/Logger.h
-    logging/LogMacros.h
+    # Logging headers now in tr4qt_core object library (removed to prevent duplicate MOC)
     controllers/QSOLogger.h
     controllers/DataIntegrityManager.h
     controllers/ContestManager.h

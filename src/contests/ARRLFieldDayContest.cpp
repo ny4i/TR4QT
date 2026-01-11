@@ -30,6 +30,9 @@ ContestMetadata ARRLFieldDayContest::getMetadata() {
     meta.adifContestIdMixed = ADIF_CONTEST_ID;
 
     meta.schedule = "Fourth full weekend of June";
+    meta.floatingDates = {
+        FloatingDate(6, "4th full weekend")  // June
+    };
     meta.website = "https://www.arrl.org/field-day";
     meta.description = "Emergency preparedness event. Exchange: Class + ARRL/RAC Section.";
 

@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <QList>
+#include <QDate>
 #include <functional>
 #include "../core/Types.h"
 #include "../models/StationInfo.h"
@@ -10,6 +11,45 @@
 namespace TR4QT {
 
 class ContestBase;
+
+/**
+ * Floating date specification for contests
+ * Supports rules like "2nd Saturday", "3rd full weekend", "Last full weekend"
+ *
+ * IMPORTANT: Floating dates are used for UI SORTING ONLY (to show upcoming
+ * contests first in the selection dropdown). They do NOT enforce contest
+ * activation dates - users can select and activate any contest at any time,
+ * regardless of the contest's scheduled dates. This allows users to:
+ * - Operate contests that changed their schedule
+ * - Practice logging outside contest windows
+ * - Log historical contests with flexible dates
+ */
+struct FloatingDate {
+    int month;                  // 1-12
+    QString rule;               // "2nd Saturday", "3rd Saturday", "Last full weekend", etc.
+
+    FloatingDate() : month(0) {}
+    FloatingDate(int m, const QString& r) : month(m), rule(r) {}
+
+    /**
+     * Calculate next occurrence of this floating date from a given reference date
+     * @param fromDate Reference date (defaults to today)
+     * @return Next occurrence of this floating date, or invalid QDate if rule cannot be parsed
+     */
+    QDate calculateNextOccurrence(const QDate& fromDate = QDate::currentDate()) const;
+
+    bool isValid() const { return month >= 1 && month <= 12 && !rule.isEmpty(); }
+
+private:
+    QDate calculateOccurrenceInMonth(const QDate& firstOfMonth,
+                                    const QString& ordinal,
+                                    const QString& target) const;
+    QDate calculateWeekday(const QDate& firstOfMonth,
+                          const QString& ordinal,
+                          Qt::DayOfWeek targetDay) const;
+    QDate calculateFullWeekend(const QDate& firstOfMonth,
+                              const QString& ordinal) const;
+};
 
 /**
  * Contest metadata for factory registration
@@ -40,9 +80,13 @@ struct ContestMetadata {
     
     // Contest information
     QString schedule;                // When it runs (e.g., "Last full weekend of November")
+    QList<FloatingDate> floatingDates; // Calculated contest dates (can be multiple per year)
     QString website;                 // Official contest website URL
     QString description;             // Brief description
-    
+
+    // Constants
+    static constexpr const char* WA7BNM_BASE_URL = "https://www.contestcalendar.com/contestdetails.php?ref=";
+
     // Helper methods
     bool isSSBMode(ModeType mode) const {
         return mode == ModeType::USB || mode == ModeType::LSB;
@@ -52,6 +96,17 @@ struct ContestMetadata {
         if (mode == ModeType::CW) return wa7bnmIdCW;
         if (isSSBMode(mode)) return wa7bnmIdSSB;
         return wa7bnmIdMixed;
+    }
+
+    /**
+     * Get WA7BNM Contest Calendar URL for this contest
+     * @param mode Contest mode (CW, SSB, or Mixed)
+     * @return Full URL to contest details, or empty string if no WA7BNM ID
+     */
+    QString getWA7BNMUrl(ModeType mode) const {
+        int id = getWA7BNMId(mode);
+        if (id == 0) return QString();
+        return QString("%1%2").arg(WA7BNM_BASE_URL).arg(id);
     }
 
     QString getCabrilloName(ModeType mode) const {
@@ -73,6 +128,24 @@ struct ContestMetadata {
         QString modeStr = (mode == ModeType::CW) ? "CW" :
                          isSSBMode(mode) ? "SSB" : modeToString(mode);
         return QString("%1 (%2)").arg(displayName).arg(modeStr);
+    }
+
+    /**
+     * Get next occurrence of this contest
+     * Returns the earliest date from all floating dates
+     * @param fromDate Reference date (defaults to today)
+     * @return Next occurrence, or invalid QDate if no floating dates defined
+     */
+    QDate getNextOccurrence(const QDate& fromDate = QDate::currentDate()) const {
+        QDate nextDate;
+        for (const FloatingDate& fd : floatingDates) {
+            if (!fd.isValid()) continue;
+            QDate candidate = fd.calculateNextOccurrence(fromDate);
+            if (candidate.isValid() && (!nextDate.isValid() || candidate < nextDate)) {
+                nextDate = candidate;
+            }
+        }
+        return nextDate;
     }
 };
 

@@ -1,70 +1,17 @@
-#include "CQWWContest.h"
-#include "ContestRegistry.h"
-#include "ContestMetadata.h"
+#include "CQWWBase.h"
 #include "../models/QSO.h"
 #include "RSTValidator.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
 
-ContestMetadata CQWWContest::getMetadata() {
-    ContestMetadata meta;
-    meta.id = "CQWW";
-    meta.displayName = "CQ World Wide DX Contest";
-    meta.shortName = "CQ WW";
-    meta.supportedModes = {ModeType::CW, ModeType::USB};
-    meta.hasSeparateContests = true;
-
-    meta.wa7bnmIdCW = WA7BNM_ID_CW;
-    meta.wa7bnmIdSSB = WA7BNM_ID_SSB;
-    meta.wa7bnmIdMixed = 0;
-
-    meta.cabrilloNameCW = CABRILLO_NAME_CW;
-    meta.cabrilloNameSSB = CABRILLO_NAME_SSB;
-    meta.cabrilloNameMixed = "";
-
-    meta.adifContestIdCW = ADIF_CONTEST_ID_CW;
-    meta.adifContestIdSSB = ADIF_CONTEST_ID_SSB;
-    meta.adifContestIdMixed = "";
-
-    meta.schedule = "Last full weekend of November";
-    meta.website = "https://www.cqww.com/";
-    meta.description = "Work as many countries and CQ zones as possible. Exchange: RST + CQ Zone.";
-
-    return meta;
-}
-
-ContestBase* CQWWContest::create(ModeType mode, const StationInfo& myStation) {
-    return new CQWWContest(mode, myStation);
-}
-
-CQWWContest::CQWWContest(ModeType mode, const StationInfo& myStation)
-    : ContestBase(myStation)
-    , m_mode(mode)
-{
-}
-
-QString CQWWContest::getContestId() const {
-    return m_mode == ModeType::CW ? "CQWW_CW" : "CQWW_SSB";
-}
-
-QString CQWWContest::getContestName() const {
-    return m_mode == ModeType::CW ?
-           "CQ World Wide DX Contest - CW" :
-           "CQ World Wide DX Contest - SSB";
-}
-
-QString CQWWContest::getADIFContestId() const {
-    return m_mode == ModeType::CW ? ADIF_CONTEST_ID_CW : ADIF_CONTEST_ID_SSB;
-}
-
-QList<ExchangeField> CQWWContest::getReceivedExchangeFields() const {
+QList<ExchangeField> CQWWBase::getReceivedExchangeFields() const {
     QList<ExchangeField> fields;
 
     // RST
     ExchangeField rst;
     rst.name = "RST";
-    rst.hint = RSTValidator::getDefault(m_mode);
+    rst.hint = RSTValidator::getDefault(getContestMode());
     rst.autoFill = true;
     rst.maxLength = 3;
     fields.append(rst);
@@ -80,7 +27,7 @@ QList<ExchangeField> CQWWContest::getReceivedExchangeFields() const {
     return fields;
 }
 
-QList<ExchangeField> CQWWContest::getSentExchangeFields() const {
+QList<ExchangeField> CQWWBase::getSentExchangeFields() const {
     QList<ExchangeField> fields;
 
     // Just CQ Zone (RST is always sent, no need to configure)
@@ -94,13 +41,13 @@ QList<ExchangeField> CQWWContest::getSentExchangeFields() const {
     return fields;
 }
 
-QList<TableColumn> CQWWContest::getTableColumns() const {
+QList<TableColumn> CQWWBase::getTableColumns() const {
     return {
         TableColumn("Zone", "Zn", 50, TableColumn::Alignment::Right)
     };
 }
 
-QString CQWWContest::formatSentExchange(int serialNumber, const QString& rst) const {
+QString CQWWBase::formatSentExchange(int serialNumber, const QString& rst) const {
     Q_UNUSED(serialNumber);  // CQ WW doesn't use serial numbers
 
     // Will be filled from settings, but format is "RST Zone"
@@ -108,7 +55,7 @@ QString CQWWContest::formatSentExchange(int serialNumber, const QString& rst) co
     return rst + " {ZONE}";  // {ZONE} will be replaced by actual zone from settings
 }
 
-bool CQWWContest::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
+bool CQWWBase::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     if (parts.isEmpty()) {
@@ -128,8 +75,9 @@ bool CQWWContest::validateReceivedExchange(const QString& exchange, QString& err
         QString first = parts[0];
         QString second = parts[1];
 
-        bool firstIsRST = RSTValidator::isValid(first, m_mode);
-        bool secondIsRST = RSTValidator::isValid(second, m_mode);
+        ModeType mode = getContestMode();
+        bool firstIsRST = RSTValidator::isValid(first, mode);
+        bool secondIsRST = RSTValidator::isValid(second, mode);
 
         // Check if values are in valid zone range (1-40)
         bool ok1, ok2;
@@ -158,7 +106,7 @@ bool CQWWContest::validateReceivedExchange(const QString& exchange, QString& err
             }
         } else {
             // Neither is valid RST
-            QString expectedFormat = (m_mode == ModeType::CW || m_mode == ModeType::CWR) ?
+            QString expectedFormat = (mode == ModeType::CW || mode == ModeType::CWR) ?
                 "3 digits (e.g., 599, 579)" : "2-3 digits (e.g., 59, 599)";
             errorMsg = QString("Invalid RST format. Expected %1 (Pattern: [1-5][1-9][1-9]?)")
                 .arg(expectedFormat);
@@ -187,20 +135,21 @@ bool CQWWContest::validateReceivedExchange(const QString& exchange, QString& err
     return true;
 }
 
-void CQWWContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
+void CQWWBase::parseReceivedExchange(const QString& exchange, QSO& qso) const {
     QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
 
     if (parts.size() == 1) {
         // Only zone provided - auto-fill RST
-        qso.rstReceived = RSTValidator::getDefault(m_mode);
+        qso.rstReceived = RSTValidator::getDefault(getContestMode());
         qso.cqZone = parts[0].toInt();
     } else if (parts.size() >= 2) {
         // Two fields: detect which is RST and which is Zone (order-agnostic)
         QString first = parts[0];
         QString second = parts[1];
 
-        bool firstIsRST = RSTValidator::isValid(first, m_mode);
-        bool secondIsRST = RSTValidator::isValid(second, m_mode);
+        ModeType mode = getContestMode();
+        bool firstIsRST = RSTValidator::isValid(first, mode);
+        bool secondIsRST = RSTValidator::isValid(second, mode);
 
         // Check if values are in valid zone range (1-40)
         bool ok1, ok2;
@@ -234,7 +183,7 @@ void CQWWContest::parseReceivedExchange(const QString& exchange, QSO& qso) const
             }
         } else {
             // Neither is valid RST - use defaults
-            qso.rstReceived = RSTValidator::getDefault(m_mode);
+            qso.rstReceived = RSTValidator::getDefault(getContestMode());
             qso.cqZone = first.toInt();  // Assume first is zone
         }
     }
@@ -243,7 +192,7 @@ void CQWWContest::parseReceivedExchange(const QString& exchange, QSO& qso) const
     formatExchangeReceived(exchange, qso);
 }
 
-int CQWWContest::calculateQSOPoints(
+int CQWWBase::calculateQSOPoints(
     const QSO& qso,
     const StationInfo& myStation) const
 {
@@ -267,13 +216,14 @@ int CQWWContest::calculateQSOPoints(
         return 0;
     }
 
-    // Different continent: 3 points (CW) or 2 points (SSB)
+    // Different continent
     if (myStation.continent != theirContinent) {
-        return (m_mode == ModeType::CW) ? 3 : 2;
+        // CW: 3 points, SSB: 2 points
+        return static_cast<int>(3.0 * getModePointMultiplier());
     }
 
     // Same continent, different country
-    // North America gets 2 points, others get 1 point
+    // North America gets 2 points, others get 1 point (both modes)
     if (myStation.continent == "NA") {
         return 2;
     } else {
@@ -281,7 +231,7 @@ int CQWWContest::calculateQSOPoints(
     }
 }
 
-int CQWWContest::calculateTotalScore(
+int CQWWBase::calculateTotalScore(
     int totalQSOPoints,
     const QMap<MultiplierType, int>& multiplierCounts) const
 {
@@ -291,27 +241,14 @@ int CQWWContest::calculateTotalScore(
     return totalQSOPoints * (countries + zones);
 }
 
-QList<MultiplierDefinition> CQWWContest::getMultiplierTypes() const {
-    QList<MultiplierDefinition> mults;
-
-    // DXCC Countries (per band)
-    MultiplierDefinition country;
-    country.type = MultiplierType::Country;
-    country.scope = MultiplierScope::PerBand;
-    country.displayName = "Countries";
-    mults.append(country);
-
-    // CQ Zones (per band)
-    MultiplierDefinition zone;
-    zone.type = MultiplierType::CQZone;
-    zone.scope = MultiplierScope::PerBand;
-    zone.displayName = "CQ Zones";
-    mults.append(zone);
-
-    return mults;
+QList<MultiplierDefinition> CQWWBase::getMultiplierTypes() const {
+    return {
+        {MultiplierType::Country, MultiplierScope::PerBand, "Countries"},
+        {MultiplierType::CQZone, MultiplierScope::PerBand, "CQ Zones"}
+    };
 }
 
-QString CQWWContest::getMultiplierValue(
+QString CQWWBase::getMultiplierValue(
     const QSO& qso,
     MultiplierType multType,
     const QStringList& alreadyWorkedValues) const
@@ -339,27 +276,4 @@ QString CQWWContest::getMultiplierValue(
     return value;
 }
 
-QList<BandType> CQWWContest::getAllowedBands() const {
-    // Check if RTTY mode (RTTY excludes 160m)
-    if (m_mode == ModeType::RTTY || m_mode == ModeType::RTTYR) {
-        return { BandType::Band80M, BandType::Band40M, BandType::Band20M,
-                 BandType::Band15M, BandType::Band10M };
-    }
-
-    // SSB/CW: all HF bands including 160m
-    return { BandType::Band160M, BandType::Band80M, BandType::Band40M,
-             BandType::Band20M, BandType::Band15M, BandType::Band10M };
-}
-
-QMap<QString, QString> CQWWContest::getCabrilloHeaders() const {
-    QMap<QString, QString> headers = ContestBase::getCabrilloHeaders();
-
-    headers["CONTEST"] = m_mode == ModeType::CW ? "CQ-WW-CW" : "CQ-WW-SSB";
-
-    return headers;
-}
-
 } // namespace TR4QT
-
-// Deprecated: Contest has been split into CQWWCWContest and CQWWSSBContest
-// REGISTER_CONTEST(TR4QT::CQWWContest, "CQWW");

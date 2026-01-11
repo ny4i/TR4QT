@@ -79,7 +79,10 @@ ContestMetadata FloridaQSOPartyContest::getMetadata() {
     meta.adifContestIdSSB = "";
     meta.adifContestIdMixed = ADIF_CONTEST_ID_MIXED;
 
-    meta.schedule = "Last full weekend of April";
+    meta.schedule = "4th Saturday of April";
+    meta.floatingDates = {
+        FloatingDate(4, "4th Saturday")  // April
+    };
     meta.website = "https://floridaqsoparty.org/";
     meta.description = "In-state: Send County. Out-of-state: Send State/Province/DX. Two 10-hour periods.";
 

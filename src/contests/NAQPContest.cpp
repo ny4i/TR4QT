@@ -232,5 +232,5 @@ QMap<QString, QString> NAQPContest::getCabrilloHeaders() const {
 
 } // namespace TR4QT
 
-// Register contest
-REGISTER_CONTEST(TR4QT::NAQPContest, "NAQP");
+// Deprecated: Contest has been split into NAQPCWContest, NAQPSSBContest, and NAQPRTTYContest
+// REGISTER_CONTEST(TR4QT::NAQPContest, "NAQP");
