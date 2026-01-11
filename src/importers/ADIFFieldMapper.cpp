@@ -104,6 +104,10 @@ bool ADIFFieldMapper::mapToQSO(const QMap<QString, QString>& adifFields, QSO& qs
         qso.arrlSection = adifFields["ARRL_SECT"];
     }
 
+    if (adifFields.contains("CLASS")) {
+        qso.contestClass = adifFields["CLASS"];
+    }
+
     if (adifFields.contains("GRIDSQUARE")) {
         qso.gridSquare = adifFields["GRIDSQUARE"];
     }

@@ -145,6 +145,16 @@ QString ADIFExporter::formatQSO(const QSO& qso, const QString& contestId) {
         stream << formatField("STATE", qso.state);
     }
 
+    // Contest class (e.g., "1O", "2I" for Winter Field Day)
+    if (!qso.contestClass.isEmpty()) {
+        stream << formatField("CLASS", qso.contestClass);
+    }
+
+    // ARRL/RAC section (e.g., "WMA", "WCF")
+    if (!qso.arrlSection.isEmpty()) {
+        stream << formatField("ARRL_SECT", qso.arrlSection);
+    }
+
     // Operator
     if (!qso.operatorCall.isEmpty()) {
         stream << formatField("OPERATOR", qso.operatorCall);
