@@ -79,3 +79,53 @@ src/ui/MainWindow.cpp:3640:        QSqlQuery sampleQuery = db.execute(
 src/ui/MainWindow.cpp:3999:    QSqlQuery query = db.execute("SELECT contest_id, contest_name, start_time, contest_type FROM contests LIMIT 1", {});
 ```
 
+## Violation: 2026-01-12 10:59:26
+- Type: God Class (File Size)
+- File: src/ui/MainWindow.cpp
+- Lines: 5564
+- Limit: 1500
+- Overage: 4064 lines (270.9% over)
+- Status: ❌ RED
+
+## Violation: 2026-01-12 10:59:26
+- Type: SQL in UI Class
+- Details: SQL queries found in src/ui/ directory
+- Lines:
+```
+src/ui/MainWindow.cpp:3104:        QSqlQuery query = db.execute(
+src/ui/MainWindow.cpp:3392:    QSqlQuery checkpointQuery = db.execute("PRAGMA wal_checkpoint(PASSIVE)", {});
+src/ui/MainWindow.cpp:3396:    QSqlQuery countQuery = db.execute(
+src/ui/MainWindow.cpp:3444:    QSqlQuery dbQuery = db.execute(
+src/ui/MainWindow.cpp:3508:    QSqlQuery unknownBandQuery = db.execute(
+src/ui/MainWindow.cpp:3538:        QSqlQuery lowercaseQuery = db.execute(
+src/ui/MainWindow.cpp:3583:    QSqlQuery versionQuery = db.execute("PRAGMA user_version", {});
+src/ui/MainWindow.cpp:3602:    QSqlQuery columnsQuery = db.execute("PRAGMA table_info(qsos)", {});
+src/ui/MainWindow.cpp:3640:        QSqlQuery sampleQuery = db.execute(
+src/ui/MainWindow.cpp:3999:    QSqlQuery query = db.execute("SELECT contest_id, contest_name, start_time, contest_type FROM contests LIMIT 1", {});
+```
+
+## Violation: 2026-01-12 11:40:01
+- Type: God Class (File Size)
+- File: src/ui/MainWindow.cpp
+- Lines: 5564
+- Limit: 1500
+- Overage: 4064 lines (270.9% over)
+- Status: ❌ RED
+
+## Violation: 2026-01-12 11:40:01
+- Type: SQL in UI Class
+- Details: SQL queries found in src/ui/ directory
+- Lines:
+```
+src/ui/MainWindow.cpp:3104:        QSqlQuery query = db.execute(
+src/ui/MainWindow.cpp:3392:    QSqlQuery checkpointQuery = db.execute("PRAGMA wal_checkpoint(PASSIVE)", {});
+src/ui/MainWindow.cpp:3396:    QSqlQuery countQuery = db.execute(
+src/ui/MainWindow.cpp:3444:    QSqlQuery dbQuery = db.execute(
+src/ui/MainWindow.cpp:3508:    QSqlQuery unknownBandQuery = db.execute(
+src/ui/MainWindow.cpp:3538:        QSqlQuery lowercaseQuery = db.execute(
+src/ui/MainWindow.cpp:3583:    QSqlQuery versionQuery = db.execute("PRAGMA user_version", {});
+src/ui/MainWindow.cpp:3602:    QSqlQuery columnsQuery = db.execute("PRAGMA table_info(qsos)", {});
+src/ui/MainWindow.cpp:3640:        QSqlQuery sampleQuery = db.execute(
+src/ui/MainWindow.cpp:3999:    QSqlQuery query = db.execute("SELECT contest_id, contest_name, start_time, contest_type FROM contests LIMIT 1", {});
+```
+
