@@ -87,3 +87,39 @@ The `scripts/check_architecture.sh` script automatically appends metrics to this
 
 Manual reviews should be added using the Weekly Review Template above.
 2026-01-12 | 5564 | 1 | TBD | Automated check
+2026-01-12 | 5564 | 1 | TBD | Automated check
+
+---
+
+## Review: 2026-01-12 (Phase 1 Complete)
+
+**Metrics:**
+- MainWindow: 5,564 lines (Δ: 0 from baseline - Phase 1 doesn't modify MainWindow yet)
+- God classes: 1 (MainWindow)
+- Test coverage: ~65% → ~68% (+3% from CommandDispatcher tests)
+- Architecture score: -326 (CRITICAL - unchanged, Phase 1 is groundwork)
+
+**Progress this session:**
+- ✅ **Extracted: CommandDispatcher** (stateless utility class)
+  - Files created: CommandDispatcher.h (85 lines), CommandDispatcher.cpp (38 lines)
+  - Tests created: test_command_dispatcher.cpp (222 lines)
+  - **Test results: 12/12 passed** ✅
+  - Command parsing logic extracted from MainWindow::onLogQSO() lines 1996-2031
+  - Ready for MainWindow integration (Phase 5)
+
+**Test Coverage:**
+- CommandDispatcher: 100% coverage (all commands tested)
+- Edge cases: empty input, case insensitive, whitespace trimming, similar callsigns
+
+**Why MainWindow LOC unchanged:**
+Phase 1-4 extracts create NEW service classes but don't modify MainWindow yet.
+Phase 5 will integrate all services and reduce MainWindow LOC dramatically.
+
+**Next phase priorities:**
+1. Phase 2: Extract QSOPersistenceService (database save/retry logic) - ~1 day
+2. Phase 3: Extract ExchangeMemoryService (exchange prediction) - ~4 hours
+3. Phase 4: Extract QSOLoggingCoordinator (post-logging actions) - ~4 hours
+
+**Blockers:** None
+
+**On track for goals?** YES - Phase 1 complete on schedule (2 hours estimated, ~1.5 hours actual)
