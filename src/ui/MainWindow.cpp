@@ -895,53 +895,77 @@ void MainWindow::loadSettings() {
 
     // Restore child windows if they were visible
     if (geometry.dxClusterVisible) {
+        LOG_DEBUG("MainWindow", "Restoring DX Cluster window (was visible on exit)");
         onShowDXCluster();
         if (m_dxClusterWindow && !geometry.dxClusterGeometry.isEmpty()) {
             m_dxClusterWindow->restoreGeometry(geometry.dxClusterGeometry);
         }
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring DX Cluster window (was hidden on exit)");
     }
 
     if (geometry.bandMapVisible) {
+        LOG_DEBUG("MainWindow", "Restoring Band Map window (was visible on exit)");
         onShowBandMap();
         if (m_bandMapWindow && !geometry.bandMapGeometry.isEmpty()) {
             m_bandMapWindow->restoreGeometry(geometry.bandMapGeometry);
         }
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring Band Map window (was hidden on exit)");
     }
 
     if (geometry.radioControlVisible) {
+        LOG_DEBUG("MainWindow", "Restoring Radio Control window (was visible on exit)");
         onShowRadioControl();
         if (m_radioControlWindow && !geometry.radioControlGeometry.isEmpty()) {
             m_radioControlWindow->restoreGeometry(geometry.radioControlGeometry);
         }
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring Radio Control window (was hidden on exit)");
     }
 
     if (geometry.multipliersVisible) {
+        LOG_DEBUG("MainWindow", "Restoring Multipliers window (was visible on exit)");
         onShowMultipliers();
         if (m_multiplierWindow && !geometry.multipliersGeometry.isEmpty()) {
             m_multiplierWindow->restoreGeometry(geometry.multipliersGeometry);
         }
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring Multipliers window (was hidden on exit)");
     }
 
     if (geometry.statisticsVisible) {
+        LOG_DEBUG("MainWindow", "Restoring Statistics window (was visible on exit)");
         onShowStatistics();
         if (m_statisticsWindow && !geometry.statisticsGeometry.isEmpty()) {
             m_statisticsWindow->restoreGeometry(geometry.statisticsGeometry);
         }
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring Statistics window (was hidden on exit)");
     }
 
     if (geometry.sectionsMapVisible) {
+        LOG_DEBUG("MainWindow", "Restoring Sections Map window (was visible on exit)");
         onShowSectionsMap();
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring Sections Map window (was hidden on exit)");
     }
 
     if (geometry.statesMapVisible) {
+        LOG_DEBUG("MainWindow", "Restoring States Map window (was visible on exit)");
         onShowStatesMap();
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring States Map window (was hidden on exit)");
     }
 
     if (geometry.graylineMapVisible) {
+        LOG_DEBUG("MainWindow", "Restoring Grayline Map window (was visible on exit)");
         onShowGraylineMap();
         if (m_graylineMapDialog && !geometry.graylineMapGeometry.isEmpty()) {
             m_graylineMapDialog->restoreGeometry(geometry.graylineMapGeometry);
         }
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring Grayline Map window (was hidden on exit)");
     }
 }
 
