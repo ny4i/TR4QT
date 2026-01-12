@@ -130,6 +130,45 @@ add_tr4qt_test(test_qso_logging_coordinator
     ../src/logging/FileAppender.cpp
 )
 
+add_tr4qt_test(test_qso_logging_service
+    test_qso_logging_service.cpp
+    ../src/services/QSOLoggingService.cpp
+    ../src/services/QSOPersistenceService.cpp
+    ../src/services/ExchangeMemoryService.cpp
+    ../src/services/QSOLoggingCoordinator.cpp
+    ../src/controllers/QSOLogger.cpp
+    ../src/network/UdpBroadcaster.cpp
+    ../src/network/UdpBroadcastManager.cpp
+    ../src/network/RadioInfo.cpp
+    ../src/network/ContactInfo.cpp
+    ../src/data/BackupManager.cpp
+    ../src/data/Database.cpp
+    ../src/data/QSORepository.cpp
+    ../src/data/ExchangeMemoryRepository.cpp
+    ../src/controllers/DataIntegrityManager.cpp
+    ../src/ui/models/QSOTableModel.cpp
+    ../src/contests/CQWWContest.cpp
+    ../src/contests/CQWWBase.cpp
+    ../src/contests/ContestRegistry.cpp
+    ../src/utils/ADIFExporter.cpp
+    ../src/utils/CallsignValidator.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/utils/GeographicUtils.cpp
+    ../src/utils/PathManager.cpp
+    ../src/utils/AppSettings.cpp
+    ../src/utils/ArrlSectionHelper.cpp
+    ../src/utils/ThemeManager.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/exchanges/InitialExchangeManager.cpp
+    ../src/exchanges/SmartExchangeParser.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
 add_tr4qt_test(test_arrlsection
     test_arrlsection.cpp
     ../src/utils/ArrlSectionHelper.cpp
