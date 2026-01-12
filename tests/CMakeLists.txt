@@ -108,6 +108,28 @@ add_tr4qt_test(test_exchange_memory_service
     ../src/logging/FileAppender.cpp
 )
 
+add_tr4qt_test(test_qso_logging_coordinator
+    test_qso_logging_coordinator.cpp
+    ../src/services/QSOLoggingCoordinator.cpp
+    ../src/network/UdpBroadcaster.cpp
+    ../src/network/UdpBroadcastManager.cpp
+    ../src/network/RadioInfo.cpp
+    ../src/network/ContactInfo.cpp
+    ../src/data/BackupManager.cpp
+    ../src/data/Database.cpp
+    ../src/controllers/DataIntegrityManager.cpp
+    ../src/data/QSORepository.cpp
+    ../src/ui/models/QSOTableModel.cpp
+    ../src/utils/AppSettings.cpp
+    ../src/utils/PathManager.cpp
+    ../src/utils/ThemeManager.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
 add_tr4qt_test(test_arrlsection
     test_arrlsection.cpp
     ../src/utils/ArrlSectionHelper.cpp

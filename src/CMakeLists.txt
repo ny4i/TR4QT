@@ -137,6 +137,7 @@ set(SOURCES
     commands/CommandDispatcher.cpp
     services/QSOPersistenceService.cpp
     services/ExchangeMemoryService.cpp
+    services/QSOLoggingCoordinator.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp
