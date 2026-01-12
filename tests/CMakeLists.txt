@@ -201,6 +201,21 @@ add_tr4qt_test(test_duplicate_checking
     ../src/logging/FileAppender.cpp
 )
 
+add_tr4qt_test(test_integrity_checking
+    test_integrity_checking.cpp
+    ../src/data/Database.cpp
+    ../src/data/QSORepository.cpp
+    ../src/ui/models/QSOTableModel.cpp
+    ../src/utils/AppSettings.cpp
+    ../src/utils/PathManager.cpp
+    ../src/utils/ThemeManager.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
 add_tr4qt_test(test_smartexchangeparser
     test_smartexchangeparser.cpp
     ../src/exchanges/SmartExchangeParser.cpp
