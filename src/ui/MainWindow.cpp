@@ -113,6 +113,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_qsoLogger(nullptr)
     , m_integrityManager(nullptr)
     , m_contestManager(nullptr)
+    , m_contestService(nullptr)
     , m_menuManager(nullptr)
     , m_settingsManager(nullptr)
     , m_windowManager(nullptr)
@@ -3234,6 +3235,12 @@ void MainWindow::onEditContestSettings() {
         return;
     }
 
+    if (!m_contestService) {
+        DialogHelper::critical(this, "Error", "Contest service not initialized");
+        LOG_ERROR("MainWindow", "onEditContestSettings called but m_contestService is null");
+        return;
+    }
+
     // Get current exchange sent from the active contest
     QString currentExchange = m_activeContest->getExchangeSent();
 
@@ -3261,68 +3268,26 @@ void MainWindow::onEditContestSettings() {
         return;
     }
 
-    // Update database
-    Database& db = Database::instance();
-    QSqlQuery query = db.execute(
-        "UPDATE contests SET exchange_sent = ? WHERE id = ?",
-        {newExchange, m_currentContestDbId}
-    );
+    // Delegate to ContestService
+    LOG_INFO("MainWindow", QString("Updating contest exchange from \"%1\" to \"%2\"")
+        .arg(currentExchange).arg(newExchange));
 
-    if (query.lastError().isValid()) {
-        DialogHelper::critical(this, "Database Error",
-            QString("Failed to update contest settings:\n%1").arg(query.lastError().text()));
+    m_statusLabel->setText("Updating contest exchange...");
+    QApplication::processEvents();
+
+    ContestService::UpdateExchangeResult result = m_contestService->updateContestExchange(newExchange);
+
+    if (!result.success) {
+        DialogHelper::critical(this, "Error", result.errorMessage);
+        m_statusLabel->setText("Failed to update contest exchange");
         return;
     }
 
-    // Update active contest instance
-    m_activeContest->setExchangeSent(newExchange);
-
-    // Log the change
-    LOG_INFO("MainWindow", QString("Updated contest exchange from \"%1\" to \"%2\"")
-        .arg(currentExchange).arg(newExchange));
-
-    // Update all existing QSOs with the new exchange
-    int qsoCount = m_qsoTableModel->count();
-    if (qsoCount > 0) {
-        m_statusLabel->setText(QString("Updating %1 QSO records with new exchange...").arg(qsoCount));
-        QApplication::processEvents();
-
-        int updatedCount = 0;
-        for (int row = 0; row < qsoCount; ++row) {
-            QSO qso = m_qsoTableModel->getQSO(row);
-
-            // Generate new exchangeSent using contest's formatSentExchange method
-            // For WFD, this will use the new m_exchangeSent value
-            QString newExchangeSent = m_activeContest->formatSentExchange(qso.serialNumber, qso.rstSent);
-
-            // Update QSO record
-            qso.exchangeSent = newExchangeSent;
-
-            // Update in database
-            QSqlQuery updateQuery = db.execute(
-                "UPDATE qsos SET exchange_sent = ? WHERE id = ?",
-                {newExchangeSent, qso.id}
-            );
-
-            if (updateQuery.lastError().isValid()) {
-                LOG_WARN("MainWindow", QString("Failed to update QSO %1: %2")
-                    .arg(qso.id).arg(updateQuery.lastError().text()));
-            } else {
-                updatedCount++;
-            }
-
-            // Update in table model
-            m_qsoTableModel->updateQSO(row, qso);
-        }
-
-        LOG_INFO("MainWindow", QString("Updated exchangeSent for %1 QSOs").arg(updatedCount));
-        m_statusLabel->setText(QString("Updated %1 QSO records with new exchange: %2").arg(updatedCount).arg(newExchange));
-    } else {
-        m_statusLabel->setText(QString("Contest exchange updated to: %1").arg(newExchange));
-    }
+    // Update status label
+    m_statusLabel->setText(result.statusMessage);
 
     // Ask if user wants to rescore (to recalculate points and multipliers)
-    if (qsoCount > 0) {
+    if (result.qsosUpdated > 0) {
         QMessageBox::StandardButton reply = DialogHelper::question(
             this,
             "Rescore Contest?",
@@ -3330,7 +3295,7 @@ void MainWindow::onEditContestSettings() {
                     "Old exchange: %2\n"
                     "New exchange: %3\n\n"
                     "Would you like to rescore the contest to recalculate points and multipliers?")
-                .arg(qsoCount)
+                .arg(result.qsosUpdated)
                 .arg(currentExchange.isEmpty() ? "(none)" : currentExchange)
                 .arg(newExchange),
             QMessageBox::Yes | QMessageBox::No
@@ -4134,6 +4099,17 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     integrityConfig.currentContestDbId = m_currentContestDbId;
     m_integrityManager = new DataIntegrityManager(integrityConfig);
     LOG_DEBUG("MainWindow", "DataIntegrityManager created for contest");
+
+    // Create ContestService instance with contest configuration
+    if (m_contestService) {
+        delete m_contestService;
+    }
+    ContestService::Config contestServiceConfig;
+    contestServiceConfig.activeContest = m_activeContest;
+    contestServiceConfig.qsoTableModel = m_qsoTableModel;
+    contestServiceConfig.currentContestDbId = m_currentContestDbId;
+    m_contestService = new ContestService(contestServiceConfig);
+    LOG_DEBUG("MainWindow", "ContestService created for contest");
 
     // Update ImportExportManager with new contest configuration (if it exists)
     // Note: During startup, reopenLastContest() runs before ImportExportManager is created

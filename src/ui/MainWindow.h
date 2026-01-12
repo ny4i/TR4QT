@@ -23,6 +23,7 @@
 #include "../controllers/QSOLogger.h"
 #include "../controllers/DataIntegrityManager.h"
 #include "../controllers/ContestManager.h"
+#include "../controllers/ContestService.h"
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
@@ -365,6 +366,9 @@ private:
 
     // Contest Manager (handles contest activation and configuration)
     ContestManager* m_contestManager;
+
+    // Contest Service (handles contest-level operations like exchange updates)
+    ContestService* m_contestService;
 
     // UI Managers
     MenuManager* m_menuManager;
