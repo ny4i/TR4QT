@@ -80,6 +80,7 @@ set(SOURCES
     data/Database.cpp
     data/GlobalDatabase.cpp
     data/QSORepository.cpp
+    data/ContestRepository.cpp
     data/LOTWUserRepository.cpp
     data/SpotRepository.cpp
     data/BackupManager.cpp
@@ -127,6 +128,7 @@ set(SOURCES
     controllers/QSOLogger.cpp
     controllers/DataIntegrityManager.cpp
     controllers/ContestManager.cpp
+    controllers/ContestService.cpp
     controllers/ImportExportManager.cpp
     controllers/RadioManager.cpp
     controllers/DownloadManager.cpp
