@@ -85,6 +85,29 @@ add_tr4qt_test(test_qso_persistence_service
     ../src/logging/FileAppender.cpp
 )
 
+add_tr4qt_test(test_exchange_memory_service
+    test_exchange_memory_service.cpp
+    ../src/services/ExchangeMemoryService.cpp
+    ../src/data/ExchangeMemoryRepository.cpp
+    ../src/data/Database.cpp
+    ../src/exchanges/InitialExchangeManager.cpp
+    ../src/exchanges/SmartExchangeParser.cpp
+    ../src/contests/WinterFieldDayContest.cpp
+    ../src/contests/ContestRegistry.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/utils/GeographicUtils.cpp
+    ../src/utils/PathManager.cpp
+    ../src/utils/AppSettings.cpp
+    ../src/utils/ArrlSectionHelper.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
 add_tr4qt_test(test_arrlsection
     test_arrlsection.cpp
     ../src/utils/ArrlSectionHelper.cpp
