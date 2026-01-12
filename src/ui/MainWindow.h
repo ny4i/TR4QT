@@ -24,6 +24,10 @@
 #include "../controllers/DataIntegrityManager.h"
 #include "../controllers/ContestManager.h"
 #include "../controllers/ContestService.h"
+#include "../services/QSOPersistenceService.h"
+#include "../services/ExchangeMemoryService.h"
+#include "../services/QSOLoggingCoordinator.h"
+#include "../services/QSOLoggingService.h"
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
@@ -360,6 +364,12 @@ private:
 
     // QSO Logger (handles QSO validation, scoring, duplicate checking)
     QSOLogger* m_qsoLogger;
+
+    // QSO Logging Services (Phase 4 & 5 extraction)
+    QSOPersistenceService* m_persistenceService;
+    ExchangeMemoryService* m_exchangeMemoryService;
+    QSOLoggingCoordinator* m_loggingCoordinator;
+    QSOLoggingService* m_loggingService;
 
     // Data Integrity Manager (handles integrity checks and rescoring)
     DataIntegrityManager* m_integrityManager;

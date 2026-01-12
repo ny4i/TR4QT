@@ -42,6 +42,7 @@
 #include "../data/BackupManager.h"
 #include "../data/ExchangeMemoryRepository.h"
 #include "../data/SCPRepository.h"
+#include "../commands/CommandDispatcher.h"
 #include "../contests/RSTValidator.h"
 #include "../cw/CWTemplateEngine.h"
 #include <QFile>
@@ -1993,97 +1994,105 @@ void MainWindow::onLogQSO() {
     QString callsign = m_callsignEntry->text().trimmed().toUpper();
     QString exchange = m_exchangeEntry->text().trimmed().toUpper();
 
-    // Check for OPON command (change operator)
-    if (callsign == "OPON") {
-        OperatorDialog dialog(this);
+    // Check for commands (OPON, UDP) - Phase 1 extraction
+    CommandDispatcher::CommandResult cmd = CommandDispatcher::parseCommand(callsign);
+    if (cmd.wasCommand) {
+        if (cmd.type == CommandDispatcher::ChangeOperator) {
+            // OPON command - change operator
+            OperatorDialog dialog(this);
 
-        // Pre-populate with current operator
-        AppSettings& settings = AppSettings::instance();
-        dialog.setOperatorCallsign(settings.getCurrentOperator());
+            // Pre-populate with current operator
+            AppSettings& settings = AppSettings::instance();
+            dialog.setOperatorCallsign(settings.getCurrentOperator());
 
-        if (dialog.exec() == QDialog::Accepted) {
-            QString newOperator = dialog.getOperatorCallsign();
-            if (!newOperator.isEmpty()) {
-                settings.setCurrentOperator(newOperator);
-                m_operatorLabel->setText(newOperator);  // Update operator display
-                // WebServer pulls operator from AppSettings - no need to push
-                m_statusLabel->setText(QString("Operator changed to: %1").arg(newOperator));
-                LOG_INFO("MainWindow", QString("Operator changed to: %1").arg(newOperator));
+            if (dialog.exec() == QDialog::Accepted) {
+                QString newOperator = dialog.getOperatorCallsign();
+                if (!newOperator.isEmpty()) {
+                    settings.setCurrentOperator(newOperator);
+                    m_operatorLabel->setText(newOperator);
+                    m_statusLabel->setText(QString("Operator changed to: %1").arg(newOperator));
+                    LOG_INFO("MainWindow", QString("Operator changed to: %1").arg(newOperator));
+                } else {
+                    m_statusLabel->setText("Operator change cancelled (empty callsign)");
+                }
             } else {
-                m_statusLabel->setText("Operator change cancelled (empty callsign)");
+                m_statusLabel->setText("Operator change cancelled");
             }
-        } else {
-            m_statusLabel->setText("Operator change cancelled");
+
+            onClearEntry();
+            return;
         }
-
-        // Clear entry fields and focus callsign
-        onClearEntry();
-        return;
+        else if (cmd.type == CommandDispatcher::RebroadcastLog) {
+            // UDP command - rebroadcast log
+            onRebroadcastLog();
+            onClearEntry();
+            return;
+        }
     }
 
-    // Check for UDP command (rebroadcast entire log)
-    if (callsign == "UDP") {
-        onRebroadcastLog();
-
-        // Clear entry fields and focus callsign
-        onClearEntry();
-        return;
-    }
-
-    // Use QSOLogger for validation, QSO creation, and scoring
-    if (!m_qsoLogger) {
+    // Verify service is initialized
+    if (!m_loggingService) {
         m_statusLabel->setText("Error: No active contest - open a contest first");
         QApplication::beep();
         return;
     }
 
-    // Build input for QSOLogger
-    QSOLogger::Input input;
-    input.callsign = callsign;
-    input.exchange = exchange;
-    input.radioState = m_currentState;
-    input.operatorCallsign = AppSettings::instance().getCurrentOperator();
-    input.serialNumber = m_nextSerialNumber;
-    input.operatingMode = m_operatingMode;
+    // Build request for QSO logging service
+    QSOLoggingService::LogQSORequest request;
+    request.callsign = callsign;
+    request.exchange = exchange;
+    request.radioState = m_currentState;
+    request.operatorCallsign = AppSettings::instance().getCurrentOperator();
+    request.serialNumber = m_nextSerialNumber;
+    request.operatingMode = m_operatingMode;
 
-    // Get existing QSOs for duplicate checking and multiplier tracking
-    QList<QSO> existingQSOs;
+    // Get existing QSOs for duplicate/multiplier checking
     for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-        existingQSOs.append(m_qsoTableModel->getQSO(row));
+        request.existingQSOs.append(m_qsoTableModel->getQSO(row));
     }
 
-    // Call QSOLogger to validate, create, and score the QSO
-    QSOLogger::Result result = m_qsoLogger->logQSO(input, existingQSOs);
+    request.saveExchangeMemory = true;
+    request.autoPopulated = m_initialExchangePopulated;
+
+    // Context for post-logging actions
+    request.stationCallsign = AppSettings::instance().getMyCallsign();
+    request.contestName = m_hasActiveContest ? m_currentContest.contestName : "Unknown";
+    request.contestId = m_activeContest ? m_activeContest->getContestId() : "";
+    request.databasePath = m_currentContest.databasePath;
+    request.totalQSOCount = m_qsoTableModel->count() + 1;
+    request.qsosSinceLastCheck = m_qsosSinceLastIntegrityCheck + 1;
+    request.contestDbId = m_currentContestDbId;
+    request.memoryQSOCount = m_qsoTableModel->count() + 1;
+
+    // Execute QSO logging workflow (Phase 5 integration service)
+    QSOLoggingService::LogQSOResult result = m_loggingService->logQSO(request);
 
     // Handle validation errors
     if (!result.success) {
         m_statusLabel->setText(result.errorMessage);
-        m_statusLabel->setStyleSheet("QLabel { color: #ff0000; font-weight: bold; }");  // Theme default: #ff0000 (error red)
+        m_statusLabel->setStyleSheet("QLabel { color: #ff0000; font-weight: bold; }");
         QApplication::beep();
 
-        // Set focus to appropriate field based on error
+        // Set focus to appropriate field
         if (result.errorMessage.contains("Callsign")) {
             m_callsignEntry->setFocus();
         } else if (result.errorMessage.contains("Exchange")) {
             m_exchangeEntry->setFocus();
-        } else if (result.errorMessage.contains("Band") || result.errorMessage.contains("Mode")) {
-            // Band/Mode error - can't fix with input, just show error
         }
         return;
     }
 
-    // Update serial number if contest uses them
-    m_nextSerialNumber = result.updatedSerialNumber;
-
-    // Extract QSO from result
+    // Extract results
     QSO qso = result.qso;
     bool isDuplicate = result.isDuplicate;
-    QString dupeInfo = result.dupeInfo;
     QStringList multiplierValues = result.multiplierValues;
+
+    // Update serial number
+    m_nextSerialNumber = result.updatedSerialNumber;
 
     // Log duplicate info if present
     if (isDuplicate) {
-        LOG_INFO("MainWindow", QString("Duplicate QSO detected: %1 - %2").arg(callsign, dupeInfo));
+        LOG_INFO("MainWindow", QString("Duplicate QSO detected: %1 - %2").arg(callsign, result.dupeInfo));
     }
 
     // Add to table model (UI)
@@ -2092,195 +2101,75 @@ void MainWindow::onLogQSO() {
     // Update band summary grid with new scores
     updateScoreDisplay();
 
-    // Update multiplier window based on contest's primary multiplier type
+    // Update multiplier window
     if (m_multiplierWindow && m_activeContest) {
         QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
         if (!multDefs.isEmpty()) {
             MultiplierType primaryMultType = multDefs.first().type;
-
-            // Use contest's getMultiplierValue() method which has contest-specific
-            // filtering logic (e.g., RTTY Roundup excludes US/Canada from countries)
             QString multValue = m_activeContest->getMultiplierValue(qso, primaryMultType, QStringList());
-
             if (!multValue.isEmpty()) {
                 m_multiplierWindow->setMultiplierWorked(multValue, qso.band);
                 LOG_DEBUG("MainWindow", QString("Updated multiplier window: %1 on %2")
-                    .arg(multValue)
-                    .arg(bandToString(qso.band)));
+                    .arg(multValue).arg(bandToString(qso.band)));
             }
         }
     }
 
-    // Scroll to show the newly logged QSO
+    // Scroll to show newly logged QSO
     m_qsoTableView->scrollToBottom();
 
-    // Save to database if contest is active
-    if (m_hasActiveContest) {
-        QSORepository repo;
-        bool saved = false;
-        bool savedToDatabase = false;
-        int retryCount = 0;
+    // Handle persistence result
+    if (result.persistenceResult.status == QSOPersistenceService::SaveResult::SavedToDatabase) {
+        LOG_DEBUG("MainWindow", QString("QSO saved to database with ID: %1").arg(qso.id));
 
-        while (!saved && retryCount < 3) {
-            if (repo.saveQSO(qso, m_currentContestDbId)) {
-                saved = true;
-                savedToDatabase = true;
-                break;
-            }
-
-            // Database save failed
-            QString errorMsg = repo.lastError();
-            LOG_ERROR("MainWindow", QString("DATABASE SAVE FAILED (attempt %1): %2").arg(retryCount + 1).arg(errorMsg));
-            QApplication::beep();
-
-            // CRITICAL: Data reliability is paramount - QSO must be persisted to disk
-            // Show modal dialog with options to ensure QSO is saved
-            QMessageBox msgBox(this);
-            msgBox.setIcon(QMessageBox::Critical);
-            msgBox.setWindowTitle("Database Save Failed");
-            msgBox.setText(QString("Failed to save QSO to database:\n\n%1: %2\n\nThe QSO is currently only in memory and will be LOST if TR4QT crashes.")
-                          .arg(qso.callsign)
-                          .arg(errorMsg));
-            msgBox.setInformativeText("Choose how to proceed:");
-
-            QPushButton* retryBtn = msgBox.addButton("Retry Database", QMessageBox::ActionRole);
-            QPushButton* emergencyBtn = msgBox.addButton("Save to Emergency File", QMessageBox::ActionRole);
-            QPushButton* stopBtn = msgBox.addButton("Stop Contesting", QMessageBox::DestructiveRole);
-            msgBox.setDefaultButton(retryBtn);
-
-            msgBox.exec();
-            QAbstractButton* clicked = msgBox.clickedButton();
-
-            if (clicked == retryBtn) {
-                LOG_INFO("MainWindow", "User chose to retry database save");
-                retryCount++;
-                continue;  // Retry the database save
-            }
-            else if (clicked == emergencyBtn) {
-                // Write QSO to emergency ADIF file immediately
-                QString emergencyPath = PathManager::getAppDataDir() + "/emergency_log.adi";
-                QDir().mkpath(QFileInfo(emergencyPath).dir().path());
-
-                QFile emergencyFile(emergencyPath);
-                bool fileExists = emergencyFile.exists();
-
-                if (emergencyFile.open(QIODevice::Append | QIODevice::Text)) {
-                    QTextStream out(&emergencyFile);
-
-                    // Write ADIF header if new file
-                    if (!fileExists) {
-                        out << "TR4QT Emergency Log - QSOs that could not be saved to database\n";
-                        out << "<ADIF_VER:5>3.1.4\n";
-                        out << "<PROGRAMID:5>TR4QT\n";
-                        out << "<PROGRAMVERSION:" << QString::number(QString(APP_VERSION).length()) << ">" << APP_VERSION << "\n";
-                        out << "<EOH>\n\n";
-                    }
-
-                    // Write QSO record
-                    out << "<CALL:" << qso.callsign.length() << ">" << qso.callsign << " ";
-                    out << "<QSO_DATE:8>" << qso.timestamp.toString("yyyyMMdd") << " ";
-                    out << "<TIME_ON:6>" << qso.timestamp.toString("HHmmss") << " ";
-                    out << "<BAND:" << bandToString(qso.band).length() << ">" << bandToString(qso.band) << " ";
-                    out << "<MODE:" << modeToString(qso.mode).length() << ">" << modeToString(qso.mode) << " ";
-                    out << "<RST_SENT:" << qso.rstSent.length() << ">" << qso.rstSent << " ";
-                    out << "<RST_RCVD:" << qso.rstReceived.length() << ">" << qso.rstReceived << " ";
-                    if (!qso.exchangeSent.isEmpty()) {
-                        out << "<STX_STRING:" << qso.exchangeSent.length() << ">" << qso.exchangeSent << " ";
-                    }
-                    if (!qso.exchangeReceived.isEmpty()) {
-                        out << "<SRX_STRING:" << qso.exchangeReceived.length() << ">" << qso.exchangeReceived << " ";
-                    }
-                    out << "<EOR>\n";
-
-                    emergencyFile.close();
-
-                    LOG_INFO("MainWindow", QString("QSO saved to emergency file: %1").arg(emergencyPath));
-
-                    DialogHelper::information(this, "QSO Saved to Emergency File",
-                                            QString("QSO saved to emergency file:\n%1\n\nYou can import this file later using File → Import ADIF")
-                                            .arg(emergencyPath));
-
-                    saved = true;  // Consider it saved (to disk, not database)
-                    break;
-                } else {
-                    LOG_ERROR("MainWindow", QString("Failed to open emergency file: %1").arg(emergencyPath));
-                    DialogHelper::critical(this, "Emergency Save Failed",
-                                          "Could not save QSO to emergency file either!\n\nThe QSO is only in memory and will be lost if TR4QT crashes.");
-                    // Fall through to stop contesting
-                    saved = true;  // Exit loop
-                    break;
-                }
-            }
-            else if (clicked == stopBtn) {
-                LOG_WARN("MainWindow", "User chose to stop contesting due to database error");
-                DialogHelper::critical(this, "Contesting Stopped",
-                                      "Database is not working. Please fix the issue before continuing.\n\nThe QSO is in memory only - it will be lost if TR4QT crashes.");
-                saved = true;  // Exit loop
-                break;
-            }
-        }
-
-        if (savedToDatabase) {  // Successfully saved to database
-            LOG_DEBUG("MainWindow", QString("QSO saved to database with ID: %1").arg(qso.id));
-
-            // Update the table model with the QSO now that it has a database ID
-            // This allows Edit QSO to work properly (needs valid ID)
-            int lastRow = m_qsoTableModel->count() - 1;
-            m_qsoTableModel->updateQSO(lastRow, qso);
-
-            // Save exchange to memory for future auto-population
-            if (m_activeContest && !qso.exchangeReceived.isEmpty()) {
-                ExchangeMemoryEntry memEntry;
-                memEntry.callsign = qso.callsign;
-                memEntry.exchange = qso.exchangeReceived;
-                memEntry.contestType = m_activeContest->getContestId();
-                memEntry.mode = qso.mode;
-                memEntry.timestamp = QDateTime::currentDateTime();
-                memEntry.source = m_initialExchangePopulated ? "auto" : "manual";
-                memEntry.hitCount = 0;
-
-                ExchangeMemoryRepository memRepo;
-                if (!memRepo.save(memEntry)) {
-                    LOG_WARN("MainWindow", QString("Failed to save exchange memory: %1")
-                             .arg(memRepo.lastError()));
-                }
-            }
-
-            // NOTE: No longer adding callsign to global SCP database
-            // Worked calls are now queried directly from contest database
-            // This keeps global SCP table clean (MASTER.SCP only)
-
-            // Auto-backup check (if enabled)
-            int currentQSOCount = repo.getQSOCount(m_currentContestDbId);
-            BackupManager::instance().autoBackupIfNeeded(
-                m_currentContest.databasePath,
-                currentQSOCount);
-        }
+        // Update table model with database ID
+        int lastRow = m_qsoTableModel->count() - 1;
+        m_qsoTableModel->updateQSO(lastRow, qso);
+    }
+    else if (result.persistenceResult.status == QSOPersistenceService::SaveResult::SavedToEmergencyFile) {
+        // Emergency file fallback
+        DialogHelper::information(this, "QSO Saved to Emergency File",
+            QString("Database save failed. QSO saved to emergency file:\n%1\n\n"
+                    "You can import this file later using File → Import ADIF")
+            .arg(result.persistenceResult.emergencyFilePath));
+    }
+    else if (result.persistenceResult.status == QSOPersistenceService::SaveResult::Failed) {
+        // Complete failure
+        DialogHelper::critical(this, "QSO Save Failed",
+            "Could not save QSO to database or emergency file!\n\n"
+            "The QSO is only in memory and will be lost if TR4QT crashes.");
+    }
+    else if (result.persistenceResult.status == QSOPersistenceService::SaveResult::NeedsUserDecision) {
+        // User needs to decide (retry/emergency/stop)
+        // This shouldn't happen with QSOLoggingService (it handles retries internally)
+        // But handle it just in case
+        DialogHelper::warning(this, "QSO Save Issue",
+            QString("QSO save needs attention:\n%1")
+            .arg(result.persistenceResult.errorMessage));
     }
 
-    // Send UDP broadcast for new QSO
-    QString stationCall = AppSettings::instance().getMyCallsign();
-    QString contestName = m_hasActiveContest ? m_currentContest.contestName : "Unknown";
-    m_udpBroadcastManager->onQSOLogged(qso, stationCall, contestName);
-
-    // WebServer pulls QSOs from QSOTableModel - no need to push
-
-    // Update last QSO time for time since last QSO calculation
+    // Update last QSO time
     m_lastQSOTime = qso.timestamp;
 
-    m_statusLabel->setText(QString("Logged: %1 on %2 %3")
-                              .arg(callsign)
-                              .arg(bandToString(qso.band))
-                              .arg(modeToString(qso.mode)));
+    // Update status
+    QString statusMsg = QString("Logged: %1 on %2 %3")
+        .arg(callsign)
+        .arg(bandToString(qso.band))
+        .arg(modeToString(qso.mode));
 
-    // Tier 2 Integrity Check: Check after every 50 QSOs
-    m_qsosSinceLastIntegrityCheck++;
-    if (m_qsosSinceLastIntegrityCheck >= 50) {
-        quickIntegrityCheck();
-        m_qsosSinceLastIntegrityCheck = 0;
+    // Append post-logging actions if any
+    if (!result.postLoggingActions.isEmpty()) {
+        statusMsg += " | " + result.postLoggingActions.join(", ");
     }
 
-    // Auto-send QSL message after logging (both CQ and S&P modes)
+    m_statusLabel->setText(statusMsg);
+    m_statusLabel->setStyleSheet("");  // Reset color
+
+    // Update integrity check counter
+    m_qsosSinceLastIntegrityCheck = result.postLoggingActions.contains("Integrity check passed") ||
+                                    result.postLoggingActions.contains("Integrity check FAILED") ? 0 : m_qsosSinceLastIntegrityCheck + 1;
+
+    // Auto-send QSL message after logging
     bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
     bool autoSendEnabled = m_autoSendCWAction->isChecked();
     if (isCWMode && m_radioConnected && m_radio && autoSendEnabled) {
@@ -2292,10 +2181,11 @@ void MainWindow::onLogQSO() {
     // Clear entry fields and focus callsign
     onClearEntry();
 
-    // Update score display and time display
+    // Update displays
     updateScoreDisplay();
-    updateTimeDisplay();  // Immediate update after logging
+    updateTimeDisplay();
 }
+
 
 void MainWindow::onCallsignChanged(const QString& callsign) {
     // Update needs display as user types
