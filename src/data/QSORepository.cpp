@@ -410,6 +410,80 @@ int QSORepository::getTotalPoints(int contestId) const {
 
 // ===== Dupe Checking =====
 
+QSORepository::DuplicateCheckResult QSORepository::checkDuplicate(
+    const QString& callsign,
+    BandType band,
+    ModeType mode,
+    DuplicateCheckingRule rule,
+    int contestId
+) const {
+    DuplicateCheckResult result;
+
+    // Convert band/mode enums to strings (database stores as TEXT)
+    QString bandStr = bandToString(band);
+    QString modeStr = modeToString(mode);
+
+    // Build SQL query based on duplicate rule
+    QString sql = "SELECT band, mode, timestamp FROM qsos WHERE contest_id = ? AND callsign = ? AND deleted = 0";
+    QVariantList params;
+    params << contestId << callsign;
+
+    // Add additional filters based on duplicate rule
+    switch (rule) {
+        case DuplicateCheckingRule::PerBandMode:
+            sql += " AND band = ? AND mode = ?";
+            params << bandStr << modeStr;
+            break;
+        case DuplicateCheckingRule::AllBandMode:
+            sql += " AND mode = ?";
+            params << modeStr;
+            break;
+        case DuplicateCheckingRule::PerBand:
+            sql += " AND band = ?";
+            params << bandStr;
+            break;
+        case DuplicateCheckingRule::AllBand:
+            // No additional filter - any contact with this callsign is a dupe
+            break;
+    }
+
+    sql += " LIMIT 1";
+
+    Database& db = Database::instance();
+    QSqlQuery query = db.execute(sql, params);
+
+    if (query.next()) {
+        // Found a duplicate - build info string
+        result.isDuplicate = true;
+        result.timestamp = QDateTime::fromSecsSinceEpoch(query.value(2).toLongLong());
+
+        switch (rule) {
+            case DuplicateCheckingRule::PerBandMode:
+                result.dupeInfo = QString("DUPE - Worked on %1 at %2")
+                    .arg(result.timestamp.toString("yyyy-MM-dd"))
+                    .arg(result.timestamp.toString("HH:mm"));
+                break;
+            case DuplicateCheckingRule::AllBandMode:
+                result.dupeInfo = QString("DUPE - Worked on %1 at %2 (same mode, different band)")
+                    .arg(result.timestamp.toString("yyyy-MM-dd"))
+                    .arg(result.timestamp.toString("HH:mm"));
+                break;
+            case DuplicateCheckingRule::PerBand:
+                result.dupeInfo = QString("DUPE - Worked on %1 at %2 (same band, different mode)")
+                    .arg(result.timestamp.toString("yyyy-MM-dd"))
+                    .arg(result.timestamp.toString("HH:mm"));
+                break;
+            case DuplicateCheckingRule::AllBand:
+                result.dupeInfo = QString("DUPE - Worked on %1 at %2 (once-per-contest)")
+                    .arg(result.timestamp.toString("yyyy-MM-dd"))
+                    .arg(result.timestamp.toString("HH:mm"));
+                break;
+        }
+    }
+
+    return result;
+}
+
 bool QSORepository::isDuplicate(const QString& callsign, BandType band, ModeType mode, int contestId) const {
     Database& db = Database::instance();
 

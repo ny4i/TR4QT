@@ -105,6 +105,40 @@ public:
     // ===== Dupe Checking =====
 
     /**
+     * Duplicate check result with detailed information
+     */
+    struct DuplicateCheckResult {
+        bool isDuplicate{false};
+        QString dupeInfo;
+        QDateTime timestamp;
+    };
+
+    /**
+     * Check for duplicate with rule-based logic
+     * Extracted from MainWindow::checkForDuplicate()
+     *
+     * Supports all duplicate checking rules:
+     * - PerBandMode: Same call/band/mode
+     * - AllBandMode: Same call/mode (any band)
+     * - PerBand: Same call/band (any mode)
+     * - AllBand: Same call (once per contest)
+     *
+     * @param callsign Callsign to check
+     * @param band Band
+     * @param mode Mode
+     * @param rule Duplicate checking rule
+     * @param contestId Contest ID
+     * @return DuplicateCheckResult with isDuplicate flag, info string, and timestamp
+     */
+    DuplicateCheckResult checkDuplicate(
+        const QString& callsign,
+        BandType band,
+        ModeType mode,
+        DuplicateCheckingRule rule,
+        int contestId
+    ) const;
+
+    /**
      * Check if QSO is a duplicate
      * Most contests: dupe = same call + band + mode
      *
