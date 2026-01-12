@@ -125,7 +125,11 @@
       "Bash(claude:*)",
       "Bash(xattr:*)",
       "Bash(~/.claude/skills/hello.md)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(./tests/test_contest_exchange_update)",
+      "Bash(./tests/test_duplicate_checking)",
+      "Bash(./tests/test_integrity_checking)",
+      "Bash(./tests/test_window_persistence)"
     ]
   },
   "enabledMcpjsonServers": [
