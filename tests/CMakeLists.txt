@@ -73,6 +73,18 @@ add_tr4qt_test(test_command_dispatcher
     ../src/commands/CommandDispatcher.cpp
 )
 
+add_tr4qt_test(test_qso_persistence_service
+    test_qso_persistence_service.cpp
+    ../src/services/QSOPersistenceService.cpp
+    ../src/data/QSORepository.cpp
+    ../src/data/Database.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
 add_tr4qt_test(test_arrlsection
     test_arrlsection.cpp
     ../src/utils/ArrlSectionHelper.cpp

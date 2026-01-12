@@ -135,6 +135,7 @@ set(SOURCES
     controllers/CWMessageManager.cpp
     controllers/BandSwitchingManager.cpp
     commands/CommandDispatcher.cpp
+    services/QSOPersistenceService.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp
