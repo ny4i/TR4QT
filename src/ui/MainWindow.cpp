@@ -2910,8 +2910,8 @@ void MainWindow::updateScoreDisplay() {
 }
 
 void MainWindow::recalculateAllPoints() {
-    if (!m_activeContest || !m_qsoTableModel) {
-        LOG_WARN("MainWindow", "Cannot recalculate points - no active contest or table model");
+    if (!m_activeContest || !m_qsoTableModel || !m_integrityManager) {
+        LOG_WARN("MainWindow", "Cannot recalculate points - no active contest, table model, or integrity manager");
         return;
     }
 
@@ -2928,38 +2928,27 @@ void MainWindow::recalculateAllPoints() {
         myStation.country = myCountryData.name;
     }
 
-    int updatedCount = 0;
-    QSORepository repo;
-
-    // Iterate through all QSOs and recalculate points
+    // Get all QSOs from model
+    QList<QSO> qsos;
     for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-        QSO qso = m_qsoTableModel->getQSO(row);
-
-        // Calculate new points
-        int newPoints = m_activeContest->calculateQSOPoints(qso, myStation);
-
-        // Update if different
-        if (qso.qsoPoints != newPoints) {
-            qso.qsoPoints = newPoints;
-
-            // Update in database
-            if (repo.updateQSO(qso)) {
-                // Update in table model
-                m_qsoTableModel->updateQSO(row, qso);
-                updatedCount++;
-            } else {
-                LOG_ERROR("MainWindow", QString("Failed to update QSO %1 in database").arg(qso.id));
-            }
-        }
+        qsos.append(m_qsoTableModel->getQSO(row));
     }
 
-    LOG_INFO("MainWindow", QString("Recalculated points for %1 QSOs").arg(updatedCount));
+    // Delegate rescoring to DataIntegrityManager (no business logic loops in UI!)
+    RescoreStats stats = m_integrityManager->rescoreContestSilent(qsos, m_activeContest, myStation);
+
+    // Update table model with rescored QSOs
+    for (int row = 0; row < qsos.size(); ++row) {
+        m_qsoTableModel->updateQSO(row, qsos[row]);
+    }
+
+    LOG_INFO("MainWindow", QString("Recalculated points for %1 QSOs").arg(stats.qsosUpdated));
 
     // Update display
     updateScoreDisplay();
 
     // Show result to user
-    m_statusLabel->setText(QString("Recalculated points for %1 QSOs").arg(updatedCount));
+    m_statusLabel->setText(QString("Recalculated points for %1 QSOs").arg(stats.qsosUpdated));
 }
 
 // Tier 2: Periodic lightweight integrity check
@@ -2978,30 +2967,16 @@ bool MainWindow::quickIntegrityCheck() {
         return true;  // Nothing to check
     }
 
-    // Check if database is open before running integrity check
-    Database& db = Database::instance();
-    if (!db.isOpen()) {
-        LOG_DEBUG("MainWindow", "Skipping integrity check - database is not open");
-        return true;  // Not an error, just skip the check
-    }
-
-    // Delegate to DataIntegrityManager
+    // Delegate to DataIntegrityManager (no SQL in UI!)
     int memoryCount = m_qsoTableModel->count();
-    bool result = m_integrityManager->quickIntegrityCheck(memoryCount);
+    DataIntegrityManager::QuickCheckResult result = m_integrityManager->quickIntegrityCheck(memoryCount);
 
-    if (!result) {
-        // Get actual counts for mismatch handler
-        QSqlQuery query = db.execute(
-            "SELECT COUNT(*) FROM qsos WHERE contest_id = ? AND deleted = 0",
-            {m_currentContestDbId});
-        int dbCount = 0;
-        if (query.next()) {
-            dbCount = query.value(0).toInt();
-        }
-        handleIntegrityMismatch(memoryCount, dbCount);
+    if (!result.passed) {
+        // Use counts returned by manager (no need to re-query!)
+        handleIntegrityMismatch(result.memoryCount, result.dbCount);
     }
 
-    return result;
+    return result.passed;
 }
 
 void MainWindow::handleIntegrityMismatch(int memoryCount, int dbCount) {
@@ -3222,7 +3197,7 @@ void MainWindow::onEditContestSettings() {
 }
 
 void MainWindow::onFullIntegrityCheck() {
-    if (!m_hasActiveContest || !m_qsoTableModel) {
+    if (!m_hasActiveContest || !m_qsoTableModel || !m_integrityManager) {
         DialogHelper::information(this, "Integrity Check",
             "No active contest to validate.");
         return;
@@ -3231,7 +3206,12 @@ void MainWindow::onFullIntegrityCheck() {
     m_statusLabel->setText("Running full integrity check...");
     QApplication::processEvents();  // Update UI
 
-    QString report = fullIntegrityCheck(false);  // Show all checks (critical + informational)
+    // Delegate to DataIntegrityManager (no SQL in UI!)
+    QList<QSO> memoryQSOs;
+    for (int i = 0; i < m_qsoTableModel->count(); ++i) {
+        memoryQSOs.append(m_qsoTableModel->getQSO(i));
+    }
+    QString report = m_integrityManager->fullIntegrityCheck(memoryQSOs, false);  // Show all checks
 
     // Display report
     QDialog* dialog = new QDialog(this);
@@ -3254,330 +3234,6 @@ void MainWindow::onFullIntegrityCheck() {
     delete dialog;
 
     m_statusLabel->setText("Integrity check complete");
-}
-
-QString MainWindow::fullIntegrityCheck(bool criticalOnly) {
-    QString report;
-    report += "=== LOG INTEGRITY CHECK REPORT ===\n\n";
-    report += QString("Contest: %1\n").arg(m_currentContest.contestName);
-    report += QString("Database: %1\n").arg(m_currentContest.databasePath);
-    report += QString("Check time: %1\n\n").arg(QDateTime::currentDateTime().toString(Qt::ISODate));
-    report += QString("Mode: %1\n\n").arg(criticalOnly ? "Critical issues only" : "All issues (critical + informational)");
-
-    int memoryCount = m_qsoTableModel->count();
-    Database& db = Database::instance();
-
-    // Check if database is open before running integrity checks
-    if (!db.isOpen()) {
-        report += "✗ CRITICAL: Database is not open!\n\n";
-        report += "Cannot perform integrity check on closed database.\n";
-        report += "This may occur if the contest was closed or the database connection failed.\n\n";
-        report += "=== END OF REPORT ===\n";
-        return report;
-    }
-
-    // CRITICAL: Checkpoint WAL to ensure all recent writes are visible
-    // Without this, the integrity check may report false positives for recently-logged QSOs
-    // that are in the WAL but not yet visible to new queries
-    QSqlQuery checkpointQuery = db.execute("PRAGMA wal_checkpoint(PASSIVE)", {});
-    checkpointQuery.next();  // Execute the checkpoint
-
-    // Count database QSOs
-    QSqlQuery countQuery = db.execute(
-        "SELECT COUNT(*) FROM qsos WHERE contest_id = ? AND deleted = 0",
-        {m_currentContestDbId});
-    int dbCount = 0;
-    if (countQuery.next()) {
-        dbCount = countQuery.value(0).toInt();
-    }
-
-    report += QString("QSOs in memory: %1\n").arg(memoryCount);
-    report += QString("QSOs in database: %1\n\n").arg(dbCount);
-
-    // Check 1: Count match
-    if (memoryCount == dbCount) {
-        report += "✓ QSO count matches\n\n";
-    } else {
-        report += QString("✗ QSO COUNT MISMATCH (diff: %1)\n\n")
-            .arg(qAbs(memoryCount - dbCount));
-    }
-
-    // Check 2: Verify all memory QSOs exist in database
-    QStringList missingInDB;
-    QSORepository repo;
-    for (int row = 0; row < memoryCount; ++row) {
-        QSO qso = m_qsoTableModel->getQSO(row);
-        if (qso.id < 0) {
-            missingInDB.append(QString("Row %1: %2 (no database ID)")
-                .arg(row).arg(qso.callsign));
-        } else {
-            QSO dbQso = repo.findById(qso.id);
-            if (dbQso.id < 0) {
-                missingInDB.append(QString("Row %1: %2 (ID=%3 not found in DB)")
-                    .arg(row).arg(qso.callsign).arg(qso.id));
-            }
-        }
-    }
-
-    if (missingInDB.isEmpty()) {
-        report += "✓ All memory QSOs exist in database\n\n";
-    } else {
-        report += QString("✗ %1 QSOs in memory not found in database:\n")
-            .arg(missingInDB.size());
-        for (const QString& item : missingInDB) {
-            report += QString("  - %1\n").arg(item);
-        }
-        report += "\n";
-    }
-
-    // Check 3: Look for orphaned QSOs in database
-    QSqlQuery dbQuery = db.execute(
-        "SELECT id, callsign FROM qsos WHERE contest_id = ? AND deleted = 0",
-        {m_currentContestDbId});
-
-    QList<int> dbIds;
-    QMap<int, QString> dbCallsigns;
-    while (dbQuery.next()) {
-        int id = dbQuery.value(0).toInt();
-        QString callsign = dbQuery.value(1).toString();
-        dbIds.append(id);
-        dbCallsigns[id] = callsign;
-    }
-
-    QSet<int> memoryIds;
-    for (int row = 0; row < memoryCount; ++row) {
-        QSO qso = m_qsoTableModel->getQSO(row);
-        if (qso.id >= 0) {
-            memoryIds.insert(qso.id);
-        }
-    }
-
-    QStringList orphanedInDB;
-    for (int dbId : dbIds) {
-        if (!memoryIds.contains(dbId)) {
-            orphanedInDB.append(QString("ID=%1: %2")
-                .arg(dbId).arg(dbCallsigns[dbId]));
-        }
-    }
-
-    if (orphanedInDB.isEmpty()) {
-        report += "✓ No orphaned QSOs in database\n\n";
-    } else {
-        report += QString("✗ %1 QSOs in database not loaded in memory:\n")
-            .arg(orphanedInDB.size());
-        for (const QString& item : orphanedInDB) {
-            report += QString("  - %1\n").arg(item);
-        }
-        report += "\n";
-    }
-
-    // Check 4: Verify critical fields match
-    int fieldMismatches = 0;
-    for (int row = 0; row < qMin(memoryCount, 100); ++row) {  // Sample first 100
-        QSO memQso = m_qsoTableModel->getQSO(row);
-        if (memQso.id < 0) continue;
-
-        QSO dbQso = repo.findById(memQso.id);
-        if (dbQso.id < 0) continue;
-
-        if (memQso.callsign != dbQso.callsign ||
-            memQso.qsoPoints != dbQso.qsoPoints ||
-            memQso.band != dbQso.band) {
-            fieldMismatches++;
-        }
-    }
-
-    if (fieldMismatches == 0) {
-        report += QString("✓ Field values match (sampled first 100 QSOs)\n\n");
-    } else {
-        report += QString("✗ %1 field mismatches detected in sample\n\n")
-            .arg(fieldMismatches);
-    }
-
-    // Check 5: Detect QSOs with Unknown/None band (CRITICAL)
-    QSqlQuery unknownBandQuery = db.execute(
-        "SELECT id, callsign, timestamp, band FROM qsos "
-        "WHERE contest_id = ? AND deleted = 0 "
-        "AND (band = 'Unknown' OR band = 'None' OR band = '')",
-        {m_currentContestDbId});
-
-    QStringList unknownBands;
-    while (unknownBandQuery.next()) {
-        int id = unknownBandQuery.value(0).toInt();
-        QString callsign = unknownBandQuery.value(1).toString();
-        QString timestamp = unknownBandQuery.value(2).toString();
-        QString band = unknownBandQuery.value(3).toString();
-        unknownBands.append(QString("ID=%1: %2 at %3 (band='%4')")
-            .arg(id).arg(callsign).arg(timestamp).arg(band));
-    }
-
-    if (unknownBands.isEmpty()) {
-        report += "✓ No QSOs with Unknown/None band\n\n";
-    } else {
-        report += QString("✗ CRITICAL: %1 QSOs with Unknown/None band:\n")
-            .arg(unknownBands.size());
-        for (const QString& item : unknownBands) {
-            report += QString("  - %1\n").arg(item);
-        }
-        report += "  Recommendation: Manually edit these QSOs to set correct band\n\n";
-    }
-
-    // Check 6: Detect lowercase data in critical fields (INFORMATIONAL)
-    // This is non-critical but indicates data entry inconsistency
-    if (!criticalOnly) {
-        QSqlQuery lowercaseQuery = db.execute(
-            "SELECT id, callsign, rst_sent, rst_received, exchange_sent, exchange_received "
-            "FROM qsos WHERE contest_id = ? AND deleted = 0",
-            {m_currentContestDbId});
-
-        QStringList lowercaseIssues;
-        while (lowercaseQuery.next()) {
-            int id = lowercaseQuery.value(0).toInt();
-            QString callsign = lowercaseQuery.value(1).toString();
-            QString rstSent = lowercaseQuery.value(2).toString();
-            QString rstReceived = lowercaseQuery.value(3).toString();
-            QString exchangeSent = lowercaseQuery.value(4).toString();
-            QString exchangeReceived = lowercaseQuery.value(5).toString();
-
-            QStringList fields;
-            if (callsign != callsign.toUpper()) fields << "callsign";
-            if (rstSent != rstSent.toUpper()) fields << "rst_sent";
-            if (rstReceived != rstReceived.toUpper()) fields << "rst_received";
-            if (exchangeSent != exchangeSent.toUpper()) fields << "exchange_sent";
-            if (exchangeReceived != exchangeReceived.toUpper()) fields << "exchange_received";
-
-            if (!fields.isEmpty()) {
-                lowercaseIssues.append(QString("ID=%1: %2 (%3)")
-                    .arg(id).arg(callsign).arg(fields.join(", ")));
-            }
-        }
-
-        if (lowercaseIssues.isEmpty()) {
-            report += "✓ All text fields are uppercase\n\n";
-        } else {
-            report += QString("ℹ INFO: %1 QSOs with lowercase data:\n")
-                .arg(lowercaseIssues.size());
-            // Limit to first 10 to avoid overwhelming output
-            int displayed = qMin(10, lowercaseIssues.size());
-            for (int i = 0; i < displayed; i++) {
-                report += QString("  - %1\n").arg(lowercaseIssues[i]);
-            }
-            if (lowercaseIssues.size() > 10) {
-                report += QString("  ... and %1 more\n").arg(lowercaseIssues.size() - 10);
-            }
-            report += "  Note: This is informational only. Uppercase validation added in v3.30.0.\n\n";
-        }
-    }
-
-    // Check 7: Database schema version validation (CRITICAL)
-    QSqlQuery versionQuery = db.execute("PRAGMA user_version", {});
-    int dbSchemaVersion = 0;
-    if (versionQuery.next()) {
-        dbSchemaVersion = versionQuery.value(0).toInt();
-    }
-
-    const int EXPECTED_SCHEMA_VERSION = 8;  // From Database.h CURRENT_SCHEMA_VERSION
-    bool schemaVersionMismatch = false;
-    if (dbSchemaVersion == EXPECTED_SCHEMA_VERSION) {
-        report += QString("✓ Database schema version matches (v%1)\n\n").arg(EXPECTED_SCHEMA_VERSION);
-    } else {
-        schemaVersionMismatch = true;
-        report += QString("✗ CRITICAL: Schema version mismatch!\n");
-        report += QString("  Database: v%1\n").arg(dbSchemaVersion);
-        report += QString("  Expected: v%1\n").arg(EXPECTED_SCHEMA_VERSION);
-        report += "  Recommendation: Restart TR4QT to trigger automatic migration\n\n";
-    }
-
-    // Check 8: Required columns existence check (CRITICAL)
-    QSqlQuery columnsQuery = db.execute("PRAGMA table_info(qsos)", {});
-    QSet<QString> existingColumns;
-    while (columnsQuery.next()) {
-        existingColumns.insert(columnsQuery.value(1).toString());
-    }
-
-    QStringList requiredColumns = {
-        "id", "contest_id", "callsign", "timestamp", "frequency", "band", "mode",
-        "rst_sent", "rst_received", "exchange_sent", "exchange_received",
-        "serial_number", "serial_number_received", "precedence", "sweepstakes_check",
-        "power", "operator_name", "itu_zone_exchange",
-        "dxcc_entity", "cq_zone", "itu_zone", "continent",
-        "qso_points", "is_dupe", "is_multiplier", "deleted"
-    };
-
-    QStringList missingColumns;
-    for (const QString& col : requiredColumns) {
-        if (!existingColumns.contains(col)) {
-            missingColumns.append(col);
-        }
-    }
-
-    if (missingColumns.isEmpty()) {
-        report += QString("✓ All %1 required columns exist\n\n").arg(requiredColumns.size());
-    } else {
-        report += QString("✗ CRITICAL: %1 required columns missing from qsos table:\n")
-            .arg(missingColumns.size());
-        for (const QString& col : missingColumns) {
-            report += QString("  - %1\n").arg(col);
-        }
-        report += "  Recommendation: Restart TR4QT to trigger automatic migration\n\n";
-    }
-
-    // Check 9: QSO load validation test (CRITICAL)
-    int loadFailures = 0;
-    int sampleSize = qMin(10, dbCount);  // Test first 10 QSOs
-
-    if (sampleSize > 0) {
-        QSqlQuery sampleQuery = db.execute(
-            "SELECT id FROM qsos WHERE contest_id = ? AND deleted = 0 LIMIT ?",
-            {m_currentContestDbId, sampleSize});
-
-        while (sampleQuery.next()) {
-            int qsoId = sampleQuery.value(0).toInt();
-            QSO loadedQso = repo.findById(qsoId);
-
-            // Verify QSO was actually loaded (not just default-constructed)
-            if (loadedQso.id != qsoId || loadedQso.callsign.isEmpty()) {
-                loadFailures++;
-            }
-        }
-
-        if (loadFailures == 0) {
-            report += QString("✓ QSO load test passed (sampled %1 QSOs)\n\n").arg(sampleSize);
-        } else {
-            report += QString("✗ CRITICAL: %1/%2 QSOs failed to load correctly\n")
-                .arg(loadFailures).arg(sampleSize);
-            report += "  This suggests a database schema issue or data corruption\n";
-            report += "  Recommendation: Check logs for SQL errors, verify schema version\n\n";
-        }
-    } else {
-        report += "✓ QSO load test skipped (no QSOs in database)\n\n";
-    }
-
-    // Summary
-    report += "=== SUMMARY ===\n";
-    bool criticalIssues = (memoryCount != dbCount) ||
-                          !missingInDB.isEmpty() ||
-                          !orphanedInDB.isEmpty() ||
-                          (fieldMismatches > 0) ||
-                          !unknownBands.isEmpty() ||
-                          schemaVersionMismatch ||
-                          !missingColumns.isEmpty() ||
-                          (loadFailures > 0);
-
-    if (!criticalIssues) {
-        report += "✓ ALL CRITICAL CHECKS PASSED - Log integrity verified\n";
-        if (!criticalOnly) {
-            report += "  (Informational checks may have reported non-critical issues above)\n";
-        }
-    } else {
-        report += "✗ CRITICAL ISSUES DETECTED - See details above\n";
-        report += "\nRecommendation: Consider reloading contest from database\n";
-    }
-
-    LOG_INFO("MainWindow", QString("Full integrity check: %1")
-        .arg(!criticalIssues ? "PASSED" : "FAILED"));
-
-    return report;
 }
 
 // UDP command: Rebroadcast entire log
@@ -3885,29 +3541,29 @@ void MainWindow::reopenLastContest() {
         return;
     }
 
-    // Read contest info from database
-    QSqlQuery query = db.execute("SELECT contest_id, contest_name, start_time, contest_type FROM contests LIMIT 1", {});
-    if (!query.next()) {
-        LOG_WARN("MainWindow", "Last contest database has no contest record");
+    // Read contest info using ContestRepository (no SQL in UI!)
+    ContestRepository repo;
+    ContestRecord record = repo.findFirst();
+    if (!record.isValid()) {
+        LOG_WARN("MainWindow", QString("Last contest database has no contest record: %1").arg(repo.lastError()));
         db.close();
         return;
     }
 
-    // Build ContestInfo from database
+    // Convert ContestRecord to ContestInfo
     ContestInfo contestInfo;
-    contestInfo.contestId = query.value(0).toString();
-    contestInfo.contestName = query.value(1).toString();
-    contestInfo.startDate = QDateTime::fromSecsSinceEpoch(query.value(2).toLongLong());
-    contestInfo.contestType = query.value(3).toString();  // Read contest_type directly from database!
+    contestInfo.contestId = record.contestId;
+    contestInfo.contestName = record.contestName;
+    contestInfo.startDate = record.startTime;
+    contestInfo.contestType = record.contestType;
     contestInfo.databasePath = lastContestPath;
     contestInfo.isExisting = true;
 
     // Determine mode from contest_id (for backward compatibility with CW/SSB specific contests)
     // This is only used for display and mode restrictions
-    QString contestId = contestInfo.contestId;
-    if (contestId.contains("_CW")) {
+    if (record.contestId.contains("_CW")) {
         contestInfo.mode = "CW";
-    } else if (contestId.contains("_SSB")) {
+    } else if (record.contestId.contains("_SSB")) {
         contestInfo.mode = "SSB";
     } else {
         contestInfo.mode = "Mixed";
@@ -4228,73 +3884,13 @@ bool MainWindow::checkForDuplicate(const QString& callsign, BandType band, ModeT
         return false;
     }
 
-    // Get duplicate checking rule from contest
+    // Delegate to QSORepository (no SQL in UI!)
     DuplicateCheckingRule rule = m_activeContest->getDuplicateCheckingRule();
+    QSORepository repo;
+    QSORepository::DuplicateCheckResult result = repo.checkDuplicate(callsign, band, mode, rule, m_currentContestDbId);
 
-    // Convert band/mode enums to strings (database stores as TEXT)
-    QString bandStr = bandToString(band);
-    QString modeStr = modeToString(mode);
-
-    // Build SQL query based on duplicate rule
-    QString sql = "SELECT band, mode, timestamp FROM qsos WHERE callsign = ?";
-    QVariantList params;
-    params << callsign;
-
-    // Add additional filters based on duplicate rule
-    switch (rule) {
-        case DuplicateCheckingRule::PerBandMode:
-            sql += " AND band = ? AND mode = ?";
-            params << bandStr << modeStr;
-            break;
-        case DuplicateCheckingRule::AllBandMode:
-            sql += " AND mode = ?";
-            params << modeStr;
-            break;
-        case DuplicateCheckingRule::PerBand:
-            sql += " AND band = ?";
-            params << bandStr;
-            break;
-        case DuplicateCheckingRule::AllBand:
-            // No additional filter - any contact with this callsign is a dupe
-            break;
-    }
-
-    sql += " LIMIT 1";
-
-    Database& db = Database::instance();
-    QSqlQuery query = db.execute(sql, params);
-
-    if (query.next()) {
-        // Found a duplicate - build info string
-        QDateTime timestamp = QDateTime::fromSecsSinceEpoch(query.value(2).toLongLong());
-
-        switch (rule) {
-            case DuplicateCheckingRule::PerBandMode:
-                dupeInfo = QString("DUPE - Worked on %1 at %2")
-                    .arg(timestamp.toString("yyyy-MM-dd"))
-                    .arg(timestamp.toString("HH:mm"));
-                break;
-            case DuplicateCheckingRule::AllBandMode:
-                dupeInfo = QString("DUPE - Worked on %1 at %2 (same mode, different band)")
-                    .arg(timestamp.toString("yyyy-MM-dd"))
-                    .arg(timestamp.toString("HH:mm"));
-                break;
-            case DuplicateCheckingRule::PerBand:
-                dupeInfo = QString("DUPE - Worked on %1 at %2 (same band, different mode)")
-                    .arg(timestamp.toString("yyyy-MM-dd"))
-                    .arg(timestamp.toString("HH:mm"));
-                break;
-            case DuplicateCheckingRule::AllBand:
-                dupeInfo = QString("DUPE - Worked on %1 at %2 (once-per-contest)")
-                    .arg(timestamp.toString("yyyy-MM-dd"))
-                    .arg(timestamp.toString("HH:mm"));
-                break;
-        }
-
-        return true;
-    }
-
-    return false;
+    dupeInfo = result.dupeInfo;
+    return result.isDuplicate;
 }
 
 // Band needs tracking methods

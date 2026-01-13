@@ -49,13 +49,22 @@ public:
     explicit DataIntegrityManager(const Config& config);
 
     /**
+     * Result from quick integrity check
+     */
+    struct QuickCheckResult {
+        bool passed;
+        int memoryCount;
+        int dbCount;
+    };
+
+    /**
      * Quick integrity check (Tier 1)
      * Compares QSO count between memory and database
      *
      * @param memoryCount Number of QSOs in memory (from QSOTableModel)
-     * @return true if counts match, false otherwise
+     * @return QuickCheckResult with passed status and counts
      */
-    bool quickIntegrityCheck(int memoryCount);
+    QuickCheckResult quickIntegrityCheck(int memoryCount);
 
     /**
      * Full integrity check (Tier 3)

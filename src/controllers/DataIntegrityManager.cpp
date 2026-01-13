@@ -13,17 +13,22 @@ DataIntegrityManager::DataIntegrityManager(const Config& config)
 {
 }
 
-bool DataIntegrityManager::quickIntegrityCheck(int memoryCount)
+DataIntegrityManager::QuickCheckResult DataIntegrityManager::quickIntegrityCheck(int memoryCount)
 {
+    QuickCheckResult result;
+    result.memoryCount = memoryCount;
+    result.dbCount = 0;
+    result.passed = true;
+
     if (m_config.currentContestDbId < 0) {
-        return true;  // No active contest
+        return result;  // No active contest
     }
 
     // Check if database is open before running integrity check
     Database& db = Database::instance();
     if (!db.isOpen()) {
         LOG_DEBUG("DataIntegrityManager", "Skipping integrity check - database is not open");
-        return true;  // Not an error, just skip the check
+        return result;  // Not an error, just skip the check
     }
 
     // Count non-deleted QSOs in database
@@ -31,19 +36,19 @@ bool DataIntegrityManager::quickIntegrityCheck(int memoryCount)
         "SELECT COUNT(*) FROM qsos WHERE contest_id = ? AND deleted = 0",
         {m_config.currentContestDbId});
 
-    int dbCount = 0;
     if (query.next()) {
-        dbCount = query.value(0).toInt();
+        result.dbCount = query.value(0).toInt();
     }
 
-    if (memoryCount != dbCount) {
+    if (memoryCount != result.dbCount) {
         LOG_ERROR("DataIntegrityManager", QString("INTEGRITY CHECK FAILED: Memory=%1 DB=%2")
-            .arg(memoryCount).arg(dbCount));
-        return false;
+            .arg(memoryCount).arg(result.dbCount));
+        result.passed = false;
+        return result;
     }
 
     LOG_DEBUG("DataIntegrityManager", QString("Integrity check passed: %1 QSOs").arg(memoryCount));
-    return true;
+    return result;
 }
 
 QString DataIntegrityManager::fullIntegrityCheck(const QList<QSO>& memoryQSOs, bool criticalOnly)
@@ -207,10 +212,165 @@ QString DataIntegrityManager::fullIntegrityCheck(const QList<QSO>& memoryQSOs, b
         for (const QString& item : unknownBands) {
             report += QString("  - %1\n").arg(item);
         }
-        report += "\n";
+        report += "  Recommendation: Manually edit these QSOs to set correct band\n\n";
     }
 
-    report += "=== END OF REPORT ===\n";
+    // Check 6: Detect lowercase data in critical fields (INFORMATIONAL)
+    // This is non-critical but indicates data entry inconsistency
+    if (!criticalOnly) {
+        QSqlQuery lowercaseQuery = db.execute(
+            "SELECT id, callsign, rst_sent, rst_received, exchange_sent, exchange_received "
+            "FROM qsos WHERE contest_id = ? AND deleted = 0",
+            {m_config.currentContestDbId});
+
+        QStringList lowercaseIssues;
+        while (lowercaseQuery.next()) {
+            int id = lowercaseQuery.value(0).toInt();
+            QString callsign = lowercaseQuery.value(1).toString();
+            QString rstSent = lowercaseQuery.value(2).toString();
+            QString rstReceived = lowercaseQuery.value(3).toString();
+            QString exchangeSent = lowercaseQuery.value(4).toString();
+            QString exchangeReceived = lowercaseQuery.value(5).toString();
+
+            QStringList fields;
+            if (callsign != callsign.toUpper()) fields << "callsign";
+            if (rstSent != rstSent.toUpper()) fields << "rst_sent";
+            if (rstReceived != rstReceived.toUpper()) fields << "rst_received";
+            if (exchangeSent != exchangeSent.toUpper()) fields << "exchange_sent";
+            if (exchangeReceived != exchangeReceived.toUpper()) fields << "exchange_received";
+
+            if (!fields.isEmpty()) {
+                lowercaseIssues.append(QString("ID=%1: %2 (%3)")
+                    .arg(id).arg(callsign).arg(fields.join(", ")));
+            }
+        }
+
+        if (lowercaseIssues.isEmpty()) {
+            report += "✓ All text fields are uppercase\n\n";
+        } else {
+            report += QString("ℹ INFO: %1 QSOs with lowercase data:\n")
+                .arg(lowercaseIssues.size());
+            // Limit to first 10 to avoid overwhelming output
+            int displayed = qMin(10, lowercaseIssues.size());
+            for (int i = 0; i < displayed; i++) {
+                report += QString("  - %1\n").arg(lowercaseIssues[i]);
+            }
+            if (lowercaseIssues.size() > 10) {
+                report += QString("  ... and %1 more\n").arg(lowercaseIssues.size() - 10);
+            }
+            report += "  Note: This is informational only. Uppercase validation added in v3.30.0.\n\n";
+        }
+    }
+
+    // Check 7: Database schema version validation (CRITICAL)
+    QSqlQuery versionQuery = db.execute("PRAGMA user_version", {});
+    int dbSchemaVersion = 0;
+    if (versionQuery.next()) {
+        dbSchemaVersion = versionQuery.value(0).toInt();
+    }
+
+    const int EXPECTED_SCHEMA_VERSION = 8;  // From Database.h CURRENT_SCHEMA_VERSION
+    bool schemaVersionMismatch = false;
+    if (dbSchemaVersion == EXPECTED_SCHEMA_VERSION) {
+        report += QString("✓ Database schema version matches (v%1)\n\n").arg(EXPECTED_SCHEMA_VERSION);
+    } else {
+        schemaVersionMismatch = true;
+        report += QString("✗ CRITICAL: Schema version mismatch!\n");
+        report += QString("  Database: v%1\n").arg(dbSchemaVersion);
+        report += QString("  Expected: v%1\n").arg(EXPECTED_SCHEMA_VERSION);
+        report += "  Recommendation: Restart TR4QT to trigger automatic migration\n\n";
+    }
+
+    // Check 8: Required columns existence check (CRITICAL)
+    QSqlQuery columnsQuery = db.execute("PRAGMA table_info(qsos)", {});
+    QSet<QString> existingColumns;
+    while (columnsQuery.next()) {
+        existingColumns.insert(columnsQuery.value(1).toString());
+    }
+
+    QStringList requiredColumns = {
+        "id", "contest_id", "callsign", "timestamp", "frequency", "band", "mode",
+        "rst_sent", "rst_received", "exchange_sent", "exchange_received",
+        "serial_number", "serial_number_received", "precedence", "sweepstakes_check",
+        "power", "operator_name", "itu_zone_exchange",
+        "dxcc_entity", "cq_zone", "itu_zone", "continent",
+        "qso_points", "is_dupe", "is_multiplier", "deleted"
+    };
+
+    QStringList missingColumns;
+    for (const QString& col : requiredColumns) {
+        if (!existingColumns.contains(col)) {
+            missingColumns.append(col);
+        }
+    }
+
+    if (missingColumns.isEmpty()) {
+        report += QString("✓ All %1 required columns exist\n\n").arg(requiredColumns.size());
+    } else {
+        report += QString("✗ CRITICAL: %1 required columns missing from qsos table:\n")
+            .arg(missingColumns.size());
+        for (const QString& col : missingColumns) {
+            report += QString("  - %1\n").arg(col);
+        }
+        report += "  Recommendation: Restart TR4QT to trigger automatic migration\n\n";
+    }
+
+    // Check 9: QSO load validation test (CRITICAL)
+    int loadFailures = 0;
+    int sampleSize = qMin(10, dbCount);  // Test first 10 QSOs
+
+    if (sampleSize > 0) {
+        QSqlQuery sampleQuery = db.execute(
+            "SELECT id FROM qsos WHERE contest_id = ? AND deleted = 0 LIMIT ?",
+            {m_config.currentContestDbId, sampleSize});
+
+        while (sampleQuery.next()) {
+            int qsoId = sampleQuery.value(0).toInt();
+            QSO loadedQso = repo.findById(qsoId);
+
+            // Verify QSO was actually loaded (not just default-constructed)
+            if (loadedQso.id != qsoId || loadedQso.callsign.isEmpty()) {
+                loadFailures++;
+            }
+        }
+
+        if (loadFailures == 0) {
+            report += QString("✓ QSO load test passed (sampled %1 QSOs)\n\n").arg(sampleSize);
+        } else {
+            report += QString("✗ CRITICAL: %1/%2 QSOs failed to load correctly\n")
+                .arg(loadFailures).arg(sampleSize);
+            report += "  This suggests a database schema issue or data corruption\n";
+            report += "  Recommendation: Check logs for SQL errors, verify schema version\n\n";
+        }
+    } else {
+        report += "✓ QSO load test skipped (no QSOs in database)\n\n";
+    }
+
+    // Summary
+    report += "=== SUMMARY ===\n";
+    bool criticalIssues = (memoryCount != dbCount) ||
+                          !missingInDB.isEmpty() ||
+                          !orphanedInDB.isEmpty() ||
+                          (fieldMismatches > 0) ||
+                          !unknownBands.isEmpty() ||
+                          schemaVersionMismatch ||
+                          !missingColumns.isEmpty() ||
+                          (loadFailures > 0);
+
+    if (!criticalIssues) {
+        report += "✓ ALL CRITICAL CHECKS PASSED - Log integrity verified\n";
+        if (!criticalOnly) {
+            report += "  (Informational checks may have reported non-critical issues above)\n";
+        }
+    } else {
+        report += "✗ CRITICAL ISSUES DETECTED - See details above\n";
+        report += "\nRecommendation: Consider reloading contest from database\n";
+    }
+
+    LOG_INFO("DataIntegrityManager", QString("Full integrity check: %1")
+        .arg(!criticalIssues ? "PASSED" : "FAILED"));
+
+    report += "\n=== END OF REPORT ===\n";
     return report;
 }
 
