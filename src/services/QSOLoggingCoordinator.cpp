@@ -116,15 +116,15 @@ QString QSOLoggingCoordinator::checkIntegrity(
     }
 
     // Run quick integrity check
-    bool passed = m_integrityManager->quickIntegrityCheck(memoryCount);
+    DataIntegrityManager::QuickCheckResult result = m_integrityManager->quickIntegrityCheck(memoryCount);
 
-    if (passed) {
+    if (result.passed) {
         LOG_DEBUG("QSOLoggingCoordinator",
-                 QString("Integrity check passed (memory=%1)").arg(memoryCount));
+                 QString("Integrity check passed (memory=%1, db=%2)").arg(result.memoryCount).arg(result.dbCount));
         return QString("Integrity check passed");
     } else {
         LOG_WARN("QSOLoggingCoordinator",
-                QString("Integrity check FAILED (memory=%1)").arg(memoryCount));
+                QString("Integrity check FAILED (memory=%1, db=%2)").arg(result.memoryCount).arg(result.dbCount));
         return QString("Integrity check FAILED");
     }
 }

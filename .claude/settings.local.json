@@ -129,7 +129,11 @@
       "Bash(./tests/test_contest_exchange_update)",
       "Bash(./tests/test_duplicate_checking)",
       "Bash(./tests/test_integrity_checking)",
-      "Bash(./tests/test_window_persistence)"
+      "Bash(./tests/test_window_persistence)",
+      "Bash(./test_command_dispatcher)",
+      "Bash(./test_qso_persistence_service:*)",
+      "Bash(./tests/test_qso_persistence_service:*)",
+      "Bash(git checkout:*)"
     ]
   },
   "enabledMcpjsonServers": [

@@ -103,11 +103,12 @@ void TestQSOLoadPerformance::init() {
     // Create a test contest
     QSqlQuery query(db.connection());
     query.prepare(R"(
-        INSERT INTO contests (contest_id, contest_name, my_call, start_time, created_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO contests (contest_id, contest_name, contest_type, my_call, start_time, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
     )");
     query.addBindValue("LOAD_TEST");
     query.addBindValue("Load Test Contest");
+    query.addBindValue("GENERAL");  // Contest type (required)
     query.addBindValue("TEST");
     query.addBindValue(QDateTime::currentSecsSinceEpoch());
     query.addBindValue(QDateTime::currentSecsSinceEpoch());
@@ -488,9 +489,10 @@ void TestQSOLoadPerformance::testDatabaseGrowth() {
         QVERIFY(db.open(m_dbPath));
 
         QSqlQuery query(db.connection());
-        query.prepare("INSERT INTO contests (contest_id, contest_name, my_call, start_time, created_at) VALUES (?, ?, ?, ?, ?)");
+        query.prepare("INSERT INTO contests (contest_id, contest_name, contest_type, my_call, start_time, created_at) VALUES (?, ?, ?, ?, ?, ?)");
         query.addBindValue("GROWTH_TEST");
         query.addBindValue("Growth Test");
+        query.addBindValue("GENERAL");  // Contest type (required)
         query.addBindValue("TEST");
         query.addBindValue(QDateTime::currentSecsSinceEpoch());
         query.addBindValue(QDateTime::currentSecsSinceEpoch());

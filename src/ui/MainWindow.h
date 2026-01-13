@@ -251,8 +251,7 @@ private:
     void updateStationInfo(const QString& callsign);
 
     // Data integrity helpers
-    bool quickIntegrityCheck();         // Quick count-based check
-    QString fullIntegrityCheck(bool criticalOnly = false);  // Detailed check with report
+    bool quickIntegrityCheck();         // Quick count-based check (delegates to DataIntegrityManager)
     void handleIntegrityMismatch(int memoryCount, int dbCount);
 
     // Rescore helpers

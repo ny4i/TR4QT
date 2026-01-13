@@ -129,6 +129,14 @@ bool Database::open(const QString& dbPath) {
             close();
             return false;
         }
+
+        // Run migrations even on new databases to ensure all columns exist
+        // (schema.sql might not have latest columns if not updated)
+        if (!migrateSchema()) {
+            LOG_WARN("Database", "Schema migration failed for new database");
+            close();
+            return false;
+        }
     } else {
         // Verify application ID for existing database
         uint32_t appId = getApplicationId();
