@@ -1824,9 +1824,7 @@ void MainWindow::onLogQSO() {
     request.operatingMode = m_operatingMode;
 
     // Get existing QSOs for duplicate/multiplier checking
-    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-        request.existingQSOs.append(m_qsoTableModel->getQSO(row));
-    }
+    request.existingQSOs = m_qsoTableModel->getAllQSOs();
 
     request.saveExchangeMemory = true;
     request.autoPopulated = m_initialExchangePopulated;
@@ -2260,15 +2258,7 @@ void MainWindow::onEditQSO(const QModelIndex& index) {
             m_qsoTableModel->updateQSO(row, editedQSO);
 
             // Rebuild multiplier window from all QSOs (sections may have changed)
-            if (m_multiplierWindow) {
-                m_multiplierWindow->clear();
-                for (int r = 0; r < m_qsoTableModel->count(); ++r) {
-                    QSO q = m_qsoTableModel->getQSO(r);
-                    if (!q.arrlSection.isEmpty()) {
-                        m_multiplierWindow->setMultiplierWorked(q.arrlSection, q.band);
-                    }
-                }
-            }
+            rebuildMultiplierWindow();
 
             LOG_INFO("MainWindow", QString("Updated QSO #%1 (%2)")
                 .arg(editedQSO.id)
@@ -2373,10 +2363,7 @@ void MainWindow::recalculateAllPoints() {
     }
 
     // Get all QSOs from model
-    QList<QSO> qsos;
-    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-        qsos.append(m_qsoTableModel->getQSO(row));
-    }
+    QList<QSO> qsos = m_qsoTableModel->getAllQSOs();
 
     // Delegate rescoring to DataIntegrityManager (no business logic loops in UI!)
     RescoreStats stats = m_integrityManager->rescoreContestSilent(qsos, m_activeContest, myStation);
@@ -2393,6 +2380,31 @@ void MainWindow::recalculateAllPoints() {
 
     // Show result to user
     m_statusLabel->setText(QString("Recalculated points for %1 QSOs").arg(stats.qsosUpdated));
+}
+
+void MainWindow::rebuildMultiplierWindow() {
+    if (!m_multiplierWindow || !m_activeContest) {
+        return;
+    }
+
+    m_multiplierWindow->clear();
+
+    QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
+    if (multDefs.isEmpty()) {
+        return;
+    }
+
+    MultiplierType primaryMultType = multDefs.first().type;
+    QList<QSO> qsos = m_qsoTableModel->getAllQSOs();
+
+    for (const QSO& qso : qsos) {
+        QString multValue = m_activeContest->getMultiplierValue(qso, primaryMultType, QStringList());
+        if (!multValue.isEmpty()) {
+            m_multiplierWindow->setMultiplierWorked(multValue, qso.band);
+        }
+    }
+
+    LOG_DEBUG("MainWindow", QString("Rebuilt multiplier window with %1 QSOs").arg(qsos.size()));
 }
 
 // Tier 2: Periodic lightweight integrity check
@@ -2485,30 +2497,7 @@ RescoreStats MainWindow::rescoreContestSilent() {
     updateScoreDisplay();
 
     // Rebuild multiplier window from all QSOs
-    // Update based on contest's primary multiplier type
-    if (m_multiplierWindow && m_activeContest) {
-        m_multiplierWindow->clear();
-
-        QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
-        if (!multDefs.isEmpty()) {
-            MultiplierType primaryMultType = multDefs.first().type;
-
-            for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-                QSO qso = m_qsoTableModel->getQSO(row);
-
-                // Use contest's getMultiplierValue() method which has contest-specific
-                // filtering logic (e.g., RTTY Roundup excludes US/Canada from countries)
-                QString multValue = m_activeContest->getMultiplierValue(qso, primaryMultType, QStringList());
-
-                if (!multValue.isEmpty()) {
-                    m_multiplierWindow->setMultiplierWorked(multValue, qso.band);
-                }
-            }
-
-            LOG_DEBUG("MainWindow", QString("Updated multiplier window with worked %1 multipliers")
-                .arg(multDefs.first().displayName));
-        }
-    }
+    rebuildMultiplierWindow();
 
     return stats;
 }
@@ -3229,25 +3218,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     }
 
     // Update multiplier window with all loaded QSOs (must be after contest is created)
-    if (m_multiplierWindow && m_activeContest && m_qsoTableModel->count() > 0 &&
-        !result.multiplierTypes.isEmpty()) {
-        MultiplierType primaryMultType = result.multiplierTypes.first().type;
-
-        for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-            QSO qso = m_qsoTableModel->getQSO(row);
-
-            // Use contest's getMultiplierValue() method which has contest-specific
-            // filtering logic (e.g., RTTY Roundup excludes US/Canada from countries)
-            QString multValue = m_activeContest->getMultiplierValue(qso, primaryMultType, QStringList());
-
-            if (!multValue.isEmpty()) {
-                m_multiplierWindow->setMultiplierWorked(multValue, qso.band);
-            }
-        }
-
-        LOG_DEBUG("MainWindow", QString("Loaded %1 worked multipliers into multiplier window")
-            .arg(m_qsoTableModel->count()));
-    }
+    rebuildMultiplierWindow();
 
     // Update exchange fields for this contest
     updateExchangeFieldsForContest();

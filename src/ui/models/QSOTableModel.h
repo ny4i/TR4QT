@@ -81,6 +81,9 @@ public:
     // Get QSO at row
     QSO getQSO(int row) const;
 
+    // Get all QSOs (thread-safe copy)
+    QList<QSO> getAllQSOs() const;
+
     // Get total count
     int count() const { return m_qsos.size(); }
 

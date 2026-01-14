@@ -73,6 +73,32 @@ add_tr4qt_test(test_command_dispatcher
     ../src/commands/CommandDispatcher.cpp
 )
 
+add_tr4qt_test(test_frequency_input_service
+    test_frequency_input_service.cpp
+    ../src/services/FrequencyInputService.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
+add_tr4qt_test(test_spot_processing_service
+    test_spot_processing_service.cpp
+    ../src/services/SpotProcessingService.cpp
+    ../src/data/LOTWUserRepository.cpp
+    ../src/data/Database.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/utils/AppSettings.cpp
+    ../src/utils/PathManager.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
 add_tr4qt_test(test_qso_persistence_service
     test_qso_persistence_service.cpp
     ../src/services/QSOPersistenceService.cpp

@@ -240,6 +240,11 @@ QSO QSOTableModel::getQSO(int row) const {
     return m_qsos.at(row);
 }
 
+QList<QSO> QSOTableModel::getAllQSOs() const {
+    QMutexLocker locker(&m_mutex);
+    return m_qsos;  // Returns copy (thread-safe)
+}
+
 QString QSOTableModel::formatFrequency(freq_t freq) const {
     // Convert Hz to kHz for display
     double freqKhz = freq / 1000.0;

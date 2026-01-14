@@ -227,6 +227,7 @@ private:
     void updateConnectionStatus(bool connected);
     void updateScoreDisplay();
     void recalculateAllPoints();  // Recalculate points for all QSOs in log
+    void rebuildMultiplierWindow();  // Rebuild multiplier window from all QSOs
     void updateRadioStatusGrid();
     void raiseAllWindows();
     void setStatusMessage(const QString& message);  // Set status and log it
