@@ -220,6 +220,146 @@ struct ExchangeField {
 };
 ```
 
+## Order-Agnostic Exchange Parsing with SmartExchangeParser
+
+**RECOMMENDED**: All new contests should use `SmartExchangeParser` for order-agnostic exchange parsing.
+
+### Why Use SmartExchangeParser?
+
+Users don't always enter exchanges in the expected order. SmartExchangeParser automatically detects field types and matches them to expected fields, regardless of order:
+
+- "599 FL" and "FL 599" → Both parse correctly to RST="599", State="FL"
+- "TOM FL" and "FL TOM" → Both parse correctly to Name="TOM", State="FL"
+- "599 46" and "46 599" → Both parse correctly to RST="599", Zone="46"
+
+### Basic Usage Pattern
+
+```cpp
+#include "../exchanges/SmartExchangeParser.h"
+#include "RSTValidator.h"
+
+void YourContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
+    // Use SmartExchangeParser for order-agnostic field detection
+    QList<ExchangeField> expectedFields = getReceivedExchangeFields();
+    QMap<QString, QString> parsed = SmartExchangeParser::parse(
+        exchange,
+        expectedFields,
+        const_cast<YourContest*>(this)
+    );
+
+    // Get RST (auto-fill if not provided)
+    qso.rstReceived = parsed.value("RST", RSTValidator::getDefault(getContestMode()));
+
+    // Get other fields based on your contest's exchange fields
+    qso.state = parsed.value("State");
+    qso.cqZone = parsed.value("Zone").toInt();
+    // ... etc.
+
+    // Format exchangeReceived for display
+    formatExchangeReceived(exchange, qso);
+}
+
+bool YourContest::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {
+    QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
+
+    if (parts.isEmpty()) {
+        errorMsg = "Exchange required";
+        return false;
+    }
+
+    // Parse using SmartExchangeParser
+    QSO tempQSO;
+    parseReceivedExchange(exchange, tempQSO);
+
+    // Validate parsed fields
+    if (tempQSO.state.isEmpty()) {
+        errorMsg = "Missing state/province";
+        return false;
+    }
+    if (!SmartExchangeParser::looksLikeState(tempQSO.state)) {
+        errorMsg = QString("Invalid state/province: %1").arg(tempQSO.state);
+        return false;
+    }
+
+    return true;
+}
+```
+
+### Available Detection Methods
+
+SmartExchangeParser provides these field detection methods:
+
+| Method | Field Types | Range/Format |
+|--------|-------------|--------------|
+| `looksLikeRST()` | RST | 59, 599, 579, etc. |
+| `looksLikeState()` | State/Province | 2-3 letter codes (FL, ON, BC) |
+| `looksLikeSection()` | ARRL Section | WMA, NFL, STX, etc. |
+| `looksLikeClass()` | Station Class | 1A, 2O, 3I, 4F, etc. |
+| `looksLikeSerial()` | Serial Number | 1-9999 numeric |
+| `looksLikePrecedence()` | SS Precedence | Q, A, B, U, M, S |
+| `looksLikeCheck()` | SS Check | 2-digit year (95, 01, 23) |
+| `looksLikePower()` | Power | 1-2000W, or "1K", "100W" |
+| `looksLikeCQZone()` | CQ Zone | 1-40 |
+| `looksLikeITUZone()` | ITU Zone | 1-90 |
+| `looksLikeCounty()` | County code | 3-letter codes |
+
+### Field Name Mapping
+
+SmartExchangeParser matches tokens to fields based on the field name defined in `getReceivedExchangeFields()`:
+
+```cpp
+// Field name → Detection used
+"RST"         → looksLikeRST()
+"State"       → looksLikeState()
+"Section"     → looksLikeSection()
+"Class"       → looksLikeClass()
+"Serial"      → looksLikeSerial()
+"Precedence"  → looksLikePrecedence()
+"Check"       → looksLikeCheck()
+"Power"       → looksLikePower()
+"State/Power" → looksLikeState() OR looksLikePower() (composite)
+"State/Serial"→ looksLikeState() OR looksLikeSerial() (composite)
+"CQZone"      → looksLikeCQZone()
+"ITUZone"     → looksLikeITUZone()
+"Zone"        → looksLikeCQZone() or looksLikeITUZone() (context-dependent)
+"County"      → looksLikeCounty()
+"Name"        → Fallback: remaining tokens joined
+```
+
+### Common State vs Section Bug
+
+**IMPORTANT**: When validating US states/Canadian provinces, use `looksLikeState()` NOT `Arrl::isValidSection()`.
+
+```cpp
+// ❌ WRONG: "FL" is NOT a section (Florida has NFL/WCF/SFL)
+if (!Arrl::isValidSection(tempQSO.state)) {
+    errorMsg = "Invalid state";  // BUG: "FL" will fail!
+    return false;
+}
+
+// ✅ CORRECT: "FL" IS a valid state
+if (!SmartExchangeParser::looksLikeState(tempQSO.state)) {
+    errorMsg = "Invalid state";  // "FL" passes correctly
+    return false;
+}
+```
+
+**When to use each:**
+- `looksLikeState()` - For contests using US states/Canadian provinces (NAQP, ARRL DX)
+- `Arrl::isValidSection()` - For contests using ARRL/RAC sections (SS, FD, WFD)
+
+### Examples of Contests Using SmartExchangeParser
+
+See these implementations for reference:
+- **NAQPBase.cpp** - Name + State exchange
+- **WinterFieldDayContest.cpp** - Class + Section exchange
+- **ARRLFieldDayContest.cpp** - Class + Section exchange
+- **ARRLSweepstakesBase.cpp** - Serial + Precedence + Check + Section exchange
+- **ARRLDXBase.cpp** - RST + State/Power exchange
+- **ARRLRTTYRoundupContest.cpp** - RST + State/Serial exchange
+- **FloridaQSOPartyContest.cpp** - RST + County/State exchange
+- **IARUHFContest.cpp** - RST + Zone exchange
+
 ## Common Exchange Patterns
 
 ### RST + Serial Number (e.g., CQ WPX)

@@ -4,6 +4,11 @@
 
 set -e  # Exit on error
 
+# Code signing identity - set to your Developer ID or "-" for ad-hoc signing
+# Find your identity with: security find-identity -v -p codesigning
+# Example: "Developer ID Application: Your Name (TEAMID)"
+SIGNING_IDENTITY="${SIGNING_IDENTITY:--}"
+
 APP_BUNDLE="./build/src/tr4qt.app"
 FRAMEWORKS="$APP_BUNDLE/Contents/Frameworks"
 PLUGINS="$APP_BUNDLE/Contents/PlugIns"
@@ -208,27 +213,27 @@ echo "    IMPORTANT: Sign dependencies before dependents, use --deep for thoroug
 
 # 1. Sign all dylibs in Frameworks (dependencies)
 echo "    Signing all dylibs in Frameworks..."
-find "$FRAMEWORKS" -name "*.dylib" -type f -exec codesign --force --sign - {} \;
+find "$FRAMEWORKS" -name "*.dylib" -type f -exec codesign --force --sign "$SIGNING_IDENTITY" {} \;
 
 # 2. Sign all frameworks
 echo "    Signing all frameworks..."
 for framework in "$FRAMEWORKS"/*.framework; do
     if [ -d "$framework" ]; then
-        codesign --force --sign - "$framework"
+        codesign --force --sign "$SIGNING_IDENTITY" "$framework"
     fi
 done
 
 # 3. Sign all plugins
 echo "    Signing all plugins..."
-find "$PLUGINS" -name "*.dylib" -type f -exec codesign --force --sign - {} \;
+find "$PLUGINS" -name "*.dylib" -type f -exec codesign --force --sign "$SIGNING_IDENTITY" {} \;
 
 # 4. Sign the executable
 echo "    Signing executable..."
-codesign --force --sign - "$APP_BUNDLE/Contents/MacOS/tr4qt"
+codesign --force --sign "$SIGNING_IDENTITY" "$APP_BUNDLE/Contents/MacOS/tr4qt"
 
 # 5. Sign the entire app bundle
 echo "    Signing app bundle..."
-codesign --force --sign - "$APP_BUNDLE"
+codesign --force --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
 
 echo "    ✓ Code signing completed"
 

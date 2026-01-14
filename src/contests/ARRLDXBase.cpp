@@ -1,6 +1,7 @@
 #include "ARRLDXBase.h"
 #include "../models/QSO.h"
 #include "../utils/ArrlSectionHelper.h"
+#include "../exchanges/SmartExchangeParser.h"
 #include "RSTValidator.h"
 #include <QRegularExpression>
 
@@ -61,31 +62,28 @@ bool ARRLDXBase::validateReceivedExchange(const QString& exchange, QString& erro
         return false;
     }
 
-    QString stateOrPower;
-    if (parts.size() == 1) {
-        stateOrPower = parts[0];
-    } else if (parts.size() == 2) {
-        // RST + State/Power
-        QString rst = parts[0];
-        ModeType mode = getContestMode();
-        if (!RSTValidator::isValid(rst, mode)) {
-            QString expectedFormat = (mode == ModeType::CW || mode == ModeType::CWR) ?
-                "3 digits (e.g., 599)" : "2-3 digits (e.g., 59)";
-            errorMsg = QString("Invalid RST format. Expected %1").arg(expectedFormat);
-            return false;
-        }
-        stateOrPower = parts[1];
-    } else {
-        errorMsg = "Exchange must be: State/Power (e.g., 'FL' or '100') or RST + State/Power";
+    // Use SmartExchangeParser for order-agnostic parsing
+    QSO tempQSO;
+    parseReceivedExchange(exchange, tempQSO);
+
+    // Validate we got either state or power
+    if (tempQSO.state.isEmpty() && tempQSO.power.isEmpty()) {
+        errorMsg = "Exchange must include State/Province (e.g., 'FL') or Power (e.g., '100')";
         return false;
     }
 
-    // Validate as either state/province OR power
-    bool isState = Arrl::isValidSection(stateOrPower.toUpper());
-    bool isPower = isValidPower(stateOrPower);
+    // If we got a state, validate it
+    if (!tempQSO.state.isEmpty()) {
+        // Use looksLikeState for US states/Canadian provinces (NOT isValidSection)
+        if (!SmartExchangeParser::looksLikeState(tempQSO.state)) {
+            errorMsg = QString("Invalid state/province: %1").arg(tempQSO.state);
+            return false;
+        }
+    }
 
-    if (!isState && !isPower) {
-        errorMsg = QString("Invalid state/province or power: %1").arg(stateOrPower);
+    // If we got a power, validate it
+    if (!tempQSO.power.isEmpty() && !isValidPower(tempQSO.power)) {
+        errorMsg = QString("Invalid power: %1 (must be 1-2000 watts)").arg(tempQSO.power);
         return false;
     }
 
@@ -93,31 +91,31 @@ bool ARRLDXBase::validateReceivedExchange(const QString& exchange, QString& erro
 }
 
 void ARRLDXBase::parseReceivedExchange(const QString& exchange, QSO& qso) const {
-    QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
+    // Use SmartExchangeParser for order-agnostic field detection
+    // Allows "599 FL", "FL 599", "100 599", "599 100" etc.
+    QList<ExchangeField> expectedFields = getReceivedExchangeFields();
+    QMap<QString, QString> parsed = SmartExchangeParser::parse(
+        exchange,
+        expectedFields,
+        const_cast<ARRLDXBase*>(this)
+    );
 
-    QString rst = RSTValidator::getDefault(getContestMode());
-    QString stateOrPower;
+    // Get RST (auto-fill if not provided)
+    qso.rstReceived = parsed.value("RST", RSTValidator::getDefault(getContestMode()));
 
-    if (parts.size() == 1) {
-        stateOrPower = parts[0];
-    } else if (parts.size() >= 2) {
-        rst = parts[0];
-        stateOrPower = parts[1];
-    }
+    // Get State/Power field
+    QString stateOrPower = parsed.value("State/Power");
 
-    // Populate QSO fields directly
-    qso.rstReceived = rst;
-
-    // Detect if it's a state/province or power
-    if (Arrl::isValidSection(stateOrPower.toUpper())) {
+    // Detect if it's a state/province or power using SmartExchangeParser helpers
+    if (SmartExchangeParser::looksLikeState(stateOrPower)) {
         qso.state = stateOrPower.toUpper();
         qso.power = "";
-    } else {
+    } else if (!stateOrPower.isEmpty()) {
         qso.state = "";
         qso.power = stateOrPower;
     }
 
-    // Format exchangeReceived with RST prepended (e.g., "599 FL" or "599 100")
+    // Format exchangeReceived (e.g., "599 FL" or "599 100")
     formatExchangeReceived(exchange, qso);
 }
 

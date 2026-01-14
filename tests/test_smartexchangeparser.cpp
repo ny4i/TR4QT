@@ -74,6 +74,27 @@ private slots:
     void testStateDetection_Names_NotStates();
     void testStateDetection_Numbers_NotStates();
     void testStateDetection_CaseSensitivity();
+
+    // Power detection (for ARRL DX)
+    void testPowerDetection_PlainWatts();
+    void testPowerDetection_WithWSuffix();
+    void testPowerDetection_WithKSuffix();
+    void testPowerDetection_InvalidValues();
+    void testPowerDetection_RSTNotPower();
+
+    // CQ Zone detection (for CQ WW)
+    void testCQZoneDetection_ValidRange();
+    void testCQZoneDetection_Boundaries();
+    void testCQZoneDetection_Invalid();
+
+    // ITU Zone detection (for IARU HF)
+    void testITUZoneDetection_ValidRange();
+    void testITUZoneDetection_Boundaries();
+    void testITUZoneDetection_Invalid();
+
+    // County detection (for QSO Parties)
+    void testCountyDetection_ValidFormats();
+    void testCountyDetection_Invalid();
 };
 
 // ===== Winter Field Day Parsing Tests =====
@@ -531,6 +552,131 @@ void TestSmartExchangeParser::testStateDetection_CaseSensitivity() {
     QVERIFY(SmartExchangeParser::looksLikeState("ca"));
     QVERIFY(SmartExchangeParser::looksLikeState("Ca"));
     QVERIFY(SmartExchangeParser::looksLikeState("CA"));
+}
+
+// ===== Power Detection Tests (for ARRL DX) =====
+
+void TestSmartExchangeParser::testPowerDetection_PlainWatts() {
+    // Plain numeric power values (1-2000 watts)
+    QVERIFY(SmartExchangeParser::looksLikePower("5"));      // QRP
+    QVERIFY(SmartExchangeParser::looksLikePower("10"));
+    QVERIFY(SmartExchangeParser::looksLikePower("50"));
+    QVERIFY(SmartExchangeParser::looksLikePower("100"));
+    QVERIFY(SmartExchangeParser::looksLikePower("500"));
+    QVERIFY(SmartExchangeParser::looksLikePower("1000"));
+    QVERIFY(SmartExchangeParser::looksLikePower("1500"));
+    QVERIFY(SmartExchangeParser::looksLikePower("2000"));
+}
+
+void TestSmartExchangeParser::testPowerDetection_WithWSuffix() {
+    // Power values with W suffix
+    QVERIFY(SmartExchangeParser::looksLikePower("5W"));
+    QVERIFY(SmartExchangeParser::looksLikePower("100W"));
+    QVERIFY(SmartExchangeParser::looksLikePower("1500W"));
+    QVERIFY(SmartExchangeParser::looksLikePower("100w"));  // Lowercase
+}
+
+void TestSmartExchangeParser::testPowerDetection_WithKSuffix() {
+    // Power values with K suffix (kilowatts)
+    QVERIFY(SmartExchangeParser::looksLikePower("1K"));    // 1000W
+    QVERIFY(SmartExchangeParser::looksLikePower("1.5K")); // 1500W
+    QVERIFY(SmartExchangeParser::looksLikePower("2K"));    // 2000W
+    QVERIFY(SmartExchangeParser::looksLikePower("0.5K")); // 500W
+    QVERIFY(SmartExchangeParser::looksLikePower("1k"));    // Lowercase
+}
+
+void TestSmartExchangeParser::testPowerDetection_InvalidValues() {
+    // Invalid power values
+    QVERIFY(!SmartExchangeParser::looksLikePower("0"));     // Too low
+    QVERIFY(!SmartExchangeParser::looksLikePower("2001")); // Too high
+    QVERIFY(!SmartExchangeParser::looksLikePower("3K"));    // 3000W - too high
+    QVERIFY(!SmartExchangeParser::looksLikePower("ABC"));  // Not numeric
+    QVERIFY(!SmartExchangeParser::looksLikePower(""));      // Empty
+}
+
+void TestSmartExchangeParser::testPowerDetection_RSTNotPower() {
+    // RST values should NOT be detected as power (special case)
+    // These are handled by looksLikeRST() which takes priority
+    QVERIFY(!SmartExchangeParser::looksLikePower("599"));  // RST, not 599W
+    QVERIFY(!SmartExchangeParser::looksLikePower("59"));   // RST, not 59W
+    QVERIFY(!SmartExchangeParser::looksLikePower("579"));  // RST
+}
+
+// ===== CQ Zone Detection Tests =====
+
+void TestSmartExchangeParser::testCQZoneDetection_ValidRange() {
+    // CQ zones are 1-40
+    QVERIFY(SmartExchangeParser::looksLikeCQZone("1"));
+    QVERIFY(SmartExchangeParser::looksLikeCQZone("5"));
+    QVERIFY(SmartExchangeParser::looksLikeCQZone("14"));
+    QVERIFY(SmartExchangeParser::looksLikeCQZone("25"));
+    QVERIFY(SmartExchangeParser::looksLikeCQZone("40"));
+}
+
+void TestSmartExchangeParser::testCQZoneDetection_Boundaries() {
+    // Boundary testing
+    QVERIFY(SmartExchangeParser::looksLikeCQZone("1"));    // Minimum
+    QVERIFY(SmartExchangeParser::looksLikeCQZone("40"));  // Maximum
+    QVERIFY(!SmartExchangeParser::looksLikeCQZone("0"));   // Below minimum
+    QVERIFY(!SmartExchangeParser::looksLikeCQZone("41")); // Above maximum
+}
+
+void TestSmartExchangeParser::testCQZoneDetection_Invalid() {
+    // Invalid CQ zone values
+    QVERIFY(!SmartExchangeParser::looksLikeCQZone(""));    // Empty
+    QVERIFY(!SmartExchangeParser::looksLikeCQZone("ABC")); // Non-numeric
+    QVERIFY(!SmartExchangeParser::looksLikeCQZone("-1"));  // Negative
+    QVERIFY(!SmartExchangeParser::looksLikeCQZone("100")); // Way too high
+}
+
+// ===== ITU Zone Detection Tests =====
+
+void TestSmartExchangeParser::testITUZoneDetection_ValidRange() {
+    // ITU zones are 1-90
+    QVERIFY(SmartExchangeParser::looksLikeITUZone("1"));
+    QVERIFY(SmartExchangeParser::looksLikeITUZone("8"));
+    QVERIFY(SmartExchangeParser::looksLikeITUZone("46"));
+    QVERIFY(SmartExchangeParser::looksLikeITUZone("75"));
+    QVERIFY(SmartExchangeParser::looksLikeITUZone("90"));
+}
+
+void TestSmartExchangeParser::testITUZoneDetection_Boundaries() {
+    // Boundary testing
+    QVERIFY(SmartExchangeParser::looksLikeITUZone("1"));    // Minimum
+    QVERIFY(SmartExchangeParser::looksLikeITUZone("90"));  // Maximum
+    QVERIFY(!SmartExchangeParser::looksLikeITUZone("0"));   // Below minimum
+    QVERIFY(!SmartExchangeParser::looksLikeITUZone("91")); // Above maximum
+}
+
+void TestSmartExchangeParser::testITUZoneDetection_Invalid() {
+    // Invalid ITU zone values
+    QVERIFY(!SmartExchangeParser::looksLikeITUZone(""));    // Empty
+    QVERIFY(!SmartExchangeParser::looksLikeITUZone("ABC")); // Non-numeric
+    QVERIFY(!SmartExchangeParser::looksLikeITUZone("-1"));  // Negative
+    QVERIFY(!SmartExchangeParser::looksLikeITUZone("100")); // Too high
+}
+
+// ===== County Detection Tests =====
+
+void TestSmartExchangeParser::testCountyDetection_ValidFormats() {
+    // Counties are typically 3-letter codes (QSO Parties)
+    // Note: without a contest context, detection is heuristic
+    QVERIFY(SmartExchangeParser::looksLikeCounty("PAL", nullptr));  // Florida county
+    QVERIFY(SmartExchangeParser::looksLikeCounty("DUV", nullptr));  // Florida county
+    QVERIFY(SmartExchangeParser::looksLikeCounty("ORA", nullptr));  // Florida county
+}
+
+void TestSmartExchangeParser::testCountyDetection_Invalid() {
+    // Invalid county values
+    QVERIFY(!SmartExchangeParser::looksLikeCounty("", nullptr));      // Empty
+    QVERIFY(!SmartExchangeParser::looksLikeCounty("A", nullptr));     // Too short
+    QVERIFY(!SmartExchangeParser::looksLikeCounty("ABCDEF", nullptr)); // Too long
+    QVERIFY(!SmartExchangeParser::looksLikeCounty("123", nullptr));   // Numeric
+    QVERIFY(!SmartExchangeParser::looksLikeCounty("FL", nullptr));    // State, not county
+
+    // Known sections should NOT be detected as counties
+    QVERIFY(!SmartExchangeParser::looksLikeCounty("WMA", nullptr));  // ARRL section
+    QVERIFY(!SmartExchangeParser::looksLikeCounty("NFL", nullptr));  // ARRL section
 }
 
 QTEST_MAIN(TestSmartExchangeParser)

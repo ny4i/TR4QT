@@ -3,6 +3,7 @@
 #include "ContestMetadata.h"
 #include "../models/QSO.h"
 #include "RSTValidator.h"
+#include "../exchanges/SmartExchangeParser.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
@@ -131,79 +132,22 @@ bool IARUHFContest::validateReceivedExchange(const QString& exchange, QString& e
         return false;
     }
 
-    // Determine if RST was provided
-    QString zoneStr;
-    if (parts.size() == 1) {
-        // Only zone/HQ provided - RST will be auto-filled
-        zoneStr = parts[0];
-    } else if (parts.size() == 2) {
-        // Two fields: detect which is RST and which is Zone/HQ
-        QString first = parts[0];
-        QString second = parts[1];
-
-        // Check for special stations first
-        bool firstIsSpecial = isSpecialStation(first);
-        bool secondIsSpecial = isSpecialStation(second);
-
-        if (firstIsSpecial) {
-            // First is HQ/AC/R1/R2/R3, second should be RST (unusual but possible)
-            zoneStr = first;
-        } else if (secondIsSpecial) {
-            // Normal case: RST + HQ
-            zoneStr = second;
-        } else {
-            // Neither is special, check for RST pattern
-            // RST pattern: [1-5][1-9][1-9]? for phone, [1-5][1-9][1-9] for CW
-            QRegularExpression rstPattern;
-            if (m_mode == ModeType::CW || m_mode == ModeType::CWR) {
-                rstPattern.setPattern("^[1-5][1-9][1-9]$");
-            } else {
-                rstPattern.setPattern("^[1-5][1-9][1-9]?$");
-            }
-
-            bool firstIsRST = rstPattern.match(first).hasMatch();
-            bool secondIsRST = rstPattern.match(second).hasMatch();
-
-            // Check if values are valid ITU zones (1-90)
-            bool firstIsValidZone = isValidITUZone(first);
-            bool secondIsValidZone = isValidITUZone(second);
-
-            if (firstIsRST && !secondIsRST) {
-                // First is RST, second is zone (e.g., "599 46")
-                zoneStr = second;
-            } else if (!firstIsRST && secondIsRST) {
-                // Second is RST, first is zone (e.g., "46 599")
-                zoneStr = first;
-            } else if (firstIsRST && secondIsRST) {
-                // Both match RST pattern - use zone range to decide
-                if (firstIsValidZone && !secondIsValidZone) {
-                    // First is valid zone → first=zone, second=RST (e.g., "46 59")
-                    zoneStr = first;
-                } else if (!firstIsValidZone && secondIsValidZone) {
-                    // Second is valid zone → first=RST, second=zone (e.g., "599 46")
-                    zoneStr = second;
-                } else {
-                    // Both or neither in valid zone range - assume first is RST
-                    zoneStr = second;
-                }
-            } else {
-                // Neither is valid RST
-                QString expectedFormat = (m_mode == ModeType::CW || m_mode == ModeType::CWR) ?
-                    "3 digits (e.g., 599, 579)" : "2-3 digits (e.g., 59, 599)";
-                errorMsg = QString("Invalid RST format. Expected %1 (Pattern: [1-5][1-9][1-9]?)")
-                    .arg(expectedFormat);
-                return false;
-            }
-        }
-
-        // Validate zone is provided
-        if (zoneStr.isEmpty()) {
-            errorMsg = "Zone or special station required";
-            return false;
-        }
-    } else {
-        // Too many fields
+    // Too many fields
+    if (parts.size() > 2) {
         errorMsg = "Exchange must be: Zone/HQ (e.g., '46' or 'HQ') or RST + Zone/HQ (e.g., '599 46' or '599 HQ')";
+        return false;
+    }
+
+    // Use SmartExchangeParser to parse the exchange order-agnostically
+    QSO tempQSO;
+    parseReceivedExchange(exchange, tempQSO);
+
+    // Get zone from parsed QSO
+    QString zoneStr = tempQSO.ituZoneExchange;
+
+    // Validate Zone is present
+    if (zoneStr.isEmpty()) {
+        errorMsg = "Zone or special station required";
         return false;
     }
 
@@ -217,81 +161,36 @@ bool IARUHFContest::validateReceivedExchange(const QString& exchange, QString& e
 }
 
 void IARUHFContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
-    QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
+    // Use SmartExchangeParser for order-agnostic field detection
+    // Allows "599 46" or "46 599", "HQ 599" or "599 HQ" etc.
+    QList<ExchangeField> expectedFields = getReceivedExchangeFields();
+    QMap<QString, QString> parsed = SmartExchangeParser::parse(
+        exchange,
+        expectedFields,
+        const_cast<IARUHFContest*>(this)
+    );
 
-    QString rst;
-    QString zoneStr;
+    // Get RST (auto-fill if not provided)
+    qso.rstReceived = parsed.value("RST", RSTValidator::getDefault(m_mode));
 
-    if (parts.size() == 1) {
-        // Only zone/HQ provided - auto-fill RST
-        rst = RSTValidator::getDefault(m_mode);
-        zoneStr = parts[0].toUpper();
-    } else if (parts.size() >= 2) {
-        // Two fields: detect which is RST and which is Zone/HQ (order-agnostic)
-        QString first = parts[0];
-        QString second = parts[1];
+    // Get Zone field (may be ITU zone number or special station code)
+    QString zoneStr = parsed.value("Zone").toUpper();
 
-        // Check for special stations first
-        bool firstIsSpecial = isSpecialStation(first);
-        bool secondIsSpecial = isSpecialStation(second);
-
-        if (firstIsSpecial) {
-            // First is HQ/AC/R1/R2/R3, second should be RST (unusual but possible)
-            zoneStr = first.toUpper();
-            rst = second;
-        } else if (secondIsSpecial) {
-            // Normal case: RST + HQ
-            rst = first;
-            zoneStr = second.toUpper();
-        } else {
-            // Neither is special, check for RST pattern
-            QRegularExpression rstPattern;
-            if (m_mode == ModeType::CW || m_mode == ModeType::CWR) {
-                rstPattern.setPattern("^[1-5][1-9][1-9]$");
-            } else {
-                rstPattern.setPattern("^[1-5][1-9][1-9]?$");
-            }
-
-            bool firstIsRST = rstPattern.match(first).hasMatch();
-            bool secondIsRST = rstPattern.match(second).hasMatch();
-
-            // Check if values are valid ITU zones (1-90)
-            bool firstIsValidZone = isValidITUZone(first);
-            bool secondIsValidZone = isValidITUZone(second);
-
-            if (firstIsRST && !secondIsRST) {
-                // First is RST, second is zone (e.g., "599 46")
-                rst = first;
-                zoneStr = second;
-            } else if (!firstIsRST && secondIsRST) {
-                // Second is RST, first is zone (e.g., "46 599")
-                rst = second;
-                zoneStr = first;
-            } else if (firstIsRST && secondIsRST) {
-                // Both match RST pattern - use zone range to decide
-                if (firstIsValidZone && !secondIsValidZone) {
-                    // First is valid zone → first=zone, second=RST (e.g., "46 59")
-                    zoneStr = first;
-                    rst = second;
-                } else if (!firstIsValidZone && secondIsValidZone) {
-                    // Second is valid zone → first=RST, second=zone (e.g., "599 46")
-                    rst = first;
-                    zoneStr = second;
-                } else {
-                    // Both or neither in valid zone range - assume first is RST
-                    rst = first;
-                    zoneStr = second;
-                }
-            } else {
-                // Neither is valid RST - use defaults
-                rst = RSTValidator::getDefault(m_mode);
-                zoneStr = first;  // Assume first is zone
+    // Handle special stations (HQ, AC, R1, R2, R3) - they won't be detected
+    // by looksLikeITUZone, so check for them if Zone is empty
+    if (zoneStr.isEmpty()) {
+        // SmartExchangeParser may have left special station unmatched
+        // Look for it in the original exchange
+        QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
+        for (const QString& part : parts) {
+            if (isSpecialStation(part)) {
+                zoneStr = part.toUpper();
+                break;
             }
         }
     }
 
-    // Populate QSO fields directly
-    qso.rstReceived = rst;
+    // Populate QSO fields
     qso.ituZoneExchange = zoneStr;
 
     // If it's a numeric zone, also populate ituZone integer field

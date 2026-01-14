@@ -3,6 +3,7 @@
 #include "ContestMetadata.h"
 #include "../models/QSO.h"
 #include "RSTValidator.h"
+#include "../exchanges/SmartExchangeParser.h"
 #include "../logging/LogMacros.h"
 #include <QRegularExpression>
 #include <QSet>
@@ -212,43 +213,16 @@ bool FloridaQSOPartyContest::validateReceivedExchange(const QString& exchange, Q
         return false;
     }
 
-    // Find RST and location parts
-    QString rst;
+    // Use SmartExchangeParser to parse the exchange order-agnostically
+    QSO tempQSO;
+    parseReceivedExchange(exchange, tempQSO);
+
+    // Get location from parsed QSO
     QString location;
-
-    if (parts.size() == 1) {
-        // Only location provided (assume RST is default)
-        location = parts[0];
-    } else if (parts.size() >= 2) {
-        // Try to find RST
-        QString first = parts[0];
-        QString second = parts[1];
-
-        bool firstIsRST = RSTValidator::isValid(first, m_mode);
-        bool secondIsRST = RSTValidator::isValid(second, m_mode);
-
-        if (firstIsRST && !secondIsRST) {
-            rst = first;
-            location = second;
-        } else if (!firstIsRST && secondIsRST) {
-            rst = second;
-            location = first;
-        } else if (firstIsRST && secondIsRST) {
-            // Both look like RST - assume traditional order (RST first)
-            rst = first;
-            location = second;
-        } else {
-            // Neither looks like RST - take first as location
-            location = first;
-        }
-    }
-
-    // Validate RST if provided
-    if (!rst.isEmpty() && !RSTValidator::isValid(rst, m_mode)) {
-        QString expectedFormat = (m_mode == ModeType::CW) ?
-            "3 digits (e.g., 599)" : "2-3 digits (e.g., 59)";
-        errorMsg = QString("Invalid RST format. Expected %1").arg(expectedFormat);
-        return false;
+    if (!tempQSO.county.isEmpty()) {
+        location = tempQSO.county;
+    } else {
+        location = tempQSO.state;
     }
 
     // Validate location based on operator's state
@@ -278,47 +252,25 @@ bool FloridaQSOPartyContest::validateReceivedExchange(const QString& exchange, Q
 }
 
 void FloridaQSOPartyContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
-    QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
+    // Use SmartExchangeParser for order-agnostic field detection
+    // Allows "599 PAL" or "PAL 599", "GA 59" or "59 GA" etc.
+    QList<ExchangeField> expectedFields = getReceivedExchangeFields();
+    QMap<QString, QString> parsed = SmartExchangeParser::parse(
+        exchange,
+        expectedFields,
+        const_cast<FloridaQSOPartyContest*>(this)
+    );
 
-    if (parts.isEmpty()) {
-        return;
-    }
+    // Get RST (auto-fill if not provided)
+    qso.rstReceived = parsed.value("RST", RSTValidator::getDefault(m_mode));
 
-    // Auto-detect order: "599 PAL" or "PAL 599"
-    QString rst;
+    // Get location field (either "State" or "County" depending on isInState())
     QString location;
-
-    if (parts.size() == 1) {
-        // Only location provided (assume RST is default)
-        rst = RSTValidator::getDefault(m_mode);
-        location = parts[0];
-    } else if (parts.size() >= 2) {
-        // Two or more parts: detect which is RST
-        QString first = parts[0];
-        QString second = parts[1];
-
-        bool firstIsRST = RSTValidator::isValid(first, m_mode);
-        bool secondIsRST = RSTValidator::isValid(second, m_mode);
-
-        if (firstIsRST && !secondIsRST) {
-            rst = first;
-            location = second;
-        } else if (!firstIsRST && secondIsRST) {
-            rst = second;
-            location = first;
-        } else if (firstIsRST && secondIsRST) {
-            // Both look like RST - assume traditional order (RST first)
-            rst = first;
-            location = second;
-        } else {
-            // Neither looks like RST - take first as location
-            rst = RSTValidator::getDefault(m_mode);
-            location = first;
-        }
+    if (isInState()) {
+        location = parsed.value("State");
+    } else {
+        location = parsed.value("County");
     }
-
-    // Store RST
-    qso.rstReceived = rst;
 
     // Determine if location is a county or state
     QString upper = location.toUpper();
