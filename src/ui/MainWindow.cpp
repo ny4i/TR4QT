@@ -38,6 +38,7 @@
 #include "../utils/PathManager.h"
 #include "../data/Database.h"
 #include "../data/QSORepository.h"
+#include "../data/ContestRepository.h"
 #include "../data/LOTWUserRepository.h"
 #include "../data/BackupManager.h"
 #include "../data/ExchangeMemoryRepository.h"
@@ -112,6 +113,8 @@ MainWindow::MainWindow(QWidget* parent)
     , m_currentContestDbId(-1)
     , m_nextSerialNumber(1)
     , m_qsoLogger(nullptr)
+    , m_stationInfoService(nullptr)
+    , m_scoreCalculationService(nullptr)
     , m_integrityManager(nullptr)
     , m_contestManager(nullptr)
     , m_contestService(nullptr)
@@ -145,6 +148,14 @@ MainWindow::MainWindow(QWidget* parent)
             LOG_WARN("MainWindow", QString("Failed to load country file: %1").arg(countryFilePath));
         }
     }
+
+    // Create StationInfoService (Phase 7 extraction) - needs CountryFile
+    m_stationInfoService = new StationInfoService(&m_countryFile);
+    LOG_DEBUG("MainWindow", "StationInfoService created");
+
+    // Create ScoreCalculationService (Phase 11 extraction)
+    m_scoreCalculationService = new ScoreCalculationService();
+    LOG_DEBUG("MainWindow", "ScoreCalculationService created");
 
     // Create ContestManager with country file
     ContestManager::Config contestManagerConfig;
@@ -2251,90 +2262,22 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
             .arg(matches.size()).arg(matches.join(", ")));
 
         if (!matches.isEmpty()) {
-            // Get colors for different states from ThemeManager
-            QColor dupeColor = ThemeManager::instance().color(ColorRole::DupeText);  // Red for dupes
-            QString dupeColorStr = dupeColor.name();
-            QColor workedColor = ThemeManager::instance().color(ColorRole::WorkedStationText);  // Gray for worked
-            QString workedColorStr = workedColor.name();
-            QColor notWorkedColor = ThemeManager::instance().color(ColorRole::MultiplierText);  // Blue for not worked (potential new mult)
-            QString notWorkedColorStr = notWorkedColor.name();
-
-            // Get all worked callsigns for checking if a call was worked
+            // Delegate SCP formatting to StationInfoService (Phase 7 extraction)
             QSet<QString> workedCallsigns = getWorkedCallsigns();
 
-            // Sort matches: worked/dupe calls FIRST, then not-worked calls
-            // This prioritizes showing important information (dupes, worked calls) at the top
-            QStringList workedMatches;  // Red (dupes) and Blue (worked but not dupe)
-            QStringList notWorkedMatches;  // Gray (not worked yet)
+            // Create dupe checker callback that uses MainWindow's checkForDuplicate
+            auto dupeChecker = [this](const QString& call, BandType band, ModeType mode, QString& dupeInfo) {
+                return checkForDuplicate(call, band, mode, dupeInfo);
+            };
 
-            for (const QString& match : matches) {
-                if (workedCallsigns.contains(match)) {
-                    workedMatches.append(match);  // Worked or dupe - show first
-                } else {
-                    notWorkedMatches.append(match);  // Not worked - show after
-                }
-            }
+            SCPDisplayResult scpResult = m_stationInfoService->formatSCPMatches(
+                matches, workedCallsigns, m_currentState.bandA, m_currentState.modeA, dupeChecker);
 
-            // Combine: worked calls first, then not-worked
-            QStringList sortedMatches = workedMatches + notWorkedMatches;
-
-            LOG_DEBUG("MainWindow", QString("SCP: sorted %1 worked first, %2 not worked after")
-                .arg(workedMatches.size()).arg(notWorkedMatches.size()));
-
-            // Format matches in 2 columns with color coding:
-            // RED = duplicate on current band/mode
-            // BLUE = worked but not a duplicate
-            // GRAY = not worked yet (only in MASTER.SCP)
-            QStringList rows;
-            for (int i = 0; i < sortedMatches.size(); i += 2) {
-                // Check first match
-                QString dupeInfo;
-                bool isWorked1 = workedCallsigns.contains(sortedMatches[i]);
-                bool isDupe1 = isWorked1 && checkForDuplicate(sortedMatches[i], m_currentState.bandA, m_currentState.modeA, dupeInfo);
-
-                QString color1;
-                if (isDupe1) {
-                    color1 = dupeColorStr;  // RED - dupe
-                } else if (isWorked1) {
-                    color1 = workedColorStr;  // GRAY - worked but not dupe
-                } else {
-                    color1 = notWorkedColorStr;  // BLUE - not worked (potential mult)
-                }
-
-                QString call1 = QString("<span style='color: %1;'>%2</span>")
-                    .arg(color1)
-                    .arg(sortedMatches[i]);
-
-                QString row = call1;
-
-                // Check second match if exists
-                if (i + 1 < sortedMatches.size()) {
-                    bool isWorked2 = workedCallsigns.contains(sortedMatches[i + 1]);
-                    bool isDupe2 = isWorked2 && checkForDuplicate(sortedMatches[i + 1], m_currentState.bandA, m_currentState.modeA, dupeInfo);
-
-                    QString color2;
-                    if (isDupe2) {
-                        color2 = dupeColorStr;  // RED - dupe
-                    } else if (isWorked2) {
-                        color2 = workedColorStr;  // GRAY - worked but not dupe
-                    } else {
-                        color2 = notWorkedColorStr;  // BLUE - not worked (potential mult)
-                    }
-
-                    QString call2 = QString("<span style='color: %1;'>%2</span>")
-                        .arg(color2)
-                        .arg(sortedMatches[i + 1]);
-                    row += "  " + call2;
-                }
-
-                rows.append(row);
-            }
-
-            m_scpMatchesLabel->setTextFormat(Qt::RichText);  // Enable HTML formatting
-            m_scpMatchesLabel->setText(rows.join("<br>"));  // Use <br> for line breaks in HTML
-            m_scpMatchesLabel->show();  // Make sure label is visible
-            LOG_DEBUG("MainWindow", QString("SCP: displaying %1 rows (%2 total calls)")
-                .arg(rows.size()).arg(sortedMatches.size()));
+            m_scpMatchesLabel->setTextFormat(Qt::RichText);
+            m_scpMatchesLabel->setText(scpResult.htmlContent);
+            m_scpMatchesLabel->show();
+            LOG_DEBUG("MainWindow", QString("SCP: displaying %1 matches (%2 worked, %3 dupes)")
+                .arg(scpResult.totalMatches).arg(scpResult.workedCount).arg(scpResult.dupeCount));
         } else {
             m_scpMatchesLabel->setText("");  // Clear but don't hide
             m_scpMatchesLabel->show();  // Keep visible even when empty
@@ -2359,151 +2302,34 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
 }
 
 void MainWindow::updateStationInfo(const QString& callsign) {
-    // Lookup country data from CTY.DAT
-    CountryData countryData = m_countryFile.lookup(callsign);
-    if (!countryData.isValid()) {
+    // Delegate to StationInfoService (Phase 7 extraction)
+    AppSettings& settings = AppSettings::instance();
+    QString myGrid = settings.getMyGridSquare();
+    bool useMetric = settings.getUseMetricDistance();
+
+    StationInfoResult result = m_stationInfoService->calculateStationInfo(
+        callsign, myGrid, useMetric);
+
+    // Update UI with results
+    if (!result.valid) {
         m_countryNameLabel->setText("");
         m_stationInfoLabel->setText("");
         return;
     }
 
-    // Always show country name
-    m_countryNameLabel->setText(countryData.name);
-
-    // Get my station's grid square from settings
-    AppSettings& settings = AppSettings::instance();
-    QString myGrid = settings.getMyGridSquare();
-    if (myGrid.isEmpty()) {
-        // No grid square configured, just show prefix (cannot calculate distance/bearing)
-        m_stationInfoLabel->setText(countryData.primaryPrefix);
-        return;
-    }
-
-    // Convert my grid square to lat/lon
-    double myLat, myLon;
-    if (!GeographicUtils::gridToLatLon(myGrid, myLat, myLon)) {
-        // Invalid grid square, just show prefix (cannot calculate distance/bearing)
-        m_stationInfoLabel->setText(countryData.primaryPrefix);
-        return;
-    }
-
-    // Calculate distance and bearing from my grid to target location
-    double distance = 0.0;
-    double bearing = 0.0;
-    bool useKilometers = settings.getUseMetricDistance();
-
-    // For US mainland callsigns (DXCC 291), use call area grid squares (more precise)
-    double targetLat, targetLon;
-    if (CountryFile::getUSCallAreaCoordinates(callsign, countryData.dxccEntity, targetLat, targetLon)) {
-        // US mainland callsign - use call area center grid (W1→FN43, W2→FN22, etc.)
-        distance = GeographicUtils::haversineDistance(myLat, myLon,
-                                                      targetLat, targetLon,
-                                                      useKilometers);
-        bearing = GeographicUtils::calculateBearing(myLat, myLon,
-                                                    targetLat, targetLon);
-    } else {
-        // Non-US or Alaska/Hawaii - use country center from CTY.DAT
-        targetLat = countryData.latitude;
-        targetLon = countryData.longitude;
-        distance = GeographicUtils::haversineDistance(myLat, myLon,
-                                                      targetLat, targetLon,
-                                                      useKilometers);
-        bearing = GeographicUtils::calculateBearing(myLat, myLon,
-                                                    targetLat, targetLon);
-    }
-
-    // Calculate sunrise/sunset for DX station
-    QDate today = QDate::currentDate();
-    QTime dxSunrise = GeographicUtils::calculateSunrise(targetLat, targetLon, today);
-    QTime dxSunset = GeographicUtils::calculateSunset(targetLat, targetLon, today);
-
-    // Calculate sunrise/sunset for Home station
-    QTime homeSunrise = GeographicUtils::calculateSunrise(myLat, myLon, today);
-    QTime homeSunset = GeographicUtils::calculateSunset(myLat, myLon, today);
-
-    // Check grayline status
-    QDateTime now = QDateTime::currentDateTimeUtc();
-    QTime currentTime = now.time();
-
-    // Check which specific times are in grayline
-    bool homeInGrayline = GeographicUtils::isInGraylineWindow(now, homeSunrise, homeSunset, GRAYLINE_WINDOW_MINUTES);
-
-    // Check DX sunrise grayline
-    bool dxSunriseInGrayline = false;
-    if (dxSunrise.isValid()) {
-        int secondsToSunrise = currentTime.secsTo(dxSunrise);
-        dxSunriseInGrayline = (std::abs(secondsToSunrise) <= GRAYLINE_WINDOW_MINUTES * 60);
-    }
-
-    // Check DX sunset grayline
-    bool dxSunsetInGrayline = false;
-    if (dxSunset.isValid()) {
-        int secondsToSunset = currentTime.secsTo(dxSunset);
-        dxSunsetInGrayline = (std::abs(secondsToSunset) <= GRAYLINE_WINDOW_MINUTES * 60);
-    }
-
-    bool dxInGrayline = dxSunriseInGrayline || dxSunsetInGrayline;
-
-    // Format station info: "PREFIX  BEARING°  DISTANCE  SR/SS"
-    // Example: "KP4  121°  1263mi  10:45z/22:15z" or "HV  045°  4521km  04:52z/17:10z"
-    QString distUnit = useKilometers ? "km" : "mi";
-    QString info = QString("%1  %2°  %3%4")
-        .arg(countryData.primaryPrefix, -6)  // Left-align in 6 char field
-        .arg(static_cast<int>(bearing), 3)   // Bearing (3 digits)
-        .arg(static_cast<int>(distance), 4)  // Distance (4 digits)
-        .arg(distUnit);
-
-    // Add sunrise/sunset times if valid (with rich text for grayline highlighting)
-    QString tooltip;
-    if (dxSunrise.isValid() && dxSunset.isValid()) {
-        QString srText = dxSunrise.toString("HH:mm") + "z";
-        QString ssText = dxSunset.toString("HH:mm") + "z";
-
-        // Color highlight if in grayline (orange for enhanced propagation)
-        QString graylineColor = ThemeManager::instance().colorName(ColorRole::AgingSpotText);
-
-        if (dxSunriseInGrayline) {
-            srText = QString("<span style='color:%1;font-weight:bold;'>%2</span>")
-                .arg(graylineColor).arg(srText);
-            tooltip = "DX station in sunrise grayline window (enhanced propagation)";
-        }
-
-        if (dxSunsetInGrayline) {
-            ssText = QString("<span style='color:%1;font-weight:bold;'>%2</span>")
-                .arg(graylineColor).arg(ssText);
-            if (!tooltip.isEmpty()) {
-                tooltip = "DX station in sunrise/sunset grayline window (enhanced propagation)";
-            } else {
-                tooltip = "DX station in sunset grayline window (enhanced propagation)";
-            }
-        }
-
-        info += "  " + srText + "/" + ssText;
-    }
-
-    // Add grayline indicators
-    if (homeInGrayline && dxInGrayline) {
-        info += "  ⚡DOUBLE⚡";
-        tooltip = "Both home and DX stations in grayline window (exceptional propagation!)";
-    } else if (homeInGrayline) {
-        info += "  [HOME GRAYLINE]";
-        if (tooltip.isEmpty()) {
-            tooltip = "Home station in grayline window (enhanced propagation)";
-        } else {
-            tooltip += " + Home station also in grayline";
-        }
-    }
-
-    // Enable rich text and set content
+    m_countryNameLabel->setText(result.countryName);
     m_stationInfoLabel->setTextFormat(Qt::RichText);
-    m_stationInfoLabel->setText(info);
-    m_stationInfoLabel->setToolTip(tooltip);
+    m_stationInfoLabel->setText(result.displayInfo);
+    m_stationInfoLabel->setToolTip(result.tooltip);
 
-    // Update grayline map if it's open
+    // Update grayline map if it's open (UI-specific, stays in MainWindow)
     if (m_graylineMapDialog && m_graylineMapDialog->isVisible() && !m_graylineMapDialog->isFrozen()) {
-        QString myCallsign = settings.getMyCallsign();
-        m_graylineMapDialog->updateStations(myCallsign, myLat, myLon,
-                                           callsign, targetLat, targetLon);
+        double myLat, myLon;
+        if (GeographicUtils::gridToLatLon(myGrid, myLat, myLon)) {
+            QString myCallsign = settings.getMyCallsign();
+            m_graylineMapDialog->updateStations(myCallsign, myLat, myLon,
+                                               callsign, result.targetLat, result.targetLon);
+        }
     }
 }
 
@@ -2757,156 +2583,55 @@ void MainWindow::updateScoreDisplay() {
         return;
     }
 
-    // Check if contest uses mode group breakdown
-    bool usesModeGroupBreakdown = m_activeContest && m_activeContest->usesModeGroupBreakdown();
-
-    // Initialize per-band counters
-    QMap<BandType, int> qsosPerBand;
-    QMap<BandType, int> pointsPerBand;
-    QMap<BandType, int> multsPerBand;  // Count of mult QSOs per band
-    QMap<BandType, QSet<int>> zonesPerBand;
-
-    // Mode group counters (for mixed-mode contests)
-    QMap<ModeGroup, QMap<BandType, int>> qsosPerBandPerModeGroup;
-    QMap<ModeGroup, int> totalQSOsPerModeGroup;
-
-    int totalQSOs = 0;
-    int totalQSOPoints = 0;
-    int totalMultQSOs = 0;  // Total QSOs that provided mults
-
-    // Track unique multiplier values for scoring calculation
-    QMap<MultiplierType, QSet<QString>> uniqueMultValues;
-
-    // Get multiplier definitions from active contest
-    QList<MultiplierDefinition> multDefs;
-    if (m_activeContest) {
-        multDefs = m_activeContest->getMultiplierTypes();
-    }
-
-    // Iterate through all QSOs in the table model
+    // Collect QSOs from table model
+    QList<QSO> qsos;
     for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-        QSO qso = m_qsoTableModel->getQSO(row);
-
-        if (qso.band == BandType::None) {
-            continue;  // Skip QSOs with no band
-        }
-
-        // Count QSOs per band
-        qsosPerBand[qso.band]++;
-        totalQSOs++;
-
-        // Track mode group statistics if contest uses breakdown
-        if (usesModeGroupBreakdown) {
-            ModeGroup group = modeTypeToModeGroup(qso.mode);
-            qsosPerBandPerModeGroup[group][qso.band]++;
-            totalQSOsPerModeGroup[group]++;
-        }
-
-        // Sum points per band
-        pointsPerBand[qso.band] += qso.qsoPoints;
-        totalQSOPoints += qso.qsoPoints;
-
-        // Count multiplier QSOs per band (simple - just check the flag!)
-        if (qso.isMultiplier) {
-            multsPerBand[qso.band]++;
-            totalMultQSOs++;
-        }
-
-        // Track unique multiplier values for scoring
-        // (Need to recalculate this for accurate scoring)
-        if (m_activeContest) {
-            for (const MultiplierDefinition& multDef : multDefs) {
-                QString multValue = m_activeContest->getMultiplierValue(
-                    qso, multDef.type, QStringList());
-                if (!multValue.isEmpty()) {
-                    uniqueMultValues[multDef.type].insert(multValue);
-                }
-            }
-        }
-
-        // Track unique zones per band (for "Zones" display column)
-        if (qso.cqZone > 0) {
-            zonesPerBand[qso.band].insert(qso.cqZone);
-        }
+        qsos.append(m_qsoTableModel->getQSO(row));
     }
 
-    // Calculate total multiplier counts per type FOR SCORING
-    QMap<MultiplierType, int> multiplierCounts;
-    for (auto it = uniqueMultValues.begin(); it != uniqueMultValues.end(); ++it) {
-        multiplierCounts[it.key()] = it.value().size();
-    }
+    // Delegate calculation to ScoreCalculationService (Phase 11 extraction)
+    ScoreResult result = m_scoreCalculationService->calculateScore(qsos, m_activeContest);
 
     // Update band summary grid with calculated values
-    QList<BandType> bands = {
-        BandType::Band160M, BandType::Band80M, BandType::Band40M,
-        BandType::Band20M, BandType::Band15M, BandType::Band10M
-    };
+    QList<BandType> bands = ScoreCalculationService::getStandardBands();
 
-    int totalMults = 0;
-    int totalZones = 0;
-
-    // WebServer calculates band data from QSOTableModel - no need to push
-
-    if (usesModeGroupBreakdown) {
+    if (result.usesModeGroupBreakdown) {
         // Update mode group QSO counts per band
         QList<ModeGroup> modeGroups = {ModeGroup::Phone, ModeGroup::CW, ModeGroup::Digital};
         for (ModeGroup group : modeGroups) {
             for (BandType band : bands) {
-                int count = qsosPerBandPerModeGroup.value(group).value(band, 0);
+                int count = result.modeGroupStats.value(group).qsosPerBand.value(band, 0);
                 m_bandSummaryGrid->setModeGroupQSOCount(band, group, count);
             }
-
-            // Update "All" column for each mode group
-            int totalForGroup = totalQSOsPerModeGroup.value(group, 0);
-            m_bandSummaryGrid->setAllModeGroupQSOs(group, totalForGroup);
+            m_bandSummaryGrid->setAllModeGroupQSOs(group, result.modeGroupStats.value(group).totalQSOs);
         }
     } else {
         // Single-mode: Update regular QSO counts
         for (BandType band : bands) {
-            int qsos = qsosPerBand.value(band, 0);
-            m_bandSummaryGrid->setQSOCount(band, qsos);
+            m_bandSummaryGrid->setQSOCount(band, result.bandStats.value(band).qsoCount);
         }
-        m_bandSummaryGrid->setAllQSOs(totalQSOs);
+        m_bandSummaryGrid->setAllQSOs(result.totalQSOs);
     }
 
-    // Update points, mults, and zones (same for both modes)
+    // Update points, mults, and zones
     for (BandType band : bands) {
-        int points = pointsPerBand.value(band, 0);
-        int mults = multsPerBand.value(band, 0);  // Simple count of marked mult QSOs
-        int zones = zonesPerBand.value(band).size();
-
-        m_bandSummaryGrid->setPointsCount(band, points);
-        m_bandSummaryGrid->setMultCount(band, mults);
-        m_bandSummaryGrid->setZoneCount(band, zones);
-
-        // WebServer calculates band data from QSOTableModel - no need to push
-
-        totalMults += mults;
-        totalZones += zones;
-    }
-
-    // Calculate final contest score using contest's formula
-    int finalScore = totalQSOPoints;  // Default if no contest active
-    if (m_activeContest) {
-        finalScore = m_activeContest->calculateTotalScore(totalQSOPoints, multiplierCounts);
+        const BandStatistics& stats = result.bandStats.value(band);
+        m_bandSummaryGrid->setPointsCount(band, stats.points);
+        m_bandSummaryGrid->setMultCount(band, stats.multipliers);
+        m_bandSummaryGrid->setZoneCount(band, stats.zones);
     }
 
     // Update "All" column totals
-    // Note: For mode breakdown contests, setAllQSOs() is called per mode group above
-    if (!usesModeGroupBreakdown) {
-        // Only set total QSOs for single-mode contests
-        // (already set per mode group for mixed-mode contests)
-        m_bandSummaryGrid->setAllQSOs(totalQSOs);
+    if (!result.usesModeGroupBreakdown) {
+        m_bandSummaryGrid->setAllQSOs(result.totalQSOs);
     }
-    m_bandSummaryGrid->setAllMults(totalMults);
-    m_bandSummaryGrid->setAllZones(totalZones);
-    m_bandSummaryGrid->setAllPoints(totalQSOPoints);  // Sum of QSO points
-    m_bandSummaryGrid->setFinalScore(finalScore);     // Contest score (points × mults)
+    m_bandSummaryGrid->setAllMults(result.totalMultipliers);
+    m_bandSummaryGrid->setAllZones(result.totalZones);
+    m_bandSummaryGrid->setAllPoints(result.totalQSOPoints);
+    m_bandSummaryGrid->setFinalScore(result.finalScore);
 
     // Update status bar
-    m_statusLabel->setText(QString("%1 QSOs, %2 Points").arg(totalQSOs).arg(finalScore));
-
-    // WebServer calculates score from QSOTableModel - no need to push
+    m_statusLabel->setText(QString("%1 QSOs, %2 Points").arg(result.totalQSOs).arg(result.finalScore));
 }
 
 void MainWindow::recalculateAllPoints() {
@@ -3954,34 +3679,8 @@ QList<BandType> MainWindow::getWorkedBandsForMultiplier(const QString& multValue
 }
 
 QString MainWindow::getMultiplierValueForCallsign(const QString& callsign) const {
-    if (!m_activeContest || callsign.isEmpty()) {
-        return QString();
-    }
-
-    // Build a temporary QSO and populate DXCC fields using centralized function
-    QSO tempQso;
-    tempQso.callsign = callsign;
-    m_countryFile.populateQSODXCCFields(tempQso);
-
-    if (tempQso.dxccEntity.isEmpty()) {
-        return QString();
-    }
-
-    // Get the contest's primary multiplier type
-    QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
-    if (multDefs.isEmpty()) {
-        return QString();
-    }
-
-    // For now, use the first multiplier type
-    // Most contests have Country or Zone as primary multiplier
-    MultiplierType primaryMultType = multDefs.first().type;
-
-    // Get the multiplier value
-    QString multValue = m_activeContest->getMultiplierValue(
-        tempQso, primaryMultType, QStringList());
-
-    return multValue;
+    // Delegate to StationInfoService (Phase 7 extraction)
+    return m_stationInfoService->getMultiplierValueForCallsign(callsign, m_activeContest);
 }
 
 // Window menu slot implementations

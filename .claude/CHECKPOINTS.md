@@ -21,10 +21,15 @@ EXECUTE:
        d. IF YELLOW: Execute WARNING_PROTOCOL
   3. IF all GREEN: PROCEED
 
-THRESHOLDS:
+THRESHOLDS (normal classes):
   - GREEN: < 1000 lines
   - YELLOW: 1000-1499 lines
   - RED: >= 1500 lines
+
+THRESHOLDS (MainWindow / main UI entry point):
+  - GREEN: < 2000 lines
+  - YELLOW: 2000-2499 lines
+  - RED: >= 3000 lines
 
 REFUSAL_PROTOCOL (RED):
   1. Output refusal message (see .claude/REFUSAL_TEMPLATES.md)
@@ -54,11 +59,11 @@ bash scripts/check_architecture.sh
 **OUTPUT FORMAT**:
 ```
 📊 File Health Check: src/ui/MainWindow.cpp
-├─ Current: 5,564 lines
-├─ Threshold: 1,500 (STOP limit)
-├─ Status: 🔴 RED (3.7X over limit)
+├─ Current: 5,050 lines
+├─ Threshold: 3,000 (MainWindow STOP limit)
+├─ Status: 🔴 RED (1.7X over limit)
 ├─ Estimated change: +50 lines
-├─ After change: 5,614 lines
+├─ After change: 5,100 lines
 └─ Action: 🚫 BLOCKED - See .claude/REFUSAL_TEMPLATES.md
 ```
 
@@ -172,20 +177,19 @@ EXECUTE:
 
 **OUTPUT FORMAT**:
 ```
-📊 TR4QT Architecture Health Report (2026-01-12)
+📊 TR4QT Architecture Health Report (2026-01-13)
 
 God Classes:
-  ❌ src/ui/MainWindow.cpp: 5,564 lines (3.7X over limit)
+  ❌ src/ui/MainWindow.cpp: 5,050 lines (1.7X over 3,000 limit)
 
 Trend (vs. last week):
-  📈 MainWindow: +120 lines (worse)
-  📉 Test coverage: -2% (worse)
-  ⚠️  Technical debt increasing
+  📈 MainWindow: -514 lines (better - extraction ongoing)
+  📉 Test coverage: +5% (better)
+  ✅ Technical debt decreasing
 
 Recommendation:
-  🛑 PAUSE new features
-  🔧 Extract QSOLoggingService this week (target: -300 lines)
-  🎯 Goal: MainWindow < 5,000 lines by end of week
+  🔧 Continue extraction: StationInfoService next (target: -350 lines)
+  🎯 Goal: MainWindow < 3,000 lines
 ```
 
 ---
@@ -234,4 +238,4 @@ Track progress in `.claude/METRICS.md`:
 - Extraction completion (services created)
 - Architecture violations (should trend to 0)
 
-**Goal**: MainWindow < 2,500 lines (55% reduction from 5,564)
+**Goal**: MainWindow < 3,000 lines (40% reduction from 5,050)
