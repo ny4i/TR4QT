@@ -2,9 +2,18 @@
 
 **CRITICAL: These rules MUST be followed when adding new features to TR4QT.**
 
-## 🚨 MainWindow Forbidden Patterns
+## 🚨 MainWindow Line Limits
 
-MainWindow is at **5,564 lines** (3.7X over the 1,500 line STOP limit).
+**Special case**: MainWindow is the main UI entry point and has a higher limit than typical classes.
+
+| Class Type | Yellow | Red | STOP |
+|------------|--------|-----|------|
+| **MainWindow (UI entry)** | 2,000 | 2,500 | **3,000** |
+| Normal classes | 500 | 1,000 | 1,500 |
+
+MainWindow is currently at **5,050 lines** (1.7X over the 3,000 line STOP limit).
+
+## 🚨 MainWindow Forbidden Patterns
 
 **NEVER add these to MainWindow:**
 
@@ -188,7 +197,7 @@ void MainWindow::onEditContestSettings() {
 
 **BEFORE implementing ANY new feature, answer these questions:**
 
-1. **Does MainWindow exceed 1,500 lines?**
+1. **Does MainWindow exceed 3,000 lines?** (or 1,500 for normal classes)
    - If YES: **STOP**. Extract services first.
 
 2. **Will this add SQL to MainWindow?**
@@ -209,7 +218,7 @@ void MainWindow::onEditContestSettings() {
 
 ## 🏗️ Current Extraction Priorities
 
-**MainWindow is 5,564 lines. Target: 2,000 lines.**
+**MainWindow is 5,050 lines. Target: 3,000 lines (need to remove ~2,050 lines).**
 
 **Services that MUST be created:**
 

@@ -139,6 +139,8 @@ set(SOURCES
     services/ExchangeMemoryService.cpp
     services/QSOLoggingCoordinator.cpp
     services/QSOLoggingService.cpp
+    services/StationInfoService.cpp
+    services/ScoreCalculationService.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp
