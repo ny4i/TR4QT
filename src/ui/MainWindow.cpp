@@ -157,6 +157,10 @@ MainWindow::MainWindow(QWidget* parent)
     m_scoreCalculationService = new ScoreCalculationService();
     LOG_DEBUG("MainWindow", "ScoreCalculationService created");
 
+    // Create QSOQueryService (Phase 13 extraction)
+    m_qsoQueryService = new QSOQueryService();
+    LOG_DEBUG("MainWindow", "QSOQueryService created");
+
     // Create ContestManager with country file
     ContestManager::Config contestManagerConfig;
     contestManagerConfig.countryFile = &m_countryFile;
@@ -2292,11 +2296,8 @@ void MainWindow::updateScoreDisplay() {
         return;
     }
 
-    // Collect QSOs from table model
-    QList<QSO> qsos;
-    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-        qsos.append(m_qsoTableModel->getQSO(row));
-    }
+    // Get thread-safe copy of all QSOs
+    QList<QSO> qsos = m_qsoTableModel->getAllQSOs();
 
     // Delegate calculation to ScoreCalculationService (Phase 11 extraction)
     ScoreResult result = m_scoreCalculationService->calculateScore(qsos, m_activeContest);
@@ -2479,11 +2480,8 @@ RescoreStats MainWindow::rescoreContestSilent() {
         myStation.country = myCountryData.name;
     }
 
-    // Get all QSOs from table model
-    QList<QSO> qsos;
-    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-        qsos.append(m_qsoTableModel->getQSO(row));
-    }
+    // Get thread-safe copy of all QSOs
+    QList<QSO> qsos = m_qsoTableModel->getAllQSOs();
 
     // Delegate to DataIntegrityManager for rescoring
     stats = m_integrityManager->rescoreContestSilent(qsos, m_activeContest, myStation);
@@ -2640,10 +2638,7 @@ void MainWindow::onFullIntegrityCheck() {
     QApplication::processEvents();  // Update UI
 
     // Delegate to DataIntegrityManager (no SQL in UI!)
-    QList<QSO> memoryQSOs;
-    for (int i = 0; i < m_qsoTableModel->count(); ++i) {
-        memoryQSOs.append(m_qsoTableModel->getQSO(i));
-    }
+    QList<QSO> memoryQSOs = m_qsoTableModel->getAllQSOs();
     QString report = m_integrityManager->fullIntegrityCheck(memoryQSOs, false);  // Show all checks
 
     // Display report
@@ -2690,18 +2685,18 @@ void MainWindow::onRebroadcastLog() {
     LOG_INFO("MainWindow", QString("Starting UDP rebroadcast of %1 QSOs").arg(totalQSOs));
     m_statusLabel->setText(QString("Starting UDP rebroadcast of %1 QSOs...").arg(totalQSOs));
 
-    // Run in separate thread to avoid blocking UI
-    // Note: Rebroadcast is read-only (no database writes), so it doesn't interfere with QSO logging
-    auto future = QtConcurrent::run([this, totalQSOs]() {
-        QString stationCall = AppSettings::instance().getMyCallsign();
-        QString contestName = m_currentContest.contestName;
+    // THREAD SAFETY: Get copy of all QSOs BEFORE entering thread
+    // This prevents race conditions if main thread modifies model during rebroadcast
+    QList<QSO> qsosCopy = m_qsoTableModel->getAllQSOs();
+    QString stationCall = AppSettings::instance().getMyCallsign();
+    QString contestName = m_currentContest.contestName;
 
+    // Run in separate thread to avoid blocking UI
+    auto future = QtConcurrent::run([this, qsosCopy, stationCall, contestName, totalQSOs]() {
         int quarter = qMax(1, totalQSOs / 4);  // For progress updates
         int sent = 0;
 
-        for (int row = 0; row < totalQSOs; ++row) {
-            QSO qso = m_qsoTableModel->getQSO(row);
-
+        for (const QSO& qso : qsosCopy) {
             // Broadcast this QSO
             m_udpBroadcastManager->onQSOLogged(qso, stationCall, contestName);
             sent++;
@@ -2753,30 +2748,16 @@ void MainWindow::updateTimeDisplay() {
     }
     m_timeLabel->setText(timeStr);
 
-    // Calculate QSOs this hour
+    // Calculate QSOs this hour and rate - delegate to QSOQueryService (Phase 13)
     QDateTime now = QDateTime::currentDateTimeUtc();
     QDateTime hourStart = QDateTime(now.date(), QTime(now.time().hour(), 0), QTimeZone::utc());
 
-    m_qsosThisHour = 0;
-    for (int i = 0; i < m_qsoTableModel->count(); ++i) {
-        QSO qso = m_qsoTableModel->getQSO(i);
-        if (qso.timestamp >= hourStart && qso.timestamp <= now) {
-            m_qsosThisHour++;
-        }
-    }
+    QList<QSO> qsos = m_qsoTableModel->getAllQSOs();
 
-    // Calculate rate (QSOs per hour based on last 10 QSOs or last 10 minutes)
-    int rate = 0;
-    if (m_qsoTableModel->count() >= 2) {
-        int lookback = qMin(10, m_qsoTableModel->count());
-        QSO firstQSO = m_qsoTableModel->getQSO(m_qsoTableModel->count() - lookback);
-        QSO lastQSO = m_qsoTableModel->getQSO(m_qsoTableModel->count() - 1);
-
-        qint64 periodSecs = firstQSO.timestamp.secsTo(lastQSO.timestamp);
-        if (periodSecs > 0) {
-            rate = (lookback - 1) * 3600 / periodSecs;
-        }
-    }
+    // Delegate calculations to service
+    const int RATE_LOOKBACK_COUNT = 10;
+    m_qsosThisHour = m_qsoQueryService->countQSOsInTimeWindow(qsos, hourStart, now);
+    int rate = m_qsoQueryService->calculateRate(qsos, RATE_LOOKBACK_COUNT);
 
     // Update labels
     m_thisHrLabel->setText(QString("This Hr = %1").arg(m_qsosThisHour));
@@ -3308,64 +3289,22 @@ bool MainWindow::checkForDuplicate(const QString& callsign, BandType band, ModeT
     return result.isDuplicate;
 }
 
-// Band needs tracking methods
+// Band needs tracking methods - delegated to QSOQueryService (Phase 13 extraction)
 
 QSet<QString> MainWindow::getWorkedCallsigns() const {
-    QSet<QString> workedCallsigns;
-
-    // Collect all unique callsigns from the log
-    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-        QSO qso = m_qsoTableModel->getQSO(row);
-        workedCallsigns.insert(qso.callsign.toUpper());  // Store in uppercase for matching
-    }
-
-    return workedCallsigns;
+    QList<QSO> qsos = m_qsoTableModel->getAllQSOs();
+    return m_qsoQueryService->getWorkedCallsigns(qsos);
 }
 
 QList<BandType> MainWindow::getWorkedBandsForCallsign(const QString& callsign) const {
-    QList<BandType> workedBands;
-
-    if (callsign.isEmpty()) {
-        return workedBands;
-    }
-
-    // Search through all QSOs in the table model for this callsign
-    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-        QSO qso = m_qsoTableModel->getQSO(row);
-        if (qso.callsign.compare(callsign, Qt::CaseInsensitive) == 0) {
-            if (!workedBands.contains(qso.band)) {
-                workedBands.append(qso.band);
-            }
-        }
-    }
-
-    return workedBands;
+    QList<QSO> qsos = m_qsoTableModel->getAllQSOs();
+    return m_qsoQueryService->getWorkedBandsForCallsign(qsos, callsign);
 }
 
 QList<BandType> MainWindow::getWorkedBandsForMultiplier(const QString& multValue,
                                                         MultiplierType type) const {
-    QList<BandType> workedBands;
-
-    if (!m_activeContest || multValue.isEmpty()) {
-        return workedBands;
-    }
-
-    // Search through all QSOs and find which bands have this multiplier
-    for (int row = 0; row < m_qsoTableModel->count(); ++row) {
-        QSO qso = m_qsoTableModel->getQSO(row);
-
-        // Get the multiplier value for this QSO
-        QString qsoMultValue = m_activeContest->getMultiplierValue(
-            qso, type, QStringList());
-
-        if (qsoMultValue.compare(multValue, Qt::CaseInsensitive) == 0) {
-            if (!workedBands.contains(qso.band)) {
-                workedBands.append(qso.band);
-            }
-        }
-    }
-
-    return workedBands;
+    QList<QSO> qsos = m_qsoTableModel->getAllQSOs();
+    return m_qsoQueryService->getWorkedBandsForMultiplier(qsos, multValue, type, m_activeContest);
 }
 
 QString MainWindow::getMultiplierValueForCallsign(const QString& callsign) const {

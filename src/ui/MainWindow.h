@@ -33,6 +33,7 @@
 #include "../services/LogExportService.h"
 #include "../services/FrequencyInputService.h"
 #include "../services/SpotProcessingService.h"
+#include "../services/QSOQueryService.h"
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
@@ -382,6 +383,9 @@ private:
 
     // Score Calculation Service (Phase 11 extraction)
     ScoreCalculationService* m_scoreCalculationService;
+
+    // QSO Query Service (Phase 13 extraction)
+    QSOQueryService* m_qsoQueryService;
 
     // Data Integrity Manager (handles integrity checks and rescoring)
     DataIntegrityManager* m_integrityManager;
