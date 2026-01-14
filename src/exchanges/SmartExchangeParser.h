@@ -85,6 +85,19 @@ private:
 public:
     // State detection (for NAQP and other contests using state/province multipliers)
     static bool looksLikeState(const QString& token);
+
+    // Power detection (for ARRL DX - numeric power values in watts)
+    static bool looksLikePower(const QString& token);
+
+    // CQ Zone detection (for CQ WW, IARU - range 1-40)
+    static bool looksLikeCQZone(const QString& token);
+
+    // ITU Zone detection (for IARU HF - range 1-90)
+    static bool looksLikeITUZone(const QString& token);
+
+    // County detection (for QSO Parties - 3-letter codes)
+    // Note: Requires contest-specific validation - this is a general heuristic
+    static bool looksLikeCounty(const QString& token, ContestBase* contest);
 };
 
 } // namespace TR4QT

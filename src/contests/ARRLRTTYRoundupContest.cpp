@@ -4,6 +4,7 @@
 #include "../models/QSO.h"
 #include "../utils/ArrlSectionHelper.h"
 #include "../utils/CountryFile.h"
+#include "../exchanges/SmartExchangeParser.h"
 #include "RSTValidator.h"
 #include <QRegularExpression>
 
@@ -116,31 +117,27 @@ bool ARRLRTTYRoundupContest::validateReceivedExchange(const QString& exchange, Q
         return false;
     }
 
-    // Parse exchange - could be just state/serial, or RST + state/serial
-    QString stateOrSerial;
-    if (parts.size() == 1) {
-        stateOrSerial = parts[0];
-    } else if (parts.size() == 2) {
-        // RST + State/Serial
-        stateOrSerial = parts[1];
-    } else {
-        errorMsg = "Exchange must be: State (e.g., 'FL') or RST + State (e.g., '599 FL')";
+    // Use SmartExchangeParser for order-agnostic parsing
+    QSO tempQSO;
+    parseReceivedExchange(exchange, tempQSO);
+
+    // Validate we got either state or serial
+    if (tempQSO.state.isEmpty() && tempQSO.serialNumberReceived == 0) {
+        errorMsg = "Exchange must include State/Province (e.g., 'FL') or Serial (e.g., '001')";
         return false;
     }
 
-    // Validate as either state/province OR serial number
-    // Serial number: 1-999 (3 digits)
-    bool isSerial = false;
-    if (QRegularExpression("^\\d{1,3}$").match(stateOrSerial).hasMatch()) {
-        int serial = stateOrSerial.toInt();
-        if (serial >= 1 && serial <= 999) {
-            isSerial = true;
+    // If we got a state, validate it using looksLikeState (NOT isValidSection)
+    if (!tempQSO.state.isEmpty()) {
+        if (!SmartExchangeParser::looksLikeState(tempQSO.state)) {
+            errorMsg = QString("Invalid state/province: %1").arg(tempQSO.state);
+            return false;
         }
     }
 
-    // If not serial, must be valid state/province
-    if (!isSerial && !Arrl::isValidSection(stateOrSerial.toUpper())) {
-        errorMsg = QString("Invalid state/province or serial number: %1").arg(stateOrSerial);
+    // Serial number validation (1-9999)
+    if (tempQSO.serialNumberReceived > 0 && tempQSO.serialNumberReceived > 9999) {
+        errorMsg = QString("Invalid serial number: %1 (must be 1-9999)").arg(tempQSO.serialNumberReceived);
         return false;
     }
 
@@ -148,31 +145,31 @@ bool ARRLRTTYRoundupContest::validateReceivedExchange(const QString& exchange, Q
 }
 
 void ARRLRTTYRoundupContest::parseReceivedExchange(const QString& exchange, QSO& qso) const {
-    QStringList parts = exchange.trimmed().split(QRegularExpression("\\s+"));
+    // Use SmartExchangeParser for order-agnostic field detection
+    // Allows "599 FL", "FL 599", "599 001", "001 599" etc.
+    QList<ExchangeField> expectedFields = getReceivedExchangeFields();
+    QMap<QString, QString> parsed = SmartExchangeParser::parse(
+        exchange,
+        expectedFields,
+        const_cast<ARRLRTTYRoundupContest*>(this)
+    );
 
-    QString rst = "RSTValidator::getDefault(getContestMode())";
-    QString stateOrSerial;
+    // Get RST (auto-fill if not provided)
+    qso.rstReceived = parsed.value("RST", RSTValidator::getDefault(getContestMode()));
 
-    if (parts.size() == 1) {
-        stateOrSerial = parts[0];
-    } else if (parts.size() >= 2) {
-        rst = parts[0];
-        stateOrSerial = parts[1];
-    }
+    // Get State/Serial field
+    QString stateOrSerial = parsed.value("State/Serial");
 
-    // Populate QSO fields directly
-    qso.rstReceived = rst;
-
-    // Detect if it's a serial number or state/province
-    if (QRegularExpression("^\\d{1,3}$").match(stateOrSerial).hasMatch()) {
-        qso.serialNumberReceived = stateOrSerial.toInt();
-        qso.state = "";
-    } else {
+    // Detect if it's a state/province or serial number using SmartExchangeParser helpers
+    if (SmartExchangeParser::looksLikeState(stateOrSerial)) {
         qso.state = stateOrSerial.toUpper();
         qso.serialNumberReceived = 0;
+    } else if (!stateOrSerial.isEmpty()) {
+        qso.state = "";
+        qso.serialNumberReceived = stateOrSerial.toInt();
     }
 
-    // Format exchangeReceived with RST prepended (e.g., "599 FL" or "599 001")
+    // Format exchangeReceived (e.g., "599 FL" or "599 001")
     formatExchangeReceived(exchange, qso);
 }
 
