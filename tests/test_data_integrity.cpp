@@ -117,10 +117,10 @@ void TestDataIntegrity::testQuickIntegrityCheck_CountsMatch_ReturnsTrue()
     }
 
     // When: Running quick integrity check with matching count
-    bool result = m_manager->quickIntegrityCheck(3);
+    DataIntegrityManager::QuickCheckResult result = m_manager->quickIntegrityCheck(3);
 
     // Then: Check passes
-    QVERIFY(result);
+    QVERIFY(result.passed);
 }
 
 void TestDataIntegrity::testQuickIntegrityCheck_CountMismatch_ReturnsFalse()
@@ -133,10 +133,10 @@ void TestDataIntegrity::testQuickIntegrityCheck_CountMismatch_ReturnsFalse()
     }
 
     // When: Running quick integrity check with mismatched count (memory says 5)
-    bool result = m_manager->quickIntegrityCheck(5);
+    DataIntegrityManager::QuickCheckResult result = m_manager->quickIntegrityCheck(5);
 
     // Then: Check fails
-    QVERIFY(!result);
+    QVERIFY(!result.passed);
 }
 
 void TestDataIntegrity::testFullIntegrityCheck_AllValid_ReturnsReport()

@@ -30,6 +30,9 @@
 #include "../services/QSOLoggingService.h"
 #include "../services/StationInfoService.h"
 #include "../services/ScoreCalculationService.h"
+#include "../services/LogExportService.h"
+#include "../services/FrequencyInputService.h"
+#include "../services/SpotProcessingService.h"
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
@@ -38,6 +41,7 @@
 #include "../controllers/RadioManager.h"
 #include "../controllers/BandSwitchingManager.h"
 #include "../controllers/CWMessageManager.h"
+#include "controllers/PlaceholderActions.h"
 
 class QMenuBar;
 class QStatusBar;
