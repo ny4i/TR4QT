@@ -141,9 +141,13 @@ set(SOURCES
     services/QSOLoggingService.cpp
     services/StationInfoService.cpp
     services/ScoreCalculationService.cpp
+    services/LogExportService.cpp
+    services/FrequencyInputService.cpp
+    services/SpotProcessingService.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp
+    ui/controllers/PlaceholderActions.cpp
     ui/managers/SettingsManager.cpp
     ui/managers/MenuManager.cpp
     ui/managers/WindowManager.cpp

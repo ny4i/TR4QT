@@ -1411,242 +1411,8 @@ void MainWindow::onShowPerformanceReport() {
 #endif
 
 void MainWindow::onEmailLogsToSupport() {
-    // Get logs from last "PROGRAM STARTUP" banner forward
-    QString logs = Logger::instance().getLastLogLines();
-
-    // Get configured radio model from settings (not just connected radio)
-    RadioConfig radioConfig = AppSettings::instance().loadRadioConfig();
-    QString configuredRadio = "None";
-    QString connectionType = "None";
-    QString connectionDetails = "";
-
-    if (radioConfig.hamlibModelId > 0) {
-        // Get radio model name from Hamlib
-        const struct rig_caps* caps = rig_get_caps(radioConfig.hamlibModelId);
-        if (caps) {
-            configuredRadio = QString("%1 %2").arg(caps->mfg_name).arg(caps->model_name);
-        } else {
-            configuredRadio = QString("Unknown (ID: %1)").arg(radioConfig.hamlibModelId);
-        }
-
-        // Determine connection type without revealing IP addresses
-        if (radioConfig.port.contains(':')) {
-            connectionType = "Network (TCP)";
-            // Don't include actual IP:port for privacy
-        } else if (!radioConfig.port.isEmpty()) {
-            connectionType = "Serial";
-            connectionDetails = QString("Port: %1, Baud: %2, %3%4%5")
-                .arg(radioConfig.port)
-                .arg(radioConfig.baudRate)
-                .arg(radioConfig.dataBits)
-                .arg(radioConfig.parity == 0 ? "N" : radioConfig.parity == 1 ? "O" : "E")
-                .arg(radioConfig.stopBits);
-
-            // Add CI-V address if configured (Icom radios)
-            if (radioConfig.civAddress > 0) {
-                connectionDetails += QString(", CI-V: 0x%1").arg(radioConfig.civAddress, 2, 16, QChar('0')).toUpper();
-            }
-        }
-    }
-
-    // Collect system information
-    QString systemInfo = QString(
-        "TR4QT Version: %1\n"
-        "Platform: %2 %3\n"
-        "Qt Version: %4\n"
-        "Radio Model (Configured): %5\n"
-        "Connection Type: %6\n"
-        "%7"
-        "Poll Interval: %8 ms\n"
-        "Radio Connected: %9\n"
-        "\n"
-    ).arg(APP_VERSION)
-     .arg(QSysInfo::productType())
-     .arg(QSysInfo::productVersion())
-     .arg(QT_VERSION_STR)
-     .arg(configuredRadio)
-     .arg(connectionType)
-     .arg(connectionDetails.isEmpty() ? "" : connectionDetails + "\n")
-     .arg(radioConfig.pollInterval)
-     .arg(m_radio->isConnected() ? "Yes" : "No");
-
-    // Build full log content
-    QString logContent = systemInfo + "=== LOG (from last startup) ===\n\n" + logs;
-
-    // Show preview dialog BEFORE creating zip file
-    QMessageBox preview;
-    preview.setWindowTitle("Email Logs to Support - Preview");
-    preview.setIcon(QMessageBox::Question);
-    preview.setText(
-        QString("This will create a zip file with your support logs (%1 characters).\n\n"
-                "Click 'Show Details' below to review what will be included.\n\n"
-                "The zip file will be saved to your temp directory for you to attach to an email.")
-        .arg(logContent.length()));
-    preview.setDetailedText(logContent);
-    preview.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
-    preview.setDefaultButton(QMessageBox::Ok);
-
-    // Auto-expand "Show Details" so user can see the content immediately
-    foreach (QAbstractButton *button, preview.buttons()) {
-        if (preview.buttonRole(button) == QMessageBox::ActionRole) {
-            button->click();
-            break;
-        }
-    }
-
-    // If user cancels, abort the operation
-    if (preview.exec() != QMessageBox::Ok) {
-        return;
-    }
-
-    // Save to Desktop for easy access (instead of temp folder)
-    QString desktopPath = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-    if (desktopPath.isEmpty()) {
-        // Fallback to home directory if Desktop not available
-        desktopPath = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-    }
-
-    // Generate filename with timestamp
-    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HHmmss");
-    QString logFileName = QString("tr4qt-logs-%1.txt").arg(timestamp);
-    QString zipFileName = QString("tr4qt-logs-%1.zip").arg(timestamp);
-    QString logFilePath = QFileInfo(desktopPath, logFileName).filePath();
-    QString zipFilePath = QFileInfo(desktopPath, zipFileName).filePath();
-
-    // Write log content to file
-    QFile logFile(logFilePath);
-    if (!logFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        DialogHelper::critical(this, "Error",
-            QString("Failed to create temporary log file: %1\n\nError: %2")
-            .arg(logFilePath)
-            .arg(logFile.errorString()));
-        return;
-    }
-
-    QTextStream out(&logFile);
-    out << logContent;
-    logFile.close();
-
-    // Zip the log file using Qt's QProcess to call system zip command
-    QProcess zipProcess;
-    zipProcess.setWorkingDirectory(desktopPath);
-
-#ifdef Q_OS_WIN
-    // Windows: Use PowerShell Compress-Archive
-    zipProcess.start("powershell", QStringList()
-        << "-Command"
-        << QString("Compress-Archive -Path '%1' -DestinationPath '%2' -Force")
-           .arg(logFileName).arg(zipFileName));
-#else
-    // macOS/Linux: Use zip command
-    zipProcess.start("zip", QStringList() << "-j" << zipFileName << logFileName);
-#endif
-
-    if (!zipProcess.waitForFinished(5000)) {
-        DialogHelper::critical(this, "Error",
-            "Failed to create zip file.\n\n"
-            "Please manually attach the log file to your email:\n" + logFilePath);
-        return;
-    }
-
-    if (zipProcess.exitCode() != 0) {
-        DialogHelper::critical(this, "Error",
-            QString("Zip command failed with exit code %1.\n\n"
-                    "Please manually attach the log file to your email:\n%2")
-            .arg(zipProcess.exitCode())
-            .arg(logFilePath));
-        return;
-    }
-
-    // Delete the uncompressed log file (keep only the zip)
-    QFile::remove(logFilePath);
-
-    // Show success dialog with instructions
-    QMessageBox instructions;
-    instructions.setWindowTitle("Support Logs Ready");
-    instructions.setIcon(QMessageBox::Information);
-    instructions.setText(
-        QString("Support logs saved to your Desktop:\n\n"
-                "%1\n\n"
-                "What would you like to do?")
-        .arg(zipFileName));  // Just show filename, not full path
-
-    QPushButton* bothButton = instructions.addButton(
-#ifdef Q_OS_MAC
-        "Show in Finder && Open Email",
-#else
-        "Show in Explorer && Open Email",
-#endif
-        QMessageBox::AcceptRole);
-    QPushButton* revealButton = instructions.addButton(
-#ifdef Q_OS_MAC
-        "Show in Finder Only",
-#else
-        "Show in Explorer Only",
-#endif
-        QMessageBox::ActionRole);
-    QPushButton* emailButton = instructions.addButton("Open Email Only", QMessageBox::ActionRole);
-    QPushButton* closeButton = instructions.addButton("Close", QMessageBox::RejectRole);
-    instructions.setDefaultButton(bothButton);
-
-    int result = instructions.exec();
-    QAbstractButton* clicked = instructions.clickedButton();
-
-    // Reveal file in Finder/Explorer if requested
-    bool shouldReveal = (clicked == revealButton || clicked == bothButton);
-    bool shouldEmail = (clicked == emailButton || clicked == bothButton);
-
-    if (shouldReveal) {
-#ifdef Q_OS_MAC
-        // macOS: Use 'open -R' to reveal file in Finder
-        QProcess::startDetached("open", QStringList() << "-R" << zipFilePath);
-#elif defined(Q_OS_WIN)
-        // Windows: Use 'explorer /select,' to highlight file in Explorer
-        QProcess::startDetached("explorer", QStringList() << "/select," << QDir::toNativeSeparators(zipFilePath));
-#else
-        // Linux: Open file manager at directory (can't select specific file universally)
-        QDesktopServices::openUrl(QUrl::fromLocalFile(desktopPath));
-#endif
-        LOG_INFO("MainWindow", QString("Revealed support zip file: %1").arg(zipFilePath));
-    }
-
-    if (shouldEmail) {
-        // Open email client with instructions
-        QString subject = QString("TR4QT Support Request - v%1 (%2)")
-            .arg(APP_VERSION)
-            .arg(QSysInfo::productType());
-
-        QString body = QString(
-            "Please describe your issue:\n\n\n\n"
-            "---\n"
-            "Logs attached: %1\n"
-            "TR4QT Version: %2\n"
-            "Platform: %3 %4")
-            .arg(zipFileName)
-            .arg(APP_VERSION)
-            .arg(QSysInfo::productType())
-            .arg(QSysInfo::productVersion());
-
-        QString mailto = QString("mailto:support@ny4i.com?subject=%1&body=%2")
-            .arg(QUrl::toPercentEncoding(subject))
-            .arg(QUrl::toPercentEncoding(body));
-
-        if (!QDesktopServices::openUrl(QUrl(mailto))) {
-            DialogHelper::critical(this, "Error",
-                QString("Failed to open email client.\n\n"
-                        "Please manually email the zip file to: support@ny4i.com\n\n"
-                        "The file is on your Desktop:\n%1").arg(zipFileName));
-        } else {
-            // Show brief reminder (only if we didn't already show Finder)
-            if (!shouldReveal) {
-                DialogHelper::information(this, "Don't Forget!",
-                    QString("Remember to attach the zip file from your Desktop:\n\n%1")
-                    .arg(zipFileName));
-            }
-
-            LOG_INFO("MainWindow", QString("Created support zip file: %1").arg(zipFilePath));
-        }
-    }
+    LogExportService service;
+    service.exportLogsForSupport(this, m_radio ? m_radio->isConnected() : false);
 }
 
 void MainWindow::onExit() {
@@ -2385,64 +2151,22 @@ void MainWindow::onCallsignEnterPressed() {
 
     LOG_DEBUG("MainWindow", QString("onCallsignEnterPressed - callsign: '%1'").arg(callsign));
 
-    // Check for numeric frequency entry
-    // If callsign is a number, treat it as frequency change command
-    bool isNumeric = false;
-    unsigned long targetFreqKHz = 0;
+    // Check for numeric frequency entry using FrequencyInputService
+    FrequencyInputService freqService;
+    FrequencyInputResult freqResult = freqService.parseFrequencyInput(callsign, m_currentState.bandA);
 
-    // Check if input contains a decimal point (e.g., "14.200" for 14.200 MHz)
-    if (callsign.contains('.')) {
-        bool isDouble = false;
-        double freqMHz = callsign.toDouble(&isDouble);
-        if (isDouble && freqMHz > 0) {
-            // Decimal entry - treat as MHz and convert to kHz
-            // e.g., "14.200" -> 14200 kHz
-            targetFreqKHz = static_cast<unsigned long>(freqMHz * 1000.0);
-            isNumeric = true;
-            LOG_DEBUG("MainWindow", QString("Decimal frequency entry: %1 MHz -> %2 kHz")
-                .arg(freqMHz).arg(targetFreqKHz));
-        }
-    } else {
-        // No decimal - try to parse as integer (kHz)
-        unsigned long freqValue = callsign.toULong(&isNumeric);
-
-        LOG_DEBUG("MainWindow", QString("Numeric check - isNumeric: %1, freqValue: %2")
-            .arg(isNumeric).arg(freqValue));
-
-        if (isNumeric && freqValue > 0) {
-            // Determine if this is an offset or absolute frequency
-            if (freqValue < 1000) {
-                // Small number - treat as offset from band edge
-                // e.g., "300" on 15m -> 21000 + 300 = 21300 kHz
-                unsigned long bandEdge = bandToBaseFrequency(m_currentState.bandA);
-                if (bandEdge > 0) {
-                    targetFreqKHz = bandEdge + freqValue;
-                    LOG_DEBUG("MainWindow", QString("Frequency offset entry: %1 + %2 = %3 kHz")
-                        .arg(bandEdge).arg(freqValue).arg(targetFreqKHz));
-                } else {
-                    m_statusLabel->setText("Error: Cannot determine band edge for current band");
-                    onClearEntry();
-                    return;
-                }
-            } else {
-                // Large number - treat as absolute frequency in kHz
-                // e.g., "14210" -> 14210 kHz
-                targetFreqKHz = freqValue;
-                LOG_DEBUG("MainWindow", QString("Absolute frequency entry: %1 kHz").arg(targetFreqKHz));
-            }
-        }
+    if (!freqResult.errorMessage.isEmpty()) {
+        m_statusLabel->setText("Error: " + freqResult.errorMessage);
+        onClearEntry();
+        return;
     }
 
-    if (isNumeric && targetFreqKHz > 0) {
-
-        // Convert kHz to Hz for hamlib
-        freq_t targetFreqHz = static_cast<freq_t>(targetFreqKHz) * 1000;
-
+    if (freqResult.isFrequency) {
         // Set radio frequency
         if (m_radio && m_radioConnected) {
-            m_radio->setFrequency(targetFreqHz);
-            m_statusLabel->setText(QString("Frequency set to %1 kHz").arg(targetFreqKHz));
-            LOG_INFO("MainWindow", QString("Frequency changed to %1 kHz via numeric entry").arg(targetFreqKHz));
+            m_radio->setFrequency(freqResult.frequencyHz);
+            m_statusLabel->setText(freqResult.statusMessage);
+            LOG_INFO("MainWindow", QString("Frequency changed via numeric entry: %1").arg(freqResult.statusMessage));
         } else {
             m_statusLabel->setText("Error: Radio not connected");
         }
@@ -3915,54 +3639,33 @@ void MainWindow::onShowGraylineMap() {
 
 // Window menu placeholder implementations
 void MainWindow::onSwapMultView() {
-    LOG_DEBUG("MainWindow", "Swap Mult View (Alt+G) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Swap Mult View feature will be implemented in a future version.\n\n"
-                           "This will toggle between different multiplier display modes.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::SwapMultView, this);
 }
 
 void MainWindow::onMissingMultsReport() {
-    LOG_DEBUG("MainWindow", "Missing Mults Report (Ctrl+O) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Missing Mults Report will be implemented in a future version.\n\n"
-                           "This will show a report of multipliers still needed.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::MissingMultsReport, this);
 }
 
 // Edit menu placeholder implementations
 void MainWindow::onViewEditLog() {
-    LOG_DEBUG("MainWindow", "View/Edit Log (Ctrl+L) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "View/Edit Log will be implemented in a future version.\n\n"
-                           "This will show all logged QSOs in a table for viewing and editing.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::ViewEditLog, this);
 }
 
 void MainWindow::onClearDupes() {
-    LOG_DEBUG("MainWindow", "Clear Dupes (Ctrl+K) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Clear Dupes will be implemented in a future version.\n\n"
-                           "This will remove duplicate QSOs from the log.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::ClearDupes, this);
 }
 
 void MainWindow::onNote() {
-    LOG_DEBUG("MainWindow", "Note (Ctrl+N) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Note feature will be implemented in a future version.\n\n"
-                           "This will allow adding notes to the log.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::Note, this);
 }
 
 void MainWindow::onRecallLast() {
-    LOG_DEBUG("MainWindow", "Recall Last Entry (Ctrl+R) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Recall Last Entry will be implemented in a future version.\n\n"
-                           "This will recall the last deleted log entry.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::RecallLast, this);
 }
 
 // Tools menu placeholder implementations
 void MainWindow::onWKMode() {
-    LOG_DEBUG("MainWindow", "WK Mode (Alt+A) - Re-initialize WinKeyer - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "WinKeyer re-initialization will be implemented in a future version.\n\n"
-                           "This will re-initialize the WinKeyer for CW keying.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::WKMode, this);
 }
 
 void MainWindow::onSendMorse() {
@@ -4239,204 +3942,75 @@ void MainWindow::onDownloadSCP(bool headless) {
 }
 
 void MainWindow::onInitialize() {
-    LOG_DEBUG("MainWindow", "Initialize (Alt+W) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Initialize will be implemented in a future version.\n\n"
-                           "This will initialize/reset contest parameters.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::Initialize, this);
 }
 
 // Operating menu placeholder implementations
 void MainWindow::onAutoCQ() {
-    LOG_DEBUG("MainWindow", "Auto CQ (Alt+Q) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Auto CQ will be implemented in a future version.\n\n"
-                           "This will enable automatic CQ sending.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::AutoCQ, this);
 }
 
 void MainWindow::onAutoCQResume() {
-    LOG_DEBUG("MainWindow", "Auto CQ Resume (Alt+C) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Auto CQ Resume will be implemented in a future version.\n\n"
-                           "This will resume automatic CQ after an interruption.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::AutoCQResume, this);
 }
 
 void MainWindow::onKillCW() {
-    LOG_DEBUG("MainWindow", "Kill CW (Alt+K) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Kill CW will be implemented in a future version.\n\n"
-                           "This will immediately stop CW transmission.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::KillCW, this);
 }
 
 void MainWindow::onDupeCheck() {
-    LOG_DEBUG("MainWindow", "Dupe Check (Alt+D) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Dupe Check will be implemented in a future version.\n\n"
-                           "This will check if the entered callsign is a duplicate.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::DupeCheck, this);
 }
 
 void MainWindow::onSearchLog() {
-    LOG_DEBUG("MainWindow", "Search Log (Alt+L) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Search Log will be implemented in a future version.\n\n"
-                           "This will search the log for a specific callsign.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::SearchLog, this);
 }
 
 void MainWindow::onDeleteLastQSO() {
-    LOG_DEBUG("MainWindow", "Delete Last QSO (Alt+Y) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Delete Last QSO will be implemented in a future version.\n\n"
-                           "This will delete the most recent QSO from the log.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::DeleteLastQSO, this);
 }
 
 void MainWindow::onIncNumber() {
-    LOG_DEBUG("MainWindow", "Inc Number (Alt+I) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Inc Number will be implemented in a future version.\n\n"
-                           "This will increment the serial number.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::IncNumber, this);
 }
 
 void MainWindow::onInitialExchange() {
-    LOG_DEBUG("MainWindow", "Initial Exchange (Alt+Z) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Initial Exchange will be implemented in a future version.\n\n"
-                           "This will set/reset the initial exchange information.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::InitialExchange, this);
 }
 
 // Removed: CW Speed menu item (was Alt+S, conflicted with Download SCP)
 // Use PgUp/PgDn shortcuts or click WPM label in Radio Control window instead
 
 void MainWindow::onToggleSidetone() {
-    LOG_DEBUG("MainWindow", "Toggle Sidetone (Alt+=) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Toggle Sidetone will be implemented in a future version.\n\n"
-                           "This will turn CW sidetone on/off.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::ToggleSidetone, this);
 }
 
 void MainWindow::onToggleAutosend() {
-    LOG_DEBUG("MainWindow", "Toggle Autosend (Alt+-) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Toggle Autosend will be implemented in a future version.\n\n"
-                           "This will enable/disable automatic sending.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::ToggleAutosend, this);
 }
 
 // Band menu placeholder implementations
 void MainWindow::onToggleRigs() {
-    LOG_DEBUG("MainWindow", "Toggle Rigs (Alt+R) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Toggle Rigs will be implemented in a future version.\n\n"
-                           "This will switch between radios in SO2R mode.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::ToggleRigs, this);
 }
 
 void MainWindow::onEditSO2R() {
-    LOG_DEBUG("MainWindow", "Edit SO2R (Alt+E) - Not yet implemented");
-    DialogHelper::information(this, "Not Implemented",
-                           "Edit SO2R will be implemented in a future version.\n\n"
-                           "This will configure SO2R (two-radio) settings.");
+    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::EditSO2R, this);
 }
 
 void MainWindow::onDXSpotReceived(const QString& callsign,
                                    double frequency,
                                    const QString& spotter,
                                    const QString& comment) {
-    LOG_DEBUG("MainWindow", QString("DX Spot received: %1 at %2 Hz from %3, comment: \"%4\"")
-        .arg(callsign)
-        .arg(QString::number(static_cast<qint64>(frequency)))
-        .arg(spotter)
-        .arg(comment));
-
-    // If band map window exists, forward the spot to it
-    if (m_bandMapWindow) {
-        Spot spot;
-        spot.callsign = callsign;
-        spot.frequency = static_cast<freq_t>(frequency);  // Already in Hz from TelnetClient
-        spot.timestamp = QDateTime::currentDateTime();
-        spot.isMultiplier = false;  // TODO: Check if this is a needed multiplier
-        spot.isWorked = false;       // TODO: Check if we've worked this station
-        spot.comment = comment;      // DX cluster comment
-
-        // Parse split frequency from comment
-        // Supports: "UP 5" (offset in kHz) or "QSX 210" (fragment or full frequency)
-        // UP: offset from spot frequency (e.g., "UP 5" = spot + 5 kHz)
-        // QSX: frequency fragment (e.g., "QSX 210" with spot 14.200 = 14.210 MHz)
-
-        // Try QSX pattern first (e.g., "QSX 210" or "QSX 14.210")
-        static QRegularExpression qsxFragmentRegex(R"(\bQSX\s+(\d+(?:\.\d+)?)\b)", QRegularExpression::CaseInsensitiveOption);
-        QRegularExpressionMatch qsxMatch = qsxFragmentRegex.match(comment);
-
-        if (qsxMatch.hasMatch()) {
-            double qsxValue = qsxMatch.captured(1).toDouble();
-
-            // If value < 1000, treat as kHz fragment (e.g., 210 = 14.210 MHz on 20m)
-            if (qsxValue < 1000) {
-                // Get MHz part of spot frequency (e.g., 14200000 Hz -> 14 MHz)
-                freq_t spotMHz = (spot.frequency / 1000000) * 1000000;
-                // Add kHz fragment (e.g., 210 kHz = 210000 Hz)
-                spot.qsx = spotMHz + static_cast<freq_t>(qsxValue * 1000);
-                double qsxKHz = spot.qsx / 1000.0;
-                LOG_DEBUG("MainWindow", QString("Parsed QSX fragment: %1 kHz on %2 MHz band = %3 kHz")
-                    .arg(qsxValue).arg(spotMHz / 1000000).arg(qsxKHz, 0, 'f', 1));
-            } else {
-                // Full frequency in MHz (e.g., 14.210)
-                spot.qsx = static_cast<freq_t>(qsxValue * 1000000);
-                double qsxKHz = spot.qsx / 1000.0;
-                LOG_DEBUG("MainWindow", QString("Parsed QSX full frequency: %1 MHz = %2 kHz")
-                    .arg(qsxValue).arg(qsxKHz, 0, 'f', 1));
-            }
-        } else {
-            // Try UP pattern (offset in kHz)
-            static QRegularExpression upRegex(R"(\bUP\s+(\d+(?:\.\d+)?)\b)", QRegularExpression::CaseInsensitiveOption);
-            QRegularExpressionMatch upMatch = upRegex.match(comment);
-
-            if (upMatch.hasMatch()) {
-                double offsetKHz = upMatch.captured(1).toDouble();
-                // spot.frequency is in Hz, offset is in kHz
-                // QSX = transmit frequency + offset (for VFO B)
-                spot.qsx = spot.frequency + static_cast<freq_t>(offsetKHz * 1000);
-                double txKHz = spot.frequency / 1000.0;
-                double rxKHz = spot.qsx / 1000.0;
-                LOG_DEBUG("MainWindow", QString("Parsed UP offset: TX=%1 kHz + %2 kHz = RX=%3 kHz")
-                    .arg(txKHz, 0, 'f', 1).arg(offsetKHz).arg(rxKHz, 0, 'f', 1));
-            }
-        }
-
-        // Check if LOTW user (only if enabled in settings)
-        AppSettings& settings = AppSettings::instance();
-        if (settings.getEnableLotwLookup()) {
-            LOTWUserRepository lotwRepo;
-            spot.isLotwUser = lotwRepo.isLotwUser(callsign);
-
-            if (spot.isLotwUser) {
-                LOTWUser lotwUser = lotwRepo.findByCallsign(callsign);
-                LOG_DEBUG("MainWindow", QString("DX Spot: %1 is an LOTW user (last upload: %2 %3)")
-                    .arg(callsign)
-                    .arg(lotwUser.lastUploadDate)
-                    .arg(lotwUser.lastUploadTime));
-            } else {
-                LOG_DEBUG("MainWindow", QString("DX Spot: %1 is NOT an LOTW user").arg(callsign));
-            }
-        } else {
-            spot.isLotwUser = false;  // LOTW lookup disabled
-            LOG_DEBUG("MainWindow", QString("DX Spot: %1 - LOTW lookup disabled").arg(callsign));
-        }
-
-        spot.source = QString("DX Cluster (%1)").arg(spotter);
-
-        m_bandMapWindow->addSpot(spot);
-
-        // Comprehensive logging of spot details
-        QString logMsg = QString("Added spot to band map: %1").arg(callsign);
-        logMsg += QString(" | TX: %1 Hz (%2 MHz)").arg(QString::number(spot.frequency, 'f', 0)).arg(spot.frequency / 1000000.0, 0, 'f', 3);
-        if (spot.qsx > 0) {
-            logMsg += QString(" | RX (QSX): %1 Hz (%2 MHz)").arg(QString::number(spot.qsx, 'f', 0)).arg(spot.qsx / 1000000.0, 0, 'f', 3);
-        }
-        logMsg += QString(" | LOTW: %1").arg(spot.isLotwUser ? "YES" : "NO");
-        if (!spot.comment.isEmpty()) {
-            logMsg += QString(" | Comment: \"%1\"").arg(spot.comment);
-        }
-        LOG_DEBUG("MainWindow", logMsg);
-    } else {
+    if (!m_bandMapWindow) {
         LOG_DEBUG("MainWindow", "Band map window not open - spot not added");
+        return;
     }
+
+    // Delegate spot processing to service
+    SpotProcessingService spotService;
+    Spot spot = spotService.processSpot(callsign, frequency, spotter, comment);
+    m_bandMapWindow->addSpot(spot);
 }
 
 void MainWindow::onBandClicked(BandType band) {
