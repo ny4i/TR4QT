@@ -99,6 +99,27 @@ add_tr4qt_test(test_spot_processing_service
     ../src/logging/FileAppender.cpp
 )
 
+add_tr4qt_test(test_station_info_service
+    test_station_info_service.cpp
+    ../src/services/StationInfoService.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/utils/GeographicUtils.cpp
+    ../src/utils/ThemeManager.cpp
+    ../src/utils/PathManager.cpp
+    ../src/utils/AppSettings.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
+add_tr4qt_test(test_log_export_service
+    test_log_export_service.cpp
+)
+
 add_tr4qt_test(test_qso_persistence_service
     test_qso_persistence_service.cpp
     ../src/services/QSOPersistenceService.cpp
