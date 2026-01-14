@@ -144,6 +144,7 @@ set(SOURCES
     services/LogExportService.cpp
     services/FrequencyInputService.cpp
     services/SpotProcessingService.cpp
+    services/QSOQueryService.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp
