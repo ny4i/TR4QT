@@ -1775,51 +1775,74 @@ void MainWindow::onLogQSO() {
     QString callsign = m_callsignEntry->text().trimmed().toUpper();
     QString exchange = m_exchangeEntry->text().trimmed().toUpper();
 
-    // Check for commands (OPON, UDP) - Phase 1 extraction
-    CommandDispatcher::CommandResult cmd = CommandDispatcher::parseCommand(callsign);
-    if (cmd.wasCommand) {
-        if (cmd.type == CommandDispatcher::ChangeOperator) {
-            // OPON command - change operator
-            OperatorDialog dialog(this);
-
-            // Pre-populate with current operator
-            AppSettings& settings = AppSettings::instance();
-            dialog.setOperatorCallsign(settings.getCurrentOperator());
-
-            if (dialog.exec() == QDialog::Accepted) {
-                QString newOperator = dialog.getOperatorCallsign();
-                if (!newOperator.isEmpty()) {
-                    settings.setCurrentOperator(newOperator);
-                    m_operatorLabel->setText(newOperator);
-                    m_statusLabel->setText(QString("Operator changed to: %1").arg(newOperator));
-                    LOG_INFO("MainWindow", QString("Operator changed to: %1").arg(newOperator));
-                } else {
-                    m_statusLabel->setText("Operator change cancelled (empty callsign)");
-                }
-            } else {
-                m_statusLabel->setText("Operator change cancelled");
-            }
-
-            onClearEntry();
-            return;
-        }
-        else if (cmd.type == CommandDispatcher::RebroadcastLog) {
-            // UDP command - rebroadcast log
-            onRebroadcastLog();
-            onClearEntry();
-            return;
-        }
+    // Step 1: Check for commands (OPON, UDP)
+    if (handleLogQSOCommand(callsign)) {
+        return;  // Command was handled
     }
 
-    // Verify service is initialized
+    // Step 2: Verify service is initialized
     if (!m_loggingService) {
         m_statusLabel->setText("Error: No active contest - open a contest first");
         QApplication::beep();
         return;
     }
 
-    // Build request for QSO logging service
+    // Step 3: Build request and execute logging workflow
+    QSOLoggingService::LogQSORequest request = buildLogQSORequest(callsign, exchange);
+    QSOLoggingService::LogQSOResult result = m_loggingService->logQSO(request);
+
+    // Step 4: Handle validation errors
+    if (!result.success) {
+        handleLogQSOValidationError(result);
+        return;
+    }
+
+    // Step 5: Update UI after successful logging
+    updateUIAfterQSOLogged(result.qso, result);
+}
+
+bool MainWindow::handleLogQSOCommand(const QString& callsign) {
+    CommandDispatcher::CommandResult cmd = CommandDispatcher::parseCommand(callsign);
+
+    if (!cmd.wasCommand) {
+        return false;
+    }
+
+    if (cmd.type == CommandDispatcher::ChangeOperator) {
+        OperatorDialog dialog(this);
+        AppSettings& settings = AppSettings::instance();
+        dialog.setOperatorCallsign(settings.getCurrentOperator());
+
+        if (dialog.exec() == QDialog::Accepted) {
+            QString newOperator = dialog.getOperatorCallsign();
+            if (!newOperator.isEmpty()) {
+                settings.setCurrentOperator(newOperator);
+                m_operatorLabel->setText(newOperator);
+                m_statusLabel->setText(QString("Operator changed to: %1").arg(newOperator));
+                LOG_INFO("MainWindow", QString("Operator changed to: %1").arg(newOperator));
+            } else {
+                m_statusLabel->setText("Operator change cancelled (empty callsign)");
+            }
+        } else {
+            m_statusLabel->setText("Operator change cancelled");
+        }
+        onClearEntry();
+        return true;
+    }
+
+    if (cmd.type == CommandDispatcher::RebroadcastLog) {
+        onRebroadcastLog();
+        onClearEntry();
+        return true;
+    }
+
+    return false;
+}
+
+QSOLoggingService::LogQSORequest MainWindow::buildLogQSORequest(const QString& callsign, const QString& exchange) {
     QSOLoggingService::LogQSORequest request;
+
+    // Basic QSO data
     request.callsign = callsign;
     request.exchange = exchange;
     request.radioState = m_currentState;
@@ -1827,9 +1850,10 @@ void MainWindow::onLogQSO() {
     request.serialNumber = m_nextSerialNumber;
     request.operatingMode = m_operatingMode;
 
-    // Get existing QSOs for duplicate/multiplier checking
+    // Existing QSOs for duplicate/multiplier checking
     request.existingQSOs = m_qsoTableModel->getAllQSOs();
 
+    // Exchange memory settings
     request.saveExchangeMemory = true;
     request.autoPopulated = m_initialExchangePopulated;
 
@@ -1843,41 +1867,33 @@ void MainWindow::onLogQSO() {
     request.contestDbId = m_currentContestDbId;
     request.memoryQSOCount = m_qsoTableModel->count() + 1;
 
-    // Execute QSO logging workflow (Phase 5 integration service)
-    QSOLoggingService::LogQSOResult result = m_loggingService->logQSO(request);
+    return request;
+}
 
-    // Handle validation errors
-    if (!result.success) {
-        m_statusLabel->setText(result.errorMessage);
-        m_statusLabel->setStyleSheet("QLabel { color: #ff0000; font-weight: bold; }");
-        QApplication::beep();
+void MainWindow::handleLogQSOValidationError(const QSOLoggingService::LogQSOResult& result) {
+    m_statusLabel->setText(result.errorMessage);
+    m_statusLabel->setStyleSheet("QLabel { color: #ff0000; font-weight: bold; }");
+    QApplication::beep();
 
-        // Set focus to appropriate field
-        if (result.errorMessage.contains("Callsign")) {
-            m_callsignEntry->setFocus();
-        } else if (result.errorMessage.contains("Exchange")) {
-            m_exchangeEntry->setFocus();
-        }
-        return;
+    // Set focus to appropriate field
+    if (result.errorMessage.contains("Callsign")) {
+        m_callsignEntry->setFocus();
+    } else if (result.errorMessage.contains("Exchange")) {
+        m_exchangeEntry->setFocus();
     }
+}
 
-    // Extract results
-    QSO qso = result.qso;
-    bool isDuplicate = result.isDuplicate;
-    QStringList multiplierValues = result.multiplierValues;
-
+void MainWindow::updateUIAfterQSOLogged(const QSO& qso, const QSOLoggingService::LogQSOResult& result) {
     // Update serial number
     m_nextSerialNumber = result.updatedSerialNumber;
 
     // Log duplicate info if present
-    if (isDuplicate) {
-        LOG_INFO("MainWindow", QString("Duplicate QSO detected: %1 - %2").arg(callsign, result.dupeInfo));
+    if (result.isDuplicate) {
+        LOG_INFO("MainWindow", QString("Duplicate QSO detected: %1 - %2").arg(qso.callsign, result.dupeInfo));
     }
 
-    // Add to table model (UI)
+    // Add to table model
     m_qsoTableModel->addQSO(qso);
-
-    // Update band summary grid with new scores
     updateScoreDisplay();
 
     // Update multiplier window
@@ -1888,8 +1904,6 @@ void MainWindow::onLogQSO() {
             QString multValue = m_activeContest->getMultiplierValue(qso, primaryMultType, QStringList());
             if (!multValue.isEmpty()) {
                 m_multiplierWindow->setMultiplierWorked(multValue, qso.band);
-                LOG_DEBUG("MainWindow", QString("Updated multiplier window: %1 on %2")
-                    .arg(multValue).arg(bandToString(qso.band)));
             }
         }
     }
@@ -1900,49 +1914,39 @@ void MainWindow::onLogQSO() {
     // Handle persistence result
     if (result.persistenceResult.status == QSOPersistenceService::SaveResult::SavedToDatabase) {
         LOG_DEBUG("MainWindow", QString("QSO saved to database with ID: %1").arg(qso.id));
-
-        // Update table model with database ID
-        int lastRow = m_qsoTableModel->count() - 1;
-        m_qsoTableModel->updateQSO(lastRow, qso);
+        m_qsoTableModel->updateQSO(m_qsoTableModel->count() - 1, qso);
     }
     else if (result.persistenceResult.status == QSOPersistenceService::SaveResult::SavedToEmergencyFile) {
-        // Emergency file fallback
         DialogHelper::information(this, "QSO Saved to Emergency File",
             QString("Database save failed. QSO saved to emergency file:\n%1\n\n"
                     "You can import this file later using File → Import ADIF")
             .arg(result.persistenceResult.emergencyFilePath));
     }
     else if (result.persistenceResult.status == QSOPersistenceService::SaveResult::Failed) {
-        // Complete failure
         DialogHelper::critical(this, "QSO Save Failed",
             "Could not save QSO to database or emergency file!\n\n"
             "The QSO is only in memory and will be lost if TR4QT crashes.");
     }
     else if (result.persistenceResult.status == QSOPersistenceService::SaveResult::NeedsUserDecision) {
-        // User needs to decide (retry/emergency/stop)
-        // This shouldn't happen with QSOLoggingService (it handles retries internally)
-        // But handle it just in case
         DialogHelper::warning(this, "QSO Save Issue",
-            QString("QSO save needs attention:\n%1")
-            .arg(result.persistenceResult.errorMessage));
+            QString("QSO save needs attention:\n%1").arg(result.persistenceResult.errorMessage));
     }
 
     // Update last QSO time
     m_lastQSOTime = qso.timestamp;
 
-    // Update status
+    // Update status message
     QString statusMsg = QString("Logged: %1 on %2 %3")
-        .arg(callsign)
+        .arg(qso.callsign)
         .arg(bandToString(qso.band))
         .arg(modeToString(qso.mode));
 
-    // Append post-logging actions if any
     if (!result.postLoggingActions.isEmpty()) {
         statusMsg += " | " + result.postLoggingActions.join(", ");
     }
 
     m_statusLabel->setText(statusMsg);
-    m_statusLabel->setStyleSheet("");  // Reset color
+    m_statusLabel->setStyleSheet("");
 
     // Update integrity check counter
     m_qsosSinceLastIntegrityCheck = result.postLoggingActions.contains("Integrity check passed") ||
@@ -1957,10 +1961,8 @@ void MainWindow::onLogQSO() {
         LOG_DEBUG("MainWindow", QString("Auto-sent QSL message: %1").arg(qslMessage));
     }
 
-    // Clear entry fields and focus callsign
+    // Clear entry fields and update displays
     onClearEntry();
-
-    // Update displays
     updateScoreDisplay();
     updateTimeDisplay();
 }
@@ -3000,23 +3002,10 @@ void MainWindow::reopenLastContest() {
 }
 
 void MainWindow::activateContest(const ContestInfo& contestInfo) {
-    // CRITICAL: Reset contest state FIRST to prevent corrupted state if activation fails
-    // This ensures that if ANY step below fails and returns early, we're left in a clean state
-    m_hasActiveContest = false;
-    m_currentContestDbId = -1;
+    // Step 1: Reset state and cleanup previous contest
+    resetContestState();
 
-    // Clean up previous contest if any
-    if (m_activeContest) {
-        delete m_activeContest;
-        m_activeContest = nullptr;
-
-        // Clear contest from DX Cluster window
-        if (m_dxClusterWindow) {
-            m_dxClusterWindow->setActiveContest(nullptr, -1);
-        }
-    }
-
-    // Delegate contest activation to ContestManager
+    // Step 2: Delegate contest activation to ContestManager
     if (!m_contestManager) {
         DialogHelper::critical(this, "Configuration Error",
             "ContestManager not initialized. Cannot activate contest.");
@@ -3025,24 +3014,21 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
 
     ActivateContestResult result = m_contestManager->activateContest(contestInfo);
 
-    // Handle activation errors
     if (!result.success) {
         DialogHelper::critical(this, "Contest Activation Error", result.errorMessage);
         return;
     }
 
-    // Activation successful - update MainWindow state
-    m_activeContest = result.contest;  // Transfer ownership
+    // Step 3: Update MainWindow state from activation result
+    m_activeContest = result.contest;
     m_currentContestDbId = result.contestDbId;
     m_nextSerialNumber = result.nextSerialNumber;
     m_currentContest = contestInfo;
     m_hasActiveContest = true;
 
-    // Load existing QSOs into table model
+    // Step 4: Load existing QSOs into table model
     m_qsoTableModel->clear();
     m_bandSummaryGrid->clearAll();
-
-    // Clear multiplier window when loading new contest
     if (m_multiplierWindow) {
         m_multiplierWindow->clear();
     }
@@ -3050,31 +3036,73 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     for (const QSO& qso : result.loadedQSOs) {
         m_qsoTableModel->addQSO(qso);
     }
-
     LOG_DEBUG("MainWindow", QString("Loaded %1 existing QSOs").arg(result.loadedQSOs.size()));
 
-    // Update band summary grid with loaded QSOs
     updateScoreDisplay();
 
-    // Scroll to bottom to show latest QSO
     if (!result.loadedQSOs.isEmpty()) {
         m_qsoTableView->scrollToBottom();
-        int lastRow = m_qsoTableModel->rowCount() - 1;
-        m_qsoTableView->selectRow(lastRow);
+        m_qsoTableView->selectRow(m_qsoTableModel->rowCount() - 1);
     }
 
-    // Create QSOLogger instance with contest configuration
+    // Step 5: Create services for this contest
+    createContestServices(result);
+
+    // Step 6: Configure UI components for this contest
+    configureUIForContest(result);
+
+    // Step 7: Update window title
+    setWindowTitle(QString("%1 v%2 - %3 (%4)")
+        .arg(APP_NAME)
+        .arg(APP_VERSION)
+        .arg(contestInfo.contestName)
+        .arg(m_activeContest->getContestName()));
+
+    // Step 8: Set default band/mode if radio not connected
+    if (!m_radioConnected) {
+        setDefaultBandModeForContest(contestInfo);
+    }
+
+    // Step 9: Final setup - recalculate points and rebuild multipliers
+    if (m_qsoTableModel->count() > 0) {
+        recalculateAllPoints();
+    }
+    rebuildMultiplierWindow();
+    updateExchangeFieldsForContest();
+
+    // Save as last opened contest
+    AppSettings::instance().setLastContestPath(contestInfo.databasePath);
+}
+
+void MainWindow::resetContestState() {
+    // Reset state flags first (prevents corrupted state if activation fails later)
+    m_hasActiveContest = false;
+    m_currentContestDbId = -1;
+
+    // Clean up previous contest
+    if (m_activeContest) {
+        delete m_activeContest;
+        m_activeContest = nullptr;
+
+        if (m_dxClusterWindow) {
+            m_dxClusterWindow->setActiveContest(nullptr, -1);
+        }
+    }
+}
+
+void MainWindow::createContestServices(const ActivateContestResult& result) {
+    // Create QSOLogger
     if (m_qsoLogger) {
         delete m_qsoLogger;
     }
     QSOLogger::Config loggerConfig;
     loggerConfig.contest = m_activeContest;
     loggerConfig.countryFile = &m_countryFile;
-    loggerConfig.myStation = result.myStation;  // Use myStation from ContestManager
+    loggerConfig.myStation = result.myStation;
     m_qsoLogger = new QSOLogger(loggerConfig);
     LOG_DEBUG("MainWindow", "QSOLogger created for contest");
 
-    // Create DataIntegrityManager instance with contest configuration
+    // Create DataIntegrityManager
     if (m_integrityManager) {
         delete m_integrityManager;
     }
@@ -3084,7 +3112,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     m_integrityManager = new DataIntegrityManager(integrityConfig);
     LOG_DEBUG("MainWindow", "DataIntegrityManager created for contest");
 
-    // Create ContestService instance with contest configuration
+    // Create ContestService
     if (m_contestService) {
         delete m_contestService;
     }
@@ -3095,8 +3123,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     m_contestService = new ContestService(contestServiceConfig);
     LOG_DEBUG("MainWindow", "ContestService created for contest");
 
-    // Update ImportExportManager with new contest configuration (if it exists)
-    // Note: During startup, reopenLastContest() runs before ImportExportManager is created
+    // Update ImportExportManager (if it exists - may not during startup)
     if (m_importExportManager) {
         ImportExportManager::Config importExportConfig;
         importExportConfig.countryFile = &m_countryFile;
@@ -3108,101 +3135,65 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         m_importExportManager->updateConfig(importExportConfig);
         LOG_DEBUG("MainWindow", "ImportExportManager updated for contest");
     }
+}
 
-    // Update DX Cluster window with active contest (for dupe/mult checking)
+void MainWindow::configureUIForContest(const ActivateContestResult& result) {
+    // Update DX Cluster window
     if (m_dxClusterWindow) {
         m_dxClusterWindow->setActiveContest(m_activeContest, m_currentContestDbId);
     }
 
-    // Update web server with contest name (myCall is pulled from AppSettings)
-    m_webServer->setContestName(contestInfo.contestName);
+    // Update web server
+    m_webServer->setContestName(m_currentContest.contestName);
+    m_webServer->setUsesZoneMultipliers(result.usesZones);
+    m_webServer->setUsesModeGroupBreakdown(result.usesModeGroupBreakdown);
 
-    // Save as last opened contest for auto-reopen on next startup
-    AppSettings::instance().setLastContestPath(contestInfo.databasePath);
-
-    // Update UI based on contest capabilities
+    // Configure band summary grid
     if (m_bandSummaryGrid) {
         m_bandSummaryGrid->setMultipliersEnabled(result.usesMultipliers);
-
-        // Set visible bands based on contest restrictions (e.g., RTTY excludes 160m)
         m_bandSummaryGrid->setVisibleBands(result.allowedBands);
-
-        // Configure grid for mode group breakdown and zone tracking
-        m_bandSummaryGrid->configureForContest(
-            result.usesModeGroupBreakdown,
-            result.usesZones
-        );
-
-        // Update web server with contest settings
-        m_webServer->setUsesZoneMultipliers(result.usesZones);
-        m_webServer->setUsesModeGroupBreakdown(result.usesModeGroupBreakdown);
+        m_bandSummaryGrid->configureForContest(result.usesModeGroupBreakdown, result.usesZones);
     }
 
-    // Configure multiplier window to show contest-specific multipliers
+    // Configure multiplier window
     if (m_multiplierWindow && !result.multiplierTypes.isEmpty()) {
-        // Set to the first (primary) multiplier type
-        m_multiplierWindow->setMultiplierType(result.multiplierTypes.first().type);
+        MultiplierType primaryType = result.multiplierTypes.first().type;
+        m_multiplierWindow->setMultiplierType(primaryType);
 
-        // For Country type, load the list from CountryFile instead of hardcoded
-        if (result.multiplierTypes.first().type == MultiplierType::Country) {
+        if (primaryType == MultiplierType::Country) {
             m_multiplierWindow->setCountryList(m_countryFile.getAllPrimaryPrefixes());
         }
 
         LOG_DEBUG("MainWindow", QString("Set multiplier window to type: %1")
             .arg(result.multiplierTypes.first().displayName));
     } else if (m_multiplierWindow) {
-        // Default to sections if contest doesn't define multipliers
         m_multiplierWindow->setMultiplierType(MultiplierType::Section);
     }
+}
 
-    // Update window title to include contest name and type
-    setWindowTitle(QString("%1 v%2 - %3 (%4)")
-                      .arg(APP_NAME)
-                      .arg(APP_VERSION)
-                      .arg(contestInfo.contestName)
-                      .arg(m_activeContest->getContestName()));
-
-    // Set default band and mode from contest if radio not connected
-    if (!m_radioConnected) {
-        // Set mode based on contest type
-        if (contestInfo.contestType.contains("CW")) {
-            m_currentState.modeA = ModeType::CW;
-        } else if (contestInfo.contestType.contains("SSB")) {
-            m_currentState.modeA = ModeType::USB;
-        } else {
-            m_currentState.modeA = ModeType::CW;  // Default for mixed mode
-        }
-
-        // Set default band (20M is a good starting point)
-        m_currentState.bandA = BandType::Band20M;
-
-        // Set frequency for the default band/mode
-        m_currentState.frequencyA = getFrequencyForBand(m_currentState.bandA, m_currentState.modeA);
-
-        // Update display
-        updateRadioStatusGrid();
-
-        // Notify Band Map of the default band (in case it was already restored from settings)
-        emit currentBandChanged(m_currentState.bandA);
-        emit currentFrequencyChanged(m_currentState.frequencyA);
-
-        LOG_DEBUG("MainWindow", QString("Set default band/mode/freq: %1 %2 %3 Hz (radio not connected)")
-            .arg(bandToString(m_currentState.bandA))
-            .arg(modeToString(m_currentState.modeA))
-            .arg(QString::number(m_currentState.frequencyA, 'f', 0)));
+void MainWindow::setDefaultBandModeForContest(const ContestInfo& contestInfo) {
+    // Set mode based on contest type
+    if (contestInfo.contestType.contains("CW")) {
+        m_currentState.modeA = ModeType::CW;
+    } else if (contestInfo.contestType.contains("SSB")) {
+        m_currentState.modeA = ModeType::USB;
+    } else {
+        m_currentState.modeA = ModeType::CW;  // Default for mixed mode
     }
 
-    // Recalculate points for all QSOs (fixes old QSOs with 0 points)
-    // Must be called after m_activeContest is created
-    if (m_qsoTableModel->count() > 0) {
-        recalculateAllPoints();
-    }
+    // Set default band (20M)
+    m_currentState.bandA = BandType::Band20M;
+    m_currentState.frequencyA = getFrequencyForBand(m_currentState.bandA, m_currentState.modeA);
 
-    // Update multiplier window with all loaded QSOs (must be after contest is created)
-    rebuildMultiplierWindow();
+    // Update display and notify listeners
+    updateRadioStatusGrid();
+    emit currentBandChanged(m_currentState.bandA);
+    emit currentFrequencyChanged(m_currentState.frequencyA);
 
-    // Update exchange fields for this contest
-    updateExchangeFieldsForContest();
+    LOG_DEBUG("MainWindow", QString("Set default band/mode/freq: %1 %2 %3 Hz (radio not connected)")
+        .arg(bandToString(m_currentState.bandA))
+        .arg(modeToString(m_currentState.modeA))
+        .arg(QString::number(m_currentState.frequencyA, 'f', 0)));
 }
 
 void MainWindow::updateExchangeFieldsForContest() {
