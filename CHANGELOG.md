@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.38.1] - 2026-01-14
+
+### Added
+- **QSOQueryService (Phase 13)**: Extracted query operations from MainWindow
+  - `getWorkedCallsigns()` - returns unique callsigns from QSO list
+  - `getWorkedBandsForCallsign()` - returns bands worked for a callsign
+  - `getWorkedBandsForMultiplier()` - returns bands for multiplier value
+  - `countQSOsInTimeWindow()` - counts QSOs within time range
+  - `calculateRate()` - calculates QSO rate
+- **MainWindow Line Count Documentation**: Added `docs/MAINWINDOW_LINE_COUNT_RATIONALE.md` explaining why 1,500 lines is unrealistic for Qt MainWindow and why ~2,879 effective lines is acceptable
+
+### Fixed
+- **Thread Safety Bug**: Fixed race condition in `onRebroadcastLog()` where worker thread accessed QSO model directly. Now captures thread-safe copy before entering worker thread
+- **Code Smells**: Replaced 8 manual iteration loops with `getAllQSOs()` pattern for consistent thread-safe access
+
+### Changed
+- MainWindow query methods now delegate to QSOQueryService
+- All QSO iteration in MainWindow now uses thread-safe `getAllQSOs()` copies
+
 ## [3.35.0] - 2026-01-11
 
 ### Added

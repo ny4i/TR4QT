@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.0";  // Add checkpoint system for god class prevention
+constexpr const char* APP_VERSION = "3.38.1";  // Phase 13: QSOQueryService extraction, thread safety fixes
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
