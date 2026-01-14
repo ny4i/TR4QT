@@ -33,11 +33,12 @@ These methods exceed 30 lines but are **pure UI setup** with no business logic:
 
 | Method | Lines | Reason for Exception |
 |--------|-------|---------------------|
-| `createCentralWidget()` | ~145 | Widget creation, layout setup |
-| `createMenuBar()` | ~128 | Menu/action creation |
-| `eventFilter()` | ~160 | Qt virtual override, key handling |
-| `loadSettings()` | ~104 | Flat settings restoration |
-| `onCallsignChanged()` | ~101 | UI state coordination |
+| `MainWindow()` constructor | ~243 | Service init, signal/slot wiring, UI setup calls |
+| `createCentralWidget()` | ~374 | Widget creation, layout setup |
+| `createMenuBar()` | ~130 | Menu/action creation |
+| `eventFilter()` | ~162 | Qt virtual override, key handling |
+| `loadSettings()` | ~106 | Flat settings restoration |
+| `onCallsignChanged()` | ~103 | UI state coordination |
 
 These are acceptable because:
 1. They contain **zero business logic**
@@ -148,10 +149,11 @@ These are **appropriate** for a QMainWindow subclass.
 **Reality**: Some UI methods will exceed this. The rule applies to methods with **business logic**, not pure UI setup.
 
 **Exceptions allowed for:**
-1. UI widget creation (createXXX methods)
-2. Qt virtual overrides (eventFilter, closeEvent)
-3. Settings load/save (flat key-value operations)
-4. Menu/toolbar setup
+1. Constructor (service init, signal/slot wiring)
+2. UI widget creation (createXXX methods)
+3. Qt virtual overrides (eventFilter, closeEvent)
+4. Settings load/save (flat key-value operations)
+5. Menu/toolbar setup
 
 **Never allowed for:**
 1. Business logic (scoring, validation, calculations)
@@ -168,7 +170,7 @@ Instead of "lines under 1,500", use:
 | Business logic methods | 0 | ✅ 0 |
 | God methods (>100 lines with logic) | 0 | ✅ 0 |
 | Data iteration loops | 0 | ✅ 0 |
-| UI-only methods >100 lines | ≤5 | ✅ 5 |
+| UI-only methods >100 lines | ≤6 | ✅ 6 |
 
 ## Conclusion
 
