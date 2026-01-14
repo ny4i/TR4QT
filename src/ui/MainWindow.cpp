@@ -2176,15 +2176,10 @@ void MainWindow::onCallsignEnterPressed() {
         return;
     }
 
-    // Check for OPON command (change operator)
-    if (callsign == "OPON") {
-        onLogQSO();  // Handle OPON in onLogQSO which has the full implementation
-        return;
-    }
-
-    // Check for UDP command (rebroadcast entire log)
-    if (callsign == "UDP") {
-        onLogQSO();  // Handle UDP in onLogQSO which has the full implementation
+    // Check for special commands (OPON, UDP, etc.) - delegate to onLogQSO
+    // Single source of truth: CommandDispatcher knows all valid commands
+    if (CommandDispatcher::parseCommand(callsign).wasCommand) {
+        onLogQSO();
         return;
     }
 
