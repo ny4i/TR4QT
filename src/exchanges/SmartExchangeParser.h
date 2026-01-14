@@ -81,6 +81,10 @@ private:
     static bool looksLikeSerial(const QString& token);
     static bool looksLikeSection(const QString& token, ContestBase* contest);
     static bool looksLikeClass(const QString& token);
+
+public:
+    // State detection (for NAQP and other contests using state/province multipliers)
+    static bool looksLikeState(const QString& token);
 };
 
 } // namespace TR4QT

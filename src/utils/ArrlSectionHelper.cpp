@@ -886,9 +886,9 @@ bool isValidSection(const QString& section)
 
 QStringList getUSStates()
 {
-    // 50 US states as 2-letter postal codes (alphabetical)
+    // 50 US states + DC as 2-letter postal codes (alphabetical)
     static QStringList states = {
-        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DC", "DE", "FL", "GA",
         "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
         "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
         "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
@@ -900,6 +900,7 @@ QStringList getUSStates()
 QStringList getCanadianProvinces()
 {
     // Canadian provinces/territories + Ontario subdivisions (alphabetical)
+    // Note: ON is included as standard postal code alongside ARRL subdivisions (GH, ONE, ONN, ONS)
     static QStringList provinces = {
         "AB",   // Alberta
         "BC",   // British Columbia
@@ -909,9 +910,11 @@ QStringList getCanadianProvinces()
         "NL",   // Newfoundland and Labrador
         "NS",   // Nova Scotia
         "NT",   // Northwest Territories
-        "ONE",  // Ontario East
-        "ONN",  // Ontario North
-        "ONS",  // Ontario South
+        "NU",   // Nunavut
+        "ON",   // Ontario (standard postal code)
+        "ONE",  // Ontario East (ARRL subdivision)
+        "ONN",  // Ontario North (ARRL subdivision)
+        "ONS",  // Ontario South (ARRL subdivision)
         "PE",   // Prince Edward Island
         "QC",   // Quebec
         "SK",   // Saskatchewan
