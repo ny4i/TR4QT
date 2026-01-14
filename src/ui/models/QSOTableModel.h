@@ -84,8 +84,8 @@ public:
     // Get all QSOs (thread-safe copy)
     QList<QSO> getAllQSOs() const;
 
-    // Get total count
-    int count() const { return m_qsos.size(); }
+    // Get total count (thread-safe)
+    int count() const;
 
     // Contest-dependent exchange fields and display
     void setTableColumns(const QList<TableColumn>& columns);
