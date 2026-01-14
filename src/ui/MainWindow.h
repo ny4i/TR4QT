@@ -190,6 +190,10 @@ private slots:
 
     // Logging actions
     void onLogQSO();
+    bool handleLogQSOCommand(const QString& callsign);  // Returns true if command was handled
+    QSOLoggingService::LogQSORequest buildLogQSORequest(const QString& callsign, const QString& exchange);
+    void handleLogQSOValidationError(const QSOLoggingService::LogQSOResult& result);
+    void updateUIAfterQSOLogged(const QSO& qso, const QSOLoggingService::LogQSOResult& result);
     void onCallsignChanged(const QString& callsign);
     void onCallsignEnterPressed();  // Handle Enter key in callsign field
     void onExchangeTextChanged(const QString& text);  // Real-time validation
@@ -236,6 +240,10 @@ private:
 
     // Contest management
     void activateContest(const ContestInfo& contestInfo);
+    void resetContestState();  // Reset state and cleanup previous contest
+    void createContestServices(const ActivateContestResult& result);  // Create services for contest
+    void configureUIForContest(const ActivateContestResult& result);  // Configure UI components
+    void setDefaultBandModeForContest(const ContestInfo& contestInfo);  // Set defaults when radio disconnected
     void updateExchangeFieldsForContest();
     void autoPopulateExchange(const QString& callsign);
     void reopenLastContest();
