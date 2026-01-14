@@ -66,6 +66,14 @@ private slots:
     void testParse_EmptyExchange();
     void testParse_SingleField();
     void testParse_ExtraSpaces();
+
+    // State detection (for NAQP)
+    void testStateDetection_USStates();
+    void testStateDetection_CanadianProvinces();
+    void testStateDetection_Sections_NotStates();
+    void testStateDetection_Names_NotStates();
+    void testStateDetection_Numbers_NotStates();
+    void testStateDetection_CaseSensitivity();
 };
 
 // ===== Winter Field Day Parsing Tests =====
@@ -426,6 +434,103 @@ void TestSmartExchangeParser::testParse_ExtraSpaces() {
 
     QCOMPARE(result["Class"], QString("1O"));
     QCOMPARE(result["Section"], QString("WMA"));
+}
+
+// ===== State Detection Tests (for NAQP) =====
+
+void TestSmartExchangeParser::testStateDetection_USStates() {
+    // All US states should be recognized
+    QStringList usStates = {
+        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+        "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+        "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+        "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+        "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+    };
+
+    for (const QString& state : usStates) {
+        QVERIFY2(SmartExchangeParser::looksLikeState(state),
+                 qPrintable(QString("US state %1 should be recognized").arg(state)));
+    }
+
+    // Also verify DC
+    QVERIFY(SmartExchangeParser::looksLikeState("DC"));
+}
+
+void TestSmartExchangeParser::testStateDetection_CanadianProvinces() {
+    // Canadian provinces (Ontario subdivisions are sections, not states)
+    QStringList provinces = {
+        "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"
+    };
+
+    for (const QString& province : provinces) {
+        QVERIFY2(SmartExchangeParser::looksLikeState(province),
+                 qPrintable(QString("Canadian province %1 should be recognized").arg(province)));
+    }
+}
+
+void TestSmartExchangeParser::testStateDetection_Sections_NotStates() {
+    // ARRL sections are NOT states
+    // These are geographic divisions for ARRL contests but are NOT valid for NAQP
+    QStringList sections = {
+        "WMA", "EMA",  // Massachusetts sections
+        "NFL", "WCF", "SFL",  // Florida sections
+        "SCV", "EB", "SF", "LAX", "SJV", "SDG", "ORG", "SB", "PAC",  // CA sections
+        "ENY", "NLI", "WNY", "NNY",  // NY sections
+        "STX", "NTX", "WTX",  // TX sections
+        "EPA", "WPA",  // PA sections
+        "OH", "MI", "IL", "WI"  // These happen to be both sections and states
+    };
+
+    // WMA, EMA, etc. should NOT be states
+    QVERIFY(!SmartExchangeParser::looksLikeState("WMA"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("EMA"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("NFL"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("WCF"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("SFL"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("SCV"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("STX"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("NTX"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("WTX"));
+
+    // But OH, MI, IL, WI ARE states (also sections)
+    QVERIFY(SmartExchangeParser::looksLikeState("OH"));
+    QVERIFY(SmartExchangeParser::looksLikeState("MI"));
+    QVERIFY(SmartExchangeParser::looksLikeState("IL"));
+    QVERIFY(SmartExchangeParser::looksLikeState("WI"));
+}
+
+void TestSmartExchangeParser::testStateDetection_Names_NotStates() {
+    // Common names should NOT be detected as states
+    QVERIFY(!SmartExchangeParser::looksLikeState("JOHN"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("TOM"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("BOB"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("DAVE"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("JOE"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("BILL"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("MARY"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("SUE"));
+}
+
+void TestSmartExchangeParser::testStateDetection_Numbers_NotStates() {
+    // Numbers should NOT be detected as states
+    QVERIFY(!SmartExchangeParser::looksLikeState("1"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("12"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("123"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("59"));
+    QVERIFY(!SmartExchangeParser::looksLikeState("599"));
+}
+
+void TestSmartExchangeParser::testStateDetection_CaseSensitivity() {
+    // Should work regardless of case
+    QVERIFY(SmartExchangeParser::looksLikeState("fl"));
+    QVERIFY(SmartExchangeParser::looksLikeState("Fl"));
+    QVERIFY(SmartExchangeParser::looksLikeState("fL"));
+    QVERIFY(SmartExchangeParser::looksLikeState("FL"));
+
+    QVERIFY(SmartExchangeParser::looksLikeState("ca"));
+    QVERIFY(SmartExchangeParser::looksLikeState("Ca"));
+    QVERIFY(SmartExchangeParser::looksLikeState("CA"));
 }
 
 QTEST_MAIN(TestSmartExchangeParser)

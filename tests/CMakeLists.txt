@@ -380,6 +380,22 @@ add_tr4qt_test(test_smartexchangeparser
     ../src/logging/FileAppender.cpp
 )
 
+add_tr4qt_test(test_naqp
+    test_naqp.cpp
+    ../src/contests/NAQPSSBContest.cpp
+    ../src/contests/NAQPBase.cpp
+    ../src/contests/ContestRegistry.cpp
+    ../src/exchanges/SmartExchangeParser.cpp
+    ../src/utils/ArrlSectionHelper.cpp
+    ../src/utils/AppSettings.cpp
+    ../src/utils/PathManager.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
 # Phase 5 tests - database persistence
 add_tr4qt_test(test_qso_persistence
     test_qso_persistence.cpp

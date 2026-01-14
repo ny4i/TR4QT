@@ -137,6 +137,17 @@ QMap<QString, QString> SmartExchangeParser::matchTokensToFields(
             }
         }
 
+        // Check for State (NAQP and other contests using state/province multipliers)
+        // Process from end to beginning, so LAST state token wins for ambiguity
+        if (fieldMap.contains("State") && !result.contains("State")) {
+            if (looksLikeState(token.value)) {
+                result["State"] = token.value.toUpper();
+                unmatchedTokens.removeAt(i);
+                matched = true;
+                continue;
+            }
+        }
+
         // Check for Class (WFD specific)
         if (fieldMap.contains("Class") && !result.contains("Class")) {
             if (looksLikeClass(token.value)) {
@@ -188,7 +199,18 @@ QMap<QString, QString> SmartExchangeParser::matchTokensToFields(
         }
     }
 
-    // Pass 3: Fill in remaining unmatched fields with unmatched tokens (fallback)
+    // Pass 3: Handle multi-word "Name" field (NAQP)
+    // If we have a "Name" field and unmatched tokens, combine them all as the name
+    if (fieldMap.contains("Name") && !result.contains("Name") && !unmatchedTokens.isEmpty()) {
+        QStringList nameParts;
+        for (const Token& t : unmatchedTokens) {
+            nameParts.append(t.value);
+        }
+        result["Name"] = nameParts.join(" ");
+        unmatchedTokens.clear();
+    }
+
+    // Pass 4: Fill in remaining unmatched fields with unmatched tokens (fallback)
     // This handles ambiguous cases by position
 
     int tokenIndex = 0;
@@ -332,6 +354,26 @@ bool SmartExchangeParser::looksLikeClass(const QString& token) {
     static const QString validCategories = "IOHM ABCDEF";
 
     return validCategories.contains(category);
+}
+
+bool SmartExchangeParser::looksLikeState(const QString& token) {
+    // State/province codes are 2-3 characters (US states are 2, some Canadian provinces are 2-3)
+    if (token.length() < 2 || token.length() > 3) {
+        return false;
+    }
+
+    // Must be pure alpha (no digits)
+    static QRegularExpression alphaRegex("^[A-Za-z]+$");
+    if (!alphaRegex.match(token).hasMatch()) {
+        return false;
+    }
+
+    // Use centralized US states + Canadian provinces list
+    // This is different from isValidSection() which validates ARRL sections like EMA, WMA, etc.
+    // States are: AL, AK, AZ... (50 US states)
+    // Provinces are: AB, BC, MB... (Canadian provinces including Ontario subdivisions)
+    static QStringList validStates = Arrl::getStatesAndProvinces();
+    return validStates.contains(token.toUpper());
 }
 
 } // namespace TR4QT
