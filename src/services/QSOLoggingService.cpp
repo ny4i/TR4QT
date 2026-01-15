@@ -64,6 +64,14 @@ QSOLoggingService::LogQSOResult QSOLoggingService::logQSO(const LogQSORequest& r
     // Step 2: Save QSO to database with retry (via QSOPersistenceService)
     result.persistenceResult = m_deps.persistenceService->saveQSO(result.qso, request.contestDbId);
 
+    // Assign database ID back to QSO (critical for integrity checks)
+    if (result.persistenceResult.databaseId > 0) {
+        result.qso.id = result.persistenceResult.databaseId;
+        LOG_DEBUG("QSOLoggingService",
+                 QString("Assigned database ID %1 to QSO %2")
+                 .arg(result.qso.id).arg(result.qso.callsign));
+    }
+
     if (result.persistenceResult.status == QSOPersistenceService::SaveResult::Failed) {
         // Persistence failed completely (database + emergency file)
         result.success = false;

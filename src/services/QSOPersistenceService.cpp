@@ -38,8 +38,10 @@ QSOPersistenceService::SaveResult QSOPersistenceService::saveQSO(const QSO& qso,
             // Success!
             result.status = SaveResult::SavedToDatabase;
             result.databaseAvailable = true;
+            result.databaseId = mutableQso.id;  // Return the assigned database ID
             LOG_DEBUG("QSOPersistenceService",
-                     QString("QSO saved to database on attempt %1").arg(attempt + 1));
+                     QString("QSO saved to database on attempt %1 (id=%2)")
+                     .arg(attempt + 1).arg(mutableQso.id));
             return result;
         }
 

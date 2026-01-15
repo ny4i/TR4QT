@@ -16,11 +16,13 @@
 
 #include <QtTest/QtTest>
 #include <QTemporaryDir>
+#include <QSqlQuery>
 #include "../src/services/QSOLoggingService.h"
 #include "../src/controllers/QSOLogger.h"
 #include "../src/services/QSOPersistenceService.h"
 #include "../src/services/ExchangeMemoryService.h"
 #include "../src/services/QSOLoggingCoordinator.h"
+#include "../src/data/QSORepository.h"
 #include "../src/network/UdpBroadcastManager.h"
 #include "../src/data/BackupManager.h"
 #include "../src/controllers/DataIntegrityManager.h"
@@ -87,6 +89,14 @@ private slots:
         // Initialize test database
         m_testDbPath = m_tempDir->filePath("test.db");
         QVERIFY(Database::instance().open(m_testDbPath));
+
+        // Create contest record in database (required for FOREIGN KEY constraint on qsos.contest_id)
+        QString createContestSql = R"(
+            INSERT INTO contests (id, contest_id, contest_name, contest_type, my_call, exchange_sent, created_at)
+            VALUES (1, 'CQWW_TEST', 'Test Contest', 'CQWW', 'N1TEST', '599 05', strftime('%s', 'now'))
+        )";
+        QSqlQuery q = Database::instance().execute(createContestSql);
+        QVERIFY2(q.isActive(), qPrintable(QString("Failed to create contest: %1").arg(Database::instance().lastError())));
 
         // Create station info for contest
         StationInfo myStation;
@@ -410,6 +420,47 @@ private slots:
 
         // Verify: No post-logging actions
         QVERIFY(result.postLoggingActions.isEmpty());
+    }
+
+    /**
+     * Test: Database ID assigned to QSO after save
+     *
+     * Regression test for bug where QSO.id was not set after database save,
+     * causing integrity check to report "QSO in memory not found in database".
+     */
+    void testDatabaseId_AssignedAfterSave() {
+        QSOLoggingService::Dependencies deps;
+        deps.qsoLogger = m_qsoLogger;
+        deps.persistenceService = m_persistenceService;
+        deps.exchangeMemoryService = m_exchangeMemoryService;
+        deps.coordinator = m_coordinator;
+
+        QSOLoggingService service(deps);
+
+        // Log QSO
+        auto request = createTestRequest();
+        request.callsign = "K9TEST";  // Unique callsign for this test
+        QSOLoggingService::LogQSOResult result = service.logQSO(request);
+
+        // Verify: Success
+        QVERIFY2(result.success, qPrintable(result.errorMessage));
+
+        // Verify: Database ID was assigned (critical for integrity checks!)
+        QVERIFY2(result.qso.id > 0,
+                 qPrintable(QString("QSO.id should be > 0 after save, got %1").arg(result.qso.id)));
+
+        // Verify: Persistence result also has the ID
+        QVERIFY2(result.persistenceResult.databaseId > 0,
+                 qPrintable(QString("SaveResult.databaseId should be > 0, got %1")
+                           .arg(result.persistenceResult.databaseId)));
+
+        // Verify: Both IDs match
+        QCOMPARE(result.qso.id, result.persistenceResult.databaseId);
+
+        // Verify: Can retrieve QSO from database by this ID
+        QSORepository repo;
+        QSO retrieved = repo.findById(result.qso.id);
+        QCOMPARE(retrieved.callsign, QString("K9TEST"));
     }
 };
 
