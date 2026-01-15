@@ -68,14 +68,15 @@ public:
         QString emergencyFilePath;      // Path to emergency file if used
         int attemptCount;               // Number of save attempts made
         bool databaseAvailable;         // False if database is completely unavailable
+        int databaseId;                 // Database ID assigned to QSO (-1 if not saved to DB)
 
         // Constructor for convenience
         SaveResult()
-            : status(Failed), attemptCount(0), databaseAvailable(true) {}
+            : status(Failed), attemptCount(0), databaseAvailable(true), databaseId(-1) {}
 
         SaveResult(Status s, const QString& error = QString(), const QString& path = QString())
             : status(s), errorMessage(error), emergencyFilePath(path),
-              attemptCount(0), databaseAvailable(true) {}
+              attemptCount(0), databaseAvailable(true), databaseId(-1) {}
     };
 
     /**
