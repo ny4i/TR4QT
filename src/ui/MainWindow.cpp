@@ -116,6 +116,10 @@ MainWindow::MainWindow(QWidget* parent)
     , m_stationInfoService(nullptr)
     , m_scoreCalculationService(nullptr)
     , m_integrityManager(nullptr)
+    , m_loggingCoordinator(nullptr)
+    , m_loggingService(nullptr)
+    , m_persistenceService(nullptr)
+    , m_exchangeMemoryService(nullptr)
     , m_contestManager(nullptr)
     , m_contestService(nullptr)
     , m_menuManager(nullptr)
@@ -339,6 +343,15 @@ MainWindow::~MainWindow() {
         delete m_activeContest;
         m_activeContest = nullptr;
     }
+
+    // Clean up logging services
+    delete m_loggingService;
+    delete m_loggingCoordinator;
+    delete m_persistenceService;
+    delete m_exchangeMemoryService;
+    delete m_qsoLogger;
+    delete m_integrityManager;
+    delete m_contestService;
 }
 
 void MainWindow::triggerCountryFileDownload() {
@@ -3122,6 +3135,45 @@ void MainWindow::createContestServices(const ActivateContestResult& result) {
     contestServiceConfig.currentContestDbId = m_currentContestDbId;
     m_contestService = new ContestService(contestServiceConfig);
     LOG_DEBUG("MainWindow", "ContestService created for contest");
+
+    // Create QSOLoggingCoordinator (orchestrates post-logging actions)
+    if (m_loggingCoordinator) {
+        delete m_loggingCoordinator;
+    }
+    m_loggingCoordinator = new QSOLoggingCoordinator(
+        m_udpBroadcastManager,
+        &BackupManager::instance(),
+        m_integrityManager
+    );
+    LOG_DEBUG("MainWindow", "QSOLoggingCoordinator created for contest");
+
+    // Create QSOPersistenceService
+    if (m_persistenceService) {
+        delete m_persistenceService;
+    }
+    QSOPersistenceService::Config persistenceConfig;
+    persistenceConfig.appDataDir = PathManager::getAppDataDir();
+    m_persistenceService = new QSOPersistenceService(persistenceConfig);
+    LOG_DEBUG("MainWindow", "QSOPersistenceService created for contest");
+
+    // Create ExchangeMemoryService
+    if (m_exchangeMemoryService) {
+        delete m_exchangeMemoryService;
+    }
+    m_exchangeMemoryService = new ExchangeMemoryService();
+    LOG_DEBUG("MainWindow", "ExchangeMemoryService created for contest");
+
+    // Create QSOLoggingService (orchestrates complete logging workflow)
+    if (m_loggingService) {
+        delete m_loggingService;
+    }
+    QSOLoggingService::Dependencies loggingDeps;
+    loggingDeps.qsoLogger = m_qsoLogger;
+    loggingDeps.persistenceService = m_persistenceService;
+    loggingDeps.exchangeMemoryService = m_exchangeMemoryService;
+    loggingDeps.coordinator = m_loggingCoordinator;
+    m_loggingService = new QSOLoggingService(loggingDeps);
+    LOG_DEBUG("MainWindow", "QSOLoggingService created for contest");
 
     // Update ImportExportManager (if it exists - may not during startup)
     if (m_importExportManager) {
