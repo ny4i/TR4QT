@@ -606,11 +606,12 @@ rm -rf build && cmake -B build && cmake --build build
 Run after build:
 ```bash
 # IMPORTANT: Always kill any running instances before starting a new one
-pkill -9 tr4qt
+# Use pkill WITHOUT -9 to allow graceful shutdown (saves window state/settings)
+pkill tr4qt && sleep 1
 ./build/src/tr4qt.app/Contents/MacOS/tr4qt
 ```
 
-**CRITICAL**: Always `pkill -9 tr4qt` before running the application to avoid multiple instances running simultaneously.
+**CRITICAL**: Always `pkill tr4qt` (without `-9`) before running the application. Using `-9` sends SIGKILL which bypasses `closeEvent()` and loses unsaved window state/settings.
 
 ## Testing
 
