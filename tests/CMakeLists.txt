@@ -264,6 +264,10 @@ add_tr4qt_test(test_flqp
     ../src/contests/QSOPartyContestBase.cpp
     ../src/contests/FloridaQSOPartyContest.cpp
     ../src/contests/ContestRegistry.cpp
+    ../src/exchanges/SmartExchangeParser.cpp
+    ../src/utils/ArrlSectionHelper.cpp
+    ../src/utils/AppSettings.cpp
+    ../src/utils/PathManager.cpp
     ../src/core/Types.cpp
     ../src/logging/Logger.cpp
     ../src/logging/LogLevel.cpp

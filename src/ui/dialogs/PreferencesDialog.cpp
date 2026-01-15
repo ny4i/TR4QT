@@ -1519,11 +1519,16 @@ void PreferencesDialog::loadSettings() {
         m_pollIntervalSpin->setValue(config.pollInterval);
 
         // Set radio type (find combo index by data value)
+        // CRITICAL: Block signals to prevent onRadioTypeChanged() from overwriting
+        // the port we just loaded from settings
         int radioTypeIndex = m_radioTypeCombo->findData(config.radioType);
-        if (radioTypeIndex >= 0) {
-            m_radioTypeCombo->setCurrentIndex(radioTypeIndex);
-        } else {
-            m_radioTypeCombo->setCurrentIndex(0);  // Default to Auto if not found
+        {
+            QSignalBlocker blocker(m_radioTypeCombo);
+            if (radioTypeIndex >= 0) {
+                m_radioTypeCombo->setCurrentIndex(radioTypeIndex);
+            } else {
+                m_radioTypeCombo->setCurrentIndex(0);  // Default to Auto if not found
+            }
         }
 
         // Load Icom network credentials
@@ -1876,12 +1881,14 @@ void PreferencesDialog::onRadioTypeChanged(int index) {
     int radioType = m_radioTypeCombo->currentData().toInt();
 
     // Set default port based on radio type
-    // Icom Direct (2) uses port 50001
-    // K4 Direct (1) and Hamlib (0) use port 4532 (rigctld default)
+    // Only change port for fresh selections - not when loading saved settings
+    // (signal blocker in loadSettings prevents this from running during load)
     if (radioType == 2) {  // ICOM_DIRECT
-        m_portSpin->setValue(50001);
+        m_portSpin->setValue(50001);  // Icom default network port
+    } else if (radioType == 1) {  // K4_DIRECT
+        m_portSpin->setValue(9200);   // K4 default TCP port
     } else {
-        m_portSpin->setValue(4532);  // rigctld default for Hamlib/K4
+        m_portSpin->setValue(4532);   // rigctld default for Hamlib
     }
 }
 
