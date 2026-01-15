@@ -16,6 +16,7 @@
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QtMath>
+#include <QCoreApplication>
 
 namespace TR4QT {
 
@@ -179,12 +180,23 @@ void GraylineMapDialog::updateMap() {
 }
 
 void GraylineMapDialog::drawWorldMap() {
-    // Load and display NASA Blue Marble world map image
-    QPixmap mapImage(":/maps/nasabluemarble.jpg");
+    // Load NASA Blue Marble world map image from app bundle Resources folder
+    // This is more reliable than Qt resources as it doesn't depend on imageformats plugins
+    // being correctly loaded at startup
+    QString mapPath;
+#ifdef Q_OS_MACOS
+    // macOS: AppBundle/Contents/Resources/nasabluemarble.jpg
+    mapPath = QCoreApplication::applicationDirPath() + "/../Resources/nasabluemarble.jpg";
+#else
+    // Windows/Linux: Same directory as executable
+    mapPath = QCoreApplication::applicationDirPath() + "/nasabluemarble.jpg";
+#endif
+
+    QPixmap mapImage(mapPath);
 
     if (!mapImage.isNull()) {
-        LOG_DEBUG("GraylineMap", QString("NASA Blue Marble map loaded successfully (size: %1x%2)")
-            .arg(mapImage.width()).arg(mapImage.height()));
+        LOG_DEBUG("GraylineMap", QString("NASA Blue Marble map loaded successfully from %1 (size: %2x%3)")
+            .arg(mapPath).arg(mapImage.width()).arg(mapImage.height()));
 
         // Scale the map image to fit the scene dimensions
         QPixmap scaledMap = mapImage.scaled(MAP_WIDTH, MAP_HEIGHT, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
@@ -195,8 +207,7 @@ void GraylineMapDialog::drawWorldMap() {
         mapItem->setZValue(-1);  // Place map behind all other items
     } else {
         // Fallback to ocean background if image fails to load
-        // NOTE: If this occurs, verify Qt imageformats plugins are deployed (qjpeg.dll, etc.)
-        LOG_WARN("GraylineMap", "Failed to load NASA Blue Marble map from resources (:/maps/nasabluemarble.jpg), using ocean background fallback - check imageformats plugins");
+        LOG_WARN("GraylineMap", QString("Failed to load NASA Blue Marble map from %1, using ocean background fallback").arg(mapPath));
         QBrush oceanBrush(COLOR_OCEAN);
         m_scene->setBackgroundBrush(oceanBrush);
     }

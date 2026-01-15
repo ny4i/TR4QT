@@ -29,6 +29,16 @@ fi
 $MACDEPLOYQT "$APP_BUNDLE" -verbose=1
 echo "    ✓ macdeployqt completed"
 
+# Step 1b: Copy NASA Blue Marble map to Resources
+echo "==> Step 1b: Copying NASA Blue Marble map..."
+RESOURCES="$APP_BUNDLE/Contents/Resources"
+if [ -f "./resources/nasabluemarble.jpg" ]; then
+    cp "./resources/nasabluemarble.jpg" "$RESOURCES/"
+    echo "    Copied nasabluemarble.jpg to Resources"
+else
+    echo "    WARNING: nasabluemarble.jpg not found in ./resources/"
+fi
+
 # Step 2: Remove OpenSSL TLS plugin (macdeployqt may have copied it)
 echo "==> Step 2: Removing OpenSSL TLS plugin (has Homebrew dependencies)..."
 if [ -f "$PLUGINS/tls/libqopensslbackend.dylib" ]; then
@@ -83,6 +93,12 @@ echo "==> Step 4c: Copying missing transitive dependencies..."
 if [ -f "/opt/homebrew/opt/brotli/lib/libbrotlicommon.1.dylib" ]; then
     cp "/opt/homebrew/opt/brotli/lib/libbrotlicommon.1.dylib" "$FRAMEWORKS/"
     echo "    Copied libbrotlicommon.1.dylib"
+fi
+
+# libjpeg (required by libqjpeg.dylib imageformat plugin for JPEG images)
+if [ -f "/opt/homebrew/opt/jpeg-turbo/lib/libjpeg.8.dylib" ]; then
+    cp "/opt/homebrew/opt/jpeg-turbo/lib/libjpeg.8.dylib" "$FRAMEWORKS/"
+    echo "    Copied libjpeg.8.dylib"
 fi
 
 # Step 4d: Fix ALL Qt frameworks bundled by macdeployqt
@@ -147,6 +163,13 @@ if [ -f "$FRAMEWORKS/libbrotlicommon.1.dylib" ]; then
     echo "    Fixed libbrotlicommon.1.dylib ID"
 fi
 
+# Fix libjpeg ID
+if [ -f "$FRAMEWORKS/libjpeg.8.dylib" ]; then
+    install_name_tool -id "@rpath/libjpeg.8.dylib" \
+        "$FRAMEWORKS/libjpeg.8.dylib"
+    echo "    Fixed libjpeg.8.dylib ID"
+fi
+
 # Fix libdbus ID
 if [ -f "$FRAMEWORKS/libdbus-1.3.dylib" ]; then
     install_name_tool -id "@rpath/libdbus-1.3.dylib" \
@@ -188,17 +211,34 @@ echo "    Fixed Hamlib path in executable"
 
 cd - > /dev/null
 
-# Step 7: Fix Qt plugin rpaths (for TLS plugins we added)
-echo "==> Step 7: Fixing TLS plugin rpaths..."
+# Step 7: Fix Qt plugin rpaths and dependencies
+echo "==> Step 7: Fixing plugin rpaths and dependencies..."
+
+# Fix TLS plugins
 for plugin in "$PLUGINS"/tls/*.dylib; do
     if [ -f "$plugin" ]; then
-        # Add the correct rpath if not already present
         if ! otool -l "$plugin" | grep -q "@loader_path/../../../Frameworks"; then
             install_name_tool -add_rpath "@loader_path/../../../Frameworks" "$plugin" 2>/dev/null || true
         fi
     fi
 done
 echo "    Fixed TLS plugin rpaths"
+
+# Fix imageformats plugins (especially JPEG plugin's dependency on libjpeg)
+for plugin in "$PLUGINS"/imageformats/*.dylib; do
+    if [ -f "$plugin" ]; then
+        # Fix libjpeg dependency if present
+        if otool -L "$plugin" | grep -q "libjpeg"; then
+            install_name_tool -change "@executable_path/../Frameworks/libjpeg.8.dylib" \
+                "@loader_path/../../Frameworks/libjpeg.8.dylib" "$plugin" 2>/dev/null || true
+        fi
+        # Add rpath if not present
+        if ! otool -l "$plugin" | grep -q "@loader_path/../../Frameworks"; then
+            install_name_tool -add_rpath "@loader_path/../../Frameworks" "$plugin" 2>/dev/null || true
+        fi
+    fi
+done
+echo "    Fixed imageformats plugin dependencies"
 
 # Step 8: Code signing (CRITICAL - sign in dependency order)
 echo "==> Step 8: Code signing..."
