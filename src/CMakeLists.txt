@@ -17,6 +17,13 @@ add_library(tr4qt_core OBJECT
     radio/HamRadioPrivileges.cpp
     radio/icomnetwork.cpp
 
+    # Rotator control (PSTRotator, future: GS-232, etc.)
+    rotator/IRotatorController.h
+    rotator/PSTRotatorController.cpp
+    rotator/PSTRotatorController.h
+    rotator/RotatorFactory.cpp
+    rotator/RotatorFactory.h
+
     # Core types
     core/Types.cpp
     core/Types.h
@@ -145,6 +152,7 @@ set(SOURCES
     services/FrequencyInputService.cpp
     services/SpotProcessingService.cpp
     services/QSOQueryService.cpp
+    services/RotatorService.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp

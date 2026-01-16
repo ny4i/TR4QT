@@ -115,6 +115,9 @@ add_subdirectory(src)
 enable_testing()
 add_subdirectory(tests)
 
+# Add tools directory
+add_subdirectory(tools)
+
 # Installation rules
 install(TARGETS tr4qt
     BUNDLE DESTINATION .
