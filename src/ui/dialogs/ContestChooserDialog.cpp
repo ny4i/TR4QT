@@ -7,6 +7,7 @@
 #include "../../utils/AppSettings.h"
 #include "../../logging/LogMacros.h"
 #include "../../data/Database.h"
+#include "../../data/ContestRepository.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -21,7 +22,6 @@
 #include <QUrl>
 #include <QHeaderView>
 #include <QBrush>
-#include <QSqlQuery>
 #include <QRegularExpression>
 #include <algorithm>
 
@@ -250,32 +250,31 @@ void ContestChooserDialog::loadExistingContests() {
     filters << "*.db";
     QFileInfoList files = dir.entryInfoList(filters, QDir::Files, QDir::Time | QDir::Reversed);
 
+    ContestRepository repo;
+
     for (const QFileInfo& fileInfo : files) {
         QString dbPath = fileInfo.absoluteFilePath();
 
-        // Open database to read contest info and version
+        // Use ContestRepository to query contests from database
+        QList<ContestRecord> contests = repo.findAll(dbPath);
+        if (contests.isEmpty()) {
+            LOG_WARN("ContestChooserDialog", QString("Database has no contest record: %1").arg(dbPath));
+            continue;
+        }
+
+        // Get first (and usually only) contest
+        const ContestRecord& record = contests.first();
+        QString contestName = record.contestName;
+        QString contestType = record.contestType;
+        QDateTime startDate = record.startTime;
+
+        // Read schema version by temporarily opening database
         Database& db = Database::instance();
         if (!db.open(dbPath)) {
-            LOG_WARN("ContestChooserDialog", QString("Failed to open database: %1").arg(dbPath));
+            LOG_WARN("ContestChooserDialog", QString("Failed to open database for version check: %1").arg(dbPath));
             continue;
         }
-
-        // Read contest name, type, and start time
-        QSqlQuery query = db.execute("SELECT contest_name, contest_type, start_time FROM contests LIMIT 1", {});
-        if (!query.next()) {
-            LOG_WARN("ContestChooserDialog", QString("Database has no contest record: %1").arg(dbPath));
-            db.close();
-            continue;
-        }
-
-        QString contestName = query.value(0).toString();
-        QString contestType = query.value(1).toString();
-        qint64 startTime = query.value(2).toLongLong();
-        QDateTime startDate = QDateTime::fromSecsSinceEpoch(startTime);
-
-        // Read schema version
         int schemaVersion = db.getUserVersion();
-
         db.close();
 
         // Add row to table
@@ -425,15 +424,7 @@ void ContestChooserDialog::updateConfigFields(const QString& contestType) {
 
             // Pre-fill from AppSettings if settingsKey provided
             if (!field.settingsKey.isEmpty()) {
-                QString defaultValue;
-                if (field.settingsKey == "Station/firstName") {
-                    defaultValue = AppSettings::instance().getMyFirstName().toUpper();
-                } else if (field.settingsKey == "Station/state") {
-                    defaultValue = AppSettings::instance().getMyState().toUpper();
-                } else if (field.settingsKey == "Station/arrlSection") {
-                    defaultValue = AppSettings::instance().getMyARRLSection().toUpper();
-                }
-
+                QString defaultValue = AppSettings::instance().getValue(field.settingsKey).toUpper();
                 if (!defaultValue.isEmpty()) {
                     edit->setText(defaultValue);
                 }
@@ -511,30 +502,21 @@ void ContestChooserDialog::onResumeContest() {
 
     QString dbPath = nameItem->data(Qt::UserRole).toString();
 
-    // Open database and read contest info (don't guess from filename!)
-    Database& db = Database::instance();
-    if (!db.open(dbPath)) {
-        DialogHelper::critical(this, "Database Error",
-                            QString("Failed to open contest database:\n%1").arg(db.lastError()));
-        return;
-    }
-
-    // Read contest_id, contest_name, contest_type, start_time, and exchange_sent from database
-    QSqlQuery query = db.execute("SELECT contest_id, contest_name, contest_type, start_time, exchange_sent FROM contests LIMIT 1", {});
-    if (!query.next()) {
+    // Use ContestRepository to read contest info
+    ContestRepository repo;
+    QList<ContestRecord> contests = repo.findAll(dbPath);
+    if (contests.isEmpty()) {
         DialogHelper::warning(this, "Invalid Database",
                            "Contest database has no contest record. The database may be corrupted.");
-        db.close();
         return;
     }
 
-    QString contestId = query.value(0).toString();
-    QString contestName = query.value(1).toString();
-    QString contestType = query.value(2).toString();
-    qint64 startTime = query.value(3).toLongLong();
-    QString exchangeSent = query.value(4).toString();
-
-    db.close();
+    // Get first (and usually only) contest
+    const ContestRecord& record = contests.first();
+    QString contestId = record.contestId;
+    QString contestName = record.contestName;
+    QString contestType = record.contestType;
+    QString exchangeSent = record.exchangeSent;
 
     // Build ContestInfo from database (no filename parsing!)
     m_contestInfo.isExisting = true;
@@ -542,7 +524,7 @@ void ContestChooserDialog::onResumeContest() {
     m_contestInfo.contestId = contestId;
     m_contestInfo.contestName = contestName;
     m_contestInfo.contestType = contestType;  // Read from database, not filename!
-    m_contestInfo.startDate = QDateTime::fromSecsSinceEpoch(startTime);
+    m_contestInfo.startDate = record.startTime;
     m_contestInfo.exchangeSent = exchangeSent;  // Load exchange from database
 
     // Determine mode from contest_id for backward compatibility
