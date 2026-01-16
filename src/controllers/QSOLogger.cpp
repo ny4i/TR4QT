@@ -233,6 +233,13 @@ QString QSOLogger::substituteSentExchangeTemplate(const QString& exchangeTemplat
     result.replace("{ZONE}", QString::number(m_config.myStation.cqZone));
     result.replace("{STATE}", AppSettings::instance().getMyState());
     result.replace("{SECTION}", AppSettings::instance().getMyARRLSection());
+    result.replace("{COUNTY}", AppSettings::instance().getMyCounty());
+
+    // {NAME} uses contest-specific operator name, falls back to AppSettings first name
+    QString operatorName = m_config.operatorName.isEmpty()
+        ? AppSettings::instance().getMyFirstName()
+        : m_config.operatorName;
+    result.replace("{NAME}", operatorName);
 
     return result;
 }

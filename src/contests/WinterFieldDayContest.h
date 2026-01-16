@@ -59,6 +59,7 @@ public:
     QList<ExchangeField> getReceivedExchangeFields() const override;
     QList<ExchangeField> getSentExchangeFields() const override;
     QList<TableColumn> getTableColumns() const override;
+    QList<ContestConfigField> getConfigFields() const override;
     QString formatSentExchange(int serialNumber, const QString& rst = "599") const override;
     bool validateReceivedExchange(const QString& exchange, QString& errorMsg) const override;
     void parseReceivedExchange(const QString& exchange, QSO& qso) const override;

@@ -65,6 +65,11 @@ public:
         QString currentContestName;
         QString currentDatabasePath;
         bool hasActiveContest = false;
+
+        // Contest configuration for Cabrillo export
+        QString category;        // SINGLE-OP, MULTI-OP, CHECKLOG, etc.
+        QString powerClass;      // HIGH, LOW, QRP
+        QString assisted;        // ASSISTED, NON-ASSISTED
     };
 
     /**

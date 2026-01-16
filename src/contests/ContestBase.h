@@ -24,6 +24,49 @@ struct ExchangeField {
 };
 
 /**
+ * Configuration field for contest creation dialog
+ * Describes a user-configurable value needed to set up the contest
+ * Each contest declares what fields it needs via getConfigFields()
+ */
+struct ContestConfigField {
+    QString id;              // Unique ID matching placeholder (e.g., "NAME", "STATE", "CHECK")
+    QString label;           // UI label (e.g., "Contest Name:", "Check (year licensed):")
+    QString placeholder;     // Placeholder text for input field
+    QString settingsKey;     // AppSettings key for default value (empty if none)
+    int maxLength;           // Maximum input length (0 = unlimited)
+    bool required;           // Whether field is required
+
+    enum class Type {
+        Text,           // Free text input
+        DropDown        // Selection from options
+    };
+    Type type = Type::Text;
+
+    QStringList options;     // For DropDown type: list of options
+
+    // Convenience constructors
+    ContestConfigField() : maxLength(0), required(true), type(Type::Text) {}
+
+    // Text field constructor
+    ContestConfigField(const QString& _id, const QString& _label, const QString& _placeholder,
+                       const QString& _settingsKey, int _maxLength = 0, bool _required = true)
+        : id(_id), label(_label), placeholder(_placeholder), settingsKey(_settingsKey),
+          maxLength(_maxLength), required(_required), type(Type::Text) {}
+
+    // DropDown field constructor
+    static ContestConfigField dropdown(const QString& _id, const QString& _label,
+                                        const QStringList& _options, bool _required = true) {
+        ContestConfigField field;
+        field.id = _id;
+        field.label = _label;
+        field.type = Type::DropDown;
+        field.options = _options;
+        field.required = _required;
+        return field;
+    }
+};
+
+/**
  * Table column definition for QSO display
  * Contests can optionally provide column metadata to control
  * how exchange fields are displayed in the QSO table
@@ -149,6 +192,21 @@ public:
     virtual QList<ExchangeField> getSentExchangeFields() const = 0;
 
     /**
+     * Get configuration fields needed at contest creation time
+     * Override this to declare what user input your contest needs
+     * The ContestChooserDialog will dynamically create UI for each field
+     *
+     * Example for NAQP: returns Name and State fields
+     * Example for ARRL SS: returns Check and Precedence fields
+     * Example for WFD: returns Class and Section fields
+     *
+     * @return List of configuration fields, empty if none needed
+     */
+    virtual QList<ContestConfigField> getConfigFields() const {
+        return QList<ContestConfigField>();  // Default: no config fields
+    }
+
+    /**
      * Get table column definitions for displaying exchange fields
      * Override this to provide custom column layout for contests with many fields
      * Default implementation returns empty list (uses legacy 2-column display)
@@ -206,17 +264,67 @@ public:
     virtual void parseReceivedExchange(const QString& exchange, QSO& qso) const = 0;
 
     /**
-     * Helper: Format exchangeReceived with RST if contest includes it
+     * Helper: Format exchangeReceived in canonical field order
      * Call this at the end of parseReceivedExchange() to set qso.exchangeReceived
-     * @param exchange Raw exchange string (without RST)
-     * @param qso QSO object (must have rstReceived already set)
+     * Uses getReceivedExchangeFields() to determine field order
+     * @param exchange Raw exchange string (unused, kept for compatibility)
+     * @param qso QSO object (must have all fields already parsed)
      */
     void formatExchangeReceived(const QString& exchange, QSO& qso) const {
-        if (includesRSTInReceivedExchange()) {
-            qso.exchangeReceived = qso.rstReceived + " " + exchange;
-        } else {
-            qso.exchangeReceived = exchange;
+        Q_UNUSED(exchange);  // We build from parsed QSO fields, not raw input
+        qso.exchangeReceived = buildCanonicalExchange(qso);
+    }
+
+    /**
+     * Build exchange string in canonical field order from parsed QSO fields
+     * Order is determined by getReceivedExchangeFields()
+     * @param qso QSO with parsed fields
+     * @return Exchange string in canonical order (e.g., "JOHN MA" not "MA JOHN")
+     */
+    QString buildCanonicalExchange(const QSO& qso) const {
+        QStringList parts;
+
+        for (const ExchangeField& field : getReceivedExchangeFields()) {
+            QString value = getQSOFieldValue(qso, field.name);
+            if (!value.isEmpty()) {
+                parts.append(value);
+            }
         }
+
+        return parts.join(" ");
+    }
+
+    /**
+     * Extract a field value from QSO by exchange field name
+     * Maps field names (from ExchangeField.name) to QSO struct members
+     * @param qso The QSO to extract from
+     * @param fieldName The exchange field name (e.g., "RST", "Name", "State")
+     * @return The field value, or empty string if not found
+     */
+    QString getQSOFieldValue(const QSO& qso, const QString& fieldName) const {
+        // Map exchange field names to QSO struct members
+        if (fieldName == "RST") return qso.rstReceived;
+        if (fieldName == "Name") return qso.operatorName;
+        if (fieldName == "State") return qso.state;
+        if (fieldName == "County") return qso.county;
+        if (fieldName == "Zone" || fieldName == "CQ Zone") {
+            return qso.cqZone > 0 ? QString::number(qso.cqZone) : QString();
+        }
+        if (fieldName == "ITU Zone") {
+            return qso.ituZone > 0 ? QString::number(qso.ituZone) : QString();
+        }
+        if (fieldName == "Serial") {
+            return qso.serialNumberReceived > 0 ? QString::number(qso.serialNumberReceived) : QString();
+        }
+        if (fieldName == "Section") return qso.arrlSection;
+        if (fieldName == "Class") return qso.contestClass;
+        if (fieldName == "Check") return qso.check;
+        if (fieldName == "Precedence") return qso.precedence;
+        if (fieldName == "Power") return qso.power;
+        if (fieldName == "Grid" || fieldName == "Grid Square") return qso.gridSquare;
+
+        // Unknown field name - return empty
+        return QString();
     }
 
     /**

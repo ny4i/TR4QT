@@ -33,6 +33,17 @@ QList<TableColumn> ARRLSSBase::getTableColumns() const {
     };
 }
 
+QList<ContestConfigField> ARRLSSBase::getConfigFields() const {
+    return {
+        ContestConfigField::dropdown("PRECEDENCE", "Precedence:",
+                                      {"Q", "A", "B", "U", "M", "S"}, true),
+        ContestConfigField("CHECK", "Check:", "Year first licensed (e.g., 95)",
+                          "", 2, true),
+        ContestConfigField("SECTION", "Section:", "ARRL Section",
+                          "Station/arrlSection", 4, true)
+    };
+}
+
 QString ARRLSSBase::formatSentExchange(int serialNumber, const QString& rst) const {
     Q_UNUSED(rst);  // SS doesn't use RST in exchange
     // Example: "123 A 95 WMA"

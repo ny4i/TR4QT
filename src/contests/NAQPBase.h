@@ -77,6 +77,19 @@ public:
         return "{NAME} {STATE}";
     }
 
+    /**
+     * Configuration fields for contest creation dialog
+     * NAQP needs: Name and State/Province
+     */
+    QList<ContestConfigField> getConfigFields() const override {
+        return {
+            ContestConfigField("NAME", "Contest Name:", "First name (e.g., TOM)",
+                              "Station/firstName", 20, true),
+            ContestConfigField("STATE", "State/Province:", "e.g., FL, ON",
+                              "Station/state", 3, true)
+        };
+    }
+
     bool validateReceivedExchange(const QString& exchange, QString& errorMsg) const override;
     void parseReceivedExchange(const QString& exchange, QSO& qso) const override;
 

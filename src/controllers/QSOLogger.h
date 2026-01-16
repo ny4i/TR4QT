@@ -37,6 +37,7 @@ public:
         ContestBase* contest = nullptr;     // Active contest (can be nullptr for general logging)
         CountryFile* countryFile = nullptr; // For DXCC lookups
         StationInfo myStation;              // My station info for points calculation
+        QString operatorName;               // Operator name for this contest (for {NAME} substitution)
     };
 
     // Input parameters for logging a QSO

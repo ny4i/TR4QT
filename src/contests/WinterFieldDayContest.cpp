@@ -112,6 +112,15 @@ QList<TableColumn> WinterFieldDayContest::getTableColumns() const {
     };
 }
 
+QList<ContestConfigField> WinterFieldDayContest::getConfigFields() const {
+    return {
+        ContestConfigField("CLASS", "Class:", "e.g., 1H, 2O, 3I",
+                          "", 3, true),
+        ContestConfigField("SECTION", "Section:", "ARRL/RAC Section",
+                          "Station/arrlSection", 4, true)
+    };
+}
+
 QString WinterFieldDayContest::formatSentExchange(int serialNumber, const QString& rst) const {
     Q_UNUSED(serialNumber);
     Q_UNUSED(rst);

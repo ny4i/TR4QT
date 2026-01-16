@@ -265,13 +265,17 @@ ExportResult ImportExportManager::exportCabrillo() {
         ""   // Email
     );
 
-    // TODO: Get category information from contest dialog
+    // Use category information from contest configuration
+    QString assisted = m_config.assisted.isEmpty() ? "NON-ASSISTED" : m_config.assisted;
+    QString category = m_config.category.isEmpty() ? "SINGLE-OP" : m_config.category;
+    QString power = m_config.powerClass.isEmpty() ? "LOW" : m_config.powerClass;
+
     exporter.setCategory(
-        "NON-ASSISTED",  // Assisted
+        assisted,        // Assisted
         "ALL",           // Band
         "MIXED",         // Mode
-        "SINGLE-OP",     // Operator
-        "LOW",           // Power
+        category,        // Operator (SINGLE-OP, MULTI-OP, etc.)
+        power,           // Power (HIGH, LOW, QRP)
         "FIXED",         // Station
         "",              // Time
         "ONE",           // Transmitter

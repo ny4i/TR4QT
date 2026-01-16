@@ -269,7 +269,7 @@ QString DataIntegrityManager::fullIntegrityCheck(const QList<QSO>& memoryQSOs, b
         dbSchemaVersion = versionQuery.value(0).toInt();
     }
 
-    const int EXPECTED_SCHEMA_VERSION = 8;  // From Database.h CURRENT_SCHEMA_VERSION
+    const int EXPECTED_SCHEMA_VERSION = 9;  // From Database.h CURRENT_SCHEMA_VERSION
     bool schemaVersionMismatch = false;
     if (dbSchemaVersion == EXPECTED_SCHEMA_VERSION) {
         report += QString("✓ Database schema version matches (v%1)\n\n").arg(EXPECTED_SCHEMA_VERSION);

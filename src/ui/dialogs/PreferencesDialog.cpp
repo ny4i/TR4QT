@@ -167,6 +167,18 @@ QWidget* PreferencesDialog::createStationTab() {
     m_callsignEdit->setToolTip("Your callsign (used in contests and logging)");
     formLayout->addRow("Callsign:", m_callsignEdit);
 
+    // First Name (for contests like NAQP that include name in exchange)
+    m_firstNameEdit = new QLineEdit(this);
+    m_firstNameEdit->setPlaceholderText("Tom");
+    m_firstNameEdit->setToolTip("Your first name (used in contests like NAQP that include name in exchange)");
+    formLayout->addRow("First Name:", m_firstNameEdit);
+
+    // Last Name
+    m_lastNameEdit = new QLineEdit(this);
+    m_lastNameEdit->setPlaceholderText("Smith");
+    m_lastNameEdit->setToolTip("Your last name (for Cabrillo file headers)");
+    formLayout->addRow("Last Name:", m_lastNameEdit);
+
     // License Class (US only)
     m_licenseClassCombo = new QComboBox(this);
     m_licenseClassCombo->addItems({"None", "Technician", "General", "Extra"});
@@ -1453,6 +1465,8 @@ void PreferencesDialog::loadSettings() {
 
     // Station tab
     m_callsignEdit->setText(settings.getMyCallsign());
+    m_firstNameEdit->setText(settings.getMyFirstName());
+    m_lastNameEdit->setText(settings.getMyLastName());
     m_gridSquareEdit->setText(settings.getMyGridSquare());
     m_continentCombo->setCurrentText(settings.getMyContinent());
     m_cqZoneSpin->setValue(settings.getMyCQZone());
@@ -1648,6 +1662,8 @@ void PreferencesDialog::saveSettings() {
 
     // Station tab
     settings.setMyCallsign(m_callsignEdit->text());
+    settings.setMyFirstName(m_firstNameEdit->text());
+    settings.setMyLastName(m_lastNameEdit->text());
     settings.setMyGridSquare(m_gridSquareEdit->text());
     settings.setMyContinent(m_continentCombo->currentText());
     settings.setMyCQZone(m_cqZoneSpin->value());

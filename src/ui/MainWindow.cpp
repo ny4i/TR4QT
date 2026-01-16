@@ -3037,6 +3037,13 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     m_currentContestDbId = result.contestDbId;
     m_nextSerialNumber = result.nextSerialNumber;
     m_currentContest = contestInfo;
+
+    // Update contest config from database (may differ from dialog for resumed contests)
+    m_currentContest.category = result.category;
+    m_currentContest.powerClass = result.powerClass;
+    m_currentContest.assisted = result.assisted;
+    m_currentContest.operatorName = result.operatorName;
+
     m_hasActiveContest = true;
 
     // Step 4: Load existing QSOs into table model
@@ -3112,6 +3119,7 @@ void MainWindow::createContestServices(const ActivateContestResult& result) {
     loggerConfig.contest = m_activeContest;
     loggerConfig.countryFile = &m_countryFile;
     loggerConfig.myStation = result.myStation;
+    loggerConfig.operatorName = result.operatorName;  // For {NAME} substitution
     m_qsoLogger = new QSOLogger(loggerConfig);
     LOG_DEBUG("MainWindow", "QSOLogger created for contest");
 
@@ -3184,6 +3192,10 @@ void MainWindow::createContestServices(const ActivateContestResult& result) {
         importExportConfig.currentContestDbId = m_currentContestDbId;
         importExportConfig.currentContestName = m_currentContest.contestName;
         importExportConfig.hasActiveContest = m_hasActiveContest;
+        // Contest configuration for Cabrillo export
+        importExportConfig.category = m_currentContest.category;
+        importExportConfig.powerClass = m_currentContest.powerClass;
+        importExportConfig.assisted = m_currentContest.assisted;
         m_importExportManager->updateConfig(importExportConfig);
         LOG_DEBUG("MainWindow", "ImportExportManager updated for contest");
     }

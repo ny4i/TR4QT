@@ -22,6 +22,7 @@
 #include <QHeaderView>
 #include <QBrush>
 #include <QSqlQuery>
+#include <QRegularExpression>
 #include <algorithm>
 
 namespace TR4QT {
@@ -120,6 +121,30 @@ void ContestChooserDialog::setupUI() {
     newLayout->addRow(m_exchangeSentLabel, m_exchangeSentEdit);
     m_exchangeSentEdit->setVisible(false);
     m_exchangeSentLabel->setVisible(false);
+
+    // Contest Configuration (for Cabrillo export)
+    // Category dropdown
+    m_categoryCombo = new QComboBox(this);
+    m_categoryCombo->addItems({"SINGLE-OP", "MULTI-OP", "MULTI-TWO", "MULTI-SINGLE", "CHECKLOG"});
+    m_categoryCombo->setToolTip("Competition category for Cabrillo export");
+    newLayout->addRow("Category:", m_categoryCombo);
+
+    // Power class dropdown
+    m_powerClassCombo = new QComboBox(this);
+    m_powerClassCombo->addItems({"HIGH", "LOW", "QRP"});
+    m_powerClassCombo->setToolTip("Power class: HIGH (>100W), LOW (5-100W), QRP (<=5W)");
+    newLayout->addRow("Power:", m_powerClassCombo);
+
+    // Assisted dropdown
+    m_assistedCombo = new QComboBox(this);
+    m_assistedCombo->addItems({"NON-ASSISTED", "ASSISTED"});
+    m_assistedCombo->setToolTip("ASSISTED = using DX Cluster, RBN, or skimmers");
+    newLayout->addRow("Assisted:", m_assistedCombo);
+
+    // Dynamic contest config fields section
+    // This layout holds fields dynamically created based on contest type
+    m_configFieldsLayout = new QFormLayout();
+    newLayout->addRow(m_configFieldsLayout);
 
     // Create button
     QHBoxLayout* createButtonLayout = new QHBoxLayout();
@@ -293,23 +318,24 @@ void ContestChooserDialog::onContestTypeChanged(int index) {
     bool hasValidSelection = !contestType.isEmpty();
     m_createButton->setEnabled(hasValidSelection);
 
-    // If placeholder selected, clear the contest name and hide exchange field
+    // If placeholder selected, clear the contest name and hide fields
     if (!hasValidSelection) {
         m_contestNameEdit->clear();
         m_exchangeSentEdit->setVisible(false);
         m_exchangeSentLabel->setVisible(false);
+        clearConfigFields();
         return;
     }
+
     QDateTime now = QDateTime::currentDateTime();
 
-    // Parse contest ID and mode from contestType (e.g., "CQWW_CW" or "WFD")
+    // Parse mode from contestType (e.g., "CQWW_CW" -> "CW", "WFD" -> "Mixed")
     QStringList parts = contestType.split('_');
-    QString contestId = parts[0];
     QString modeStr = parts.size() > 1 ? parts[1] : "Mixed";
 
-    // Get contest metadata from registry
-    if (ContestRegistry::instance().hasContest(contestId)) {
-        ContestMetadata meta = ContestRegistry::instance().getMetadata(contestId);
+    // Get contest metadata from registry using full contestType (e.g., "NAQP_SSB")
+    if (ContestRegistry::instance().hasContest(contestType)) {
+        ContestMetadata meta = ContestRegistry::instance().getMetadata(contestType);
 
         // Auto-generate contest name: "Contest Name MODE YEAR"
         QString name;
@@ -327,23 +353,142 @@ void ContestChooserDialog::onContestTypeChanged(int index) {
         m_contestNameEdit->setText(name);
         m_modeCombo->setCurrentText(modeStr);
 
-        // Show exchange field for contests that need it (currently Winter Field Day)
-        // TODO: Make this more generic by adding needsExchangeConfig to ContestMetadata
-        bool needsExchange = (contestId == "WFD");
-        m_exchangeSentEdit->setVisible(needsExchange);
-        m_exchangeSentLabel->setVisible(needsExchange);
+        // Hide legacy exchange field (no longer using hardcoded WFD check)
+        m_exchangeSentEdit->setVisible(false);
+        m_exchangeSentLabel->setVisible(false);
 
-        if (needsExchange) {
-            // Pre-fill exchange from station settings where available
-            // Format for WFD: "Class Section" (e.g., "1H WCF")
-            QString section = AppSettings::instance().getMyARRLSection();
-            QString defaultExchange = section;  // Just section for now, user adds class
-            if (!section.isEmpty()) {
-                m_exchangeSentEdit->setPlaceholderText(QString("e.g., 1H %1").arg(section));
-                m_exchangeSentEdit->setText(defaultExchange);
+        // Update dynamic config fields based on contest requirements
+        updateConfigFields(contestType);
+    }
+}
+
+void ContestChooserDialog::updateConfigFields(const QString& contestType) {
+    // Clear existing dynamic fields
+    clearConfigFields();
+
+    // Create temporary contest to query config fields
+    if (!ContestRegistry::instance().hasContest(contestType)) {
+        LOG_DEBUG("ContestChooserDialog", QString("Contest type '%1' not found in registry").arg(contestType));
+        return;
+    }
+
+    // Create dummy station info for temporary contest
+    StationInfo dummyStation;
+    dummyStation.callsign = "W1AW";
+    dummyStation.cqZone = 5;
+
+    // Determine mode for contest creation
+    ModeType mode = ModeType::CW;
+    if (contestType.endsWith("_SSB")) {
+        mode = ModeType::USB;
+    } else if (contestType.endsWith("_RTTY")) {
+        mode = ModeType::RTTY;
+    }
+
+    // Create temporary contest to get config fields
+    ContestBase* tempContest = ContestRegistry::instance().createContest(contestType, mode, dummyStation);
+    if (!tempContest) {
+        return;
+    }
+
+    // Query config fields from contest class
+    m_configFields = tempContest->getConfigFields();
+    delete tempContest;
+
+    if (m_configFields.isEmpty()) {
+        LOG_DEBUG("ContestChooserDialog", QString("Contest '%1' has no config fields").arg(contestType));
+        return;
+    }
+
+    LOG_DEBUG("ContestChooserDialog", QString("Contest '%1' has %2 config fields")
+        .arg(contestType).arg(m_configFields.size()));
+
+    // Create UI widgets for each config field
+    for (const ContestConfigField& field : m_configFields) {
+        QWidget* widget = nullptr;
+
+        if (field.type == ContestConfigField::Type::DropDown) {
+            // Create dropdown
+            QComboBox* combo = new QComboBox(this);
+            combo->addItems(field.options);
+            combo->setObjectName(field.id);  // Store ID for later retrieval
+            widget = combo;
+        } else {
+            // Create text input
+            QLineEdit* edit = new QLineEdit(this);
+            edit->setPlaceholderText(field.placeholder);
+            edit->setObjectName(field.id);  // Store ID for later retrieval
+
+            if (field.maxLength > 0) {
+                edit->setMaxLength(field.maxLength);
+            }
+
+            // Pre-fill from AppSettings if settingsKey provided
+            if (!field.settingsKey.isEmpty()) {
+                QString defaultValue;
+                if (field.settingsKey == "Station/firstName") {
+                    defaultValue = AppSettings::instance().getMyFirstName().toUpper();
+                } else if (field.settingsKey == "Station/state") {
+                    defaultValue = AppSettings::instance().getMyState().toUpper();
+                } else if (field.settingsKey == "Station/arrlSection") {
+                    defaultValue = AppSettings::instance().getMyARRLSection().toUpper();
+                }
+
+                if (!defaultValue.isEmpty()) {
+                    edit->setText(defaultValue);
+                }
+            }
+
+            widget = edit;
+        }
+
+        // Add to layout with label
+        m_configFieldsLayout->addRow(field.label, widget);
+        m_configFieldWidgets.append(widget);
+    }
+}
+
+void ContestChooserDialog::clearConfigFields() {
+    // Remove all widgets from layout and delete them
+    while (m_configFieldsLayout->count() > 0) {
+        QLayoutItem* item = m_configFieldsLayout->takeAt(0);
+        if (item->widget()) {
+            delete item->widget();
+        }
+        if (item->layout()) {
+            delete item->layout();
+        }
+        delete item;
+    }
+
+    m_configFields.clear();
+    m_configFieldWidgets.clear();
+}
+
+QMap<QString, QString> ContestChooserDialog::getConfigFieldValues() const {
+    QMap<QString, QString> values;
+
+    for (int i = 0; i < m_configFields.size() && i < m_configFieldWidgets.size(); ++i) {
+        const ContestConfigField& field = m_configFields[i];
+        QWidget* widget = m_configFieldWidgets[i];
+
+        QString value;
+        if (field.type == ContestConfigField::Type::DropDown) {
+            QComboBox* combo = qobject_cast<QComboBox*>(widget);
+            if (combo) {
+                value = combo->currentText();
+            }
+        } else {
+            QLineEdit* edit = qobject_cast<QLineEdit*>(widget);
+            if (edit) {
+                value = edit->text().trimmed().toUpper();
             }
         }
+
+        values[field.id] = value;
     }
+
+    return values;
 }
 
 void ContestChooserDialog::onExistingContestSelected() {
@@ -501,6 +646,20 @@ void ContestChooserDialog::onNewContest() {
         m_contestInfo.isExisting = false;
     }
 
+    // Get dynamic config field values
+    QMap<QString, QString> configValues = getConfigFieldValues();
+
+    // Build exchangeSent from config field values
+    // Concatenate all field values in order (e.g., "A 95 WMA" for SS, "1H WCF" for WFD)
+    QStringList exchangeParts;
+    for (const ContestConfigField& field : m_configFields) {
+        QString value = configValues.value(field.id);
+        if (!value.isEmpty()) {
+            exchangeParts.append(value);
+        }
+    }
+    QString exchangeSent = exchangeParts.join(" ");
+
     // Fill contest info
     m_contestInfo.contestId = contestId;  // Unique identifier (e.g., "GENERAL_2026_01_02")
     m_contestInfo.contestName = contestName;  // Display name (user input)
@@ -508,10 +667,37 @@ void ContestChooserDialog::onNewContest() {
     m_contestInfo.startDate = startDate;
     m_contestInfo.mode = mode;
     m_contestInfo.databasePath = dbPath;
-    m_contestInfo.exchangeSent = m_exchangeSentEdit->text().trimmed().toUpper();
+    m_contestInfo.exchangeSent = exchangeSent;
 
-    LOG_DEBUG("ContestChooserDialog", QString("New contest: id='%1', type='%2', name='%3', exchange='%4'")
-        .arg(contestId, contestType, contestName, m_contestInfo.exchangeSent));
+    // Contest configuration for Cabrillo export
+    m_contestInfo.category = m_categoryCombo->currentText();
+    m_contestInfo.powerClass = m_powerClassCombo->currentText();
+    m_contestInfo.assisted = m_assistedCombo->currentText();
+    m_contestInfo.operatorName = configValues.value("NAME");
+
+    // Update AppSettings if user changed state or operator name
+    // (these are used by QSOLogger for exchange substitution)
+    QString newState = configValues.value("STATE");
+    if (!newState.isEmpty() && newState != AppSettings::instance().getMyState().toUpper()) {
+        AppSettings::instance().setMyState(newState);
+        LOG_DEBUG("ContestChooserDialog", QString("Updated station state to: %1").arg(newState));
+    }
+
+    QString newFirstName = configValues.value("NAME");
+    if (!newFirstName.isEmpty() && newFirstName != AppSettings::instance().getMyFirstName().toUpper()) {
+        AppSettings::instance().setMyFirstName(newFirstName);
+        LOG_DEBUG("ContestChooserDialog", QString("Updated first name to: %1").arg(newFirstName));
+    }
+
+    // Update section if provided
+    QString newSection = configValues.value("SECTION");
+    if (!newSection.isEmpty() && newSection != AppSettings::instance().getMyARRLSection().toUpper()) {
+        AppSettings::instance().setMyARRLSection(newSection);
+        LOG_DEBUG("ContestChooserDialog", QString("Updated ARRL section to: %1").arg(newSection));
+    }
+
+    LOG_DEBUG("ContestChooserDialog", QString("New contest: id='%1', type='%2', name='%3', exchange='%4', category='%5'")
+        .arg(contestId, contestType, contestName, m_contestInfo.exchangeSent, m_contestInfo.category));
 
     accept();
 }
