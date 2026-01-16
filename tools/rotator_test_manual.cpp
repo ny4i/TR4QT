@@ -22,10 +22,10 @@
  * 1. Prompt user to start PSTRotator and verify setup
  * 2. Connect to PSTRotator via UDP
  * 3. Query current azimuth
- * 4. Rotate +30° from current position
- * 5. Wait for rotation to complete (assumes 2°/second speed)
+ * 4. Rotate +30 deg from current position
+ * 5. Wait for rotation to complete (assumes 2 deg/second speed)
  * 6. Query azimuth again and verify movement
- * 7. Test stop command (rotate +60°, stop after 5 seconds)
+ * 7. Test stop command (rotate +60 deg, stop after 5 seconds)
  * 8. Disconnect
  *
  * Developer Validation:
@@ -40,6 +40,7 @@
 #include "../src/rotator/PSTRotatorController.h"
 #include "../src/rotator/RotatorFactory.h"
 #include "../src/logging/LogMacros.h"
+#include "../src/logging/Logger.h"
 
 using namespace TR4QT;
 
@@ -97,7 +98,7 @@ public:
             return;
         }
 
-        std::cout << "[Step 1] ✓ Connected to PSTRotator" << std::endl;
+        std::cout << "[Step 1] [OK] Connected to PSTRotator" << std::endl;
         std::cout << std::endl;
 
         // Connect signals
@@ -106,6 +107,11 @@ public:
 
         // Start test sequence
         QTimer::singleShot(500, this, &RotatorManualTest::runNextStep);
+    }
+
+    void waitForEnter(const QString& message = "Press ENTER to continue...") {
+        std::cout << std::endl << message.toStdString() << std::endl;
+        std::cin.get();
     }
 
 private slots:
@@ -120,34 +126,29 @@ private slots:
                 auto azimuth = m_rotator->getAzimuth();
                 if (azimuth.has_value()) {
                     m_initialAzimuth = azimuth.value();
-                    std::cout << "[Step 2] ✓ Current azimuth: " << m_initialAzimuth << "°" << std::endl;
+                    std::cout << "[Step 2] [OK] Current azimuth: " << m_initialAzimuth << " deg" << std::endl;
                     std::cout << "         VERIFY: Does this match your rotator display?" << std::endl;
                 } else {
-                    std::cerr << "[Step 2] ✗ Failed to query azimuth" << std::endl;
+                    std::cerr << "[Step 2] [FAIL] Failed to query azimuth" << std::endl;
                     std::cerr << "         Cannot continue without initial position" << std::endl;
                     QCoreApplication::exit(1);
                     return;
                 }
             }
-            std::cout << std::endl;
-            QTimer::singleShot(2000, this, &RotatorManualTest::runNextStep);
+            waitForEnter();
+            QTimer::singleShot(100, this, &RotatorManualTest::runNextStep);
             break;
 
         case 2:
-            // Rotate +30° from current position
+            // Rotate +30 deg from current position
             m_targetAzimuth = (m_initialAzimuth + 30) % 360;
-            std::cout << "[Step 3] Rotating from " << m_initialAzimuth << "° to "
-                     << m_targetAzimuth << "° (+30°)..." << std::endl;
+            std::cout << "[Step 3] Rotating from " << m_initialAzimuth << " deg to "
+                     << m_targetAzimuth << " deg (+30 deg)..." << std::endl;
             std::cout << "         VERIFY: Watch rotator physically turn clockwise" << std::endl;
             m_rotator->setAzimuth(m_targetAzimuth);
-            std::cout << "[Step 3] ✓ Command sent" << std::endl;
-            std::cout << std::endl;
-
-            // Calculate wait time: 30° / 2°/sec = 15 seconds + 3 second buffer
-            std::cout << "         Waiting 18 seconds for rotation to complete..." << std::endl;
-            std::cout << "         (30° at 2°/second = 15 seconds + 3 second buffer)" << std::endl;
-            std::cout << std::endl;
-            QTimer::singleShot(18000, this, &RotatorManualTest::runNextStep);
+            std::cout << "[Step 3] [OK] Command sent" << std::endl;
+            waitForEnter("Press ENTER when rotator has finished turning...");
+            QTimer::singleShot(100, this, &RotatorManualTest::runNextStep);
             break;
 
         case 3:
@@ -159,39 +160,37 @@ private slots:
                     int actual = azimuth.value();
                     int error = std::abs(actual - m_targetAzimuth);
 
-                    std::cout << "[Step 4] ✓ Current azimuth: " << actual << "°" << std::endl;
-                    std::cout << "         Expected: " << m_targetAzimuth << "°" << std::endl;
-                    std::cout << "         Error: " << error << "°" << std::endl;
+                    std::cout << "[Step 4] [OK] Current azimuth: " << actual << " deg" << std::endl;
+                    std::cout << "         Expected: " << m_targetAzimuth << " deg" << std::endl;
+                    std::cout << "         Error: " << error << " deg" << std::endl;
 
                     if (error <= 5) {
-                        std::cout << "         ✓ Azimuth within ±5° tolerance - MOVEMENT VERIFIED!" << std::endl;
+                        std::cout << "         [OK] Azimuth within +-5 deg tolerance - MOVEMENT VERIFIED!" << std::endl;
                     } else if (error <= 10) {
-                        std::cout << "         ⚠ Azimuth within ±10° - Acceptable but check calibration" << std::endl;
+                        std::cout << "         [WARN] Azimuth within +-10 deg - Acceptable but check calibration" << std::endl;
                     } else {
-                        std::cerr << "         ✗ ERROR: Azimuth error > 10° - Check rotator!" << std::endl;
+                        std::cerr << "         [FAIL] ERROR: Azimuth error > 10 deg - Check rotator!" << std::endl;
                     }
                 } else {
-                    std::cerr << "[Step 4] ✗ Failed to query azimuth" << std::endl;
+                    std::cerr << "[Step 4] [FAIL] Failed to query azimuth" << std::endl;
                 }
             }
-            std::cout << std::endl;
-            QTimer::singleShot(3000, this, &RotatorManualTest::runNextStep);
+            waitForEnter();
+            QTimer::singleShot(100, this, &RotatorManualTest::runNextStep);
             break;
 
         case 4:
-            // Test stop command - rotate +60°, stop after 5 seconds
+            // Test stop command - rotate +60 deg, stop after 5 seconds
             {
                 int stopTarget = (m_targetAzimuth + 60) % 360;
                 std::cout << "[Step 5] Testing STOP command..." << std::endl;
-                std::cout << "         Commanding rotation to " << stopTarget << "° (+60°)" << std::endl;
-                std::cout << "         Will send STOP after 5 seconds (should rotate ~10°)" << std::endl;
-                std::cout << "         VERIFY: Rotator starts turning, then stops mid-rotation" << std::endl;
+                std::cout << "         Commanding rotation to " << stopTarget << " deg (+60 deg)" << std::endl;
+                std::cout << "         VERIFY: Rotator starts turning" << std::endl;
                 m_rotator->setAzimuth(stopTarget);
-                std::cout << "[Step 5] ✓ Rotation command sent" << std::endl;
-                std::cout << std::endl;
+                std::cout << "[Step 5] [OK] Rotation command sent" << std::endl;
             }
-            // Wait 5 seconds then stop
-            QTimer::singleShot(5000, this, &RotatorManualTest::runNextStep);
+            waitForEnter("Press ENTER to send STOP command (while rotator is turning)...");
+            QTimer::singleShot(100, this, &RotatorManualTest::runNextStep);
             break;
 
         case 5:
@@ -199,11 +198,9 @@ private slots:
             std::cout << "[Step 6] Sending STOP command..." << std::endl;
             std::cout << "         VERIFY: Rotator stops immediately" << std::endl;
             m_rotator->stop();
-            std::cout << "[Step 6] ✓ Stop command sent" << std::endl;
-            std::cout << std::endl;
-
-            // Wait 2 seconds for rotator to stabilize
-            QTimer::singleShot(2000, this, &RotatorManualTest::runNextStep);
+            std::cout << "[Step 6] [OK] Stop command sent" << std::endl;
+            waitForEnter("Press ENTER when rotator has stopped...");
+            QTimer::singleShot(100, this, &RotatorManualTest::runNextStep);
             break;
 
         case 6:
@@ -213,47 +210,47 @@ private slots:
                 auto azimuth = m_rotator->getAzimuth();
                 if (azimuth.has_value()) {
                     int actual = azimuth.value();
-                    int expected = (m_targetAzimuth + 10) % 360;  // Roughly 10° movement in 5 seconds
+                    int expected = (m_targetAzimuth + 10) % 360;  // Roughly 10 deg movement in 5 seconds
 
-                    std::cout << "[Step 7] ✓ Final azimuth: " << actual << "°" << std::endl;
-                    std::cout << "         Previous position: " << m_targetAzimuth << "°" << std::endl;
-                    std::cout << "         Expected ~" << expected << "° (moved ~10° before stop)" << std::endl;
+                    std::cout << "[Step 7] [OK] Final azimuth: " << actual << " deg" << std::endl;
+                    std::cout << "         Previous position: " << m_targetAzimuth << " deg" << std::endl;
+                    std::cout << "         Expected ~" << expected << " deg (moved ~10 deg before stop)" << std::endl;
 
                     // Check if stopped somewhere between start and full rotation
                     int minExpected = m_targetAzimuth;
                     int maxExpected = (m_targetAzimuth + 60) % 360;
 
                     if (actual > minExpected && actual < maxExpected) {
-                        std::cout << "         ✓ Rotator stopped mid-rotation - STOP VERIFIED!" << std::endl;
+                        std::cout << "         [OK] Rotator stopped mid-rotation - STOP VERIFIED!" << std::endl;
                     } else {
-                        std::cout << "         ⚠ Position unexpected - Verify stop worked correctly" << std::endl;
+                        std::cout << "         [WARN] Position unexpected - Verify stop worked correctly" << std::endl;
                     }
                 } else {
-                    std::cerr << "[Step 7] ✗ Failed to query azimuth" << std::endl;
+                    std::cerr << "[Step 7] [FAIL] Failed to query azimuth" << std::endl;
                 }
             }
-            std::cout << std::endl;
-            QTimer::singleShot(2000, this, &RotatorManualTest::runNextStep);
+            waitForEnter();
+            QTimer::singleShot(100, this, &RotatorManualTest::runNextStep);
             break;
 
         case 7:
             // Disconnect
             std::cout << "[Step 8] Disconnecting from PSTRotator..." << std::endl;
             m_rotator->disconnect();
-            std::cout << "[Step 8] ✓ Disconnected" << std::endl;
+            std::cout << "[Step 8] [OK] Disconnected" << std::endl;
             std::cout << std::endl;
 
             // Print summary
             std::cout << "=== Test Complete ===" << std::endl;
             std::cout << std::endl;
             std::cout << "VERIFICATION CHECKLIST:" << std::endl;
-            std::cout << "  ✓ UDP connection to PSTRotator successful" << std::endl;
-            std::cout << "  ✓ AZ? query command works" << std::endl;
-            std::cout << "  ✓ Rotation command (+30°) works" << std::endl;
-            std::cout << "  ✓ Position verification matches target" << std::endl;
-            std::cout << "  ✓ STOP command halts rotation" << std::endl;
+            std::cout << "  [OK] UDP connection to PSTRotator successful" << std::endl;
+            std::cout << "  [OK] AZ? query command works" << std::endl;
+            std::cout << "  [OK] Rotation command (+30 deg) works" << std::endl;
+            std::cout << "  [OK] Position verification matches target" << std::endl;
+            std::cout << "  [OK] STOP command halts rotation" << std::endl;
             std::cout << std::endl;
-            std::cout << "If all checks show ✓, PSTRotator integration is working correctly!" << std::endl;
+            std::cout << "If all checks show [OK], PSTRotator integration is working correctly!" << std::endl;
 
             QCoreApplication::quit();
             break;
@@ -279,6 +276,9 @@ private:
 
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
+
+    // Initialize logger (starts elapsed timer)
+    Logger::instance().initialize();
 
     // Parse command line arguments
     if (argc != 3) {
