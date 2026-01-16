@@ -594,3 +594,33 @@ add_tr4qt_test(test_window_persistence
     ../src/logging/LogFormatter.cpp
     ../src/logging/FileAppender.cpp
 )
+
+# Rotator service tests (Issue #60 - PSTRotator support)
+# Tests rotator control system with mock rotator
+add_executable(test_rotator_service
+    test_rotator_service.cpp
+)
+
+# Link against tr4qt_core object library (provides rotator classes)
+target_link_libraries(test_rotator_service PRIVATE
+    tr4qt_core  # Object library with rotator classes, logging, types
+    Qt6::Test
+    Qt6::Core
+    Qt6::Network
+)
+
+# Add include directories
+target_include_directories(test_rotator_service PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+# Link additional source files needed by RotatorService
+target_sources(test_rotator_service PRIVATE
+    ../src/services/RotatorService.cpp
+)
+
+# Register with CTest
+add_test(NAME test_rotator_service COMMAND test_rotator_service)
+
+# Set test properties
+set_tests_properties(test_rotator_service PROPERTIES TIMEOUT 30)
