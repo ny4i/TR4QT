@@ -750,6 +750,61 @@ bool Database::migrateSchema() {
         LOG_INFO("Database", "itu_zone_exchange column added (for IARU HF)");
     }
 
+    // Migration 9: Add contest configuration columns to contests table (v3.39.0)
+    // These columns store contest-specific configuration (category, power, assisted)
+    query.exec("PRAGMA table_info(contests)");
+    bool hasCategory = false;
+    bool hasPowerClass = false;
+    bool hasContestOperatorName = false;
+    bool hasAssisted = false;
+    while (query.next()) {
+        QString columnName = query.value(1).toString();
+        if (columnName == "category") hasCategory = true;
+        if (columnName == "power_class") hasPowerClass = true;
+        if (columnName == "operator_name") hasContestOperatorName = true;
+        if (columnName == "assisted") hasAssisted = true;
+    }
+
+    if (!hasCategory) {
+        LOG_INFO("Database", "Migrating schema: Adding category column to contests table");
+        if (!query.exec("ALTER TABLE contests ADD COLUMN category TEXT")) {
+            m_lastError = QString("Failed to add category column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+        LOG_INFO("Database", "category column added (SINGLE-OP, MULTI-OP, etc.)");
+    }
+
+    if (!hasPowerClass) {
+        LOG_INFO("Database", "Migrating schema: Adding power_class column to contests table");
+        if (!query.exec("ALTER TABLE contests ADD COLUMN power_class TEXT")) {
+            m_lastError = QString("Failed to add power_class column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+        LOG_INFO("Database", "power_class column added (HIGH, LOW, QRP)");
+    }
+
+    if (!hasContestOperatorName) {
+        LOG_INFO("Database", "Migrating schema: Adding operator_name column to contests table");
+        if (!query.exec("ALTER TABLE contests ADD COLUMN operator_name TEXT")) {
+            m_lastError = QString("Failed to add operator_name column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+        LOG_INFO("Database", "operator_name column added (name for this contest)");
+    }
+
+    if (!hasAssisted) {
+        LOG_INFO("Database", "Migrating schema: Adding assisted column to contests table");
+        if (!query.exec("ALTER TABLE contests ADD COLUMN assisted TEXT")) {
+            m_lastError = QString("Failed to add assisted column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+        LOG_INFO("Database", "assisted column added (ASSISTED, NON-ASSISTED)");
+    }
+
     // Set application ID if not already set (for databases created before versioning)
     uint32_t currentAppId = getApplicationId();
     if (currentAppId == 0) {

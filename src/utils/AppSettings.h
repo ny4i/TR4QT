@@ -138,6 +138,12 @@ public:
     void setMyCounty(const QString& county);
     QString getMyCounty() const;
 
+    void setMyFirstName(const QString& firstName);
+    QString getMyFirstName() const;
+
+    void setMyLastName(const QString& lastName);
+    QString getMyLastName() const;
+
     void setComputerID(const QString& id);
     QString getComputerID() const;  // Default: "A"
 

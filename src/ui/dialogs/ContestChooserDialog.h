@@ -8,6 +8,8 @@
 #include <QDateTimeEdit>
 #include <QPushButton>
 #include <QLabel>
+#include <QFormLayout>
+#include "../../contests/ContestBase.h"
 
 namespace TR4QT {
 
@@ -23,6 +25,12 @@ struct ContestInfo {
     bool isExisting;            // true if resuming existing contest
     QString databasePath;       // Full path to database file
     QString exchangeSent;       // Contest-specific sent exchange (e.g., "1H WCF" for WFD)
+
+    // Contest configuration (for Cabrillo export)
+    QString category;           // SINGLE-OP, MULTI-OP, MULTI-TWO, CHECKLOG
+    QString powerClass;         // HIGH, LOW, QRP
+    QString assisted;           // ASSISTED, NON-ASSISTED
+    QString operatorName;       // Name for contests that use {NAME} (may differ from legal name)
 };
 
 /**
@@ -60,6 +68,23 @@ private:
     void populateContestTypes();
     QString generateContestId(const QString& type, const QDateTime& startDate);
 
+    /**
+     * Update dynamic config fields based on selected contest type
+     * Queries getConfigFields() from contest class and creates UI widgets
+     */
+    void updateConfigFields(const QString& contestType);
+
+    /**
+     * Clear all dynamic config field widgets
+     */
+    void clearConfigFields();
+
+    /**
+     * Get values from dynamic config field widgets
+     * @return Map of field ID to value
+     */
+    QMap<QString, QString> getConfigFieldValues() const;
+
     // UI components
     QTableWidget* m_existingContestsTable;
     QPushButton* m_resumeButton;
@@ -71,7 +96,18 @@ private:
     QComboBox* m_modeCombo;
     QLineEdit* m_exchangeSentEdit;
     QLabel* m_exchangeSentLabel;
+
+    // Contest configuration fields (Cabrillo export - always visible)
+    QComboBox* m_categoryCombo;
+    QComboBox* m_powerClassCombo;
+    QComboBox* m_assistedCombo;
+
     QPushButton* m_createButton;
+
+    // Dynamic config fields from contest class
+    QFormLayout* m_configFieldsLayout;      // Layout for dynamic fields
+    QList<ContestConfigField> m_configFields;  // Current field definitions
+    QList<QWidget*> m_configFieldWidgets;   // Dynamic widgets (for cleanup)
 
     // Selected contest info
     ContestInfo m_contestInfo;

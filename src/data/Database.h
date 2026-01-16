@@ -27,7 +27,7 @@ namespace TR4QT {
 class Database {
 public:
     // Schema version constants
-    static constexpr int CURRENT_SCHEMA_VERSION = 8;  // Increment when adding migrations
+    static constexpr int CURRENT_SCHEMA_VERSION = 9;  // Increment when adding migrations
     static constexpr uint32_t TR4QT_APP_ID = 0x54523451;  // "TR4Q" in hex (ASCII)
 public:
     /**

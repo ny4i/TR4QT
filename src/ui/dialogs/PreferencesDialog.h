@@ -126,6 +126,8 @@ private:
 
     // Station tab widgets
     QLineEdit* m_callsignEdit;
+    QLineEdit* m_firstNameEdit;
+    QLineEdit* m_lastNameEdit;
     QComboBox* m_licenseClassCombo;
     QLineEdit* m_gridSquareEdit;
     QSpinBox* m_cqZoneSpin;

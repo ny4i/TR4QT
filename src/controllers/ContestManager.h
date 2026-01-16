@@ -29,6 +29,12 @@ struct ActivateContestResult {
     int nextSerialNumber = 1;
     QString exchangeSent;  // Sent exchange (e.g., "1H WCF" for WFD)
 
+    // Contest configuration (for Cabrillo export)
+    QString category;        // SINGLE-OP, MULTI-OP, CHECKLOG, etc.
+    QString powerClass;      // HIGH, LOW, QRP
+    QString assisted;        // ASSISTED, NON-ASSISTED
+    QString operatorName;    // Name used for this contest (for {NAME} substitution)
+
     // Loaded QSOs (for existing contests)
     QList<QSO> loadedQSOs;
 
@@ -106,18 +112,13 @@ private:
     /**
      * Find or create contest record in database
      * @param contestInfo Contest info
-     * @param contestDbId Output: database ID
-     * @param nextSerialNumber Output: next serial number
-     * @param exchangeSent Output: sent exchange from database (or contestInfo for new contests)
-     * @param loadedQSOs Output: existing QSOs (empty for new contests)
+     * @param result Output: populated with contest data (contestDbId, nextSerialNumber,
+     *               exchangeSent, loadedQSOs, category, powerClass, assisted, operatorName)
      * @return true on success, false on error
      */
     bool findOrCreateContestRecord(
         const ContestInfo& contestInfo,
-        int& contestDbId,
-        int& nextSerialNumber,
-        QString& exchangeSent,
-        QList<QSO>& loadedQSOs);
+        ActivateContestResult& result);
 
     /**
      * Calculate next serial number from loaded QSOs

@@ -498,6 +498,24 @@ QString AppSettings::getMyCounty() const {
     return m_settings.value("Station/county", "").toString();
 }
 
+void AppSettings::setMyFirstName(const QString& firstName) {
+    m_settings.setValue("Station/firstName", firstName);
+    m_settings.sync();
+}
+
+QString AppSettings::getMyFirstName() const {
+    return m_settings.value("Station/firstName", "").toString();
+}
+
+void AppSettings::setMyLastName(const QString& lastName) {
+    m_settings.setValue("Station/lastName", lastName);
+    m_settings.sync();
+}
+
+QString AppSettings::getMyLastName() const {
+    return m_settings.value("Station/lastName", "").toString();
+}
+
 void AppSettings::setComputerID(const QString& id) {
     m_settings.setValue("Network/computerID", id.toUpper());
     m_settings.sync();

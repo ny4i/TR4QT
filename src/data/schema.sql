@@ -20,7 +20,12 @@ CREATE TABLE IF NOT EXISTS contests (
     exchange_sent TEXT,                 -- My exchange template
     current_serial INTEGER DEFAULT 1,   -- Current serial number
     created_at INTEGER NOT NULL,        -- When log was created
-    notes TEXT                          -- Contest notes
+    notes TEXT,                         -- Contest notes
+    -- Contest configuration (v9)
+    category TEXT,                      -- SINGLE-OP, MULTI-OP, CHECKLOG, etc.
+    power_class TEXT,                   -- HIGH, LOW, QRP
+    operator_name TEXT,                 -- Name used for this contest (may differ from legal name)
+    assisted TEXT                       -- ASSISTED, NON-ASSISTED
 );
 
 CREATE INDEX IF NOT EXISTS idx_contests_id ON contests(contest_id);
