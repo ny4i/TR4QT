@@ -180,6 +180,10 @@ std::optional<int> PSTRotatorController::getAzimuth(int timeoutMs) const
     // Send query command
     QString command = buildQueryAzimuthCommand();
     QByteArray datagram = command.toUtf8();
+
+    LOG_INFO("PSTRotatorController", QString("UDP SEND -> %1:%2 : '%3'")
+        .arg(m_config.ipAddress).arg(m_config.port).arg(command));
+
     qint64 sent = querySocket.writeDatagram(
         datagram,
         QHostAddress(m_config.ipAddress),
@@ -193,6 +197,8 @@ std::optional<int> PSTRotatorController::getAzimuth(int timeoutMs) const
         return std::nullopt;
     }
 
+    LOG_INFO("PSTRotatorController", QString("UDP SEND -> %1 bytes sent").arg(sent));
+
     // Wait for response
     if (!querySocket.waitForReadyRead(timeoutMs)) {
         QString error = QString("No response from rotator on UDP port %1 (timeout after %2ms)")
@@ -205,10 +211,13 @@ std::optional<int> PSTRotatorController::getAzimuth(int timeoutMs) const
     // Read response
     QByteArray responseData;
     responseData.resize(querySocket.pendingDatagramSize());
-    querySocket.readDatagram(responseData.data(), responseData.size());
+    QHostAddress senderAddress;
+    quint16 senderPort;
+    querySocket.readDatagram(responseData.data(), responseData.size(), &senderAddress, &senderPort);
 
     QString response = QString::fromUtf8(responseData).trimmed();
-    LOG_DEBUG("PSTRotatorController", QString("Received response: '%1'").arg(response));
+    LOG_INFO("PSTRotatorController", QString("UDP RECV <- %1:%2 : '%3' (%4 bytes)")
+        .arg(senderAddress.toString()).arg(senderPort).arg(response).arg(responseData.size()));
 
     // Parse response
     return parseAzimuthResponse(response);
@@ -330,6 +339,10 @@ bool PSTRotatorController::sendUdpCommand(const QString& command)
     }
 
     QByteArray datagram = command.toUtf8();
+
+    LOG_INFO("PSTRotatorController", QString("UDP SEND -> %1:%2 : '%3'")
+        .arg(m_config.ipAddress).arg(m_config.port).arg(command));
+
     qint64 sent = m_sendSocket->writeDatagram(
         datagram,
         QHostAddress(m_config.ipAddress),
@@ -342,7 +355,7 @@ bool PSTRotatorController::sendUdpCommand(const QString& command)
         return false;
     }
 
-    LOG_DEBUG("PSTRotatorController", QString("Sent UDP command: '%1'").arg(command));
+    LOG_INFO("PSTRotatorController", QString("UDP SEND -> %1 bytes sent").arg(sent));
     return true;
 }
 
