@@ -1223,4 +1223,8 @@ bool AppSettings::getSCPIncludeLocalLogs() const {
     return m_settings.value("SCP/includeLocalLogs", true).toBool();  // Default: include local logs
 }
 
+QString AppSettings::getValue(const QString& key, const QString& defaultValue) const {
+    return m_settings.value(key, defaultValue).toString();
+}
+
 } // namespace TR4QT

@@ -362,6 +362,15 @@ public:
     void setSCPIncludeLocalLogs(bool include);
     bool getSCPIncludeLocalLogs() const;  // Default: true
 
+    // Generic settings access
+    /**
+     * Get a settings value by key path
+     * @param key Settings key (e.g., "Station/firstName", "Station/state")
+     * @param defaultValue Default value if key doesn't exist
+     * @return Settings value as QString
+     */
+    QString getValue(const QString& key, const QString& defaultValue = QString()) const;
+
 private:
     AppSettings();
     ~AppSettings() = default;

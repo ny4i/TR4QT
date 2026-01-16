@@ -12,6 +12,7 @@
 
 #include <QString>
 #include <QDateTime>
+#include <QList>
 
 namespace TR4QT {
 
@@ -57,6 +58,13 @@ public:
      * @return Contest record, isValid() == false if none found
      */
     ContestRecord findFirst();
+
+    /**
+     * Find all contests in a database file
+     * @param databasePath Path to database file
+     * @return List of contest records (empty if none found or error)
+     */
+    QList<ContestRecord> findAll(const QString& databasePath);
 
     /**
      * Update exchange sent for a contest
