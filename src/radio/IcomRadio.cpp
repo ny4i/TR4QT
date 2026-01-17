@@ -112,8 +112,12 @@ bool IcomRadio::setFrequency(freq_t freq, VFO vfo)
 bool IcomRadio::setBand(BandType band, VFO vfo)
 {
     // Use band edge frequency
-    freq_t freq = bandToBaseFrequency(band);
-    return setFrequency(freq, vfo);
+    // bandToBaseFrequency() returns kHz, but setFrequency() expects Hz
+    freq_t freqKHz = bandToBaseFrequency(band);
+    freq_t freqHz = freqKHz * 1000;
+    LOG_DEBUG("IcomRadio", QString("setBand: %1 -> %2 kHz (%3 Hz)")
+        .arg(bandToString(band)).arg(freqKHz).arg(freqHz));
+    return setFrequency(freqHz, vfo);
 }
 
 bool IcomRadio::setMode(ModeType mode, VFO vfo)
@@ -180,13 +184,24 @@ bool IcomRadio::sendCW(const QString& text)
 bool IcomRadio::setCWSpeed(int wpm)
 {
     // CI-V command 0x14 0x0C = Set CW speed
-    QByteArray data;
-    data.append(0x0C);
+    // Icom uses 0-255 value range for CW speed (typically 6-48 WPM)
+    // Convert WPM to 0-255: value = (wpm - 6) * 255 / 42
+    int value = qBound(0, (wpm - 6) * 255 / 42, 255);
 
-    // Convert WPM to BCD (0-255)
-    quint8 tens = wpm / 10;
-    quint8 ones = wpm % 10;
-    data.append((tens << 4) | ones);
+    // Encode as 2 BCD bytes (little-endian: low byte first)
+    // Example: value 128 -> 0x28 0x01 (28 in first byte, 01 in second)
+    quint8 lowByte = ((value % 100 / 10) << 4) | (value % 10);
+    quint8 highByte = ((value / 1000) << 4) | ((value / 100) % 10);
+
+    QByteArray data;
+    data.append(static_cast<char>(0x0C));  // Sub-command for CW speed
+    data.append(static_cast<char>(lowByte));
+    data.append(static_cast<char>(highByte));
+
+    LOG_DEBUG("IcomRadio", QString("setCWSpeed: wpm=%1 value=%2 -> 0x%3 0x%4")
+        .arg(wpm).arg(value)
+        .arg(lowByte, 2, 16, QChar('0'))
+        .arg(highByte, 2, 16, QChar('0')));
 
     bool success = sendCommand(0x14, data);
 
@@ -468,9 +483,33 @@ void IcomRadio::onCivDataReceived(const QByteArray& data)
 
 void IcomRadio::onCivSocketReady()
 {
-    LOG_INFO("IcomRadio", "CI-V socket ready - starting to poll radio");
-    // Radio is now ready to receive CI-V commands
-    pollRadio();
+    LOG_INFO("IcomRadio", "CI-V socket ready - waiting 200ms for radio to process open before sending commands");
+
+    // CRITICAL: wfview waits for radio acknowledgment after CI-V open before sending commands.
+    // The radio needs time to process the open packet. Without this delay, commands sent
+    // immediately after open are ignored (radio only sends ACKs, no CI-V data).
+    const int CI_V_OPEN_DELAY_MS = 200;
+
+    QTimer::singleShot(CI_V_OPEN_DELAY_MS, this, [this]() {
+        LOG_INFO("IcomRadio", "Delay complete - now sending transceiver ID query (like wfview)");
+
+        // wfview sends a transceiver ID query (0x19 0x00) to broadcast address 0x00 first
+        // This might be required to initialize the CI-V interface
+        QByteArray initCmd;
+        initCmd.append(static_cast<char>(0xFE));
+        initCmd.append(static_cast<char>(0xFE));
+        initCmd.append(static_cast<char>(0x00));  // Broadcast address (like wfview)
+        initCmd.append(static_cast<char>(0xE1));  // Controller address
+        initCmd.append(static_cast<char>(0x19));  // Get transceiver ID command
+        initCmd.append(static_cast<char>(0x00));  // Sub-command
+        initCmd.append(static_cast<char>(0xFD));
+
+        LOG_DEBUG("IcomRadio", QString("Sending transceiver ID query: %1").arg(QString(initCmd.toHex(' '))));
+        m_network->sendCivCommand(initCmd);
+
+        // Now start normal polling
+        pollRadio();
+    });
 }
 
 void IcomRadio::onNetworkError(const QString& error)
@@ -501,10 +540,44 @@ void IcomRadio::pollRadio()
     // Request mode VFO A (command 0x04)
     sendCommand(0x04, QByteArray());
 
+    // Request frequency VFO B (command 0x25 - supported on dual-receiver radios like IC-7610, IC-7760)
+    sendCommand(0x25, QByteArray());
+
+    // Request mode VFO B (command 0x26)
+    sendCommand(0x26, QByteArray());
+
     // Request PTT status (command 0x1C 0x00)
     QByteArray pttCmd;
     pttCmd.append(static_cast<char>(0x00));
     sendCommand(0x1C, pttCmd);
+
+    // Request Split status (command 0x0F)
+    sendCommand(0x0F, QByteArray());
+
+    // Request RIT on/off status (command 0x21 0x01) - IC-7760 returns 2 bytes
+    QByteArray ritOnOffCmd;
+    ritOnOffCmd.append(static_cast<char>(0x01));
+    sendCommand(0x21, ritOnOffCmd);
+
+    // Request RIT offset (command 0x21 0x00) - try this for offset value
+    QByteArray ritOffsetCmd;
+    ritOffsetCmd.append(static_cast<char>(0x00));
+    sendCommand(0x21, ritOffsetCmd);
+
+    // Request XIT on/off status (command 0x21 0x02) - IC-7760 returns 2 bytes
+    QByteArray xitOnOffCmd;
+    xitOnOffCmd.append(static_cast<char>(0x02));
+    sendCommand(0x21, xitOnOffCmd);
+
+    // Request XIT offset (command 0x21 0x03) - try this for offset value
+    QByteArray xitOffsetCmd;
+    xitOffsetCmd.append(static_cast<char>(0x03));
+    sendCommand(0x21, xitOffsetCmd);
+
+    // Request CW speed (command 0x14 0x0C)
+    QByteArray cwSpeedCmd;
+    cwSpeedCmd.append(static_cast<char>(0x0C));
+    sendCommand(0x14, cwSpeedCmd);
 }
 
 QByteArray IcomRadio::buildCivCommand(quint8 command, const QByteArray& data)
@@ -513,7 +586,7 @@ QByteArray IcomRadio::buildCivCommand(quint8 command, const QByteArray& data)
     cmd.append(0xFE);  // Preamble
     cmd.append(0xFE);  // Preamble
     cmd.append(m_civAddress);  // Radio address
-    cmd.append(0xE0);  // Controller address
+    cmd.append(0xE1);  // Controller address (0xE1 like wfview, not 0xE0)
     cmd.append(command);
     cmd.append(data);
     cmd.append(0xFD);  // End marker
@@ -624,12 +697,171 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
         .arg(responseData.length()));
 
     switch (cmd) {
-        case 0x03:  // Frequency response
+        case 0x03:  // Frequency response VFO A
             parseFrequencyResponse(responseData, VFO::VFO_A);
             break;
 
-        case 0x04:  // Mode response
+        case 0x04:  // Mode response VFO A
             parseModeResponse(responseData, VFO::VFO_A);
+            break;
+
+        case 0x25:  // Frequency response VFO B
+            parseFrequencyResponse(responseData, VFO::VFO_B);
+            break;
+
+        case 0x26:  // Mode response VFO B
+            parseModeResponse(responseData, VFO::VFO_B);
+            break;
+
+        case 0x0F:  // Split status response
+            if (responseData.length() >= 1) {
+                QMutexLocker lock(&m_stateMutex);
+                m_state.isSplitEnabled = (responseData[0] == 0x01);
+                LOG_DEBUG("IcomRadio", QString("Split status: %1").arg(m_state.isSplitEnabled ? "ON" : "OFF"));
+            }
+            break;
+
+        case 0x21:  // RIT/XIT status and offset responses
+            if (responseData.length() >= 1) {
+                quint8 subCmd = (quint8)responseData[0];
+                LOG_DEBUG("IcomRadio", QString("0x21 response: subCmd=0x%1 len=%2 data=%3")
+                    .arg(subCmd, 2, 16, QChar('0'))
+                    .arg(responseData.length())
+                    .arg(QString(responseData.toHex(' '))));
+
+                if (subCmd == 0x01) {
+                    // RIT response - format may vary by radio
+                    // IC-7760 on/off status: 0x01 <on/off> (2 bytes total)
+                    // IC-7760 offset:        0x01 <on/off> <offset-bcd-3bytes> <sign> (6 bytes)
+                    if (responseData.length() == 2) {
+                        // On/off status only (push update from front panel)
+                        bool enabled = (responseData[1] == 0x01);
+                        QMutexLocker lock(&m_stateMutex);
+                        m_state.isRitEnabled = enabled;
+                        LOG_DEBUG("IcomRadio", QString("RIT status: %1").arg(enabled ? "ON" : "OFF"));
+                        emit ritChanged(m_state.ritOffsetA, VFO::VFO_A);
+                    } else if (responseData.length() >= 5) {
+                        // Check if byte 1 looks like on/off (0x00 or 0x01) vs BCD
+                        quint8 byte1 = (quint8)responseData[1];
+                        if (byte1 <= 0x01 && responseData.length() >= 6) {
+                            // Format: subCmd + on/off + 3-byte BCD + sign (6 bytes total)
+                            bool enabled = (byte1 == 0x01);
+                            int offset = 0;
+                            offset += (responseData[2] & 0x0F);
+                            offset += ((responseData[2] >> 4) & 0x0F) * 10;
+                            offset += (responseData[3] & 0x0F) * 100;
+                            offset += ((responseData[3] >> 4) & 0x0F) * 1000;
+                            if (responseData[5] != 0x00) offset = -offset;
+                            QMutexLocker lock(&m_stateMutex);
+                            m_state.isRitEnabled = enabled;
+                            m_state.ritOffsetA = offset;
+                            LOG_DEBUG("IcomRadio", QString("RIT: %1, offset: %2 Hz")
+                                .arg(enabled ? "ON" : "OFF").arg(offset));
+                            emit ritChanged(offset, VFO::VFO_A);
+                        } else {
+                            // Format: subCmd + 3-byte BCD + sign (5 bytes total)
+                            int offset = 0;
+                            offset += (responseData[1] & 0x0F);
+                            offset += ((responseData[1] >> 4) & 0x0F) * 10;
+                            offset += (responseData[2] & 0x0F) * 100;
+                            offset += ((responseData[2] >> 4) & 0x0F) * 1000;
+                            if (responseData[4] != 0x00) offset = -offset;
+                            QMutexLocker lock(&m_stateMutex);
+                            m_state.ritOffsetA = offset;
+                            LOG_DEBUG("IcomRadio", QString("RIT offset: %1 Hz (no on/off in response)").arg(offset));
+                        }
+                    }
+                } else if (subCmd == 0x02) {
+                    // XIT response - same format variations as RIT
+                    if (responseData.length() == 2) {
+                        // On/off status only (push update from front panel)
+                        bool enabled = (responseData[1] == 0x01);
+                        QMutexLocker lock(&m_stateMutex);
+                        m_state.isXitEnabled = enabled;
+                        LOG_DEBUG("IcomRadio", QString("XIT status: %1").arg(enabled ? "ON" : "OFF"));
+                        emit xitChanged(m_state.xitOffsetA, VFO::VFO_A);
+                    } else if (responseData.length() >= 5) {
+                        quint8 byte1 = (quint8)responseData[1];
+                        if (byte1 <= 0x01 && responseData.length() >= 6) {
+                            // Format: subCmd + on/off + 3-byte BCD + sign
+                            bool enabled = (byte1 == 0x01);
+                            int offset = 0;
+                            offset += (responseData[2] & 0x0F);
+                            offset += ((responseData[2] >> 4) & 0x0F) * 10;
+                            offset += (responseData[3] & 0x0F) * 100;
+                            offset += ((responseData[3] >> 4) & 0x0F) * 1000;
+                            if (responseData[5] != 0x00) offset = -offset;
+                            QMutexLocker lock(&m_stateMutex);
+                            m_state.isXitEnabled = enabled;
+                            m_state.xitOffsetA = offset;
+                            LOG_DEBUG("IcomRadio", QString("XIT: %1, offset: %2 Hz")
+                                .arg(enabled ? "ON" : "OFF").arg(offset));
+                            emit xitChanged(offset, VFO::VFO_A);
+                        } else {
+                            // Format: subCmd + 3-byte BCD + sign
+                            int offset = 0;
+                            offset += (responseData[1] & 0x0F);
+                            offset += ((responseData[1] >> 4) & 0x0F) * 10;
+                            offset += (responseData[2] & 0x0F) * 100;
+                            offset += ((responseData[2] >> 4) & 0x0F) * 1000;
+                            if (responseData[4] != 0x00) offset = -offset;
+                            QMutexLocker lock(&m_stateMutex);
+                            m_state.xitOffsetA = offset;
+                            LOG_DEBUG("IcomRadio", QString("XIT offset: %1 Hz (no on/off in response)").arg(offset));
+                        }
+                    }
+                } else if (subCmd == 0x00 && responseData.length() >= 4) {
+                    // RIT offset via sub-command 0x00 (some radios use this)
+                    // Format: 0x00 <offset-bcd-2bytes> <sign>
+                    int offset = 0;
+                    offset += (responseData[1] & 0x0F);
+                    offset += ((responseData[1] >> 4) & 0x0F) * 10;
+                    offset += (responseData[2] & 0x0F) * 100;
+                    offset += ((responseData[2] >> 4) & 0x0F) * 1000;
+                    if (responseData[3] != 0x00) offset = -offset;
+                    QMutexLocker lock(&m_stateMutex);
+                    m_state.ritOffsetA = offset;
+                    LOG_DEBUG("IcomRadio", QString("RIT offset (0x00): %1 Hz").arg(offset));
+                } else if (subCmd == 0x03 && responseData.length() >= 4) {
+                    // XIT offset via sub-command 0x03 (some radios use this)
+                    // Format: 0x03 <offset-bcd-2bytes> <sign>
+                    int offset = 0;
+                    offset += (responseData[1] & 0x0F);
+                    offset += ((responseData[1] >> 4) & 0x0F) * 10;
+                    offset += (responseData[2] & 0x0F) * 100;
+                    offset += ((responseData[2] >> 4) & 0x0F) * 1000;
+                    if (responseData[3] != 0x00) offset = -offset;
+                    QMutexLocker lock(&m_stateMutex);
+                    m_state.xitOffsetA = offset;
+                    LOG_DEBUG("IcomRadio", QString("XIT offset (0x03): %1 Hz").arg(offset));
+                } else {
+                    LOG_DEBUG("IcomRadio", QString("0x21 unknown subCmd=0x%1 len=%2").arg(subCmd, 2, 16, QChar('0')).arg(responseData.length()));
+                }
+            }
+            break;
+
+        case 0x14:  // Various levels including CW speed
+            if (responseData.length() >= 2) {
+                quint8 subCmd = (quint8)responseData[0];
+                LOG_DEBUG("IcomRadio", QString("0x14 response: subCmd=0x%1 len=%2 data=%3")
+                    .arg(subCmd, 2, 16, QChar('0'))
+                    .arg(responseData.length())
+                    .arg(QString(responseData.toHex(' '))));
+                if (subCmd == 0x0C && responseData.length() >= 3) {
+                    // CW speed: 2 BCD bytes (0000-0255 maps to min-max WPM)
+                    // Format: 0x0C <high-bcd> <low-bcd>
+                    int value = 0;
+                    value += (responseData[1] & 0x0F);
+                    value += ((responseData[1] >> 4) & 0x0F) * 10;
+                    value += (responseData[2] & 0x0F) * 100;
+                    // Convert 0-255 range to WPM (typically 6-48 WPM range)
+                    // Most Icom radios: value 0=6wpm, 255=48wpm, linear scale
+                    int wpm = 6 + (value * 42) / 255;
+                    QMutexLocker lock(&m_stateMutex);
+                    m_state.cwSpeed = wpm;
+                    LOG_DEBUG("IcomRadio", QString("CW speed: %1 WPM (raw=%2)").arg(wpm).arg(value));
+                }
+            }
             break;
 
         case 0x1C:  // PTT/TX status
@@ -640,6 +872,14 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
 
         case 0x27:  // Scope/transceive data (IC-7610/IC-7760 push updates)
             parseScopeData(responseData);
+            break;
+
+        case 0xFB:  // OK response (command acknowledged)
+            LOG_DEBUG("IcomRadio", "Command acknowledged (OK)");
+            break;
+
+        case 0xFA:  // NG response (command failed)
+            LOG_WARN("IcomRadio", "Command failed (NG)");
             break;
 
         default:

@@ -110,6 +110,9 @@ void SettingsManager::saveWindowGeometry(const WindowGeometry& geometry) {
     // Grayline Map
     settings.saveGraylineMapGeometry(geometry.graylineMapGeometry);
     settings.setGraylineMapVisible(geometry.graylineMapVisible);
+
+    // Ensure local qsettings are written to disk (important on Windows)
+    qsettings.sync();
 }
 
 UdpBroadcastConfig SettingsManager::loadUdpBroadcastConfig() const {

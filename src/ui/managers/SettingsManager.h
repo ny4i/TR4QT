@@ -28,19 +28,19 @@ struct FontConfig {
 struct WindowGeometry {
     QByteArray mainWindowGeometry;
     QByteArray mainWindowState;
-    bool dxClusterVisible;
+    bool dxClusterVisible = false;
     QByteArray dxClusterGeometry;
-    bool bandMapVisible;
+    bool bandMapVisible = false;
     QByteArray bandMapGeometry;
-    bool radioControlVisible;
+    bool radioControlVisible = false;
     QByteArray radioControlGeometry;
-    bool multipliersVisible;
+    bool multipliersVisible = false;
     QByteArray multipliersGeometry;
-    bool statisticsVisible;
+    bool statisticsVisible = false;
     QByteArray statisticsGeometry;
-    bool sectionsMapVisible;
-    bool statesMapVisible;
-    bool graylineMapVisible;
+    bool sectionsMapVisible = false;
+    bool statesMapVisible = false;
+    bool graylineMapVisible = false;
     QByteArray graylineMapGeometry;
     QString currentOperator;
 };

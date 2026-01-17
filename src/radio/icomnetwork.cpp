@@ -18,11 +18,13 @@ IcomNetwork::IcomNetwork(QObject *parent)
     , m_streamOpened(false)
     , m_myId(0)
     , m_remoteId(0)
+    , m_civRemoteId(0)
     , m_authSeq(0x30)
     , m_tokRequest(0)
     , m_token(0)
     , m_sendSeq(1)
-    , m_civSendSeq(0)
+    , m_civSeq(1)           // Outer packet sequence starts at 1 (like wfview)
+    , m_civInnerSeq(0)      // Inner stream sequence starts at 0 (open packet uses 0)
     , m_pingSendSeq(0)
     , m_areYouThereTimer(nullptr)
     , m_pingTimer(nullptr)
@@ -31,6 +33,7 @@ IcomNetwork::IcomNetwork(QObject *parent)
     , m_retransmitTimer(nullptr)
     , m_watchdogTimer(nullptr)
     , m_civStartTimer(nullptr)
+    , m_civDiagnosticTimer(nullptr)
     , m_packetsSent(0)
     , m_packetsLost(0)
     , m_areYouThereCounter(0)
@@ -156,14 +159,15 @@ void IcomNetwork::initCivSocket(quint16 civPort)
 {
     m_civRemotePort = civPort;
 
-    // Find available local port
-    QUdpSocket tempSocket;
-    if (!tempSocket.bind()) {
-        qWarning() << "Failed to find available port for CI-V";
-        return;
-    }
-    m_civLocalPort = tempSocket.localPort();
-    tempSocket.close();
+    // CRITICAL: Reset CI-V sequence counters for new connection
+    // These must start fresh for each CI-V stream (like wfview does)
+    m_civSeq = 1;        // Outer packet sequence starts at 1
+    m_civInnerSeq = 0;   // Inner stream sequence starts at 0 (open packet uses 0)
+    qInfo() << "CI-V sequence counters reset: civSeq=1, civInnerSeq=0";
+
+    // Use the local port we already reserved in selectRadio() and sent to the radio
+    // Do NOT search for a new port here - that would cause a mismatch!
+    // The radio will send CI-V data to the port we told it about.
 
     m_civSocket = new QUdpSocket(this);
     if (!m_civSocket->bind(m_civLocalPort)) {
@@ -173,9 +177,16 @@ void IcomNetwork::initCivSocket(quint16 civPort)
         return;
     }
 
-    qInfo() << "CI-V socket bound to local port" << m_civLocalPort << "remote port" << m_civRemotePort;
+    qInfo() << "CI-V socket bound to local port" << m_civLocalPort << "remote port" << m_civRemotePort
+            << "(this matches the port we told the radio)";
 
     connect(m_civSocket, &QUdpSocket::readyRead, this, &IcomNetwork::onCivDataReceived);
+
+    // DEBUG: Create diagnostic timer to actively poll the socket
+    m_civDiagnosticTimer = new QTimer(this);
+    connect(m_civDiagnosticTimer, &QTimer::timeout, this, &IcomNetwork::checkCivSocketDiagnostic);
+    m_civDiagnosticTimer->start(1000);  // Check every second
+    qInfo() << "CI-V diagnostic timer started";
 
     // Create CI-V timers
     m_civStartTimer = new QTimer(this);
@@ -186,12 +197,13 @@ void IcomNetwork::initCivSocket(quint16 civPort)
     m_watchdogTimer->start(WATCHDOG_PERIOD);
 
     // Send initial "Are You There" on CI-V socket
+    // Note: wfview uses rcvdid=0 for the initial probe, not the control socket ID
     control_packet p;
     memset(&p, 0, sizeof(p));
     p.len = sizeof(p);
     p.type = 0x03;
     p.sentid = m_myId;
-    p.rcvdid = m_remoteId;
+    p.rcvdid = 0;  // Use 0 for initial probe, like wfview does
 
     m_civSocket->writeDatagram(QByteArray::fromRawData((const char*)&p, sizeof(p)), m_radioIP, m_civRemotePort);
 }
@@ -381,43 +393,60 @@ void IcomNetwork::sendCivOpenClose(bool close)
 {
     if (!m_civSocket) return;
 
+    qDebug() << "sendCivOpenClose:" << (close ? "CLOSE" : "OPEN")
+             << "m_civRemoteId:" << QString("0x%1").arg(m_civRemoteId, 8, 16, QChar('0'))
+             << "m_remoteId:" << QString("0x%1").arg(m_remoteId, 8, 16, QChar('0'))
+             << "civSeq:" << m_civSeq << "civInnerSeq:" << m_civInnerSeq;
+
     quint8 magic = close ? 0x00 : 0x04;
 
     openclose_packet p;
     memset(&p, 0, sizeof(p));
     p.len = sizeof(p);
+    p.type = 0x00;  // Type 0 for data/open-close packets
     p.sentid = m_myId;
-    p.rcvdid = m_remoteId;
+    p.rcvdid = m_civRemoteId;  // Use CI-V socket's remote ID
     p.data = 0x01c0;
-    p.sendseq = qToBigEndian(m_civSendSeq);
+    p.sendseq = qToBigEndian(m_civInnerSeq);  // Inner stream sequence (0 for open, like wfview)
     p.magic = magic;
 
-    m_civSendSeq++;
+    m_civInnerSeq++;  // Increment inner sequence after use
 
-    sendTrackedPacket(m_civSocket, QByteArray::fromRawData((const char*)&p, sizeof(p)), m_civSendSeq);
+    QByteArray packet = QByteArray::fromRawData((const char*)&p, sizeof(p));
+    qDebug() << "sendCivOpenClose: Sending packet:" << packet.toHex(' ');
+    sendTrackedPacket(m_civSocket, packet, m_civSeq);  // Use outer packet sequence
+    // Note: m_civSeq is incremented inside sendTrackedPacket, don't increment here!
 }
 
 void IcomNetwork::sendCivCommand(const QByteArray& command)
 {
     if (!m_civSocket || !m_streamOpened) {
-        qWarning() << "Cannot send CI-V command: not connected";
+        qWarning() << "Cannot send CI-V command: not connected (socket:" << m_civSocket << "streamOpened:" << m_streamOpened << ")";
         return;
     }
+    qDebug() << "IcomNetwork::sendCivCommand() - Sending" << command.size() << "bytes to"
+             << m_radioIP.toString() << ":" << m_civRemotePort
+             << "Data:" << command.toHex(' ')
+             << "civSeq:" << m_civSeq << "civInnerSeq:" << m_civInnerSeq;
 
     data_packet p;
     memset(&p, 0, sizeof(p));
     p.len = (quint32)sizeof(p) + command.length();
+    p.type = 0x00;  // Type 0 for data packets
     p.sentid = m_myId;
-    p.rcvdid = m_remoteId;
+    p.rcvdid = m_civRemoteId;  // Use CI-V socket's remote ID
     p.reply = (char)0xc1;
     p.datalen = command.length();
-    p.sendseq = qToBigEndian(m_civSendSeq);
+    p.sendseq = qToBigEndian(m_civInnerSeq);  // Inner CI-V stream sequence
 
     QByteArray packet = QByteArray::fromRawData((const char*)&p, sizeof(p));
     packet.append(command);
 
-    sendTrackedPacket(m_civSocket, packet, m_civSendSeq);
-    m_civSendSeq++;
+    qDebug() << "IcomNetwork::sendCivCommand() - Full packet:" << packet.toHex(' ');
+
+    sendTrackedPacket(m_civSocket, packet, m_civSeq);  // Use outer packet sequence
+    // Note: m_civSeq is incremented inside sendTrackedPacket, don't increment here!
+    m_civInnerSeq++;  // Increment inner sequence after sending
 }
 
 void IcomNetwork::sendTrackedPacket(QUdpSocket* socket, const QByteArray& data, quint16& seqNum)
@@ -480,11 +509,27 @@ void IcomNetwork::onControlDataReceived()
 
 void IcomNetwork::onCivDataReceived()
 {
-    if (!m_civSocket) return;
+    qDebug() << "IcomNetwork::onCivDataReceived() CALLED - socket:" << m_civSocket;
+    if (!m_civSocket) {
+        qDebug() << "IcomNetwork::onCivDataReceived() - m_civSocket is NULL!";
+        return;
+    }
+
+    qDebug() << "IcomNetwork::onCivDataReceived() - hasPendingDatagrams:" << m_civSocket->hasPendingDatagrams();
 
     while (m_civSocket->hasPendingDatagrams()) {
         QNetworkDatagram datagram = m_civSocket->receiveDatagram();
+
+        // Validate datagram before processing - skip invalid/empty datagrams
+        // Invalid datagrams have senderPort=-1 and empty data (socket error or closed)
+        if (!datagram.isValid() || datagram.senderPort() < 0 || datagram.data().isEmpty()) {
+            qDebug() << "IcomNetwork: Skipping invalid datagram - valid:" << datagram.isValid()
+                     << "port:" << datagram.senderPort() << "size:" << datagram.data().size();
+            continue;
+        }
+
         qDebug() << "IcomNetwork: Received CI-V datagram:" << datagram.data().size() << "bytes"
+                 << "from" << datagram.senderAddress().toString() << ":" << datagram.senderPort()
                  << "Data:" << datagram.data().toHex(' ');
         processCivPacket(datagram.data());
     }
@@ -574,8 +619,11 @@ void IcomNetwork::processControlPacket(const QByteArray& data)
                     qInfo() << "Got CI-V port:" << civPort;
 
                     // Initialize CI-V socket
+                    // Note: Don't call sendCivOpenClose() here - we need to wait for
+                    // the CI-V socket's "I am here" response first to get the correct
+                    // civRemoteId. The open command is sent in processCivPacket() when
+                    // we receive the type 0x04 response.
                     initCivSocket(civPort);
-                    sendCivOpenClose(false);
 
                     m_streamOpened = true;
                     setState(Connected);
@@ -668,38 +716,61 @@ void IcomNetwork::processCivPacket(const QByteArray& data)
     if (data.length() == CONTROL_SIZE) {
         qDebug() << "IcomNetwork::processCivPacket: Control packet (type" << ctrl->type << ")";
         if (ctrl->type == 0x04) {
-            // CI-V socket "I am here" - radio is ready to receive CI-V commands
+            // CI-V socket "I am here" - save the CI-V remote ID (different from control socket!)
+            m_civRemoteId = ctrl->sentid;
+            qDebug() << "CI-V socket received 'I am here' - civRemoteId:" << QString("0x%1").arg(m_civRemoteId, 8, 16, QChar('0'));
+
+            // Send type 0x06 ping to CI-V socket (like wfview does)
+            // We must wait for the radio's type 0x06 response before sending CI-V open
+            // Note: Control packets (type 0x06) use the outer seq but don't increment it
+            // wfview uses seq=1 for type 0x06, same as the first data packet
+            qDebug() << "CI-V socket - sending type 0x06 ping (waiting for ready), civSeq:" << m_civSeq;
+            control_packet ping;
+            memset(&ping, 0, sizeof(ping));
+            ping.len = sizeof(ping);
+            ping.type = 0x06;
+            ping.seq = m_civSeq;  // Use current outer seq (will be 1)
+            ping.sentid = m_myId;
+            ping.rcvdid = m_civRemoteId;
+            m_civSocket->writeDatagram(QByteArray::fromRawData((const char*)&ping, sizeof(ping)), m_radioIP, m_civRemotePort);
+        } else if (ctrl->type == 0x06) {
+            // "I am ready" - NOW we can send the CI-V open command
+            qDebug() << "CI-V socket received 'I am ready' - NOW sending CI-V open";
+            sendCivOpenClose(false);
             qDebug() << "CI-V socket ready - emitting civSocketReady signal";
             emit civSocketReady();
-        } else if (ctrl->type == 0x06) {
-            // "I am ready" - start sending CI-V data requests
-            m_remoteId = ctrl->sentid;
-            sendCivOpenClose(false);
-            if (m_civStartTimer) {
-                m_civStartTimer->start(100);
-            }
         }
     } else if (data.length() > CIV_SIZE) {
         // CI-V data packet
         const data_packet* dp = reinterpret_cast<const data_packet*>(data.constData());
         qDebug() << "IcomNetwork::processCivPacket: Data packet (type" << dp->type << "datalen" << dp->datalen << "len" << dp->len << ")";
-        qDebug() << "IcomNetwork::processCivPacket: Validation check: type!= 0x01?" << (dp->type != 0x01)
-                 << "length match?" << (quint16(dp->datalen + 0x15) == (quint16)dp->len)
-                 << "(" << (quint16)(dp->datalen + 0x15) << "==" << (quint16)dp->len << ")";
-        if (dp->type != 0x01 && quint16(dp->datalen + 0x15) == (quint16)dp->len) {
-            // Stop requesting CI-V data - we're getting it
-            if (m_civStartTimer && m_civStartTimer->isActive()) {
-                m_civStartTimer->stop();
+        qDebug() << "IcomNetwork::processCivPacket: Raw data:" << data.toHex(' ');
+
+        // Type 0x00 = normal data, Type 0x01 = retransmit request/ACK
+        // Accept both and look for CI-V data (FE FE pattern)
+        if (dp->type == 0x00 || dp->type == 0x01) {
+            // Look for CI-V data pattern (FE FE) in the packet
+            int civStart = data.indexOf(QByteArray::fromHex("FEFE"));
+            if (civStart >= 0) {
+                // Found CI-V data
+                m_lastCivReceived = QTime::currentTime();
+                if (m_civStartTimer && m_civStartTimer->isActive()) {
+                    m_civStartTimer->stop();
+                }
+
+                // Extract CI-V data from FE FE to FD
+                int civEnd = data.indexOf(0xFD, civStart);
+                if (civEnd > civStart) {
+                    QByteArray civData = data.mid(civStart, civEnd - civStart + 1);
+                    qDebug() << "IcomNetwork::processCivPacket: Found CI-V data:" << civData.toHex(' ');
+                    emit civDataReceived(civData);
+                }
+            } else {
+                // No CI-V data in this packet (might be ACK or retransmit request)
+                qDebug() << "IcomNetwork::processCivPacket: No CI-V data (FE FE) in packet";
             }
-
-            m_lastCivReceived = QTime::currentTime();
-
-            // Extract CI-V data (skip 0x15 byte header)
-            QByteArray civData = data.mid(0x15);
-            qDebug() << "IcomNetwork::processCivPacket: Emitting civDataReceived with" << civData.size() << "bytes";
-            emit civDataReceived(civData);
         } else {
-            qDebug() << "IcomNetwork::processCivPacket: Data packet validation failed";
+            qDebug() << "IcomNetwork::processCivPacket: Unknown data packet type" << dp->type;
         }
     } else {
         qDebug() << "IcomNetwork::processCivPacket: Unknown packet type/length";
@@ -722,6 +793,33 @@ void IcomNetwork::watchdogTimeout()
             m_civStartTimer->start(100);
         }
         sendCivOpenClose(false);
+    }
+}
+
+void IcomNetwork::checkCivSocketDiagnostic()
+{
+    // DEBUG: Actively check socket state every second
+    if (!m_civSocket) {
+        qDebug() << "DIAG: m_civSocket is NULL";
+        return;
+    }
+
+    qDebug() << "DIAG: CI-V socket state:"
+             << "valid=" << m_civSocket->isValid()
+             << "state=" << m_civSocket->state()
+             << "localPort=" << m_civSocket->localPort()
+             << "hasPending=" << m_civSocket->hasPendingDatagrams()
+             << "bytesAvailable=" << m_civSocket->bytesAvailable()
+             << "error=" << m_civSocket->errorString();
+
+    // Try to read any pending data directly (bypass signal)
+    while (m_civSocket->hasPendingDatagrams()) {
+        qDebug() << "DIAG: Found pending datagram! Reading directly...";
+        QNetworkDatagram datagram = m_civSocket->receiveDatagram();
+        qDebug() << "DIAG: Read datagram:" << datagram.data().size() << "bytes"
+                 << "from" << datagram.senderAddress().toString() << ":" << datagram.senderPort()
+                 << "Data:" << datagram.data().toHex(' ');
+        processCivPacket(datagram.data());
     }
 }
 
@@ -756,6 +854,7 @@ void IcomNetwork::cleanup()
     if (m_retransmitTimer) m_retransmitTimer->stop();
     if (m_watchdogTimer) m_watchdogTimer->stop();
     if (m_civStartTimer) m_civStartTimer->stop();
+    if (m_civDiagnosticTimer) m_civDiagnosticTimer->stop();
 
     // Close sockets
     if (m_controlSocket) {
@@ -782,6 +881,7 @@ void IcomNetwork::cleanup()
     m_authenticated = false;
     m_streamOpened = false;
     m_remoteId = 0;
+    m_civRemoteId = 0;
     m_areYouThereCounter = 0;
 
     // CRITICAL: Reset connection state to Disconnected

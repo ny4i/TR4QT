@@ -104,6 +104,7 @@ private slots:
     void sendTokenRenewal();
     void checkRetransmit();
     void watchdogTimeout();
+    void checkCivSocketDiagnostic();  // DEBUG: Periodic check for CI-V data
 
 private:
     // Connection state
@@ -166,14 +167,16 @@ private:
     bool m_authenticated;
     bool m_streamOpened;
     quint32 m_myId;
-    quint32 m_remoteId;
+    quint32 m_remoteId;         // Control socket remote ID
+    quint32 m_civRemoteId;      // CI-V socket remote ID (different from control!)
     quint16 m_authSeq;
     quint16 m_tokRequest;
     quint32 m_token;
 
     // Sequence numbers
     quint16 m_sendSeq;           // Control socket sequence
-    quint16 m_civSendSeq;        // CI-V socket sequence
+    quint16 m_civSeq;            // CI-V socket outer packet sequence (for UDP)
+    quint16 m_civInnerSeq;       // CI-V socket inner stream sequence (sendseq in packet)
     quint16 m_pingSendSeq;
 
     // Timers
@@ -184,6 +187,7 @@ private:
     QTimer* m_retransmitTimer;
     QTimer* m_watchdogTimer;
     QTimer* m_civStartTimer;
+    QTimer* m_civDiagnosticTimer;  // DEBUG: Diagnostic timer to check CI-V socket
 
     // Packet tracking
     QMap<quint16, PacketBufferEntry> m_controlTxBuf;

@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.2";  // Bug fixes: K4 radio, NASA map, QSO logging, database ID
+constexpr const char* APP_VERSION = "3.38.17";  // ICOM CI-V: add CW speed polling/parsing, RIT/XIT offset sub-commands
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
