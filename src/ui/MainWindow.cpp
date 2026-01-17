@@ -1041,6 +1041,17 @@ void MainWindow::saveSettings() {
         geometry.graylineMapVisible = m_graylineMapDialog->isVisible();
     }
 
+    // Debug logging for window visibility
+    LOG_DEBUG("MainWindow", QString("Saving window visibility - DXCluster:%1 BandMap:%2 RadioCtrl:%3 Mult:%4 Stats:%5 Sections:%6 States:%7 Grayline:%8")
+        .arg(geometry.dxClusterVisible)
+        .arg(geometry.bandMapVisible)
+        .arg(geometry.radioControlVisible)
+        .arg(geometry.multipliersVisible)
+        .arg(geometry.statisticsVisible)
+        .arg(geometry.sectionsMapVisible)
+        .arg(geometry.statesMapVisible)
+        .arg(geometry.graylineMapVisible));
+
     // Delegate save to SettingsManager
     m_settingsManager->saveWindowGeometry(geometry);
 }
