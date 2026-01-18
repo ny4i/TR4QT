@@ -261,6 +261,23 @@ This code is derived from the wfview project and should maintain compatible lice
 - Verify radio has CI-V over LAN enabled
 - Some radios require enabling "Network Control" in menu
 
+## General Icom Network Protocol Notes
+
+### Sequence Number Management
+
+**CRITICAL:** All Icom network radios require proper sequence number management (verified on IC-7760, likely applies to IC-7610, IC-9700, etc.):
+
+- **Outer sequence** (UDP packet): Starts at 1, increments per packet
+- **Inner sequence** (CI-V stream): Starts at 0, increments per CI-V command
+- **Must reset both sequences** when opening a new CI-V connection
+- **Common bug:** Double-incrementing the outer sequence causes the radio to request retransmits for "missing" packets
+
+**Implementation:** Increment outer sequence ONLY in `sendTrackedPacket()`, not in the calling functions.
+
+### CI-V Response Timing
+
+After sending the CI-V open command (`0x04`), wait ~200ms before sending additional commands. The radio needs time to process the open packet. Without this delay, commands sent immediately after open are ignored.
+
 ## Radio-Specific Protocol Notes
 
 ### IC-7760
@@ -338,13 +355,9 @@ xitOffset = offset;
 - Default CI-V address: **0xB2**
 - Controller address: **0xE1** (use 0xE1, not the typical 0xE0)
 
-#### Sequence Numbers
+### IC-7610
 
-The IC-7760 requires proper sequence number management:
-- **Outer sequence** (UDP packet): Starts at 1, increments per packet
-- **Inner sequence** (CI-V stream): Starts at 0, increments per CI-V command
-- **Critical:** Reset both sequences when opening a new CI-V connection
-- **Bug to avoid:** Don't double-increment the outer sequence (increment only in `sendTrackedPacket()`)
+*(To be documented after testing - likely shares general sequence number requirements, CW speed format may differ)*
 
 ## Example: Complete Frequency Control
 
