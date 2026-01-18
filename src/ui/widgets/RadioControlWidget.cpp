@@ -478,8 +478,11 @@ void RadioControlWidget::onWpmContextMenu(const QPoint& pos) {
     for (int preset : presets) {
         QPushButton* btn = new QPushButton(QString::number(preset), &popup);
         btn->setMaximumWidth(40);
-        connect(btn, &QPushButton::clicked, [slider, preset]() {
+        connect(btn, &QPushButton::clicked, [this, slider, preset, &popup]() {
             slider->setValue(preset);
+            LOG_INFO("RadioControlWidget", QString("CW speed preset button clicked: %1 WPM").arg(preset));
+            emit cwSpeedChangeRequested(preset);
+            popup.close();
         });
         presetLayout->addWidget(btn);
     }
@@ -491,10 +494,11 @@ void RadioControlWidget::onWpmContextMenu(const QPoint& pos) {
     });
 
     // Send to radio when slider released
-    connect(slider, &QSlider::sliderReleased, [this, slider]() {
+    connect(slider, &QSlider::sliderReleased, [this, slider, &popup]() {
         int newSpeed = slider->value();
         LOG_INFO("RadioControlWidget", QString("CW speed change requested (slider): %1 WPM").arg(newSpeed));
         emit cwSpeedChangeRequested(newSpeed);
+        popup.close();
     });
 
     // Position popup near WPM label
