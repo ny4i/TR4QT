@@ -261,6 +261,33 @@ This code is derived from the wfview project and should maintain compatible lice
 - Verify radio has CI-V over LAN enabled
 - Some radios require enabling "Network Control" in menu
 
+## Contest Operation Requirements
+
+The following CI-V commands are essential for contest operation and must be verified on each supported radio:
+
+| Function | Command | Status (IC-7760) | Notes |
+|----------|---------|------------------|-------|
+| Set Frequency | 0x05 | ✅ Implemented | |
+| Get Frequency | 0x03 | ✅ Implemented | |
+| Set Mode | 0x06 | ✅ Implemented | |
+| Get Mode | 0x04 | ✅ Implemented | |
+| Get Data Setting | 0x1A 0x06 | ⚠️ Not tested | Data mode sub-mode |
+| Split Mode | 0x0F | ✅ Implemented | Get/Set split on/off |
+| Set RIT | 0x21 0x00 | ✅ Implemented | Shared RIT/XIT offset |
+| Get RIT | 0x21 0x00 | ✅ Implemented | Shared RIT/XIT offset |
+| Get Extended VFO | 0x25 | ✅ Implemented | VFO B frequency |
+| Get Extended Mode | 0x26 | ✅ Implemented | VFO B mode |
+| CW Send | 0x17 | ✅ Implemented | Send CW message |
+| Set CW Keyer Speed | 0x14 0x0C | ✅ Implemented | See IC-7760 notes for BCD format |
+| Set Filter Width | 0x1A 0x03 | ❌ TODO | Needs implementation |
+| Send Voice Memory | 0x28 0x00 0x01-08 | ❌ TODO | Voice memory 1-8 |
+| Stop Voice Keyer | 0x28 0x00 0x00 | ❌ TODO | Stop playback |
+
+**Legend:**
+- ✅ Implemented and tested
+- ⚠️ Implemented but not fully tested
+- ❌ Not yet implemented
+
 ## General Icom Network Protocol Notes
 
 ### Sequence Number Management
