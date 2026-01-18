@@ -184,24 +184,31 @@ bool IcomRadio::sendCW(const QString& text)
 bool IcomRadio::setCWSpeed(int wpm)
 {
     // CI-V command 0x14 0x0C = Set CW speed
-    // Icom uses 0-255 value range for CW speed (typically 6-48 WPM)
-    // Convert WPM to 0-255: value = (wpm - 6) * 255 / 42
-    int value = qBound(0, (wpm - 6) * 255 / 42, 255);
+    // IC-7760 uses 0-255 value range encoded as 2 BCD bytes
+    wpm = qBound(6, wpm, 48);  // Typical Icom range: 6-48 WPM
 
-    // Encode as 2 BCD bytes (little-endian: low byte first)
-    // Example: value 128 -> 0x28 0x01 (28 in first byte, 01 in second)
-    quint8 lowByte = ((value % 100 / 10) << 4) | (value % 10);
-    quint8 highByte = ((value / 1000) << 4) | ((value / 100) % 10);
+    // Convert WPM to 0-255 value
+    int value = ((wpm - 6) * 255) / 42;
+    value = qBound(0, value, 255);
+
+    // Convert value to 2 BCD bytes (big-endian)
+    // Example: value=108 → high=01, low=08
+    int hundreds = value / 100;
+    int tens = (value % 100) / 10;
+    int ones = value % 10;
+
+    quint8 bcdHigh = ((hundreds / 10) << 4) | (hundreds % 10);  // Hundreds/thousands
+    quint8 bcdLow = (tens << 4) | ones;  // Tens/ones
 
     QByteArray data;
     data.append(static_cast<char>(0x0C));  // Sub-command for CW speed
-    data.append(static_cast<char>(lowByte));
-    data.append(static_cast<char>(highByte));
+    data.append(static_cast<char>(bcdHigh));
+    data.append(static_cast<char>(bcdLow));
 
-    LOG_DEBUG("IcomRadio", QString("setCWSpeed: wpm=%1 value=%2 -> 0x%3 0x%4")
+    LOG_DEBUG("IcomRadio", QString("setCWSpeed: wpm=%1 -> value=%2 -> BCD 0x%3 0x%4")
         .arg(wpm).arg(value)
-        .arg(lowByte, 2, 16, QChar('0'))
-        .arg(highByte, 2, 16, QChar('0')));
+        .arg(bcdHigh, 2, 16, QChar('0'))
+        .arg(bcdLow, 2, 16, QChar('0')));
 
     bool success = sendCommand(0x14, data);
 
@@ -848,18 +855,31 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
                     .arg(responseData.length())
                     .arg(QString(responseData.toHex(' '))));
                 if (subCmd == 0x0C && responseData.length() >= 3) {
-                    // CW speed: 2 BCD bytes (0000-0255 maps to min-max WPM)
-                    // Format: 0x0C <high-bcd> <low-bcd>
-                    int value = 0;
-                    value += (responseData[1] & 0x0F);
-                    value += ((responseData[1] >> 4) & 0x0F) * 10;
-                    value += (responseData[2] & 0x0F) * 100;
-                    // Convert 0-255 range to WPM (typically 6-48 WPM range)
-                    // Most Icom radios: value 0=6wpm, 255=48wpm, linear scale
-                    int wpm = 6 + (value * 42) / 255;
+                    // CW speed: IC-7760 returns 2 BCD bytes encoding 0-255 value
+                    // Format: 0x0C <bcd-high> <bcd-low> (e.g., 0x01 0x08 = 108)
+                    // Each byte is BCD (0x01 = decimal 01, 0x08 = decimal 08)
+                    // Big-endian: high byte * 100 + low byte
+                    quint8 bcdHigh = (quint8)responseData[1];
+                    quint8 bcdLow = (quint8)responseData[2];
+
+                    // Convert each BCD byte to decimal
+                    int highDecimal = ((bcdHigh >> 4) * 10) + (bcdHigh & 0x0F);
+                    int lowDecimal = ((bcdLow >> 4) * 10) + (bcdLow & 0x0F);
+
+                    // Combine: value = high*100 + low (big-endian)
+                    int value = highDecimal * 100 + lowDecimal;
+
+                    // Convert 0-255 value to WPM (6-48 range)
+                    // Use proper rounding: add half divisor before dividing
+                    int wpm = 6 + (value * 42 + 127) / 255;
+
                     QMutexLocker lock(&m_stateMutex);
                     m_state.cwSpeed = wpm;
-                    LOG_DEBUG("IcomRadio", QString("CW speed: %1 WPM (raw=%2)").arg(wpm).arg(value));
+                    LOG_DEBUG("IcomRadio", QString("CW speed: %1 WPM (BCD 0x%2 0x%3 = value %4)")
+                        .arg(wpm)
+                        .arg(bcdHigh, 2, 16, QChar('0'))
+                        .arg(bcdLow, 2, 16, QChar('0'))
+                        .arg(value));
                 }
             }
             break;
