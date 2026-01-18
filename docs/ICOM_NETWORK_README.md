@@ -237,6 +237,8 @@ This code is derived from the wfview project and should maintain compatible lice
 
 - Icom IC-9700 CI-V Reference Manual
 - Icom IC-7610 CI-V Reference Manual
+- Icom IC-7760 CI-V Reference Manual
+- TR4W Icom CI-V Information: https://github.com/n4af/TR4W/wiki/Icom-CI-V-Information
 - wfview project: https://gitlab.com/eliggett/wfview
 
 ## Troubleshooting
