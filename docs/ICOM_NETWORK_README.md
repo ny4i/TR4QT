@@ -261,6 +261,91 @@ This code is derived from the wfview project and should maintain compatible lice
 - Verify radio has CI-V over LAN enabled
 - Some radios require enabling "Network Control" in menu
 
+## Radio-Specific Protocol Notes
+
+### IC-7760
+
+The IC-7760 has some specific protocol quirks and implementation details:
+
+#### CW Speed (Command 0x14 0x0C)
+
+**Format:** The IC-7760 uses a 2-byte BCD encoding of a 0-255 value range (NOT direct WPM)
+
+**Get Response:**
+```
+0x14 0x0C <bcd-high> <bcd-low>
+```
+
+Example: `0x14 0x0C 0x01 0x08` = BCD "0108" = decimal 108
+
+**Conversion Formula:**
+```cpp
+// BCD to WPM
+int value = ((bcdHigh >> 4) * 10 + (bcdHigh & 0x0F)) * 100 +
+            ((bcdLow >> 4) * 10 + (bcdLow & 0x0F));
+int wpm = 6 + (value * 42 + 127) / 255;  // Round properly
+
+// WPM to BCD
+int value = ((wpm - 6) * 255) / 42;
+int hundreds = value / 100;
+int tens = (value % 100) / 10;
+int ones = value % 10;
+quint8 bcdHigh = ((hundreds / 10) << 4) | (hundreds % 10);
+quint8 bcdLow = (tens << 4) | ones;
+```
+
+**Known Firmware Bug:** The IC-7760 sends value 250 (0x02 0x50) for 48 WPM instead of the correct 255 (0x02 0x55). This causes the calculated speed to be ~47 WPM when the radio displays 48 WPM. Similar off-by-one errors occur at 46-47 WPM. This is a radio firmware issue, not a protocol implementation bug.
+
+#### RIT/XIT (Command 0x21)
+
+The IC-7760 uses a **shared offset** for both RIT and XIT (similar to Elecraft K4 behavior).
+
+**Sub-commands:**
+- `0x21 0x00` - Read/Write shared RIT/XIT offset (4 bytes)
+- `0x21 0x01` - Read/Write RIT on/off (2 bytes: `01 XX` where XX=00/01)
+- `0x21 0x02` - Read/Write XIT on/off (Icom calls this "Delta TX", 2 bytes: `02 XX`)
+- `0x21 0x03` - NOT SUPPORTED (returns only echo, no offset data)
+
+**Shared Offset Format (0x21 0x00):**
+```
+0x00 <bcd-high> <bcd-low> <sign>
+```
+
+Example: `0x00 0x48 0x00` = "0048" Hz positive offset
+
+**Parsing:**
+```cpp
+quint8 bcdHigh = responseData[1];
+quint8 bcdLow = responseData[2];
+quint8 sign = responseData[3];
+
+int offset = ((bcdHigh >> 4) & 0x0F) * 1000 +  // Thousands
+             (bcdHigh & 0x0F) * 100 +           // Hundreds
+             ((bcdLow >> 4) & 0x0F) * 10 +      // Tens
+             (bcdLow & 0x0F);                   // Ones
+
+if (sign != 0x00) offset = -offset;
+
+// Both RIT and XIT use the same offset value
+ritOffset = offset;
+xitOffset = offset;
+```
+
+**Important:** There is only ONE offset value shared by both RIT and XIT. When RIT is enabled, the offset applies to receive. When XIT is enabled, the offset applies to transmit. Both can be enabled simultaneously with the same offset.
+
+#### CI-V Address
+
+- Default CI-V address: **0xB2**
+- Controller address: **0xE1** (use 0xE1, not the typical 0xE0)
+
+#### Sequence Numbers
+
+The IC-7760 requires proper sequence number management:
+- **Outer sequence** (UDP packet): Starts at 1, increments per packet
+- **Inner sequence** (CI-V stream): Starts at 0, increments per CI-V command
+- **Critical:** Reset both sequences when opening a new CI-V connection
+- **Bug to avoid:** Don't double-increment the outer sequence (increment only in `sendTrackedPacket()`)
+
 ## Example: Complete Frequency Control
 
 ```cpp

@@ -561,25 +561,21 @@ void IcomRadio::pollRadio()
     // Request Split status (command 0x0F)
     sendCommand(0x0F, QByteArray());
 
-    // Request RIT on/off status (command 0x21 0x01) - IC-7760 returns 2 bytes
+    // Request shared RIT/XIT offset (command 0x21 0x00)
+    // IC-7760 shares one offset value for both RIT and XIT (like K4)
+    QByteArray offsetCmd;
+    offsetCmd.append(static_cast<char>(0x00));
+    sendCommand(0x21, offsetCmd);
+
+    // Request RIT on/off status (command 0x21 0x01)
     QByteArray ritOnOffCmd;
     ritOnOffCmd.append(static_cast<char>(0x01));
     sendCommand(0x21, ritOnOffCmd);
 
-    // Request RIT offset (command 0x21 0x00) - try this for offset value
-    QByteArray ritOffsetCmd;
-    ritOffsetCmd.append(static_cast<char>(0x00));
-    sendCommand(0x21, ritOffsetCmd);
-
-    // Request XIT on/off status (command 0x21 0x02) - IC-7760 returns 2 bytes
+    // Request XIT on/off status (command 0x21 0x02)
     QByteArray xitOnOffCmd;
     xitOnOffCmd.append(static_cast<char>(0x02));
     sendCommand(0x21, xitOnOffCmd);
-
-    // Request XIT offset (command 0x21 0x03) - try this for offset value
-    QByteArray xitOffsetCmd;
-    xitOffsetCmd.append(static_cast<char>(0x03));
-    sendCommand(0x21, xitOffsetCmd);
 
     // Request CW speed (command 0x14 0x0C)
     QByteArray cwSpeedCmd;
@@ -818,29 +814,35 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
                         }
                     }
                 } else if (subCmd == 0x00 && responseData.length() >= 4) {
-                    // RIT offset via sub-command 0x00 (some radios use this)
-                    // Format: 0x00 <offset-bcd-2bytes> <sign>
+                    // Shared RIT/XIT offset (IC-7760, K4 behavior)
+                    // Format: 0x00 <bcd-high> <bcd-low> <sign>
+                    // BCD is big-endian: high byte = thousands/hundreds, low byte = tens/ones
+                    // Example: 0x00 0x48 0x00 = "0048" = 48 Hz, sign 0x00 = positive
+                    quint8 bcdHigh = (quint8)responseData[1];
+                    quint8 bcdLow = (quint8)responseData[2];
+                    quint8 sign = (quint8)responseData[3];
+
+                    // Convert BCD to decimal (big-endian)
+                    // High byte 0x00 = "00" (thousands and hundreds)
+                    // Low byte 0x48 = "48" (tens and ones)
+                    // Result: 0*1000 + 0*100 + 4*10 + 8*1 = 48 Hz
                     int offset = 0;
-                    offset += (responseData[1] & 0x0F);
-                    offset += ((responseData[1] >> 4) & 0x0F) * 10;
-                    offset += (responseData[2] & 0x0F) * 100;
-                    offset += ((responseData[2] >> 4) & 0x0F) * 1000;
-                    if (responseData[3] != 0x00) offset = -offset;
+                    offset += ((bcdHigh >> 4) & 0x0F) * 1000;  // Thousands digit
+                    offset += (bcdHigh & 0x0F) * 100;          // Hundreds digit
+                    offset += ((bcdLow >> 4) & 0x0F) * 10;     // Tens digit
+                    offset += (bcdLow & 0x0F);                 // Ones digit
+
+                    if (sign != 0x00) offset = -offset;
+
                     QMutexLocker lock(&m_stateMutex);
+                    // IC-7760 shares offset for both RIT and XIT (like K4)
                     m_state.ritOffsetA = offset;
-                    LOG_DEBUG("IcomRadio", QString("RIT offset (0x00): %1 Hz").arg(offset));
-                } else if (subCmd == 0x03 && responseData.length() >= 4) {
-                    // XIT offset via sub-command 0x03 (some radios use this)
-                    // Format: 0x03 <offset-bcd-2bytes> <sign>
-                    int offset = 0;
-                    offset += (responseData[1] & 0x0F);
-                    offset += ((responseData[1] >> 4) & 0x0F) * 10;
-                    offset += (responseData[2] & 0x0F) * 100;
-                    offset += ((responseData[2] >> 4) & 0x0F) * 1000;
-                    if (responseData[3] != 0x00) offset = -offset;
-                    QMutexLocker lock(&m_stateMutex);
                     m_state.xitOffsetA = offset;
-                    LOG_DEBUG("IcomRadio", QString("XIT offset (0x03): %1 Hz").arg(offset));
+                    LOG_DEBUG("IcomRadio", QString("Shared RIT/XIT offset: %1 Hz (BCD 0x%2 0x%3, sign=%4)")
+                        .arg(offset)
+                        .arg(bcdHigh, 2, 16, QChar('0'))
+                        .arg(bcdLow, 2, 16, QChar('0'))
+                        .arg(sign));
                 } else {
                     LOG_DEBUG("IcomRadio", QString("0x21 unknown subCmd=0x%1 len=%2").arg(subCmd, 2, 16, QChar('0')).arg(responseData.length()));
                 }

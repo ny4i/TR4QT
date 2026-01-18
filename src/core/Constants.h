@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.20";  // ICOM CI-V: fix CW speed rounding, preset buttons emit signal
+constexpr const char* APP_VERSION = "3.38.21";  // ICOM CI-V: fix shared RIT/XIT offset (0x21 0x00)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
