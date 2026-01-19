@@ -47,6 +47,7 @@ static constexpr int K4_DEFAULT_RIGCTLD_PORT = 9200;
 PreferencesDialog::PreferencesDialog(QWidget* parent)
     : QDialog(parent)
     , m_k4Discovery(new K4Discovery(this))
+    , m_icomDiscovery(new IcomDiscovery(this))
     , m_portRefreshTimer(new QTimer(this))
 {
     LOG_DEBUG("PreferencesDialog", "*** PreferencesDialog constructor called ***");
@@ -63,6 +64,10 @@ PreferencesDialog::PreferencesDialog(QWidget* parent)
     // Connect K4 Discovery signals
     connect(m_k4Discovery, &K4Discovery::radioFound, this, &PreferencesDialog::onK4RadioFound);
     connect(m_k4Discovery, &K4Discovery::discoveryFinished, this, &PreferencesDialog::onK4DiscoveryFinished);
+
+    // Connect Icom Discovery signals
+    connect(m_icomDiscovery, &IcomDiscovery::radioFound, this, &PreferencesDialog::onIcomRadioFound);
+    connect(m_icomDiscovery, &IcomDiscovery::discoveryFinished, this, &PreferencesDialog::onIcomDiscoveryFinished);
 
     // Setup serial port refresh timer (5 second interval)
     m_portRefreshTimer->setInterval(5000);
@@ -447,10 +452,10 @@ QWidget* PreferencesDialog::createRadioTab() {
     networkLayout->addRow("Icom Password:", m_icomPasswordEdit);
     networkLayout->addRow("Icom Client Name:", m_icomClientNameEdit);
 
-    // Find K4 Radios button
-    m_findK4Button = new QPushButton("Find K4 Radios on Network", this);
-    m_findK4Button->setToolTip("Broadcast UDP discovery message to find Elecraft K4 radios on the network");
-    connect(m_findK4Button, &QPushButton::clicked, this, &PreferencesDialog::onFindK4Radios);
+    // Find Network Radios button (text changes based on selected radio type)
+    m_findK4Button = new QPushButton("Find Radios on Network", this);
+    m_findK4Button->setToolTip("Broadcast UDP discovery message to find radios on the network");
+    connect(m_findK4Button, &QPushButton::clicked, this, &PreferencesDialog::onFindNetworkRadios);
     networkLayout->addRow("", m_findK4Button);
 
     layout->addWidget(m_networkGroup);
@@ -1901,10 +1906,16 @@ void PreferencesDialog::onRadioTypeChanged(int index) {
     // (signal blocker in loadSettings prevents this from running during load)
     if (radioType == 2) {  // ICOM_DIRECT
         m_portSpin->setValue(50001);  // Icom default network port
+        m_findK4Button->setText("Find Icom Radios on Network");
+        m_findK4Button->setToolTip("Broadcast UDP discovery to find Icom radios on the network");
     } else if (radioType == 1) {  // K4_DIRECT
         m_portSpin->setValue(9200);   // K4 default TCP port
+        m_findK4Button->setText("Find K4 Radios on Network");
+        m_findK4Button->setToolTip("Broadcast UDP discovery to find Elecraft K4 radios on the network");
     } else {
         m_portSpin->setValue(4532);   // rigctld default for Hamlib
+        m_findK4Button->setText("Find Radios on Network");
+        m_findK4Button->setToolTip("Broadcast UDP discovery to find radios on the network");
     }
 }
 
@@ -2852,6 +2863,131 @@ void PreferencesDialog::hideEvent(QHideEvent* event) {
     m_portRefreshTimer->stop();
 
     QDialog::hideEvent(event);
+}
+
+void PreferencesDialog::onFindNetworkRadios() {
+    // Dispatcher - calls K4 or Icom discovery based on selected radio type
+    int radioType = m_radioTypeCombo->currentData().toInt();
+
+    if (radioType == 2) {  // ICOM_DIRECT
+        onFindIcomRadios();
+    } else if (radioType == 1) {  // K4_DIRECT
+        onFindK4Radios();
+    } else {
+        // Auto or Hamlib - show info message
+        DialogHelper::information(this, "Network Discovery",
+            "Network discovery is only available for:\n\n"
+            "• K4 Direct (Elecraft K4 radios)\n"
+            "• Icom Direct (Icom network radios)\n\n"
+            "Please select one of these radio types to use discovery.");
+    }
+}
+
+void PreferencesDialog::onFindIcomRadios() {
+    LOG_INFO("PreferencesDialog", "Starting Icom radio discovery...");
+
+    // Clear previous results
+    m_foundIcomRadios.clear();
+
+    // Disable button during discovery
+    m_findK4Button->setEnabled(false);
+    m_findK4Button->setText("Searching...");
+
+    // Start discovery
+    m_icomDiscovery->startDiscovery();
+}
+
+void PreferencesDialog::onIcomRadioFound(const IcomRadioDiscoveryInfo& radio) {
+    LOG_INFO("PreferencesDialog", QString("Icom radio found: %1 (ID: 0x%2) on %3")
+        .arg(radio.ipAddress)
+        .arg(radio.radioId, 8, 16, QChar('0'))
+        .arg(radio.networkInterface));
+
+    m_foundIcomRadios.append(radio);
+}
+
+void PreferencesDialog::onIcomDiscoveryFinished(int count) {
+    LOG_INFO("PreferencesDialog", QString("Icom discovery finished - found %1 radio(s)").arg(count));
+
+    // Re-enable button
+    m_findK4Button->setEnabled(true);
+    m_findK4Button->setText("Find Icom Radios on Network");
+
+    // Display results
+    if (count == 0) {
+        DialogHelper::information(this, "Icom Discovery",
+            "No Icom radios found on the network.\n\n"
+            "Make sure:\n"
+            "• Your Icom radio is powered on\n"
+            "• The radio is connected to the same network\n"
+            "• Your computer's firewall allows UDP port 50001\n"
+            "• Your radio model supports network operation\n"
+            "  (IC-705, IC-7100, IC-7300MK2, IC-7610, IC-7700, IC-7760,\n"
+            "   IC-7800, IC-7850, IC-7851, IC-905, IC-9700, IC-R8600)");
+    } else {
+        QString message = QString("Found %1 Icom radio%2:\n\n")
+            .arg(count)
+            .arg(count == 1 ? "" : "s");
+
+        for (const IcomRadioDiscoveryInfo& radio : m_foundIcomRadios) {
+            message += QString("• IP Address: %1\n")
+                .arg(radio.ipAddress);
+            message += QString("  Radio ID: 0x%1\n")
+                .arg(radio.radioId, 8, 16, QChar('0'));
+            message += QString("  Interface: %1\n\n")
+                .arg(radio.networkInterface);
+        }
+
+        // If network connection is selected, offer to use discovered IP
+        if (m_networkRadio->isChecked()) {
+            if (count == 1) {
+                // Single Icom found - ask if they want to use it
+                message += QString("Use IP address %1?").arg(m_foundIcomRadios.first().ipAddress);
+
+                QMessageBox::StandardButton reply = DialogHelper::question(
+                    this,
+                    "Icom Discovery",
+                    message,
+                    QMessageBox::Yes | QMessageBox::No
+                );
+
+                if (reply == QMessageBox::Yes) {
+                    m_ipAddressEdit->setText(m_foundIcomRadios.first().ipAddress);
+                    m_portSpin->setValue(50001);  // Icom uses port 50001
+                }
+            } else {
+                // Multiple Icom radios found - let user select which one
+                QStringList radioOptions;
+                for (const IcomRadioDiscoveryInfo& radio : m_foundIcomRadios) {
+                    radioOptions << QString("%1 (ID: 0x%2)")
+                        .arg(radio.ipAddress)
+                        .arg(radio.radioId, 8, 16, QChar('0'));
+                }
+
+                bool ok;
+                QString selection = QInputDialog::getItem(
+                    this,
+                    "Select Icom Radio",
+                    message + "\nSelect an Icom radio to use:",
+                    radioOptions,
+                    0,      // default to first item
+                    false,  // not editable
+                    &ok
+                );
+
+                if (ok && !selection.isEmpty()) {
+                    // Find the selected radio and populate IP
+                    int index = radioOptions.indexOf(selection);
+                    if (index >= 0 && index < m_foundIcomRadios.count()) {
+                        m_ipAddressEdit->setText(m_foundIcomRadios[index].ipAddress);
+                        m_portSpin->setValue(50001);  // Icom uses port 50001
+                    }
+                }
+            }
+        } else {
+            DialogHelper::information(this, "Icom Discovery", message);
+        }
+    }
 }
 
 } // namespace TR4QT

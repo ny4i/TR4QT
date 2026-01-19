@@ -29,6 +29,7 @@ The following Icom radios have network/Ethernet interfaces compatible with this 
 ✅ **Authentication** - Handles username/password login with token management
 ✅ **CI-V Commands** - Send and receive CI-V commands over the network
 ✅ **Multiple Radios** - Auto-discovery and selection when multiple radios are available
+✅ **Broadcast Discovery** - Find Icom radios on the network without knowing their IP addresses
 ✅ **Reliable Delivery** - Packet sequence tracking and retransmission
 ✅ **Connection Management** - Automatic keepalive and reconnection
 ❌ **Audio** - Not implemented (control only)
@@ -107,6 +108,62 @@ void MyClass::onCivData(const QByteArray& data)
     // Format: FE FE E0 <radio_addr> <cmd> <data...> FD
 }
 ```
+
+## Broadcast Discovery (IcomDiscovery)
+
+The `IcomDiscovery` class enables automatic discovery of Icom radios on the local network without needing to know their IP addresses in advance.
+
+### Usage
+
+```cpp
+#include "IcomDiscovery.h"
+
+// Create discovery object
+IcomDiscovery* discovery = new IcomDiscovery(this);
+
+// Connect signals
+connect(discovery, &IcomDiscovery::radioFound, this, [](const IcomRadioDiscoveryInfo& radio) {
+    qDebug() << "Found radio at" << radio.ipAddress
+             << "on interface" << radio.networkInterface;
+});
+
+connect(discovery, &IcomDiscovery::discoveryFinished, this, [](int count) {
+    qDebug() << "Discovery complete. Found" << count << "radio(s)";
+});
+
+// Start discovery (broadcasts on all interfaces, waits 3 seconds)
+discovery->startDiscovery();
+```
+
+### How It Works
+
+1. Sends UDP broadcast "Are You There" (type 0x03) packets on all active network interfaces
+2. Listens for "I Am Here" (type 0x04) responses from Icom radios
+3. Collects radio IP addresses, radio IDs, and network interfaces
+4. Emits `radioFound()` for each discovered radio
+5. After 3 seconds, emits `discoveryFinished()` with total count
+
+### IcomRadioDiscoveryInfo Structure
+
+```cpp
+struct IcomRadioDiscoveryInfo {
+    QString ipAddress;          // Radio IP address (e.g., "192.168.1.100")
+    quint32 radioId;            // Radio ID from response packet
+    QString networkInterface;   // Interface where found (e.g., "Ethernet", "Wi-Fi")
+};
+```
+
+### Notes
+
+- Discovery uses UDP port 50001 (standard Icom control port)
+- Broadcasts to subnet broadcast address (x.x.x.255) or global broadcast (255.255.255.255)
+- Works across multiple network interfaces simultaneously
+- Does not require authentication - only discovers radios
+- After discovery, use the IP address with `IcomNetwork::connectToRadio()`
+
+### Integration with PreferencesDialog
+
+TR4QT uses `IcomDiscovery` in the Preferences dialog to populate a list of available Icom radios when the user clicks "Find Icom Radios on Network".
 
 ## Connection Flow
 

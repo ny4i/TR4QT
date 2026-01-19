@@ -16,6 +16,7 @@
 #include "../../radio/RadioInterface.h"
 #include "../../utils/DXClusterListDownloader.h"
 #include "../../utils/K4Discovery.h"
+#include "../../utils/IcomDiscovery.h"
 #include "../widgets/CivAddressWidget.h"
 
 namespace TR4QT {
@@ -93,6 +94,14 @@ private slots:
     void onFindK4Radios();
     void onK4RadioFound(const K4RadioInfo& radio);
     void onK4DiscoveryFinished(int count);
+
+    // Icom Discovery slots
+    void onFindIcomRadios();
+    void onIcomRadioFound(const IcomRadioDiscoveryInfo& radio);
+    void onIcomDiscoveryFinished(int count);
+
+    // Network discovery slot (dispatches to K4 or Icom based on radio type)
+    void onFindNetworkRadios();
 
     // Serial port discovery slots
     void refreshSerialPorts();
@@ -261,6 +270,10 @@ private:
     K4Discovery* m_k4Discovery;
     QPushButton* m_findK4Button;
     QList<K4RadioInfo> m_foundK4Radios;
+
+    // Icom Discovery
+    IcomDiscovery* m_icomDiscovery;
+    QList<IcomRadioDiscoveryInfo> m_foundIcomRadios;
 
     // Sidebar navigation widgets
     QListWidget* m_categoryList;
