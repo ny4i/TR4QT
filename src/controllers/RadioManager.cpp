@@ -58,6 +58,12 @@ RadioManager::RadioManager(QObject* parent)
             this, &RadioManager::onRadioStateUpdated);
     connect(m_radio, &RadioController::errorOccurred,
             this, &RadioManager::onRadioError);
+
+    // Connect fast individual field signals for instant transceive updates
+    // Note: Only frequency/band need fast updates for VFO display
+    // Mode changes are less frequent and handled by periodic stateUpdated
+    connect(m_radio, &RadioController::frequencyChanged,
+            this, &RadioManager::onFrequencyChanged);
 }
 
 RadioManager::~RadioManager()
@@ -275,6 +281,35 @@ void RadioManager::onRadioError(const QString& error)
             .arg(m_radioReconnectAttempts));
         m_radioReconnectTimer->start();
     }
+}
+
+void RadioManager::onFrequencyChanged(freq_t freq, VFO vfo)
+{
+    // Main window displays VFO A only - ignore VFO B updates
+    if (vfo != VFO::VFO_A) {
+        return;
+    }
+
+    // TIMING: Measure how long RadioManager takes to forward frequency signal
+    static QElapsedTimer fwdTimer;
+    static bool fwdTimerStarted = false;
+    if (!fwdTimerStarted) {
+        fwdTimer.start();
+        fwdTimerStarted = true;
+    }
+    qint64 fwdStart = fwdTimer.nsecsElapsed();
+
+    // Fast path: update cached frequency and emit signal immediately for transceive updates
+    // This bypasses the full state update for instant VFO display updates
+    m_currentState.frequencyA = freq;
+    m_currentState.bandA = frequencyToBand(freq);
+
+    emit this->frequencyChanged(freq);
+    emit this->bandChanged(m_currentState.bandA);
+
+    qint64 fwdEnd = fwdTimer.nsecsElapsed();
+    LOG_DEBUG("RadioManager", QString("Frequency forwarded: %1 Hz [forward=%2μs]")
+        .arg(freq).arg((fwdEnd - fwdStart) / 1000));
 }
 
 void RadioManager::onReconnectTimeout()

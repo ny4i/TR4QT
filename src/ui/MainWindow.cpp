@@ -266,6 +266,10 @@ MainWindow::MainWindow(QWidget* parent)
                 updateRadioStatusFlash();
             });
 
+    // Fast frequency update from transceive mode (bypasses slow radioStateUpdated)
+    connect(m_radioManager, &RadioManager::frequencyChanged,
+            this, &MainWindow::onFastFrequencyUpdate);
+
     // NOTE: Radio reconnection and flash timers are now handled by RadioManager
     // These local timers and variables (m_radioReconnectTimer, m_radioFlashTimer, etc.)
     // can be removed in a future cleanup
@@ -1717,6 +1721,37 @@ void MainWindow::onRadioConnected(bool connected) {
     }
 }
 
+void MainWindow::onFastFrequencyUpdate(freq_t freq) {
+    // TIMING: Measure MainWindow's frequency display update latency
+    static QElapsedTimer uiTimer;
+    static bool uiTimerStarted = false;
+    if (!uiTimerStarted) {
+        uiTimer.start();
+        uiTimerStarted = true;
+    }
+    qint64 uiStart = uiTimer.nsecsElapsed();
+
+    // Fast path: Update only frequency display for instant transceive updates
+    // Skip all the heavy processing (UDP broadcast, privilege checks, AUTO S&P, etc.)
+    m_currentState.frequencyA = freq;
+    m_currentState.bandA = frequencyToBand(freq);
+
+    // Update VFO display immediately (3 decimal places for compact radio grid)
+    double freqMHz = freq / 1000000.0;
+    m_radioFreqLabel->setText(QString("%1 MHz").arg(freqMHz, 0, 'f', 3));
+
+    // Update band/mode label
+    if (m_currentState.bandA != BandType::None) {
+        QString bandStr = bandToString(m_currentState.bandA);
+        QString modeStr = modeToString(m_currentState.modeA);
+        m_radioFreqBandLabel->setText(QString("%1 %2").arg(bandStr).arg(modeStr));
+    }
+
+    qint64 uiEnd = uiTimer.nsecsElapsed();
+    LOG_DEBUG("MainWindow", QString("VFO display updated: %1 MHz [ui=%2μs]")
+        .arg(freqMHz, 0, 'f', 3).arg((uiEnd - uiStart) / 1000));
+}
+
 void MainWindow::onRadioStateUpdated(const RadioState& state) {
     // Update cached state
     bool frequencyChanged = (state.frequencyA != m_currentState.frequencyA);
@@ -2820,7 +2855,7 @@ void MainWindow::updateRadioStatusGrid() {
             m_radioFreqBandLabel->setText(modeStr);
         }
 
-        // Update frequency (in MHz with 3 decimal places)
+        // Update frequency (in MHz with 3 decimal places for compact radio grid)
         double freqMHz = m_currentState.frequencyA / 1000000.0;
         m_radioFreqLabel->setText(QString("%1 MHz").arg(freqMHz, 0, 'f', 3));
     } else {

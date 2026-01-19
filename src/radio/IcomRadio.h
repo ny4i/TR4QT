@@ -90,6 +90,14 @@ public:
     // Radio capabilities
     bool supportsDiscreteBandCommand() const override;
 
+    // Model-specific virtual methods (must be implemented by derived classes)
+    virtual QString modelName() const = 0;
+    virtual bool vfoBUsesSubCommand() const = 0;
+    virtual quint8 transceiveParameter2() const = 0;
+    virtual bool supportsTransceive() const = 0;
+    virtual bool supportsVfoB() const = 0;
+    virtual bool supportsScope() const = 0;
+
     // Radio information
     Q_INVOKABLE QList<ModeType> getSupportedModes() const;
     Q_INVOKABLE bool supportsCWSending() const;

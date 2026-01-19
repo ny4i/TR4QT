@@ -22,8 +22,9 @@ struct RadioConfig {
     int stopBits{1};            // Serial stop bits (1, 2) - default 1
     int parity{0};              // Serial parity (0=None, 1=Odd, 2=Even) - default None
     int civAddress{0};          // CI-V address (for Icom radios)
-    int pollInterval{100};      // Polling interval in ms
+    int pollInterval{5000};     // Polling interval in ms (5s slow fallback; transceive provides instant updates)
     int radioType{0};           // RadioFactory::RadioType (0=Hamlib, 1=K4_DIRECT, 2=ICOM_DIRECT, -1=Auto)
+    int connectionMethod{0};    // Connection method (0=Auto, 1=Serial, 2=Network) - Auto detects from port format
 
     // Icom Network Support
     QString icomUsername;       // Icom network username (can be blank)

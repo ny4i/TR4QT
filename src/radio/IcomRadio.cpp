@@ -90,12 +90,12 @@ bool IcomRadio::setFrequency(freq_t freq, VFO vfo)
 
     // CI-V command 0x05 = Set frequency VFO A
     // CI-V command 0x25 = Set frequency VFO B (on dual VFO radios)
-    // IC-7760 format: 0x25 requires sub-command byte 0x01 before BCD data
+    // VFO B format varies by model: IC-7760 uses sub-command byte, IC-9700 uses standard format
     quint8 cmd = (vfo == VFO::VFO_A) ? 0x05 : 0x25;
 
     QByteArray data;
-    if (vfo == VFO::VFO_B) {
-        data.append(0x01);  // Sub-command: 0x01 = VFO B/Sub receiver
+    if (vfo == VFO::VFO_B && vfoBUsesSubCommand()) {
+        data.append(0x01);  // Sub-command: 0x01 = VFO B/Sub receiver (IC-7760 only)
     }
     data.append(bcd);
 
@@ -137,12 +137,12 @@ bool IcomRadio::setMode(ModeType mode, VFO vfo)
 
     // CI-V command 0x06 = Set mode VFO A
     // CI-V command 0x26 = Set mode VFO B
-    // IC-7760 format: 0x26 requires sub-command byte 0x01 before mode/filter data
+    // VFO B format varies by model: IC-7760 uses sub-command byte, IC-9700 uses standard format
     quint8 cmd = (vfo == VFO::VFO_A) ? 0x06 : 0x26;
 
     QByteArray data;
-    if (vfo == VFO::VFO_B) {
-        data.append(0x01);  // Sub-command: 0x01 = VFO B/Sub receiver
+    if (vfo == VFO::VFO_B && vfoBUsesSubCommand()) {
+        data.append(0x01);  // Sub-command: 0x01 = VFO B/Sub receiver (IC-7760 only)
     }
     data.append(icomMode);
     data.append(0x01);  // Filter setting (01 = FIL1, normal default)
@@ -515,7 +515,16 @@ void IcomRadio::onNetworkDisconnected()
 
 void IcomRadio::onCivDataReceived(const QByteArray& data)
 {
-    LOG_DEBUG("IcomRadio", QString("Received CI-V data: %1 bytes").arg(data.size()));
+    // TIMING: Record when CI-V data arrives from network
+    static QElapsedTimer timer;
+    static bool timerStarted = false;
+    if (!timerStarted) {
+        timer.start();
+        timerStarted = true;
+    }
+    qint64 timestamp = timer.nsecsElapsed();
+
+    LOG_DEBUG("IcomRadio", QString("Received CI-V data: %1 bytes [T=%2ns]").arg(data.size()).arg(timestamp));
     parseCivResponse(data);
 }
 
@@ -545,7 +554,15 @@ void IcomRadio::onCivSocketReady()
         LOG_DEBUG("IcomRadio", QString("Sending transceiver ID query: %1").arg(QString(initCmd.toHex(' '))));
         m_network->sendCivCommand(initCmd);
 
-        // Now start normal polling
+        // NOTE: We do NOT send a transceive ON command here!
+        // Reason: User has already enabled "CI-V Transceive" in the radio menu.
+        // Sending the command when it's already ON can disrupt the transceive mechanism.
+        // Following wfview's approach: rely on the radio's menu setting.
+        //
+        // If transceive is OFF in radio menu, user will see slow updates (polling only).
+        // Solution: Tell user to enable "CI-V Transceive" in radio menu, not send command.
+
+        // Now start normal polling (slow fallback in case transceive stops working)
         pollRadio();
     });
 }
@@ -581,17 +598,20 @@ void IcomRadio::pollRadio()
     // Request frequency VFO B (command 0x25)
     // Supported radios: IC-705, IC-7100, IC-7300, IC-7800, IC-7850, IC-7851,
     //                   IC-7600, IC-7610, IC-7700, IC-7760, IC-905, IC-9700
-    // IC-7760 requires sub-command byte 0x01 to specify VFO B/Sub receiver
-    // Other radios may use standard format (no sub-command byte)
+    // VFO B format varies by model: IC-7760 uses sub-command byte, IC-9700 uses standard format
     // See docs/ICOM_NETWORK_README.md "VFO B Support" section for details
     QByteArray vfoBFreqCmd;
-    vfoBFreqCmd.append(0x01);
+    if (vfoBUsesSubCommand()) {
+        vfoBFreqCmd.append(0x01);  // Sub-command: 0x01 = VFO B/Sub receiver (IC-7760 only)
+    }
     sendCommand(0x25, vfoBFreqCmd);
 
     // Request mode VFO B (command 0x26)
-    // IC-7760 requires sub-command byte 0x01 to specify VFO B/Sub receiver
+    // VFO B format varies by model: IC-7760 uses sub-command byte, IC-9700 uses standard format
     QByteArray vfoBModeCmd;
-    vfoBModeCmd.append(0x01);
+    if (vfoBUsesSubCommand()) {
+        vfoBModeCmd.append(0x01);  // Sub-command: 0x01 = VFO B/Sub receiver (IC-7760 only)
+    }
     sendCommand(0x26, vfoBModeCmd);
 
     // Request PTT status (command 0x1C 0x00)
@@ -622,6 +642,10 @@ void IcomRadio::pollRadio()
     QByteArray cwSpeedCmd;
     cwSpeedCmd.append(static_cast<char>(0x0C));
     sendCommand(0x14, cwSpeedCmd);
+
+    // Emit full state update after polling (periodic sync every 5 seconds)
+    // Individual field changes (frequency, mode, etc.) emit their own signals instantly via transceive
+    emit stateUpdated(getCurrentState());
 }
 
 QByteArray IcomRadio::buildCivCommand(quint8 command, const QByteArray& data)
@@ -725,7 +749,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
         return;
     }
 
-    // Check for valid CI-V response: FE FE E0 <radio> <cmd> <data> FD
+    // Check for valid CI-V preamble: FE FE
     if (data[0] != (char)0xFE || data[1] != (char)0xFE) {
         LOG_DEBUG("IcomRadio", QString("parseCivResponse: invalid preamble (got %1 %2)")
             .arg((quint8)data[0], 2, 16, QChar('0'))
@@ -733,10 +757,31 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
         return;
     }
 
+    // Extract addresses and command
+    quint8 destAddr = (quint8)data[2];
+    quint8 srcAddr = (quint8)data[3];
     quint8 cmd = (quint8)data[4];
     QByteArray responseData = data.mid(5, data.length() - 6);  // Strip preamble and FD
 
-    LOG_DEBUG("IcomRadio", QString("parseCivResponse: command=0x%1 dataLen=%2")
+    // Filter by destination address (following wfview's approach):
+    // We accept three types of packets:
+    //   1. E0/E1 (controller address) - responses to our commands
+    //   2. 0x00 (broadcast address) - unsolicited transceive updates from radio
+    //   3. Packets TO THE RADIO (e.g., 0xB2) are command echoes - IGNORE these
+    const quint8 CONTROLLER_ADDR = 0xE0;  // PC address (radio replies to this)
+    const quint8 CONTROLLER_ADDR_ALT = 0xE1;  // Alternative PC address (we send from this)
+    const quint8 BROADCAST_ADDR = 0x00;  // Broadcast for transceive updates
+
+    if (destAddr != CONTROLLER_ADDR && destAddr != CONTROLLER_ADDR_ALT && destAddr != BROADCAST_ADDR) {
+        // Packet not for us - likely a command echo or for other equipment
+        LOG_DEBUG("IcomRadio", QString("parseCivResponse: ignoring packet (dest=0x%1, not for controller/broadcast)")
+            .arg(destAddr, 2, 16, QChar('0')));
+        return;
+    }
+
+    LOG_DEBUG("IcomRadio", QString("parseCivResponse: dest=0x%1 src=0x%2 cmd=0x%3 dataLen=%4")
+        .arg(destAddr, 2, 16, QChar('0'))
+        .arg(srcAddr, 2, 16, QChar('0'))
         .arg(cmd, 2, 16, QChar('0'))
         .arg(responseData.length()));
 
@@ -953,34 +998,51 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
             break;
     }
 
-    // Emit state update
-    emit stateUpdated(getCurrentState());
+    // NOTE: Do NOT emit stateUpdated() here! This function is called for every transceive update
+    // (dozens per second when turning knob), and copying/emitting the entire RadioState struct
+    // creates a ~250ms delay. Individual signals (frequencyChanged, modeChanged, etc.) are
+    // already emitted by the parse functions above. Full state sync happens via pollRadio() every 5s.
 }
 
 void IcomRadio::parseFrequencyResponse(const QByteArray& data, VFO vfo)
 {
-    // IC-7760 (and other dual-receiver radios) include a sub-command byte in VFO B responses
-    // VFO A response: 5 bytes BCD (e.g., FE FE E0 B2 03 00 00 50 03 00 FD)
-    // VFO B response: 6 bytes = 1 byte sub-cmd + 5 bytes BCD (e.g., FE FE E0 B2 25 01 00 00 50 03 00 FD)
-    //                          sub-cmd: 0x00=Main, 0x01=Sub/VFO B
+    // VFO B format varies by model:
+    // - IC-7760: 6 bytes = 1 byte sub-cmd + 5 bytes BCD (e.g., FE FE E0 B2 25 01 00 00 50 03 00 FD)
+    // - IC-9700: 5 bytes BCD (standard format, same as VFO A)
+    // VFO A response: Always 5 bytes BCD (e.g., FE FE E0 B2 03 00 00 50 03 00 FD)
 
     QByteArray bcdData;
 
-    if (data.length() == 6 && vfo == VFO::VFO_B) {
-        // IC-7760 format: skip first byte (sub-command), parse remaining 5 bytes as BCD
-        quint8 subCmd = (quint8)data[0];
-        bcdData = data.mid(1, 5);
-        LOG_DEBUG("IcomRadio", QString("VFO B frequency response: subCmd=0x%1 (format: IC-7760 with sub-command)")
-            .arg(subCmd, 2, 16, QChar('0')));
+    if (vfo == VFO::VFO_B && vfoBUsesSubCommand()) {
+        // Model uses sub-command byte for VFO B (e.g., IC-7760)
+        if (data.length() == 6) {
+            quint8 subCmd = (quint8)data[0];
+            bcdData = data.mid(1, 5);
+            LOG_DEBUG("IcomRadio", QString("VFO B frequency response: subCmd=0x%1 (format: %2 with sub-command)")
+                .arg(subCmd, 2, 16, QChar('0'))
+                .arg(modelName()));
+        } else {
+            LOG_WARN("IcomRadio", QString("Expected 6-byte VFO B response for %1, got %2 bytes").arg(modelName()).arg(data.length()));
+            return;
+        }
     } else if (data.length() == 5) {
         // Standard format: 5 bytes BCD
         bcdData = data;
     } else {
-        LOG_WARN("IcomRadio", QString("Unexpected frequency response length: %1 bytes (expected 5 or 6)").arg(data.length()));
+        LOG_WARN("IcomRadio", QString("Unexpected frequency response length: %1 bytes (expected 5)").arg(data.length()));
         return;
     }
 
     freq_t freq = bcdToFrequency(bcdData);
+
+    // TIMING: Measure frequency change signal emission time
+    static QElapsedTimer parseTimer;
+    static bool parseTimerStarted = false;
+    if (!parseTimerStarted) {
+        parseTimer.start();
+        parseTimerStarted = true;
+    }
+    qint64 parseStart = parseTimer.nsecsElapsed();
 
     QMutexLocker lock(&m_stateMutex);
     if (vfo == VFO::VFO_A) {
@@ -993,24 +1055,34 @@ void IcomRadio::parseFrequencyResponse(const QByteArray& data, VFO vfo)
     updateBandMemory(freq);  // Track last-used frequency for this band
 
     emit frequencyChanged(freq, vfo);
+
+    qint64 parseEnd = parseTimer.nsecsElapsed();
+    LOG_DEBUG("IcomRadio", QString("Frequency parsed and emitted: %1 Hz [parse=%2μs]")
+        .arg(freq).arg((parseEnd - parseStart) / 1000));
 }
 
 void IcomRadio::parseModeResponse(const QByteArray& data, VFO vfo)
 {
-    // IC-7760 (and other dual-receiver radios) include a sub-command byte in VFO B responses
-    // VFO A response: 2 bytes (mode + filter)
-    // VFO B response: 3 bytes = 1 byte sub-cmd + mode + filter
-    //                          sub-cmd: 0x00=Main, 0x01=Sub/VFO B
+    // VFO B format varies by model:
+    // - IC-7760: 3 bytes = 1 byte sub-cmd + mode + filter
+    // - IC-9700: 2 bytes (mode + filter, standard format)
+    // VFO A response: Always 2 bytes (mode + filter)
 
     quint8 modeData;
 
-    if (data.length() == 3 && vfo == VFO::VFO_B) {
-        // IC-7760 format: skip first byte (sub-command), parse second byte as mode
-        quint8 subCmd = (quint8)data[0];
-        modeData = (quint8)data[1];
-        LOG_DEBUG("IcomRadio", QString("VFO B mode response: subCmd=0x%1 mode=0x%2 (format: IC-7760 with sub-command)")
-            .arg(subCmd, 2, 16, QChar('0'))
-            .arg(modeData, 2, 16, QChar('0')));
+    if (vfo == VFO::VFO_B && vfoBUsesSubCommand()) {
+        // Model uses sub-command byte for VFO B (e.g., IC-7760)
+        if (data.length() == 3) {
+            quint8 subCmd = (quint8)data[0];
+            modeData = (quint8)data[1];
+            LOG_DEBUG("IcomRadio", QString("VFO B mode response: subCmd=0x%1 mode=0x%2 (format: %3 with sub-command)")
+                .arg(subCmd, 2, 16, QChar('0'))
+                .arg(modeData, 2, 16, QChar('0'))
+                .arg(modelName()));
+        } else {
+            LOG_WARN("IcomRadio", QString("Expected 3-byte VFO B response for %1, got %2 bytes").arg(modelName()).arg(data.length()));
+            return;
+        }
     } else if (data.length() >= 1) {
         // Standard format: first byte is mode
         modeData = (quint8)data[0];

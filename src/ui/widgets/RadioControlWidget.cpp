@@ -242,14 +242,14 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
         .arg(state.isXitEnabled ? "ON" : "OFF").arg(QString::number(state.xitOffsetA))
         .arg(state.isSplitEnabled ? "ON" : "OFF"));
 
-    // Update VFO A frequency (show full precision from hamlib - typically 1 Hz or 10 Hz)
+    // Update VFO A frequency (show full precision: 6 decimal places = 1 Hz precision)
     double freqMhz = state.frequencyA / 1000000.0;
-    m_vfoAFreqLabel->setText(QString::number(freqMhz, 'f', 5));
+    m_vfoAFreqLabel->setText(QString::number(freqMhz, 'f', 6));
 
-    // Update VFO B frequency
+    // Update VFO B frequency (6 decimal places = 1 Hz precision, matching radio display)
     if (state.frequencyB > 0) {
         double freqBMhz = state.frequencyB / 1000000.0;
-        m_vfoBFreqLabel->setText(QString::number(freqBMhz, 'f', 5));
+        m_vfoBFreqLabel->setText(QString::number(freqBMhz, 'f', 6));
     } else {
         m_vfoBFreqLabel->setText("---");
     }

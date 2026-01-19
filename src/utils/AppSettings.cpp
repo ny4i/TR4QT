@@ -93,7 +93,7 @@ RadioConfig AppSettings::loadRadioConfig() const {
     config.port = m_settings.value("port", "").toString();
     config.baudRate = m_settings.value("baudRate", 38400).toInt();
     config.civAddress = m_settings.value("civAddress", 0).toInt();
-    config.pollInterval = m_settings.value("pollInterval", 100).toInt();
+    config.pollInterval = m_settings.value("pollInterval", 5000).toInt();  // Default 5s (transceive provides instant updates)
     config.radioType = m_settings.value("radioType", -1).toInt();  // Default: -1 (Auto)
     config.icomUsername = m_settings.value("icomUsername", "").toString();
     config.icomPassword = m_settings.value("icomPassword", "").toString();
@@ -154,7 +154,7 @@ QList<RadioProfile> AppSettings::loadRadioProfiles() const {
         profile.config.stopBits = m_settings.value("stopBits", 1).toInt();
         profile.config.parity = m_settings.value("parity", 0).toInt();
         profile.config.civAddress = m_settings.value("civAddress", 0).toInt();
-        profile.config.pollInterval = m_settings.value("pollInterval", 100).toInt();
+        profile.config.pollInterval = m_settings.value("pollInterval", 5000).toInt();  // Default 5s (transceive provides instant updates)
         profile.config.radioType = m_settings.value("radioType", -1).toInt();
         profile.config.icomUsername = m_settings.value("icomUsername", "").toString();
         profile.config.icomPassword = m_settings.value("icomPassword", "").toString();

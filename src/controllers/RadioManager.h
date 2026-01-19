@@ -149,6 +149,13 @@ private slots:
     void onRadioError(const QString& error);
 
     /**
+     * Handle fast frequency updates from transceive mode
+     * @param freq New frequency in Hz
+     * @param vfo Which VFO changed (only VFO A is forwarded to main window)
+     */
+    void onFrequencyChanged(freq_t freq, VFO vfo);
+
+    /**
      * Handle reconnection timer timeout
      * Attempts to reconnect to radio using last configuration
      */
