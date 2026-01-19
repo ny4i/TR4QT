@@ -5,6 +5,7 @@ namespace TR4QT {
 // FCC Part 97 Phone Segment Start Frequencies (MHz)
 // Source: ARRL Band Chart, FCC Part 97.301(e)
 const HamRadioPrivileges::BandPrivileges HamRadioPrivileges::PRIVILEGES[] = {
+    // HF Bands - Various restrictions by license class
     // Band        Tech      General   Extra
     {BandType::Band160M, 0.000,   1.800,    1.800},   // Tech: No privileges
     {BandType::Band80M,  0.000,   3.600,    3.600},   // Tech: No phone (CW only 3.525-3.600)
@@ -13,6 +14,12 @@ const HamRadioPrivileges::BandPrivileges HamRadioPrivileges::PRIVILEGES[] = {
     {BandType::Band15M,  21.300,  21.275,   21.200},  // Tech: Limited (21.300-21.450)
     {BandType::Band10M,  28.300,  28.300,   28.300},  // All classes same
     {BandType::Band6M,   50.100,  50.100,   50.100},  // All classes same
+
+    // VHF/UHF Bands - Full privileges for all license classes (including Technician)
+    {BandType::Band2M,   144.100, 144.100,  144.100}, // Phone starts 144.1 (CW only 144.0-144.1)
+    {BandType::Band1_25M,222.000, 222.000,  222.000}, // All modes (222-225 MHz)
+    {BandType::Band70CM, 420.000, 420.000,  420.000}, // All modes (420-450 MHz)
+    {BandType::Band23CM, 1240.000,1240.000, 1240.000},// All modes (1240-1300 MHz)
 };
 
 const int HamRadioPrivileges::PRIVILEGE_COUNT = sizeof(PRIVILEGES) / sizeof(PRIVILEGES[0]);

@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.36";  // Add Icom broadcast discovery (IcomDiscovery class)
+constexpr const char* APP_VERSION = "3.38.37";  // Add radio profile management (save/edit/delete/select)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

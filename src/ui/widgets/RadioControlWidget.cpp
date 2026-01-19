@@ -428,8 +428,13 @@ void RadioControlWidget::onWpmContextMenu(const QPoint& pos) {
         return;
     }
 
-    const int MIN_WPM = 8;   // K4 minimum
-    const int MAX_WPM = 100; // K4 maximum
+    // Get radio-specific WPM range from RadioController (polymorphic)
+    int MIN_WPM = 5;    // Default fallback
+    int MAX_WPM = 60;   // Default fallback
+    if (m_radioController) {
+        m_radioController->getCWSpeedRange(MIN_WPM, MAX_WPM);
+        LOG_DEBUG("RadioControlWidget", QString("Radio CW speed range: %1-%2 WPM").arg(MIN_WPM).arg(MAX_WPM));
+    }
 
     // Create compact popup dialog with slider
     QDialog popup(this);

@@ -20,15 +20,24 @@ bool RadioPreflightHelper::icmpPing(const QString& host, int timeoutMs)
 #ifdef Q_OS_WIN
     // Windows: ping -n 1 -w timeout_ms host
     pingProcess.setArguments({"-n", "1", "-w", QString::number(timeoutMs), host});
+    LOG_DEBUG("RadioPreflight", QString("Running: ping -n 1 -w %1 %2").arg(timeoutMs).arg(host));
 #else
     // macOS/Linux: ping -c 1 -W timeout_seconds host
     int timeoutSec = (timeoutMs + 999) / 1000;  // Round up to nearest second
     pingProcess.setArguments({"-c", "1", "-W", QString::number(timeoutSec), host});
+    LOG_DEBUG("RadioPreflight", QString("Running: ping -c 1 -W %1 %2").arg(timeoutSec).arg(host));
 #endif
 
     QElapsedTimer timer;
     timer.start();
     pingProcess.start();
+
+    // Check if process started
+    if (!pingProcess.waitForStarted(1000)) {
+        LOG_ERROR("RadioPreflight", QString("ICMP ping: Failed to start ping process (error: %1)")
+            .arg(pingProcess.errorString()));
+        return false;
+    }
 
     // Wait for ping to complete (with timeout)
     bool finished = pingProcess.waitForFinished(timeoutMs + 500);  // Add 500ms margin
@@ -41,14 +50,26 @@ bool RadioPreflightHelper::icmpPing(const QString& host, int timeoutMs)
         return false;
     }
 
+    // Read output before checking exit code (important on Windows)
+    QString output = QString::fromLocal8Bit(pingProcess.readAllStandardOutput());
+    QString error = QString::fromLocal8Bit(pingProcess.readAllStandardError());
+
     int exitCode = pingProcess.exitCode();
-    if (exitCode == 0) {
+    QProcess::ExitStatus exitStatus = pingProcess.exitStatus();
+
+    LOG_DEBUG("RadioPreflight", QString("Ping completed: exitCode=%1, exitStatus=%2, elapsed=%3ms")
+        .arg(exitCode)
+        .arg(exitStatus == QProcess::NormalExit ? "NormalExit" : "CrashExit")
+        .arg(elapsed));
+
+    if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
         LOG_DEBUG("RadioPreflight", QString("ICMP ping: SUCCESS - %1 is reachable (took %2ms)")
             .arg(host).arg(elapsed));
+        if (!output.isEmpty()) {
+            LOG_DEBUG("RadioPreflight", QString("Ping output: %1").arg(output.trimmed()));
+        }
         return true;
     } else {
-        QString output = QString::fromLocal8Bit(pingProcess.readAllStandardOutput());
-        QString error = QString::fromLocal8Bit(pingProcess.readAllStandardError());
         LOG_WARN("RadioPreflight", QString("ICMP ping: FAILED - %1 unreachable (exit code %2, took %3ms)")
             .arg(host).arg(exitCode).arg(elapsed));
         if (!output.isEmpty()) {
@@ -182,6 +203,7 @@ bool RadioPreflightHelper::radioSpecificPreflight(rig_model_t radioModel, const 
         // Supported Icom network radios (model IDs 3000-3999)
         case 3090:  // IC-905
         case 3077:  // IC-9700
+        case 3081:  // IC-9700 (alternative Hamlib ID)
         case 3078:  // IC-7610
         case 3071:  // IC-7600
         case 3074:  // IC-7300MK2

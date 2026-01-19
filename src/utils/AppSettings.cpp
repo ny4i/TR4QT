@@ -2,6 +2,7 @@
 #include "../core/Constants.h"
 #include "../network/UdpBroadcaster.h"
 #include "PathManager.h"
+#include "../logging/LogMacros.h"
 #include <QDir>
 #include <QFileInfo>
 
@@ -16,6 +17,7 @@ AppSettings::AppSettings()
     : m_settings(APP_ORG, APP_NAME)
 {
     migrateLegacyPaths();
+    migrateToRadioProfiles();
 }
 
 void AppSettings::migrateLegacyPaths() {
@@ -105,6 +107,110 @@ bool AppSettings::hasRadioConfig() const {
     bool hasConfig = m_settings.contains("modelId") && m_settings.contains("port");
     m_settings.endGroup();
     return hasConfig;
+}
+
+// Radio profiles (multi-config system)
+void AppSettings::saveRadioProfiles(const QList<RadioProfile>& profiles) {
+    m_settings.beginGroup("RadioProfiles");
+    m_settings.remove("Profiles");  // Clear old entries
+
+    m_settings.beginWriteArray("Profiles");
+    for (int i = 0; i < profiles.size(); ++i) {
+        m_settings.setArrayIndex(i);
+        m_settings.setValue("name", profiles[i].name);
+        m_settings.setValue("hamlibModelId", profiles[i].config.hamlibModelId);
+        m_settings.setValue("port", profiles[i].config.port);
+        m_settings.setValue("baudRate", profiles[i].config.baudRate);
+        m_settings.setValue("dataBits", profiles[i].config.dataBits);
+        m_settings.setValue("stopBits", profiles[i].config.stopBits);
+        m_settings.setValue("parity", profiles[i].config.parity);
+        m_settings.setValue("civAddress", profiles[i].config.civAddress);
+        m_settings.setValue("pollInterval", profiles[i].config.pollInterval);
+        m_settings.setValue("radioType", profiles[i].config.radioType);
+        m_settings.setValue("icomUsername", profiles[i].config.icomUsername);
+        m_settings.setValue("icomPassword", profiles[i].config.icomPassword);
+        m_settings.setValue("icomClientName", profiles[i].config.icomClientName);
+        m_settings.setValue("lastUsed", profiles[i].lastUsed);
+        m_settings.setValue("notes", profiles[i].notes);
+    }
+    m_settings.endArray();
+    m_settings.endGroup();
+    m_settings.sync();
+}
+
+QList<RadioProfile> AppSettings::loadRadioProfiles() const {
+    QList<RadioProfile> profiles;
+
+    m_settings.beginGroup("RadioProfiles");
+    int size = m_settings.beginReadArray("Profiles");
+    for (int i = 0; i < size; ++i) {
+        m_settings.setArrayIndex(i);
+        RadioProfile profile;
+        profile.name = m_settings.value("name").toString();
+        profile.config.hamlibModelId = m_settings.value("hamlibModelId", 0).toInt();
+        profile.config.port = m_settings.value("port", "").toString();
+        profile.config.baudRate = m_settings.value("baudRate", 38400).toInt();
+        profile.config.dataBits = m_settings.value("dataBits", 8).toInt();
+        profile.config.stopBits = m_settings.value("stopBits", 1).toInt();
+        profile.config.parity = m_settings.value("parity", 0).toInt();
+        profile.config.civAddress = m_settings.value("civAddress", 0).toInt();
+        profile.config.pollInterval = m_settings.value("pollInterval", 100).toInt();
+        profile.config.radioType = m_settings.value("radioType", -1).toInt();
+        profile.config.icomUsername = m_settings.value("icomUsername", "").toString();
+        profile.config.icomPassword = m_settings.value("icomPassword", "").toString();
+        profile.config.icomClientName = m_settings.value("icomClientName", "TR4QT").toString();
+        profile.lastUsed = m_settings.value("lastUsed", QDateTime()).toDateTime();
+        profile.notes = m_settings.value("notes", "").toString();
+        profiles.append(profile);
+    }
+    m_settings.endArray();
+    m_settings.endGroup();
+
+    return profiles;
+}
+
+bool AppSettings::hasRadioProfiles() const {
+    m_settings.beginGroup("RadioProfiles");
+    int size = m_settings.beginReadArray("Profiles");
+    m_settings.endArray();
+    m_settings.endGroup();
+    return size > 0;
+}
+
+void AppSettings::setActiveRadioProfile(const QString& profileName) {
+    m_settings.setValue("RadioProfiles/activeProfile", profileName);
+    m_settings.sync();
+}
+
+QString AppSettings::getActiveRadioProfile() const {
+    return m_settings.value("RadioProfiles/activeProfile", "Default").toString();
+}
+
+void AppSettings::migrateToRadioProfiles() {
+    // Check if old "Radio/" group exists AND no profiles exist yet
+    if (hasRadioConfig() && !hasRadioProfiles()) {
+        LOG_INFO("AppSettings", "Migrating single RadioConfig to profile system");
+
+        // Load existing single radio config
+        RadioConfig oldConfig = loadRadioConfig();
+
+        // Create "Default" profile from old config
+        RadioProfile defaultProfile;
+        defaultProfile.name = "Default";
+        defaultProfile.config = oldConfig;
+        defaultProfile.lastUsed = QDateTime::currentDateTime();
+        defaultProfile.notes = "";
+
+        // Save as profile list
+        QList<RadioProfile> profiles;
+        profiles.append(defaultProfile);
+        saveRadioProfiles(profiles);
+
+        // Set "Default" as active
+        setActiveRadioProfile("Default");
+
+        LOG_INFO("AppSettings", "Migration complete: created 'Default' profile");
+    }
 }
 
 void AppSettings::setRadioAutoConnect(bool autoConnect) {

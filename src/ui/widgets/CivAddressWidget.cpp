@@ -128,11 +128,13 @@ void CivAddressWidget::autoConfigureForRadio(int hamlibModelId) {
     // Look up CI-V address from HAMLIB_MODEL_TO_DEFAULT_CIV map (single source of truth)
     QString civAddress = HAMLIB_MODEL_TO_DEFAULT_CIV.value(hamlibModelId, QString());
 
-    // If we found a known address, set it
+    // For Icom network radios, the CI-V address is auto-discovered during connection.
+    // We don't need to auto-select "Custom" - just populate the field for reference.
+    // The user should keep "Use Default" selected to let discovery work.
     if (!civAddress.isEmpty()) {
-        m_civCustomRadio->setChecked(true);
+        // Just update the text field, don't change radio button selection
         m_civAddressEdit->setText(civAddress);
-        m_civAddressEdit->setEnabled(true);
+        // Note: Leave radio button selection as-is (typically "Default")
     }
 }
 

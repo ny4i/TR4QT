@@ -85,13 +85,19 @@ if echo "$STAGED_FILES" | xargs grep -n 'new Q[A-Z][a-zA-Z]*\(Widget\|Dialog\|Wi
     WARNINGS=$((WARNINGS + 1))
 fi
 
-# Check 6: Debug statements left in code (qDebug, LOG_DEBUG in non-debug code)
+# Check 6: qDebug() calls (must use LOG_DEBUG/LOG_TRACE instead)
 if echo "$STAGED_FILES" | xargs grep -n 'qDebug()' 2>/dev/null; then
     echo ""
-    echo "⚠️  WARNING: Found qDebug() calls"
-    echo "Consider using LOG_DEBUG() for production code or remove debug statements"
+    echo "❌ ERROR: Found qDebug() calls - use LOG_DEBUG/LOG_TRACE/LOG_INFO instead"
     echo ""
-    WARNINGS=$((WARNINGS + 1))
+    echo "TR4QT uses a centralized logging system:"
+    echo "  - LOG_TRACE() for verbose protocol/data stream debugging"
+    echo "  - LOG_DEBUG() for general debugging messages"
+    echo "  - LOG_INFO() for informational messages"
+    echo "  - LOG_WARN() for warnings"
+    echo "  - LOG_ERROR() for errors"
+    echo ""
+    ERRORS=$((ERRORS + 1))
 fi
 
 # Check 7: TODO/FIXME without context
