@@ -74,11 +74,15 @@ public:
     ModeType getMode(VFO vfo = VFO::VFO_A) const override;
     bool getPTT() const override;
     int getCWSpeed() const override;
+    void getCWSpeedRange(int& minWpm, int& maxWpm) const override;
     int getRIT(VFO vfo = VFO::VFO_A) const override;
     int getXIT(VFO vfo = VFO::VFO_A) const override;
     bool getSplit() const override;
     int getFilterWidth() const override;
     RadioState getCurrentState() const override;
+
+    // Radio capabilities
+    bool supportsDiscreteBandCommand() const override;
 
     // Radio information
     Q_INVOKABLE QList<ModeType> getSupportedModes() const;

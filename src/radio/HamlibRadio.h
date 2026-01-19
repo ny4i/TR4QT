@@ -72,6 +72,7 @@ public:
     ModeType getMode(VFO vfo = VFO::VFO_A) const override;
     bool getPTT() const override;
     int getCWSpeed() const override;
+    void getCWSpeedRange(int& minWpm, int& maxWpm) const override;
     int getRIT(VFO vfo = VFO::VFO_A) const override;
     int getXIT(VFO vfo = VFO::VFO_A) const override;
     bool getSplit() const override;
@@ -82,6 +83,9 @@ public:
     QString getRadioModel() const;
     QString getRadioVersion() const;
     Q_INVOKABLE QList<ModeType> getSupportedModes() const;
+
+    // Radio capabilities
+    bool supportsDiscreteBandCommand() const override;
 
     // Capability checking
     bool supportsCWSending() const;  // Check if radio supports rig_send_morse

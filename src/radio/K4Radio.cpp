@@ -984,6 +984,13 @@ int K4Radio::getCWSpeed() const
     return m_state.cwSpeed;
 }
 
+void K4Radio::getCWSpeedRange(int& minWpm, int& maxWpm) const
+{
+    // K4 radios support 8-100 WPM
+    minWpm = 8;
+    maxWpm = 100;
+}
+
 bool K4Radio::stopCW()
 {
     if (!isConnected()) {
@@ -1198,6 +1205,13 @@ QList<ModeType> K4Radio::getSupportedModes() const
 bool K4Radio::supportsCWSending() const
 {
     // K4 fully supports CW sending via KY command
+    return true;
+}
+
+bool K4Radio::supportsDiscreteBandCommand() const
+{
+    // K4 supports discrete band selection via BN command
+    // Radio maintains its own band memory (last frequency per band)
     return true;
 }
 

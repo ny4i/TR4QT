@@ -157,6 +157,7 @@ bool HamlibRadio::setFrequency(freq_t freq, VFO vfo) {
     // if (retcode == -RIG_ETIMEOUT) { QThread::msleep(50); retcode = rig_set_freq(...); }
 
     if (retcode == RIG_OK) {
+        updateBandMemory(freq);  // Track last-used frequency for this band
         emit frequencyChanged(freq, vfo);
         return true;
     }
@@ -166,17 +167,15 @@ bool HamlibRadio::setFrequency(freq_t freq, VFO vfo) {
 }
 
 bool HamlibRadio::setBand(BandType band, VFO vfo) {
-    // Hamlib doesn't have a native "set band" command
-    // Convert band to frequency (band edge) and call setFrequency
-    freq_t freq = bandToFrequency(band);
-    if (freq == 0) {
+    // Pseudo-band button: Use base class band memory helper
+    freq_t fallback = bandToFrequency(band);
+    if (fallback == 0) {
         LOG_ERROR("HamlibRadio", QString("Invalid band: %1").arg(static_cast<int>(band)));
         return false;
     }
 
-    double freqKHz = freq / 1000.0;
-    LOG_DEBUG("HamlibRadio", QString("setBand: %1 -> %2 kHz").arg(bandToString(band)).arg(freqKHz, 0, 'f', 1));
-    return setFrequency(freq, vfo);
+    freq_t targetFreq = getLastFrequencyForBand(band, fallback);
+    return setFrequency(targetFreq, vfo);
 }
 
 freq_t HamlibRadio::getFrequency(VFO vfo) const {
@@ -323,6 +322,13 @@ int HamlibRadio::getCWSpeed() const {
 
     logHamlibError("getCWSpeed", retcode);
     return 0;  // Return 0 on error
+}
+
+void HamlibRadio::getCWSpeedRange(int& minWpm, int& maxWpm) const {
+    // Default range for most radios supported by Hamlib
+    // Conservative estimate that works for most transceivers
+    minWpm = 5;
+    maxWpm = 60;
 }
 
 bool HamlibRadio::stopCW() {
@@ -664,6 +670,13 @@ bool HamlibRadio::supportsCWSending() const {
     return hasCapability;
 }
 
+bool HamlibRadio::supportsDiscreteBandCommand() const
+{
+    // Hamlib radios do not have a discrete band command (like K4's BN)
+    // Use base class band memory for pseudo-band button functionality
+    return false;
+}
+
 void HamlibRadio::pollRadio() {
     if (!isConnected()) return;
 
@@ -685,9 +698,11 @@ void HamlibRadio::pollRadio() {
 
     // Emit individual change signals if values changed
     if (newState.frequencyA != m_currentState.frequencyA) {
+        updateBandMemory(newState.frequencyA);  // Track last-used frequency for this band
         emit frequencyChanged(newState.frequencyA, VFO::VFO_A);
     }
     if (newState.frequencyB != m_currentState.frequencyB) {
+        updateBandMemory(newState.frequencyB);  // Track last-used frequency for this band
         emit frequencyChanged(newState.frequencyB, VFO::VFO_B);
     }
     if (newState.modeA != m_currentState.modeA) {
