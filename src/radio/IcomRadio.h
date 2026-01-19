@@ -20,6 +20,12 @@ namespace TR4QT {
  * Protocol: Proprietary UDP with authentication + CI-V commands
  * Uses automatic push updates from radio for low-latency state tracking.
  *
+ * VFO B Support (commands 0x25/0x26):
+ * - All network-capable Icom radios support VFO B frequency/mode reading
+ * - IC-7760 uses extended format with sub-command byte (0x01)
+ * - Other radios use standard format (no sub-command)
+ * - See docs/ICOM_NETWORK_README.md for complete VFO B protocol details
+ *
  * Benefits over Hamlib:
  * - 3-5x faster frequency/mode changes
  * - More reliable network connection (native protocol vs Hamlib's implementation)

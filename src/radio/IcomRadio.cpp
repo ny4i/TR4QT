@@ -88,11 +88,18 @@ bool IcomRadio::setFrequency(freq_t freq, VFO vfo)
 {
     QByteArray bcd = frequencyToBcd(freq);
 
-    // CI-V command 0x05 = Set frequency
+    // CI-V command 0x05 = Set frequency VFO A
     // CI-V command 0x25 = Set frequency VFO B (on dual VFO radios)
+    // IC-7760 format: 0x25 requires sub-command byte 0x01 before BCD data
     quint8 cmd = (vfo == VFO::VFO_A) ? 0x05 : 0x25;
 
-    bool success = sendCommand(cmd, bcd);
+    QByteArray data;
+    if (vfo == VFO::VFO_B) {
+        data.append(0x01);  // Sub-command: 0x01 = VFO B/Sub receiver
+    }
+    data.append(bcd);
+
+    bool success = sendCommand(cmd, data);
 
     if (success) {
         QMutexLocker lock(&m_stateMutex);
@@ -128,13 +135,17 @@ bool IcomRadio::setMode(ModeType mode, VFO vfo)
         return false;
     }
 
+    // CI-V command 0x06 = Set mode VFO A
+    // CI-V command 0x26 = Set mode VFO B
+    // IC-7760 format: 0x26 requires sub-command byte 0x01 before mode/filter data
+    quint8 cmd = (vfo == VFO::VFO_A) ? 0x06 : 0x26;
+
     QByteArray data;
+    if (vfo == VFO::VFO_B) {
+        data.append(0x01);  // Sub-command: 0x01 = VFO B/Sub receiver
+    }
     data.append(icomMode);
     data.append(0x01);  // Filter setting (01 = FIL1, normal default)
-
-    // CI-V command 0x06 = Set mode
-    // CI-V command 0x26 = Set mode VFO B
-    quint8 cmd = (vfo == VFO::VFO_A) ? 0x06 : 0x26;
 
     bool success = sendCommand(cmd, data);
 
@@ -567,11 +578,21 @@ void IcomRadio::pollRadio()
     // Request mode VFO A (command 0x04)
     sendCommand(0x04, QByteArray());
 
-    // Request frequency VFO B (command 0x25 - supported on dual-receiver radios like IC-7610, IC-7760)
-    sendCommand(0x25, QByteArray());
+    // Request frequency VFO B (command 0x25)
+    // Supported radios: IC-705, IC-7100, IC-7300, IC-7800, IC-7850, IC-7851,
+    //                   IC-7600, IC-7610, IC-7700, IC-7760, IC-905, IC-9700
+    // IC-7760 requires sub-command byte 0x01 to specify VFO B/Sub receiver
+    // Other radios may use standard format (no sub-command byte)
+    // See docs/ICOM_NETWORK_README.md "VFO B Support" section for details
+    QByteArray vfoBFreqCmd;
+    vfoBFreqCmd.append(0x01);
+    sendCommand(0x25, vfoBFreqCmd);
 
     // Request mode VFO B (command 0x26)
-    sendCommand(0x26, QByteArray());
+    // IC-7760 requires sub-command byte 0x01 to specify VFO B/Sub receiver
+    QByteArray vfoBModeCmd;
+    vfoBModeCmd.append(0x01);
+    sendCommand(0x26, vfoBModeCmd);
 
     // Request PTT status (command 0x1C 0x00)
     QByteArray pttCmd;
@@ -938,11 +959,28 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
 
 void IcomRadio::parseFrequencyResponse(const QByteArray& data, VFO vfo)
 {
-    if (data.length() < 5) {
+    // IC-7760 (and other dual-receiver radios) include a sub-command byte in VFO B responses
+    // VFO A response: 5 bytes BCD (e.g., FE FE E0 B2 03 00 00 50 03 00 FD)
+    // VFO B response: 6 bytes = 1 byte sub-cmd + 5 bytes BCD (e.g., FE FE E0 B2 25 01 00 00 50 03 00 FD)
+    //                          sub-cmd: 0x00=Main, 0x01=Sub/VFO B
+
+    QByteArray bcdData;
+
+    if (data.length() == 6 && vfo == VFO::VFO_B) {
+        // IC-7760 format: skip first byte (sub-command), parse remaining 5 bytes as BCD
+        quint8 subCmd = (quint8)data[0];
+        bcdData = data.mid(1, 5);
+        LOG_DEBUG("IcomRadio", QString("VFO B frequency response: subCmd=0x%1 (format: IC-7760 with sub-command)")
+            .arg(subCmd, 2, 16, QChar('0')));
+    } else if (data.length() == 5) {
+        // Standard format: 5 bytes BCD
+        bcdData = data;
+    } else {
+        LOG_WARN("IcomRadio", QString("Unexpected frequency response length: %1 bytes (expected 5 or 6)").arg(data.length()));
         return;
     }
 
-    freq_t freq = bcdToFrequency(data);
+    freq_t freq = bcdToFrequency(bcdData);
 
     QMutexLocker lock(&m_stateMutex);
     if (vfo == VFO::VFO_A) {
@@ -959,11 +997,29 @@ void IcomRadio::parseFrequencyResponse(const QByteArray& data, VFO vfo)
 
 void IcomRadio::parseModeResponse(const QByteArray& data, VFO vfo)
 {
-    if (data.length() < 1) {
+    // IC-7760 (and other dual-receiver radios) include a sub-command byte in VFO B responses
+    // VFO A response: 2 bytes (mode + filter)
+    // VFO B response: 3 bytes = 1 byte sub-cmd + mode + filter
+    //                          sub-cmd: 0x00=Main, 0x01=Sub/VFO B
+
+    quint8 modeData;
+
+    if (data.length() == 3 && vfo == VFO::VFO_B) {
+        // IC-7760 format: skip first byte (sub-command), parse second byte as mode
+        quint8 subCmd = (quint8)data[0];
+        modeData = (quint8)data[1];
+        LOG_DEBUG("IcomRadio", QString("VFO B mode response: subCmd=0x%1 mode=0x%2 (format: IC-7760 with sub-command)")
+            .arg(subCmd, 2, 16, QChar('0'))
+            .arg(modeData, 2, 16, QChar('0')));
+    } else if (data.length() >= 1) {
+        // Standard format: first byte is mode
+        modeData = (quint8)data[0];
+    } else {
+        LOG_WARN("IcomRadio", QString("Unexpected mode response length: %1 bytes").arg(data.length()));
         return;
     }
 
-    ModeType mode = icomToMode((quint8)data[0]);
+    ModeType mode = icomToMode(modeData);
 
     QMutexLocker lock(&m_stateMutex);
     if (vfo == VFO::VFO_A) {
