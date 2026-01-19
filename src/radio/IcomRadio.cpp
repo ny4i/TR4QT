@@ -103,6 +103,7 @@ bool IcomRadio::setFrequency(freq_t freq, VFO vfo)
             m_state.frequencyB = freq;
             m_state.bandB = frequencyToBand(freq);
         }
+        updateBandMemory(freq);  // Track last-used frequency for this band
         emit frequencyChanged(freq, vfo);
     }
 
@@ -111,13 +112,12 @@ bool IcomRadio::setFrequency(freq_t freq, VFO vfo)
 
 bool IcomRadio::setBand(BandType band, VFO vfo)
 {
-    // Use band edge frequency
-    // bandToBaseFrequency() returns kHz, but setFrequency() expects Hz
+    // Pseudo-band button: Use base class band memory helper
     freq_t freqKHz = bandToBaseFrequency(band);
-    freq_t freqHz = freqKHz * 1000;
-    LOG_DEBUG("IcomRadio", QString("setBand: %1 -> %2 kHz (%3 Hz)")
-        .arg(bandToString(band)).arg(freqKHz).arg(freqHz));
-    return setFrequency(freqHz, vfo);
+    freq_t fallback = freqKHz * 1000;
+    freq_t targetFreq = getLastFrequencyForBand(band, fallback);
+
+    return setFrequency(targetFreq, vfo);
 }
 
 bool IcomRadio::setMode(ModeType mode, VFO vfo)
@@ -397,6 +397,13 @@ int IcomRadio::getCWSpeed() const
     return m_state.cwSpeed;
 }
 
+void IcomRadio::getCWSpeedRange(int& minWpm, int& maxWpm) const
+{
+    // Icom radios support 6-48 WPM
+    minWpm = 6;
+    maxWpm = 48;
+}
+
 int IcomRadio::getRIT(VFO vfo) const
 {
     QMutexLocker lock(&m_stateMutex);
@@ -445,6 +452,13 @@ bool IcomRadio::supportsCWSending() const
     return true;  // All Icom network radios support CW sending
 }
 
+bool IcomRadio::supportsDiscreteBandCommand() const
+{
+    // Icom radios do not have a discrete band command (like K4's BN)
+    // Use base class band memory for pseudo-band button functionality
+    return false;
+}
+
 void IcomRadio::onNetworkConnected()
 {
     LOG_INFO("IcomRadio", "Network connected, initializing radio state");
@@ -454,12 +468,18 @@ void IcomRadio::onNetworkConnected()
     m_state.radioModel = m_network->currentRadio().name;
     m_stateMutex.unlock();
 
-    // If CI-V address is 0 (auto/default), use the address discovered from radio
-    if (m_civAddress == 0) {
-        m_civAddress = m_network->currentRadio().civAddress;
-        LOG_INFO("IcomRadio", QString("Using discovered CI-V address: 0x%1")
-            .arg(m_civAddress, 2, 16, QChar('0')));
+    // ALWAYS use the discovered CI-V address from network radio (ignore user config)
+    // The radio tells us its address during network discovery, so we don't need manual config.
+    // Note: The configured m_civAddress is only relevant for serial connections where there's no discovery.
+    quint8 discoveredAddress = m_network->currentRadio().civAddress;
+    if (m_civAddress != 0 && m_civAddress != discoveredAddress) {
+        LOG_WARN("IcomRadio", QString("Configured CI-V address 0x%1 does not match discovered address 0x%2 - using discovered address")
+            .arg(m_civAddress, 2, 16, QChar('0'))
+            .arg(discoveredAddress, 2, 16, QChar('0')));
     }
+    m_civAddress = discoveredAddress;
+    LOG_INFO("IcomRadio", QString("Using discovered CI-V address: 0x%1")
+        .arg(m_civAddress, 2, 16, QChar('0')));
 
     emit connectionStatusChanged(true);
 
@@ -932,6 +952,7 @@ void IcomRadio::parseFrequencyResponse(const QByteArray& data, VFO vfo)
         m_state.frequencyB = freq;
         m_state.bandB = frequencyToBand(freq);
     }
+    updateBandMemory(freq);  // Track last-used frequency for this band
 
     emit frequencyChanged(freq, vfo);
 }

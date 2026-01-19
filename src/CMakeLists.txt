@@ -5,6 +5,7 @@
 add_library(tr4qt_core OBJECT
     # Radio control (K4Radio, HamlibRadio, etc.)
     radio/RadioInterface.h
+    radio/RadioInterface.cpp
     radio/K4Radio.cpp
     radio/K4Radio.h
     radio/HamlibRadio.cpp
@@ -304,8 +305,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.38.2"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.38.2"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.38.34"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.38.34"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

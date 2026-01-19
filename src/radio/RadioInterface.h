@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QMetaType>
+#include <QMap>
 #include "../core/Types.h"
 #include <hamlib/rig.h>  // For freq_t and other hamlib types
 
@@ -155,6 +156,12 @@ public:
     // CW speed query (const, called synchronously)
     virtual int getCWSpeed() const = 0;
 
+    // CW speed range (radio-specific limits)
+    virtual void getCWSpeedRange(int& minWpm, int& maxWpm) const = 0;
+
+    // Band command capability
+    virtual bool supportsDiscreteBandCommand() const = 0;
+
     // RIT/XIT query (const, called synchronously)
     virtual int getRIT(VFO vfo = VFO::VFO_A) const = 0;
     virtual int getXIT(VFO vfo = VFO::VFO_A) const = 0;
@@ -167,6 +174,15 @@ public:
 
     // Get current state
     virtual RadioState getCurrentState() const = 0;
+
+protected:
+    // Band memory helpers for radios without discrete band commands
+    freq_t getLastFrequencyForBand(BandType band, freq_t fallback) const;
+    void updateBandMemory(freq_t freq);
+
+private:
+    // Band memory storage (for pseudo-band button)
+    mutable QMap<BandType, freq_t> m_bandMemory;
 
 signals:
     void frequencyChanged(freq_t freq, VFO vfo);
