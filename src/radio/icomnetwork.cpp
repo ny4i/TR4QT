@@ -1,10 +1,10 @@
 #include "icomnetwork.h"
 #include <QHostInfo>
 #include <QNetworkDatagram>
-#include <QDebug>
 #include <QtEndian>
 #include <QRandomGenerator>
 #include <cstring>
+#include "../logging/LogMacros.h"
 
 IcomNetwork::IcomNetwork(QObject *parent)
     : QObject(parent)
@@ -109,7 +109,30 @@ void IcomNetwork::disconnectFromRadio()
 
     // Close CI-V stream if open
     if (m_civSocket && m_streamOpened) {
+        // Send CI-V close packet (type 0x00 data with close magic)
         sendCivOpenClose(true);
+
+        // Send disconnect packet on CI-V socket (type 0x05) - like wfview does
+        control_packet civDisconnect;
+        memset(&civDisconnect, 0, sizeof(civDisconnect));
+        civDisconnect.len = sizeof(civDisconnect);
+        civDisconnect.type = 0x05;  // Disconnect
+        civDisconnect.sentid = m_myId;
+        civDisconnect.rcvdid = m_civRemoteId;
+        m_civSocket->writeDatagram(QByteArray::fromRawData((const char*)&civDisconnect, sizeof(civDisconnect)),
+                                   m_radioIP, m_civRemotePort);
+    }
+
+    // CRITICAL: Wait for UDP packets to be transmitted before closing sockets
+    // writeDatagram() is asynchronous - it queues packets but doesn't guarantee transmission
+    // If we close the sockets immediately, the disconnect packets never leave the computer
+    // This causes Icom radios to stay in "connected" state and refuse new connections
+    // wfview uses waitForBytesWritten() or delays before closing
+    if (m_controlSocket) {
+        m_controlSocket->waitForBytesWritten(100);
+    }
+    if (m_civSocket) {
+        m_civSocket->waitForBytesWritten(100);
     }
 
     cleanup();
@@ -231,7 +254,7 @@ void IcomNetwork::sendAreYouThere()
         return;
     }
 
-    qDebug() << "Sending Are You There... (attempt" << (m_areYouThereCounter + 1) << "of" << MAX_RETRIES << ")";
+    LOG_TRACE("IcomNetwork", QString("Sending Are You There... (attempt %1 of %2)").arg(m_areYouThereCounter + 1).arg(MAX_RETRIES));
     sendControlPacket(0x03, 0x00, false);
     m_areYouThereCounter++;
 
@@ -319,7 +342,7 @@ void IcomNetwork::sendLogin()
 
 void IcomNetwork::sendToken(quint8 magic)
 {
-    qDebug() << "Sending token request, magic:" << magic;
+    LOG_TRACE("IcomNetwork", QString("Sending token request, magic: %1").arg(magic));
 
     token_packet p;
     memset(&p, 0, sizeof(p));
@@ -393,10 +416,12 @@ void IcomNetwork::sendCivOpenClose(bool close)
 {
     if (!m_civSocket) return;
 
-    qDebug() << "sendCivOpenClose:" << (close ? "CLOSE" : "OPEN")
-             << "m_civRemoteId:" << QString("0x%1").arg(m_civRemoteId, 8, 16, QChar('0'))
-             << "m_remoteId:" << QString("0x%1").arg(m_remoteId, 8, 16, QChar('0'))
-             << "civSeq:" << m_civSeq << "civInnerSeq:" << m_civInnerSeq;
+    LOG_TRACE("IcomNetwork", QString("sendCivOpenClose: %1 m_civRemoteId: 0x%2 m_remoteId: 0x%3 civSeq: %4 civInnerSeq: %5")
+              .arg(close ? "CLOSE" : "OPEN")
+              .arg(m_civRemoteId, 8, 16, QChar('0'))
+              .arg(m_remoteId, 8, 16, QChar('0'))
+              .arg(m_civSeq)
+              .arg(m_civInnerSeq));
 
     quint8 magic = close ? 0x00 : 0x04;
 
@@ -413,7 +438,7 @@ void IcomNetwork::sendCivOpenClose(bool close)
     m_civInnerSeq++;  // Increment inner sequence after use
 
     QByteArray packet = QByteArray::fromRawData((const char*)&p, sizeof(p));
-    qDebug() << "sendCivOpenClose: Sending packet:" << packet.toHex(' ');
+    LOG_TRACE("IcomNetwork", QString("sendCivOpenClose: Sending packet: %1").arg(QString(packet.toHex(' '))));
     sendTrackedPacket(m_civSocket, packet, m_civSeq);  // Use outer packet sequence
     // Note: m_civSeq is incremented inside sendTrackedPacket, don't increment here!
 }
@@ -424,10 +449,13 @@ void IcomNetwork::sendCivCommand(const QByteArray& command)
         qWarning() << "Cannot send CI-V command: not connected (socket:" << m_civSocket << "streamOpened:" << m_streamOpened << ")";
         return;
     }
-    qDebug() << "IcomNetwork::sendCivCommand() - Sending" << command.size() << "bytes to"
-             << m_radioIP.toString() << ":" << m_civRemotePort
-             << "Data:" << command.toHex(' ')
-             << "civSeq:" << m_civSeq << "civInnerSeq:" << m_civInnerSeq;
+    LOG_TRACE("IcomNetwork", QString("sendCivCommand() - Sending %1 bytes to %2:%3 Data: %4 civSeq: %5 civInnerSeq: %6")
+              .arg(command.size())
+              .arg(m_radioIP.toString())
+              .arg(m_civRemotePort)
+              .arg(QString(command.toHex(' ')))
+              .arg(m_civSeq)
+              .arg(m_civInnerSeq));
 
     data_packet p;
     memset(&p, 0, sizeof(p));
@@ -442,7 +470,7 @@ void IcomNetwork::sendCivCommand(const QByteArray& command)
     QByteArray packet = QByteArray::fromRawData((const char*)&p, sizeof(p));
     packet.append(command);
 
-    qDebug() << "IcomNetwork::sendCivCommand() - Full packet:" << packet.toHex(' ');
+    LOG_TRACE("IcomNetwork", QString("sendCivCommand() - Full packet: %1").arg(QString(packet.toHex(' '))));
 
     sendTrackedPacket(m_civSocket, packet, m_civSeq);  // Use outer packet sequence
     // Note: m_civSeq is incremented inside sendTrackedPacket, don't increment here!
@@ -509,13 +537,13 @@ void IcomNetwork::onControlDataReceived()
 
 void IcomNetwork::onCivDataReceived()
 {
-    qDebug() << "IcomNetwork::onCivDataReceived() CALLED - socket:" << m_civSocket;
+    LOG_TRACE("IcomNetwork", QString("onCivDataReceived() CALLED - socket: %1").arg(m_civSocket ? "valid" : "NULL"));
     if (!m_civSocket) {
-        qDebug() << "IcomNetwork::onCivDataReceived() - m_civSocket is NULL!";
+        LOG_TRACE("IcomNetwork", "onCivDataReceived() - m_civSocket is NULL!");
         return;
     }
 
-    qDebug() << "IcomNetwork::onCivDataReceived() - hasPendingDatagrams:" << m_civSocket->hasPendingDatagrams();
+    LOG_TRACE("IcomNetwork", QString("onCivDataReceived() - hasPendingDatagrams: %1").arg(m_civSocket->hasPendingDatagrams()));
 
     while (m_civSocket->hasPendingDatagrams()) {
         QNetworkDatagram datagram = m_civSocket->receiveDatagram();
@@ -523,14 +551,18 @@ void IcomNetwork::onCivDataReceived()
         // Validate datagram before processing - skip invalid/empty datagrams
         // Invalid datagrams have senderPort=-1 and empty data (socket error or closed)
         if (!datagram.isValid() || datagram.senderPort() < 0 || datagram.data().isEmpty()) {
-            qDebug() << "IcomNetwork: Skipping invalid datagram - valid:" << datagram.isValid()
-                     << "port:" << datagram.senderPort() << "size:" << datagram.data().size();
+            LOG_TRACE("IcomNetwork", QString("Skipping invalid datagram - valid: %1 port: %2 size: %3")
+                      .arg(datagram.isValid())
+                      .arg(datagram.senderPort())
+                      .arg(datagram.data().size()));
             continue;
         }
 
-        qDebug() << "IcomNetwork: Received CI-V datagram:" << datagram.data().size() << "bytes"
-                 << "from" << datagram.senderAddress().toString() << ":" << datagram.senderPort()
-                 << "Data:" << datagram.data().toHex(' ');
+        LOG_TRACE("IcomNetwork", QString("Received CI-V datagram: %1 bytes from %2:%3 Data: %4")
+                  .arg(datagram.data().size())
+                  .arg(datagram.senderAddress().toString())
+                  .arg(datagram.senderPort())
+                  .arg(QString(datagram.data().toHex(' '))));
         processCivPacket(datagram.data());
     }
 }
@@ -596,7 +628,7 @@ void IcomNetwork::processControlPacket(const QByteArray& data)
             if (token->requesttype == 0x05 && token->requestreply == 0x02) {
                 // Token renewal response
                 if (token->response == 0x0000) {
-                    qDebug() << "Token renewal successful";
+                    LOG_TRACE("IcomNetwork", "Token renewal successful");
                     m_tokenTimer->start(TOKEN_RENEWAL);
                 } else {
                     qWarning() << "Token renewal failed";
@@ -617,6 +649,12 @@ void IcomNetwork::processControlPacket(const QByteArray& data)
                     // Got stream connection info
                     quint16 civPort = qFromBigEndian(status->civport);
                     qInfo() << "Got CI-V port:" << civPort;
+
+                    // Some radios (IC-9700) report port 0, use standard Icom CI-V port as fallback
+                    if (civPort == 0) {
+                        civPort = 50002;  // Standard Icom CI-V port
+                        qInfo() << "Radio reported CI-V port 0, using standard port:" << civPort;
+                    }
 
                     // Initialize CI-V socket
                     // Note: Don't call sendCivOpenClose() here - we need to wait for
@@ -697,34 +735,31 @@ void IcomNetwork::processControlPacket(const QByteArray& data)
     }
 }
 
-// TODO: Change all data packet debug messages to TRACE level
-// The qDebug() calls in this function and related CI-V processing functions
-// (onCivDataReceived, pollRadio, sendCommand) should be changed to TRACE level
-// to reduce log verbosity during normal operation. Keep them as DEBUG for now
-// during initial CI-V debugging.
+// Note: All data packet debug messages use TRACE level for CI-V protocol debugging
+// These messages are verbose and primarily useful for debugging the network CI-V protocol
 void IcomNetwork::processCivPacket(const QByteArray& data)
 {
-    qDebug() << "IcomNetwork::processCivPacket: Processing packet of" << data.length() << "bytes";
+    LOG_TRACE("IcomNetwork", QString("processCivPacket: Processing packet of %1 bytes").arg(data.length()));
 
     if (data.length() < CONTROL_SIZE) {
-        qDebug() << "IcomNetwork::processCivPacket: Packet too small, ignoring";
+        LOG_TRACE("IcomNetwork", "processCivPacket: Packet too small, ignoring");
         return;
     }
 
     const control_packet* ctrl = reinterpret_cast<const control_packet*>(data.constData());
 
     if (data.length() == CONTROL_SIZE) {
-        qDebug() << "IcomNetwork::processCivPacket: Control packet (type" << ctrl->type << ")";
+        LOG_TRACE("IcomNetwork", QString("processCivPacket: Control packet (type %1)").arg(ctrl->type));
         if (ctrl->type == 0x04) {
             // CI-V socket "I am here" - save the CI-V remote ID (different from control socket!)
             m_civRemoteId = ctrl->sentid;
-            qDebug() << "CI-V socket received 'I am here' - civRemoteId:" << QString("0x%1").arg(m_civRemoteId, 8, 16, QChar('0'));
+            LOG_TRACE("IcomNetwork", QString("CI-V socket received 'I am here' - civRemoteId: 0x%1").arg(m_civRemoteId, 8, 16, QChar('0')));
 
             // Send type 0x06 ping to CI-V socket (like wfview does)
             // We must wait for the radio's type 0x06 response before sending CI-V open
             // Note: Control packets (type 0x06) use the outer seq but don't increment it
             // wfview uses seq=1 for type 0x06, same as the first data packet
-            qDebug() << "CI-V socket - sending type 0x06 ping (waiting for ready), civSeq:" << m_civSeq;
+            LOG_TRACE("IcomNetwork", QString("CI-V socket - sending type 0x06 ping (waiting for ready), civSeq: %1").arg(m_civSeq));
             control_packet ping;
             memset(&ping, 0, sizeof(ping));
             ping.len = sizeof(ping);
@@ -735,16 +770,16 @@ void IcomNetwork::processCivPacket(const QByteArray& data)
             m_civSocket->writeDatagram(QByteArray::fromRawData((const char*)&ping, sizeof(ping)), m_radioIP, m_civRemotePort);
         } else if (ctrl->type == 0x06) {
             // "I am ready" - NOW we can send the CI-V open command
-            qDebug() << "CI-V socket received 'I am ready' - NOW sending CI-V open";
+            LOG_TRACE("IcomNetwork", "CI-V socket received 'I am ready' - NOW sending CI-V open");
             sendCivOpenClose(false);
-            qDebug() << "CI-V socket ready - emitting civSocketReady signal";
+            LOG_TRACE("IcomNetwork", "CI-V socket ready - emitting civSocketReady signal");
             emit civSocketReady();
         }
-    } else if (data.length() > CIV_SIZE) {
-        // CI-V data packet
+    } else if (data.length() >= CIV_SIZE) {
+        // CI-V data packet (>= 21 bytes, not just >)
         const data_packet* dp = reinterpret_cast<const data_packet*>(data.constData());
-        qDebug() << "IcomNetwork::processCivPacket: Data packet (type" << dp->type << "datalen" << dp->datalen << "len" << dp->len << ")";
-        qDebug() << "IcomNetwork::processCivPacket: Raw data:" << data.toHex(' ');
+        LOG_TRACE("IcomNetwork", QString("processCivPacket: Data packet (type %1 datalen %2 len %3)").arg(dp->type).arg(dp->datalen).arg(dp->len));
+        LOG_TRACE("IcomNetwork", QString("processCivPacket: Raw data: %1").arg(QString(data.toHex(' '))));
 
         // Type 0x00 = normal data, Type 0x01 = retransmit request/ACK
         // Accept both and look for CI-V data (FE FE pattern)
@@ -762,18 +797,18 @@ void IcomNetwork::processCivPacket(const QByteArray& data)
                 int civEnd = data.indexOf(0xFD, civStart);
                 if (civEnd > civStart) {
                     QByteArray civData = data.mid(civStart, civEnd - civStart + 1);
-                    qDebug() << "IcomNetwork::processCivPacket: Found CI-V data:" << civData.toHex(' ');
+                    LOG_TRACE("IcomNetwork", QString("processCivPacket: Found CI-V data: %1").arg(QString(civData.toHex(' '))));
                     emit civDataReceived(civData);
                 }
             } else {
                 // No CI-V data in this packet (might be ACK or retransmit request)
-                qDebug() << "IcomNetwork::processCivPacket: No CI-V data (FE FE) in packet";
+                LOG_TRACE("IcomNetwork", "processCivPacket: No CI-V data (FE FE) in packet");
             }
         } else {
-            qDebug() << "IcomNetwork::processCivPacket: Unknown data packet type" << dp->type;
+            LOG_TRACE("IcomNetwork", QString("processCivPacket: Unknown data packet type %1").arg(dp->type));
         }
     } else {
-        qDebug() << "IcomNetwork::processCivPacket: Unknown packet type/length";
+        LOG_TRACE("IcomNetwork", "processCivPacket: Unknown packet type/length");
     }
 }
 
@@ -800,25 +835,27 @@ void IcomNetwork::checkCivSocketDiagnostic()
 {
     // DEBUG: Actively check socket state every second
     if (!m_civSocket) {
-        qDebug() << "DIAG: m_civSocket is NULL";
+        LOG_TRACE("IcomNetwork", "DIAG: m_civSocket is NULL");
         return;
     }
 
-    qDebug() << "DIAG: CI-V socket state:"
-             << "valid=" << m_civSocket->isValid()
-             << "state=" << m_civSocket->state()
-             << "localPort=" << m_civSocket->localPort()
-             << "hasPending=" << m_civSocket->hasPendingDatagrams()
-             << "bytesAvailable=" << m_civSocket->bytesAvailable()
-             << "error=" << m_civSocket->errorString();
+    LOG_TRACE("IcomNetwork", QString("DIAG: CI-V socket state: valid=%1 state=%2 localPort=%3 hasPending=%4 bytesAvailable=%5 error=%6")
+              .arg(m_civSocket->isValid())
+              .arg(m_civSocket->state())
+              .arg(m_civSocket->localPort())
+              .arg(m_civSocket->hasPendingDatagrams())
+              .arg(m_civSocket->bytesAvailable())
+              .arg(m_civSocket->errorString()));
 
     // Try to read any pending data directly (bypass signal)
     while (m_civSocket->hasPendingDatagrams()) {
-        qDebug() << "DIAG: Found pending datagram! Reading directly...";
+        LOG_TRACE("IcomNetwork", "DIAG: Found pending datagram! Reading directly...");
         QNetworkDatagram datagram = m_civSocket->receiveDatagram();
-        qDebug() << "DIAG: Read datagram:" << datagram.data().size() << "bytes"
-                 << "from" << datagram.senderAddress().toString() << ":" << datagram.senderPort()
-                 << "Data:" << datagram.data().toHex(' ');
+        LOG_TRACE("IcomNetwork", QString("DIAG: Read datagram: %1 bytes from %2:%3 Data: %4")
+                  .arg(datagram.data().size())
+                  .arg(datagram.senderAddress().toString())
+                  .arg(datagram.senderPort())
+                  .arg(QString(datagram.data().toHex(' '))));
         processCivPacket(datagram.data());
     }
 }

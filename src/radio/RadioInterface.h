@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QMetaType>
 #include <QMap>
+#include <QDateTime>
 #include "../core/Types.h"
 #include <hamlib/rig.h>  // For freq_t and other hamlib types
 
@@ -28,6 +29,27 @@ struct RadioConfig {
     QString icomUsername;       // Icom network username (can be blank)
     QString icomPassword;       // Icom network password (can be blank)
     QString icomClientName{"TR4QT"};  // Client identifier
+};
+
+// Radio profile (named configuration set)
+struct RadioProfile {
+    QString name;                   // Profile display name (e.g., "K4 #1", "IC-7610 Contest")
+    RadioConfig config;             // Radio configuration (composition)
+    QDateTime lastUsed;             // Track last use for potential future sorting
+    QString notes;                  // Optional user notes
+
+    // Display string for combo boxes and lists
+    QString displayString() const {
+        if (config.hamlibModelId > 0) {
+            return QString("%1 (%2)").arg(name).arg(config.port);
+        }
+        return name;
+    }
+
+    // Validate profile
+    bool isValid() const {
+        return !name.isEmpty() && config.hamlibModelId > 0;
+    }
 };
 
 // Radio state (from polling)
@@ -200,6 +222,7 @@ signals:
 
 // Register RadioConfig as a Qt metatype for use with signals/slots and QMetaObject::invokeMethod
 Q_DECLARE_METATYPE(TR4QT::RadioConfig)
+Q_DECLARE_METATYPE(TR4QT::RadioProfile)
 Q_DECLARE_METATYPE(TR4QT::RadioState)
 
 #endif // RADIOINTERFACE_H

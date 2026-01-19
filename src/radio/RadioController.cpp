@@ -9,7 +9,6 @@ namespace TR4QT {
 RadioController::RadioController(QObject* parent)
     : QObject(parent)
     , m_radio(nullptr)
-    , m_currentRadioType(0)  // Default to Hamlib
     , m_connected(false)
 {
     // Create radio using RadioFactory (defaults to Hamlib for backward compatibility)
@@ -184,6 +183,16 @@ void RadioController::recreateRadio(int radioType, const RadioConfig& config) {
         m_radio = nullptr;
     }
 
+    // Clear cached state from old radio
+    // This ensures MainWindow doesn't display stale frequency/mode from previous radio
+    {
+        QMutexLocker locker(&m_stateMutex);
+        m_lastState = RadioState();  // Reset to default state
+        m_connected = false;
+        m_radioModel.clear();
+        LOG_DEBUG("RadioController", "Cleared cached radio state");
+    }
+
     // Determine actual radio type to create
     RadioFactory::RadioType factoryType;
     if (radioType == -1) {
@@ -197,7 +206,6 @@ void RadioController::recreateRadio(int radioType, const RadioConfig& config) {
 
     // Create new radio with RadioFactory
     m_radio = RadioFactory::createRadio(factoryType, config);
-    m_currentRadioType = radioType;
 
     // Move to worker thread
     m_radio->moveToThread(&m_workerThread);
@@ -307,12 +315,12 @@ void RadioController::connectToRadio(const RadioConfig& config) {
     // This flag is set during disconnectFromRadio() and must be cleared for new connections
     m_shutdownRequested.store(false);
 
-    // Check if radio type has changed - if so, recreate radio with new type
-    if (config.radioType != m_currentRadioType) {
-        LOG_INFO("RadioController", QString("Radio type changed from %1 to %2, recreating radio")
-                 .arg(m_currentRadioType).arg(config.radioType));
-        recreateRadio(config.radioType, config);
-    }
+    // ALWAYS recreate radio via RadioFactory
+    // This is the correct use of the factory pattern - let it handle polymorphism
+    // Radio connection/disconnection is infrequent, so recreation cost is negligible
+    LOG_INFO("RadioController", QString("Creating radio via factory: type=%1 model=%2 port=%3")
+             .arg(config.radioType).arg(config.hamlibModelId).arg(config.port));
+    recreateRadio(config.radioType, config);
 
     // Pre-flight check: If this is a network connection (host:port format),
     // verify the radio is reachable BEFORE attempting Hamlib connection.
@@ -438,6 +446,13 @@ int RadioController::getCWSpeed() const {
         wpm = m_radio->getCWSpeed();
     }, Qt::BlockingQueuedConnection);
     return wpm;
+}
+
+void RadioController::getCWSpeedRange(int& minWpm, int& maxWpm) const {
+    // Call synchronously since we need the return values
+    QMetaObject::invokeMethod(m_radio, [this, &minWpm, &maxWpm]() {
+        m_radio->getCWSpeedRange(minWpm, maxWpm);
+    }, Qt::BlockingQueuedConnection);
 }
 
 void RadioController::stopCW() {

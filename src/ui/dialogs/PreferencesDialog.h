@@ -106,6 +106,13 @@ private slots:
     // Serial port discovery slots
     void refreshSerialPorts();
 
+    // Radio profile management slots
+    void onProfileSelected(int index);
+    void onNewProfile();
+    void onEditProfile();
+    void onDeleteProfile();
+    void onSetActiveProfile();
+
 protected:
     void showEvent(QShowEvent* event) override;
     void hideEvent(QHideEvent* event) override;
@@ -132,6 +139,8 @@ private:
 
     // Helper methods
     void populateRadioList();
+    void loadProfileIntoUI(const QString& profileName);
+    RadioConfig buildRadioConfigFromUI() const;
 
     // Station tab widgets
     QLineEdit* m_callsignEdit;
@@ -181,6 +190,15 @@ private:
     QSpinBox* m_serialNumberWidthSpin;
     QPushButton* m_testConnectionButton;
     QLabel* m_connectionStatusLabel;
+
+    // Radio profile management widgets
+    QComboBox* m_profileSelectorCombo;
+    QPushButton* m_newProfileButton;
+    QPushButton* m_editProfileButton;
+    QPushButton* m_deleteProfileButton;
+    QPushButton* m_setActiveButton;
+    QLabel* m_activeProfileLabel;
+    QList<RadioProfile> m_radioProfiles;  // Cache for current session
 
     // DX Cluster tab widgets
     QLineEdit* m_dxClusterCallsignEdit;

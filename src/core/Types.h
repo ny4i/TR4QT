@@ -21,7 +21,9 @@ enum class BandType {
     Band6M,
     Band4M,
     Band2M,
-    Band70CM
+    Band1_25M,  // 222-225 MHz
+    Band70CM,
+    Band23CM    // 1240-1300 MHz
 };
 
 // Mode types (from TR4W's TRadioMode)

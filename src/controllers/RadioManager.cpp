@@ -2,6 +2,7 @@
 #include "../logging/LogMacros.h"
 #include "../utils/DialogHelper.h"
 #include <QApplication>
+#include <QThread>
 
 // TODO: UX Improvement - Don't show Hamlib model ID when using direct interfaces
 // When radioType is K4_DIRECT or ICOM_DIRECT, the Hamlib model ID is only used
@@ -69,30 +70,84 @@ bool RadioManager::connectToRadio()
 {
     AppSettings& settings = AppSettings::instance();
 
-    // Check if radio configuration exists
-    if (!settings.hasRadioConfig()) {
+    // Check if radio profiles exist
+    if (!settings.hasRadioProfiles()) {
         emit statusMessage("No radio configuration - please configure your radio first");
         return false;
     }
 
-    RadioConfig config = settings.loadRadioConfig();
+    // Load active profile
+    QString activeProfileName = settings.getActiveRadioProfile();
+    QList<RadioProfile> profiles = settings.loadRadioProfiles();
 
-    // Validate that a valid radio model is selected
-    if (config.hamlibModelId <= 0) {
-        emit statusMessage("Invalid radio model - please select a valid radio model");
+    LOG_DEBUG("RadioManager", QString("Active profile name: '%1'").arg(activeProfileName));
+    LOG_DEBUG("RadioManager", QString("Total profiles loaded: %1").arg(profiles.size()));
+
+    // Debug: Log all profile names
+    for (const auto& p : profiles) {
+        LOG_DEBUG("RadioManager", QString("  Profile: '%1' (model: %2, port: %3)")
+            .arg(p.name).arg(p.config.hamlibModelId).arg(p.config.port));
+    }
+
+    // Find active profile
+    RadioProfile* activeProfile = nullptr;
+    for (auto& profile : profiles) {
+        if (profile.name == activeProfileName) {
+            activeProfile = &profile;
+            break;
+        }
+    }
+
+    if (!activeProfile) {
+        emit statusMessage(QString("Active profile '%1' not found - please reconfigure").arg(activeProfileName));
+        LOG_ERROR("RadioManager", QString("Active profile '%1' not found in loaded profiles").arg(activeProfileName));
         return false;
     }
 
-    // Enable auto-reconnect when user initiates connection
-    m_radioAutoReconnect = true;
-    m_radioReconnectTimer->stop();  // Stop any pending reconnect attempt
-    m_radioReconnectAttempts = 0;   // Reset retry counter
+    // Validate that a valid radio model is selected
+    if (!activeProfile->isValid()) {
+        emit statusMessage("Invalid active profile - please select a valid radio model");
+        return false;
+    }
+
+    RadioConfig config = activeProfile->config;
+
+    // Update last used timestamp
+    activeProfile->lastUsed = QDateTime::currentDateTime();
+    settings.saveRadioProfiles(profiles);
+
+    // CRITICAL: If switching to a different radio (different port/model), disconnect first
+    // This prevents auto-reconnect from trying to reconnect to the OLD radio
+    bool isDifferentRadio = (m_lastRadioConfig.port != config.port) ||
+                            (m_lastRadioConfig.hamlibModelId != config.hamlibModelId);
+
+    if (m_radio->isConnected() && isDifferentRadio) {
+        LOG_INFO("RadioManager", QString("Profile switch detected: disconnecting from old radio before connecting to %1")
+            .arg(activeProfile->name));
+
+        // Disable auto-reconnect BEFORE disconnecting (prevent reconnect to old radio)
+        m_radioAutoReconnect = false;
+        m_radioReconnectTimer->stop();
+
+        // Disconnect from old radio
+        m_radio->disconnectFromRadio();
+
+        // Wait for disconnect to complete (500ms should be plenty)
+        // This ensures the old radio is fully closed before opening new one
+        QThread::msleep(500);
+    }
+
+    // Update config FIRST (before enabling auto-reconnect)
     m_lastRadioConfig = config;     // Save config for reconnection attempts
+
+    // Stop any pending reconnect timer
+    m_radioReconnectTimer->stop();
+    m_radioReconnectAttempts = 0;   // Reset retry counter
 
     // TODO: Show radio name + interface type instead of model ID (see TODO at top of file)
     // Should be: "Connecting to radio: IC-7760 (Icom Direct), Port 192.168.1.100:50001..."
-    emit statusMessage(QString("Connecting to radio: Model %1, Port %2...")
-                          .arg(config.hamlibModelId)
+    emit statusMessage(QString("Connecting to radio: %1, Port %2...")
+                          .arg(activeProfile->name)
                           .arg(config.port));
 
     // Force UI update
@@ -101,6 +156,11 @@ bool RadioManager::connectToRadio()
     // Connect happens asynchronously in worker thread
     // connectionStatusChanged signal will indicate success/failure
     m_radio->connectToRadio(config);
+
+    // IMPORTANT: Only NOW enable auto-reconnect (after connecting to new radio)
+    // This ensures that if the OLD radio's disconnect signal fires late,
+    // it won't trigger a reconnect attempt (because m_lastRadioConfig is now updated)
+    m_radioAutoReconnect = true;
 
     return true;
 }
@@ -113,6 +173,13 @@ void RadioManager::disconnectFromRadio()
 
     emit statusMessage("Disconnecting from radio...");
     m_radio->disconnectFromRadio();
+
+    // CRITICAL: Wait for disconnect to complete (sends UDP packets to radio)
+    // Without this, if user clicks Connect immediately after Disconnect,
+    // the disconnect packets haven't been sent and radio stays in connected state
+    QApplication::processEvents();  // Process queued disconnect
+    QThread::msleep(100);           // Allow UDP packets to be transmitted
+    LOG_DEBUG("RadioManager", "Manual disconnect completed");
 }
 
 void RadioManager::onRadioConnected(bool connected)

@@ -34,11 +34,12 @@ RadioInterface* RadioFactory::createRadio(
             // Validate that this is an Icom radio
             if (config.hamlibModelId != 0) {
                 // Check if it's a supported Icom network radio
-                // IC-905=4032, IC-9700=3077, IC-7610=3078, IC-7600=3071,
+                // IC-905=4032, IC-9700=3077/3081, IC-7610=3078, IC-7600=3071,
                 // IC-7300=3073, IC-705=3087, IC-R8600=3095
                 int validIcomModels[] = {
                     4032,  // IC-905
                     3077,  // IC-9700
+                    3081,  // IC-9700 (alternative Hamlib ID)
                     3078,  // IC-7610
                     3071,  // IC-7600
                     3074,  // IC-7300MK2
@@ -124,6 +125,7 @@ bool RadioFactory::supportsRadioModel(RadioType type, int hamlibModelId)
             int validIcomModels[] = {
                 3090,  // IC-905
                 3077,  // IC-9700
+                3081,  // IC-9700 (alternative Hamlib ID)
                 3078,  // IC-7610
                 3071,  // IC-7600
                 3074,  // IC-7300MK2
@@ -159,6 +161,7 @@ RadioFactory::RadioType RadioFactory::recommendedTypeForModel(int hamlibModelId)
     int icomNetworkModels[] = {
         4032,  // IC-905
         3077,  // IC-9700
+        3081,  // IC-9700 (alternative Hamlib ID)
         3078,  // IC-7610
         3071,  // IC-7600
         3074,  // IC-7300MK2

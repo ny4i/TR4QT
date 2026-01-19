@@ -1,10 +1,10 @@
 #include "BandSummaryGrid.h"
 #include "../../utils/ThemeManager.h"
+#include "../../logging/LogMacros.h"
 #include <QHBoxLayout>
 #include <QFont>
 #include <QMouseEvent>
 #include <QCursor>
-#include <QDebug>
 
 namespace TR4QT {
 
@@ -176,18 +176,20 @@ void BandSummaryGrid::setFontSize(int pointSize) {
 bool BandSummaryGrid::eventFilter(QObject* obj, QEvent* event) {
     if (event->type() == QEvent::MouseButtonPress) {
         QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-        qDebug() << "BandSummaryGrid::eventFilter - MouseButtonPress on" << obj->objectName()
-                 << "button:" << mouseEvent->button() << "headers count:" << m_bandHeaders.size();
+        LOG_DEBUG("BandSummaryGrid", QString("eventFilter - MouseButtonPress on %1 button: %2 headers count: %3")
+                  .arg(obj->objectName())
+                  .arg(static_cast<int>(mouseEvent->button()))
+                  .arg(m_bandHeaders.size()));
         if (mouseEvent->button() == Qt::LeftButton) {
             // Check if clicked object is one of our band headers
             for (auto it = m_bandHeaders.begin(); it != m_bandHeaders.end(); ++it) {
                 if (it.value() == obj) {
-                    qDebug() << "BandSummaryGrid::eventFilter - Emitting bandClicked for" << bandToString(it.key());
+                    LOG_DEBUG("BandSummaryGrid", QString("eventFilter - Emitting bandClicked for %1").arg(bandToString(it.key())));
                     emit bandClicked(it.key());
                     return true;
                 }
             }
-            qDebug() << "BandSummaryGrid::eventFilter - Object not in bandHeaders map";
+            LOG_DEBUG("BandSummaryGrid", "eventFilter - Object not in bandHeaders map");
         }
     }
     return QWidget::eventFilter(obj, event);

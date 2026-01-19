@@ -38,6 +38,7 @@ public slots:
     void sendCW(const QString& text);
     void setCWSpeed(int wpm);
     int getCWSpeed() const;
+    void getCWSpeedRange(int& minWpm, int& maxWpm) const;
     void stopCW();
     bool waitForMorseComplete();
     void enableRIT(bool enable, VFO vfo = VFO::VFO_A);
@@ -76,7 +77,6 @@ private:
 
     QThread m_workerThread;
     RadioInterface* m_radio;  // Lives in worker thread (created by RadioFactory)
-    int m_currentRadioType;   // Current radio type (-1=Auto, 0=Hamlib, 1=K4_DIRECT)
     mutable QMutex m_stateMutex;
     RadioState m_lastState;
     bool m_connected;

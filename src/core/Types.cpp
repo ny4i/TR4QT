@@ -4,20 +4,22 @@ namespace TR4QT {
 
 QString bandToString(BandType band) {
     switch (band) {
-        case BandType::Band160M: return "160M";
-        case BandType::Band80M:  return "80M";
-        case BandType::Band60M:  return "60M";
-        case BandType::Band40M:  return "40M";
-        case BandType::Band30M:  return "30M";
-        case BandType::Band20M:  return "20M";
-        case BandType::Band17M:  return "17M";
-        case BandType::Band15M:  return "15M";
-        case BandType::Band12M:  return "12M";
-        case BandType::Band10M:  return "10M";
-        case BandType::Band6M:   return "6M";
-        case BandType::Band4M:   return "4M";
-        case BandType::Band2M:   return "2M";
-        case BandType::Band70CM: return "70CM";
+        case BandType::Band160M: return "160m";
+        case BandType::Band80M:  return "80m";
+        case BandType::Band60M:  return "60m";
+        case BandType::Band40M:  return "40m";
+        case BandType::Band30M:  return "30m";
+        case BandType::Band20M:  return "20m";
+        case BandType::Band17M:  return "17m";
+        case BandType::Band15M:  return "15m";
+        case BandType::Band12M:  return "12m";
+        case BandType::Band10M:  return "10m";
+        case BandType::Band6M:   return "6m";
+        case BandType::Band4M:   return "4m";
+        case BandType::Band2M:   return "2m";
+        case BandType::Band1_25M: return "1.25m";
+        case BandType::Band70CM: return "70cm";
+        case BandType::Band23CM: return "23cm";
         default: return "Unknown";
     }
 }
@@ -79,20 +81,24 @@ ModeGroup modeTypeToModeGroup(ModeType mode) {
 }
 
 BandType stringToBand(const QString& str) {
-    if (str == "160M") return BandType::Band160M;
-    if (str == "80M")  return BandType::Band80M;
-    if (str == "60M")  return BandType::Band60M;
-    if (str == "40M")  return BandType::Band40M;
-    if (str == "30M")  return BandType::Band30M;
-    if (str == "20M")  return BandType::Band20M;
-    if (str == "17M")  return BandType::Band17M;
-    if (str == "15M")  return BandType::Band15M;
-    if (str == "12M")  return BandType::Band12M;
-    if (str == "10M")  return BandType::Band10M;
-    if (str == "6M")   return BandType::Band6M;
-    if (str == "4M")   return BandType::Band4M;
-    if (str == "2M")   return BandType::Band2M;
-    if (str == "70CM") return BandType::Band70CM;
+    // Support both uppercase (legacy) and lowercase (ADIF) formats
+    QString upper = str.toUpper();
+    if (upper == "160M") return BandType::Band160M;
+    if (upper == "80M")  return BandType::Band80M;
+    if (upper == "60M")  return BandType::Band60M;
+    if (upper == "40M")  return BandType::Band40M;
+    if (upper == "30M")  return BandType::Band30M;
+    if (upper == "20M")  return BandType::Band20M;
+    if (upper == "17M")  return BandType::Band17M;
+    if (upper == "15M")  return BandType::Band15M;
+    if (upper == "12M")  return BandType::Band12M;
+    if (upper == "10M")  return BandType::Band10M;
+    if (upper == "6M")   return BandType::Band6M;
+    if (upper == "4M")   return BandType::Band4M;
+    if (upper == "2M")   return BandType::Band2M;
+    if (upper == "1.25M") return BandType::Band1_25M;
+    if (upper == "70CM") return BandType::Band70CM;
+    if (upper == "23CM") return BandType::Band23CM;
     return BandType::None;
 }
 
@@ -142,7 +148,9 @@ unsigned long bandToBaseFrequency(BandType band) {
         case BandType::Band6M:   return 50000;
         case BandType::Band4M:   return 70000;
         case BandType::Band2M:   return 144000;
+        case BandType::Band1_25M: return 222000;
         case BandType::Band70CM: return 420000;
+        case BandType::Band23CM: return 1240000;
         default: return 0;
     }
 }
@@ -164,7 +172,9 @@ BandType frequencyToBand(unsigned long frequencyHz) {
     if (frequencyHz >= 50000000 && frequencyHz <= 54000000) return BandType::Band6M;
     if (frequencyHz >= 70000000 && frequencyHz <= 71000000) return BandType::Band4M;
     if (frequencyHz >= 144000000 && frequencyHz <= 148000000) return BandType::Band2M;
+    if (frequencyHz >= 222000000 && frequencyHz <= 225000000) return BandType::Band1_25M;
     if (frequencyHz >= 420000000 && frequencyHz <= 450000000) return BandType::Band70CM;
+    if (frequencyHz >= 1240000000 && frequencyHz <= 1300000000) return BandType::Band23CM;
 
     return BandType::None;
 }

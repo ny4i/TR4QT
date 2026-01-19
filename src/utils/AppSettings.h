@@ -22,10 +22,17 @@ public:
     // Singleton access
     static AppSettings& instance();
 
-    // Radio configuration
+    // Radio configuration (legacy single-config system)
     void saveRadioConfig(const RadioConfig& config);
     RadioConfig loadRadioConfig() const;
     bool hasRadioConfig() const;
+
+    // Radio profiles (multi-config system)
+    void saveRadioProfiles(const QList<RadioProfile>& profiles);
+    QList<RadioProfile> loadRadioProfiles() const;
+    bool hasRadioProfiles() const;
+    void setActiveRadioProfile(const QString& profileName);
+    QString getActiveRadioProfile() const;
 
     // Radio auto-connect
     void setRadioAutoConnect(bool autoConnect);
@@ -386,6 +393,14 @@ private:
      * legacy ~/.tr4qt location to platform-native AppData/Local/TR4QT
      */
     void migrateLegacyPaths();
+
+    /**
+     * @brief Migrate single RadioConfig to profile system
+     *
+     * Converts legacy single radio configuration to "Default" profile
+     * in the new profile system. Called automatically on first run.
+     */
+    void migrateToRadioProfiles();
 
     mutable QSettings m_settings;
 };

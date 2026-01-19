@@ -590,7 +590,7 @@ void MainWindow::createCentralWidget() {
 
     // Calculate widths based on typical/maximum content for each column
     // For Date/Time columns, add extra padding for header sort indicator
-    int bandWidth = fm.horizontalAdvance("160SSB") + COLUMN_PADDING;                            // Longest band/mode combo
+    int bandWidth = fm.horizontalAdvance("160m SSB") + COLUMN_PADDING;                          // Longest band/mode combo
     int dateWidth = fm.horizontalAdvance("12-31-2025") + COLUMN_PADDING + HEADER_SORT_INDICATOR;  // Date format: MM-dd-yyyy
     int utcWidth = fm.horizontalAdvance("23:59") + COLUMN_PADDING + HEADER_SORT_INDICATOR;        // Time format: HH:mm
     int qsosWidth = fm.horizontalAdvance("99999") + COLUMN_PADDING;       // QSO number (up to 5 digits)
@@ -1090,9 +1090,18 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         m_multiplierWindow->close();
     }
 
-    // Disconnect radio before closing
+    // Disconnect radio before closing and wait for completion
+    // CRITICAL: Must allow disconnect packets to be sent before app exits
+    // Without this, Icom network radios stay in "connected" state and refuse reconnection
     if (m_radioConnected) {
         m_radio->disconnectFromRadio();
+
+        // Give disconnect time to complete (sends CI-V close + control disconnect packets)
+        // RadioController destructor will ensure full cleanup, but we need event loop
+        // to process the queued disconnect operation before QApplication::quit()
+        QApplication::processEvents();  // Process queued disconnect
+        QThread::msleep(100);           // Allow UDP packets to be sent
+        LOG_DEBUG("MainWindow", "Radio disconnect completed before exit");
     }
 
     event->accept();
@@ -1380,7 +1389,7 @@ void MainWindow::onRadioConnect() {
     // If validation failed, show configuration dialog
     if (!success) {
         AppSettings& settings = AppSettings::instance();
-        if (!settings.hasRadioConfig() || settings.loadRadioConfig().hamlibModelId <= 0) {
+        if (!settings.hasRadioProfiles()) {
             DialogHelper::warning(this, "Radio Configuration Required",
                                "Please configure your radio first (Radio → Configure).");
             onRadioConfigure();
@@ -2797,14 +2806,14 @@ void MainWindow::updateTimeDisplay() {
 }
 
 void MainWindow::updateRadioStatusGrid() {
-    // Update band/mode (e.g., "15SSB") and frequency
+    // Update band/mode (e.g., "20m SSB") and frequency
     // Display frequency and mode even when band is unknown (e.g., outside amateur bands)
     if (m_currentState.frequencyA > 0) {
-        // Show band+mode if band is known (e.g., "40LSB"), otherwise just mode (e.g., "LSB")
+        // Show band+mode if band is known (e.g., "20m SSB"), otherwise just mode (e.g., "SSB")
         if (m_currentState.bandA != BandType::None) {
-            QString bandStr = bandToString(m_currentState.bandA).remove('M');  // Remove 'M' from "15M" -> "15"
+            QString bandStr = bandToString(m_currentState.bandA);  // ADIF format: "20m", "70cm", etc.
             QString modeStr = modeToString(m_currentState.modeA);
-            m_radioFreqBandLabel->setText(QString("%1%2").arg(bandStr).arg(modeStr));
+            m_radioFreqBandLabel->setText(QString("%1 %2").arg(bandStr).arg(modeStr));
         } else {
             // Unknown band (e.g., outside amateur bands) - just show mode
             QString modeStr = modeToString(m_currentState.modeA);
