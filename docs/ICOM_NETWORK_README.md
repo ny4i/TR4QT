@@ -160,12 +160,14 @@ Common CI-V commands (refer to your radio's CI-V manual for complete list):
 
 | Command | Code | Description |
 |---------|------|-------------|
-| Get Frequency | 0x03 | Read VFO frequency |
-| Get Mode | 0x04 | Read operating mode |
-| Set Frequency | 0x05 | Set VFO frequency |
-| Set Mode | 0x06 | Set operating mode |
+| Get Frequency | 0x03 | Read VFO A frequency |
+| Get Mode | 0x04 | Read VFO A operating mode |
+| Set Frequency | 0x05 | Set VFO A frequency |
+| Set Mode | 0x06 | Set VFO A operating mode |
 | Read S-Meter | 0x15 0x02 | Read signal strength |
 | Get TX Status | 0x1C 0x00 | Read PTT status |
+| Get VFO B Frequency | 0x25 | Read VFO B frequency (see VFO B Support section) |
+| Get VFO B Mode | 0x26 | Read VFO B operating mode (see VFO B Support section) |
 
 ### CI-V Packet Format
 
@@ -387,6 +389,118 @@ xitOffset = offset;
 ### IC-7610
 
 *(To be documented after testing - likely shares general sequence number requirements, CW speed format may differ)*
+
+## VFO B Support (Commands 0x25 and 0x26)
+
+### Supported Radios
+
+The following Icom radios support VFO B frequency and mode control via commands **0x25** (frequency) and **0x26** (mode):
+
+- IC-705
+- IC-7100
+- IC-7300
+- IC-7800
+- IC-7850
+- IC-7851
+- IC-7600
+- IC-7610
+- IC-7700
+- IC-7760
+- IC-905
+- IC-9700
+
+**Important Notes:**
+- **All network-capable Icom radios** in TR4QT support these commands (since all network radios are in the above list)
+- These commands work via both **network (UDP)** and **serial (CI-V)** connections
+- VFO B is sometimes called "Sub receiver" in Icom documentation
+- Dual watch mode is **not required** - VFO B can be queried/set independently
+
+### Protocol Format Differences
+
+#### Standard Radios (IC-7610, IC-9700, etc.)
+Most Icom radios use the standard format without sub-command bytes:
+
+**Query VFO B frequency:**
+```
+FE FE <radio> E0 25 FD
+```
+**Response:**
+```
+FE FE E0 <radio> 25 <5 BCD bytes> FD
+```
+
+**Set VFO B frequency:**
+```
+FE FE <radio> E0 25 <5 BCD bytes> FD
+```
+
+#### IC-7760 Extended Format
+The IC-7760 uses an **extended format** with a sub-command byte (0x01) to indicate VFO B:
+
+**Query VFO B frequency:**
+```
+FE FE <radio> E0 25 01 FD
+```
+**Response:**
+```
+FE FE E0 <radio> 25 01 <5 BCD bytes> FD
+                       ^-- Sub-command (01 = VFO B)
+```
+
+**Set VFO B frequency:**
+```
+FE FE <radio> E0 25 01 <5 BCD bytes> FD
+```
+
+**Set VFO B mode:**
+```
+FE FE <radio> E0 26 01 <mode> <filter> FD
+```
+
+### Implementation Notes
+
+The `IcomRadio` class automatically handles both formats:
+- Detects IC-7760 extended format (6 bytes for frequency, 3 bytes for mode)
+- Falls back to standard format (5 bytes for frequency, 2 bytes for mode)
+- Sends sub-command byte `0x01` when setting/querying VFO B
+
+Example parsing code in `IcomRadio::parseFrequencyResponse()`:
+```cpp
+if (data.length() == 6 && vfo == VFO::VFO_B) {
+    // IC-7760 format: skip first byte (sub-command)
+    quint8 subCmd = (quint8)data[0];
+    bcdData = data.mid(1, 5);
+} else if (data.length() == 5) {
+    // Standard format
+    bcdData = data;
+}
+```
+
+### Testing VFO B
+
+To verify VFO B support on a new radio model:
+
+1. **Query VFO B frequency** - Send `0x25` (with `0x01` sub-cmd for IC-7760)
+2. **Check response format** - 5 bytes (standard) or 6 bytes (IC-7760)
+3. **Set VFO B frequency** - Verify frequency changes
+4. **Query/Set VFO B mode** - Verify mode changes with command `0x26`
+
+If the radio responds with `0xFA` (NG/No Good), the radio may not support VFO B commands or requires a different format.
+
+### Radios Without Native VFO B Commands
+
+Older Icom radios that do **not** support commands 0x25/0x26 use a different approach:
+1. Send a command to swap VFO A and VFO B (making VFO B the main VFO)
+2. Read the frequency using standard command 0x03
+3. Swap back to restore original configuration
+
+**TR4QT does not implement this swap-based approach** because:
+- It's complex and error-prone (requires state tracking and swap-back)
+- Creates race conditions if multiple commands are sent
+- All modern network-capable Icom radios support 0x25/0x26 natively
+- The swap approach is considered obsolete and unreliable for contest operation
+
+If you need VFO B support on older radios, consider using Hamlib which may implement the swap logic.
 
 ## Example: Complete Frequency Control
 
