@@ -290,6 +290,15 @@ void RadioManager::onFrequencyChanged(freq_t freq, VFO vfo)
         return;
     }
 
+    // Throttle updates to display refresh rate (60 Hz = 16ms)
+    // Radio may send transceive updates faster than display can refresh
+    // Skipping intermediate updates reduces CPU usage without visible impact
+    static QElapsedTimer throttle;
+    if (throttle.isValid() && throttle.elapsed() < 16) {
+        return;  // Skip update if less than 16ms since last
+    }
+    throttle.start();
+
     // TIMING: Measure how long RadioManager takes to forward frequency signal
     static QElapsedTimer fwdTimer;
     static bool fwdTimerStarted = false;

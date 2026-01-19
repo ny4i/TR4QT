@@ -48,6 +48,7 @@
 #include "../cw/CWTemplateEngine.h"
 #include <QFile>
 #include <QFileInfo>
+#include <cmath>
 #include <QDir>
 #include <QTextStream>
 #include <QFileDialog>
@@ -1737,8 +1738,11 @@ void MainWindow::onFastFrequencyUpdate(freq_t freq) {
     m_currentState.bandA = frequencyToBand(freq);
 
     // Update VFO display immediately (3 decimal places for compact radio grid)
+    // Use floor() instead of rounding to show actual band position
+    // Example: 28.318644 displays as 28.318 (not 28.319)
     double freqMHz = freq / 1000000.0;
-    m_radioFreqLabel->setText(QString("%1 MHz").arg(freqMHz, 0, 'f', 3));
+    double truncated = std::floor(freqMHz * 1000.0) / 1000.0;  // Truncate to 3 decimals
+    m_radioFreqLabel->setText(QString("%1 MHz").arg(truncated, 0, 'f', 3));
 
     // Update band/mode label
     if (m_currentState.bandA != BandType::None) {
@@ -2856,8 +2860,10 @@ void MainWindow::updateRadioStatusGrid() {
         }
 
         // Update frequency (in MHz with 3 decimal places for compact radio grid)
+        // Use floor() instead of rounding to show actual band position
         double freqMHz = m_currentState.frequencyA / 1000000.0;
-        m_radioFreqLabel->setText(QString("%1 MHz").arg(freqMHz, 0, 'f', 3));
+        double truncated = std::floor(freqMHz * 1000.0) / 1000.0;  // Truncate to 3 decimals
+        m_radioFreqLabel->setText(QString("%1 MHz").arg(truncated, 0, 'f', 3));
     } else {
         m_radioFreqBandLabel->setText("--");
         m_radioFreqLabel->setText("0.000 MHz");
