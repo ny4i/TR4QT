@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.35";  // IC-7760 VFO B support with sub-command byte format
+constexpr const char* APP_VERSION = "3.38.36";  // Add Icom broadcast discovery (IcomDiscovery class)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

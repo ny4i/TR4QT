@@ -68,6 +68,7 @@ set(SOURCES
     utils/SCPCallsignExtractor.cpp
     utils/SCPMatcher.cpp
     utils/K4Discovery.cpp
+    utils/IcomDiscovery.cpp
     utils/DialogHelper.cpp
     utils/DXClusterListDownloader.cpp
     utils/SelectableMessageBox.cpp
@@ -200,6 +201,7 @@ set(HEADERS
     utils/SCPCallsignExtractor.h
     utils/SCPMatcher.h
     utils/K4Discovery.h
+    utils/IcomDiscovery.h
     utils/DialogHelper.h
     utils/DXClusterListDownloader.h
     utils/SelectableMessageBox.h
