@@ -11,6 +11,10 @@ add_library(tr4qt_core OBJECT
     radio/HamlibRadio.cpp
     radio/HamlibRadio.h
     radio/IcomRadio.cpp
+    radio/IC7760Radio.cpp
+    radio/IC7760Radio.h
+    radio/IC9700Radio.cpp
+    radio/IC9700Radio.h
     radio/CWTiming.cpp
     radio/RadioFactory.cpp
     radio/RadioController.cpp

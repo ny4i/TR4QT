@@ -2,6 +2,8 @@
 #include "HamlibRadio.h"
 #include "K4Radio.h"
 #include "IcomRadio.h"
+#include "IC7760Radio.h"
+#include "IC9700Radio.h"
 #include "../logging/LogMacros.h"
 #include <hamlib/rig.h>
 
@@ -31,41 +33,27 @@ RadioInterface* RadioFactory::createRadio(
         }
 
         case RadioType::ICOM_DIRECT: {
-            // Validate that this is an Icom radio
-            if (config.hamlibModelId != 0) {
-                // Check if it's a supported Icom network radio
-                // IC-905=4032, IC-9700=3077/3081, IC-7610=3078, IC-7600=3071,
-                // IC-7300=3073, IC-705=3087, IC-R8600=3095
-                int validIcomModels[] = {
-                    4032,  // IC-905
-                    3077,  // IC-9700
-                    3081,  // IC-9700 (alternative Hamlib ID)
-                    3078,  // IC-7610
-                    3071,  // IC-7600
-                    3074,  // IC-7300MK2
-                    3087,  // IC-705
-                    3095,  // IC-R8600
-                    3091,  // IC-7850
-                    3092   // IC-7851
-                };
+            // Instantiate model-specific Icom radio class based on Hamlib model ID
+            // IC-7760: Hamlib ID 3092
+            // IC-9700: Hamlib ID 3077 or 3081
 
-                bool isValidIcom = false;
-                for (int model : validIcomModels) {
-                    if (config.hamlibModelId == model) {
-                        isValidIcom = true;
-                        break;
-                    }
-                }
-
-                if (!isValidIcom) {
-                    LOG_WARN("RadioFactory",
-                             QString("Icom Direct mode selected but Hamlib model %1 "
-                                     "may not support network control.")
-                             .arg(config.hamlibModelId));
-                }
+            if (config.hamlibModelId == 3092) {
+                LOG_INFO("RadioFactory", "Creating IC-7760 radio instance");
+                return new IC7760Radio(parent);
+            } else if (config.hamlibModelId == 3077 || config.hamlibModelId == 3081) {
+                LOG_INFO("RadioFactory", "Creating IC-9700 radio instance");
+                return new IC9700Radio(parent);
+            } else {
+                // For other Icom radios without specific implementations, fall back to Hamlib
+                // Supported but not yet implemented: IC-905, IC-7610, IC-7600, IC-7300MK2, IC-705, IC-R8600, IC-7850
+                LOG_WARN("RadioFactory",
+                         QString("Icom Direct mode selected for Hamlib model %1, "
+                                 "but no model-specific implementation exists yet. "
+                                 "Falling back to Hamlib. "
+                                 "Supported models: IC-7760 (3092), IC-9700 (3077/3081)")
+                         .arg(config.hamlibModelId));
+                return new HamlibRadio(parent);
             }
-
-            return new IcomRadio(parent);
         }
 
         default:

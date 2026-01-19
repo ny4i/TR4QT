@@ -523,10 +523,10 @@ QWidget* PreferencesDialog::createRadioTab() {
 
     m_pollIntervalSpin = new QSpinBox(this);
     m_pollIntervalSpin->setRange(100, 5000);
-    m_pollIntervalSpin->setValue(500);
-    m_pollIntervalSpin->setSingleStep(100);
+    m_pollIntervalSpin->setValue(5000);
+    m_pollIntervalSpin->setSingleStep(500);
     m_pollIntervalSpin->setSuffix(" ms");
-    m_pollIntervalSpin->setToolTip("How often to poll the radio for status updates");
+    m_pollIntervalSpin->setToolTip("Polling fallback interval (CI-V Transceive provides instant updates)");
 
     advancedLayout->addRow("CI-V Address:", m_civAddressWidget);
     advancedLayout->addRow("Poll Interval:", m_pollIntervalSpin);

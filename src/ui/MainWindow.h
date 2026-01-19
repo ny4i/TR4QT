@@ -185,6 +185,7 @@ private slots:
     // Radio signals
     void onRadioConnected(bool connected);
     void onRadioStateUpdated(const RadioState& state);
+    void onFastFrequencyUpdate(freq_t freq);  // Fast transceive update path
     void onRadioError(const QString& error);
     void onRadioModelChanged(const QString& model);
 
