@@ -200,6 +200,11 @@ private:
     QLabel* m_activeProfileLabel;
     QList<RadioProfile> m_radioProfiles;  // Cache for current session
 
+    // Amplifier (KPA1500) widgets
+    QLineEdit* m_amplifierIpEdit;
+    QSpinBox* m_amplifierPortSpin;
+    QCheckBox* m_amplifierEnabledCheck;
+
     // DX Cluster tab widgets
     QLineEdit* m_dxClusterCallsignEdit;
     QComboBox* m_dxClusterServerCombo;

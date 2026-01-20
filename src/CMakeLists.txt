@@ -147,6 +147,7 @@ set(SOURCES
     controllers/DownloadManager.cpp
     controllers/CWMessageManager.cpp
     controllers/BandSwitchingManager.cpp
+    controllers/KPA1500UdpPoller.cpp
     commands/CommandDispatcher.cpp
     services/QSOPersistenceService.cpp
     services/ExchangeMemoryService.cpp

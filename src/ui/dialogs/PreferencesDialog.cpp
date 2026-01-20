@@ -538,6 +538,28 @@ QWidget* PreferencesDialog::createRadioTab() {
 
     layout->addWidget(advancedGroup);
 
+    // Amplifier Settings (KPA1500)
+    QGroupBox* amplifierGroup = new QGroupBox("Amplifier (KPA1500)", this);
+    QFormLayout* amplifierLayout = new QFormLayout(amplifierGroup);
+
+    m_amplifierIpEdit = new QLineEdit(this);
+    m_amplifierIpEdit->setPlaceholderText("e.g., 192.168.1.100");
+    m_amplifierIpEdit->setToolTip("IP address of Elecraft KPA1500 amplifier");
+
+    m_amplifierPortSpin = new QSpinBox(this);
+    m_amplifierPortSpin->setRange(1, 65535);
+    m_amplifierPortSpin->setValue(1500);  // Default KPA1500 UDP port
+    m_amplifierPortSpin->setToolTip("UDP port for KPA1500 communication (default: 1500)");
+
+    m_amplifierEnabledCheck = new QCheckBox("Enable amplifier monitoring", this);
+    m_amplifierEnabledCheck->setToolTip("Enable UDP polling of KPA1500 amplifier status");
+
+    amplifierLayout->addRow("IP Address:", m_amplifierIpEdit);
+    amplifierLayout->addRow("UDP Port:", m_amplifierPortSpin);
+    amplifierLayout->addRow("", m_amplifierEnabledCheck);
+
+    layout->addWidget(amplifierGroup);
+
     // Test connection button and status label
     QHBoxLayout* testLayout = new QHBoxLayout();
     m_testConnectionButton = new QPushButton("Test Connection", this);
@@ -1588,6 +1610,11 @@ void PreferencesDialog::loadSettings() {
     m_cutNumbersEnabledCheck->setChecked(settings.getCutNumbersEnabled());
     m_serialNumberWidthSpin->setValue(settings.getSerialNumberWidth());
 
+    // Amplifier settings
+    m_amplifierIpEdit->setText(settings.getAmplifierIpAddress());
+    m_amplifierPortSpin->setValue(settings.getAmplifierPort());
+    m_amplifierEnabledCheck->setChecked(settings.getAmplifierEnabled());
+
     // Note: Radio status filter checkboxes loaded earlier (before radio model selection)
 
     onConnectionTypeChanged();
@@ -1724,6 +1751,11 @@ void PreferencesDialog::saveSettings() {
     settings.setShowBetaRadios(m_showBetaRadiosCheck->isChecked());
     settings.setShowAlphaRadios(m_showAlphaRadiosCheck->isChecked());
     settings.setShowUntestedRadios(m_showUntestedRadiosCheck->isChecked());
+
+    // Amplifier settings
+    settings.setAmplifierIpAddress(m_amplifierIpEdit->text());
+    settings.setAmplifierPort(m_amplifierPortSpin->value());
+    settings.setAmplifierEnabled(m_amplifierEnabledCheck->isChecked());
 
     // DX Cluster tab
     settings.setDXClusterCallsign(m_dxClusterCallsignEdit->text());

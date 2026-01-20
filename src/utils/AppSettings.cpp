@@ -258,6 +258,33 @@ bool AppSettings::getShowUntestedRadios() const {
     return m_settings.value("Radio/showUntestedRadios", false).toBool();  // Default: false
 }
 
+void AppSettings::setAmplifierIpAddress(const QString& ipAddress) {
+    m_settings.setValue("Amplifier/ipAddress", ipAddress);
+    m_settings.sync();
+}
+
+QString AppSettings::getAmplifierIpAddress() const {
+    return m_settings.value("Amplifier/ipAddress", "").toString();  // Default: empty (not configured)
+}
+
+void AppSettings::setAmplifierPort(int port) {
+    m_settings.setValue("Amplifier/port", port);
+    m_settings.sync();
+}
+
+int AppSettings::getAmplifierPort() const {
+    return m_settings.value("Amplifier/port", 1500).toInt();  // Default: 1500 (KPA1500 standard port)
+}
+
+void AppSettings::setAmplifierEnabled(bool enabled) {
+    m_settings.setValue("Amplifier/enabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getAmplifierEnabled() const {
+    return m_settings.value("Amplifier/enabled", false).toBool();  // Default: false (disabled)
+}
+
 void AppSettings::setMorseWPM(int wpm) {
     m_settings.setValue("Morse/wpm", wpm);
     m_settings.sync();
