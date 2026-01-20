@@ -2,6 +2,7 @@
 #define SMETERWIDGET_H
 
 #include <QWidget>
+#include "../../radio/RadioInterface.h"
 
 namespace TR4QT {
 
@@ -36,6 +37,12 @@ public:
     void setValue(int rawValue);
 
     /**
+     * Update from radio state (auto-switches between RX and TX modes)
+     * @param state Current radio state (checks isTransmitting, powerOutput, signalStrength)
+     */
+    void updateFromRadioState(const RadioState& state);
+
+    /**
      * Clear display (no signal)
      */
     void clear();
@@ -49,15 +56,23 @@ public:
     QSize minimumSizeHint() const override;
     QSize sizeHint() const override;
 
+    /**
+     * Convert raw S-meter value to S-unit level (0-12)
+     * 0 = no signal, 1-9 = S1-S9, 10 = +20, 11 = +40, 12 = +60
+     * (Public for testing)
+     */
+    int rawToSUnit(int rawValue) const;
+
 protected:
     void paintEvent(QPaintEvent* event) override;
 
 private:
+
     /**
-     * Convert raw S-meter value to S-unit level (0-12)
-     * 0 = no signal, 1-9 = S1-S9, 10 = +20, 11 = +40, 12 = +60
+     * Convert power (tenths of watts) to power level (0-12 bars)
+     * Scale: 0-150W → 0-12 bars (12.5W per bar)
      */
-    int rawToSUnit(int rawValue) const;
+    int powerToLevel(int powerTenths) const;
 
     /**
      * Get label for S-unit level
@@ -65,12 +80,20 @@ private:
     QString sUnitLabel(int sUnit) const;
 
     /**
+     * Get label for power level
+     */
+    QString powerLabel(int level) const;
+
+    /**
      * Apply current theme colors
      */
     void applyTheme();
 
+    bool m_isTxMode{false}; // TX mode (show power) vs RX mode (show S-meter)
     int m_rawValue;         // Raw value from radio (0-255 or 0-30)
     int m_currentSUnit;     // Current S-unit level (0-12)
+    int m_powerWatts;       // Current power output in watts (for display)
+    int m_currentPowerLevel; // Current power bar level (0-12)
 
     // Layout dimensions (derived from font metrics in constructor)
     int m_barWidth;         // Width of each discrete bar

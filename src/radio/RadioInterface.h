@@ -103,6 +103,9 @@ struct RadioState {
 
     // Power & Monitoring
     int powerOutput{0};         // Power output in tenths of watts (50 = 5.0W)
+    int alcLevel{0};            // ALC level (bars, 0-7 typical)
+    int compressionLevel{0};    // Compression level in dB
+    int swr{10};                // SWR in tenths (10 = 1.0:1, 25 = 2.5:1)
 
     // Sub Receiver (K4D/K4HD)
     bool subRxEnabled{false};   // Sub receiver enabled

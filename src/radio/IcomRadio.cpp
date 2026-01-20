@@ -649,6 +649,13 @@ void IcomRadio::pollRadio()
     sMeterCmd.append(static_cast<char>(0x02));  // Sub-command: 0x02 = Read S-meter
     sendCommand(0x15, sMeterCmd);
 
+    // Request power meter reading (command 0x15 0x11)
+    // Returns power percentage (0-255) in BCD format
+    // Needed during TX for TX power meter display
+    QByteArray powerCmd;
+    powerCmd.append(static_cast<char>(0x11));  // Sub-command: 0x11 = Read power meter
+    sendCommand(0x15, powerCmd);
+
     // Emit full state update after polling (periodic sync every 5 seconds)
     // Individual field changes (frequency, mode, etc.) emit their own signals instantly via transceive
     emit stateUpdated(getCurrentState());
@@ -978,7 +985,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
             }
             break;
 
-        case 0x15:  // S-meter reading
+        case 0x15:  // S-meter/power meter reading
             if (responseData.length() >= 3) {
                 quint8 subCmd = (quint8)responseData[0];
                 if (subCmd == 0x02) {  // Sub-command 0x02 = S-meter reading
@@ -999,6 +1006,32 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
                     m_state.signalStrength = sMeterValue;
                     LOG_DEBUG("IcomRadio", QString("S-meter: raw=%1 (BCD 0x%2 0x%3)")
                         .arg(sMeterValue)
+                        .arg(bcdHigh, 2, 16, QChar('0'))
+                        .arg(bcdLow, 2, 16, QChar('0')));
+                } else if (subCmd == 0x11) {  // Sub-command 0x11 = Power meter reading
+                    // Power meter: returns 2 BCD bytes encoding 0-255 percentage
+                    // Format: 0x11 <bcd-high> <bcd-low>
+                    // 0x00 0x00 = 0%, 0x01 0x43 = 50%, 0x02 0x13 = 100%
+                    quint8 bcdHigh = (quint8)responseData[1];
+                    quint8 bcdLow = (quint8)responseData[2];
+
+                    // Convert each BCD byte to decimal
+                    int highDecimal = ((bcdHigh >> 4) * 10) + (bcdHigh & 0x0F);
+                    int lowDecimal = ((bcdLow >> 4) * 10) + (bcdLow & 0x0F);
+
+                    // Combine: percentage = high*100 + low (0-255 = 0-100%)
+                    int percentage = highDecimal * 100 + lowDecimal;
+
+                    // Convert percentage to watts using radio-specific max power
+                    // IC-7760 = 200W, IC-9700 = 100W
+                    int watts = (percentage * maxPowerWatts()) / 255;
+
+                    QMutexLocker lock(&m_stateMutex);
+                    m_state.powerOutput = watts * 10;  // Store as tenths of watts
+                    LOG_DEBUG("IcomRadio", QString("Power meter: %1W (%2% of %3W max) (BCD 0x%4 0x%5)")
+                        .arg(watts)
+                        .arg((percentage * 100) / 255)
+                        .arg(maxPowerWatts())
                         .arg(bcdHigh, 2, 16, QChar('0'))
                         .arg(bcdLow, 2, 16, QChar('0')));
                 }

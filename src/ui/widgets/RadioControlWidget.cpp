@@ -293,8 +293,8 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
     m_wpmLabel->setText(QString("%1 WPM").arg(wpm));
     m_wpmLabel->setEnabled(isCWMode);  // Gray out when not in CW mode
 
-    // Update S-meter
-    m_sMeterWidget->setValue(state.signalStrength);
+    // Update S-meter (auto-switches between RX and TX modes)
+    m_sMeterWidget->updateFromRadioState(state);
 
     // Enable widgets when radio is connected
     m_ritWidget->setEnabled(true);
