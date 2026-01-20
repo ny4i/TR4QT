@@ -11,6 +11,7 @@ namespace TR4QT {
 
 // Forward declarations
 class RadioController;
+class SMeterWidget;
 
 /**
  * Radio control widget - displays VFO frequencies and controls
@@ -104,6 +105,7 @@ private:
     QLabel* m_vfoBFreqLabel;
     QLabel* m_modeLabel;
     QLabel* m_wpmLabel;
+    SMeterWidget* m_sMeterWidget;  // S-meter display
 
     // Control widgets
     QFrame* m_ritWidget;        // Clickable frame with RIT label + offset

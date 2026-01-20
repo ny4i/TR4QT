@@ -111,10 +111,15 @@ void K4Radio::onSocketConnected()
 {
     LOG_INFO("K4Radio", QString("Connected to K4 at %1:%2").arg(m_host).arg(m_port));
 
-    // Enable AI5 mode for automatic updates
-    enableAIMode(5);
+    // Enable AI4 mode for automatic updates (includes S-meter data)
+    // AI4 = all async updates including S-meter, AI5 = all except S-meter
+    enableAIMode(4);
 
-    // Query AI mode to confirm it was set (K4 doesn't echo AI5, must query with AI;)
+    // Enable unsolicited S-meter reporting in dBm format (more accurate than segment counts)
+    // SMH1; = enable dBm S-meter reporting, SMH0; = disable
+    sendCommand("SMH1");
+
+    // Query AI mode to confirm it was set (K4 doesn't echo AI4, must query with AI;)
     sendCommand("AI");
 
     // Query initial state
@@ -533,17 +538,33 @@ void K4Radio::processMessage(const QString& message)
         }
     }
     else if (command == "SM") {
-        // S-Meter reading
-        bool ok;
-        int sMeter = data.toInt(&ok);
-        if (ok) {
-            // Convert S-meter value to approximate dBm
-            // K4 SM returns 0-9999, rough conversion: S9=-73dBm, each S-unit is 6dB
-            // For now, just store the raw value (we can refine conversion later)
-            int dBm = -127 + (sMeter / 100);  // Rough approximation
-            if (dBm != m_state.signalStrength) {
-                m_state.signalStrength = dBm;
+        // S-Meter reading - handle both segment (SM) and dBm (SMH) formats
+        if (data.startsWith("H")) {
+            // SMH response: dBm format (e.g., "H-073" = -73 dBm)
+            // Format: H followed by sign and 3-digit dBm value
+            QString dbmStr = data.mid(1);  // Skip the 'H'
+            bool ok;
+            int dbm = dbmStr.toInt(&ok);
+            if (ok && dbm != m_state.signalStrength) {
+                m_state.signalStrength = dbm;
                 emit stateUpdated(m_state);
+                LOG_DEBUG("K4Radio", QString("S-meter: %1 dBm").arg(dbm));
+            }
+        } else {
+            // SM response: segment format (0000-0030)
+            // This shouldn't happen if SMH1; was sent, but handle it anyway
+            bool ok;
+            int segments = data.toInt(&ok);
+            if (ok) {
+                // Convert segments to approximate dBm
+                // S9 = -73 dBm, each S-unit below S9 is 6 dB
+                // 18 segments = S9 = -73 dBm
+                int dbm = -127 + (segments * 3);  // Rough approximation
+                if (dbm != m_state.signalStrength) {
+                    m_state.signalStrength = dbm;
+                    emit stateUpdated(m_state);
+                    LOG_DEBUG("K4Radio", QString("S-meter: %1 segments ≈ %2 dBm").arg(segments).arg(dbm));
+                }
             }
         }
     }

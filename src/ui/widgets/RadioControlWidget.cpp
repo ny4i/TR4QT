@@ -1,4 +1,5 @@
 #include "RadioControlWidget.h"
+#include "SMeterWidget.h"
 #include "../../radio/RadioController.h"
 #include "../../utils/ThemeManager.h"
 #include "../../utils/AppSettings.h"
@@ -127,6 +128,10 @@ void RadioControlWidget::setupUI() {
     m_wpmLabel->setEnabled(false);  // Grayed out by default
     mainLayout->addWidget(m_wpmLabel);
 
+    // S-meter widget
+    m_sMeterWidget = new SMeterWidget(this);
+    mainLayout->addWidget(m_sMeterWidget);
+
     // Control buttons
     QWidget* buttonWidget = new QWidget(this);
     buttonWidget->setAutoFillBackground(true);  // Prevent transparent/blank rendering
@@ -221,7 +226,8 @@ void RadioControlWidget::setupUI() {
     mainLayout->addWidget(buttonWidget);
 
     // Set minimum size (no maximum to allow user resizing)
-    // Height needs to accommodate: VFO displays, mode, S-meter (60px), and buttons (50px)
+    // Height accommodates: title, VFO displays, mode, WPM, S-meter, and buttons
+    // All dimensions derived from font metrics (no magic numbers)
     setMinimumSize(250, 300);
 }
 
@@ -287,6 +293,9 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
     m_wpmLabel->setText(QString("%1 WPM").arg(wpm));
     m_wpmLabel->setEnabled(isCWMode);  // Gray out when not in CW mode
 
+    // Update S-meter
+    m_sMeterWidget->setValue(state.signalStrength);
+
     // Enable widgets when radio is connected
     m_ritWidget->setEnabled(true);
     m_xitWidget->setEnabled(true);
@@ -331,6 +340,9 @@ void RadioControlWidget::clearDisplay() {
     m_vfoAFreqLabel->setText("----.-----");
     m_vfoBFreqLabel->setText("----.-----");
     m_modeLabel->setText("---");
+
+    // Clear S-meter
+    m_sMeterWidget->clear();
 
     // Clear current state first (so style updates use cleared state)
     m_currentState = RadioState();
