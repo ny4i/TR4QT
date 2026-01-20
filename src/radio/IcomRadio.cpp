@@ -643,6 +643,12 @@ void IcomRadio::pollRadio()
     cwSpeedCmd.append(static_cast<char>(0x0C));
     sendCommand(0x14, cwSpeedCmd);
 
+    // Request S-meter reading (command 0x15 0x02)
+    // Returns raw S-meter value (0-255) in BCD format
+    QByteArray sMeterCmd;
+    sMeterCmd.append(static_cast<char>(0x02));  // Sub-command: 0x02 = Read S-meter
+    sendCommand(0x15, sMeterCmd);
+
     // Emit full state update after polling (periodic sync every 5 seconds)
     // Individual field changes (frequency, mode, etc.) emit their own signals instantly via transceive
     emit stateUpdated(getCurrentState());
@@ -968,6 +974,33 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
                         .arg(bcdHigh, 2, 16, QChar('0'))
                         .arg(bcdLow, 2, 16, QChar('0'))
                         .arg(value));
+                }
+            }
+            break;
+
+        case 0x15:  // S-meter reading
+            if (responseData.length() >= 3) {
+                quint8 subCmd = (quint8)responseData[0];
+                if (subCmd == 0x02) {  // Sub-command 0x02 = S-meter reading
+                    // S-meter: IC-7760 returns 2 BCD bytes encoding 0-255 value
+                    // Format: 0x02 <bcd-high> <bcd-low> (e.g., 0x01 0x20 = 120)
+                    // Value 0-120 = S0-S9, 121-241 = +20/+40/+60 dB over S9
+                    quint8 bcdHigh = (quint8)responseData[1];
+                    quint8 bcdLow = (quint8)responseData[2];
+
+                    // Convert each BCD byte to decimal
+                    int highDecimal = ((bcdHigh >> 4) * 10) + (bcdHigh & 0x0F);
+                    int lowDecimal = ((bcdLow >> 4) * 10) + (bcdLow & 0x0F);
+
+                    // Combine: value = high*100 + low (big-endian)
+                    int sMeterValue = highDecimal * 100 + lowDecimal;
+
+                    QMutexLocker lock(&m_stateMutex);
+                    m_state.signalStrength = sMeterValue;
+                    LOG_DEBUG("IcomRadio", QString("S-meter: raw=%1 (BCD 0x%2 0x%3)")
+                        .arg(sMeterValue)
+                        .arg(bcdHigh, 2, 16, QChar('0'))
+                        .arg(bcdLow, 2, 16, QChar('0')));
                 }
             }
             break;

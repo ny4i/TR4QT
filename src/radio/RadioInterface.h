@@ -73,7 +73,7 @@ struct RadioState {
     int cwSpeed{30};            // WPM
     int cwPitch{600};           // Hz (CW sidetone frequency)
     int filterWidth{0};         // Hz
-    int signalStrength{-54};    // Signal strength in dBm (S9 = -73 dBm)
+    int signalStrength{0};      // Signal strength (0-255 Icom raw, 0-30 K4 segments, or dBm if negative)
 
     // Audio & Gain Controls
     int afGainA{50};            // AF gain VFO A (0-255)

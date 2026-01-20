@@ -285,6 +285,12 @@ if(WIN32)
     set_tests_properties(test_thememanager PROPERTIES DISABLED TRUE)
 endif()
 
+add_tr4qt_test(test_smeter
+    test_smeter.cpp
+    ../src/ui/widgets/SMeterWidget.cpp
+    ../src/utils/ThemeManager.cpp
+)
+
 add_tr4qt_test(test_geographicutils
     test_geographicutils.cpp
     ../src/utils/GeographicUtils.cpp

@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.40";  // Fix radio grid to use floor (truncate) instead of rounding
+constexpr const char* APP_VERSION = "3.38.42";  // S-meter widget: K4 dBm + Icom, dynamic scaling, no magic numbers/colors
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
