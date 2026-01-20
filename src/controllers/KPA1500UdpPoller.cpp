@@ -4,6 +4,7 @@
 #include <QUdpSocket>
 #include <QTimer>
 #include <QtMath>
+#include <QCoreApplication>
 
 namespace TR4QT {
 
@@ -80,6 +81,41 @@ void KPA1500UdpPoller::stop()
     }
 }
 
+void KPA1500UdpPoller::queryNow()
+{
+    if (m_addr.isNull()) {
+        emit errorOccurred(QStringLiteral("Kpa1500UdpPoller: amplifier address not set"));
+        return;
+    }
+
+    // Create temporary socket if not already running
+    bool wasRunning = m_running;
+    QUdpSocket* socket = m_socket;
+
+    if (!socket) {
+        socket = new QUdpSocket(this);
+        connect(socket, &QUdpSocket::readyRead, this, &KPA1500UdpPoller::onReadyRead);
+    }
+
+    // Send poll commands
+    for (const QString &cmdStr : m_pollCommands) {
+        QByteArray cmd = cmdStr.toUtf8();
+        if (!cmd.isEmpty() && cmd.front() == '^' && cmd.back() == ';') {
+            qint64 sent = socket->writeDatagram(cmd, m_addr, m_port);
+            if (sent != cmd.size()) {
+                emit errorOccurred(QStringLiteral("Failed to send command '%1'").arg(cmdStr));
+            }
+        }
+    }
+
+    // Clean up temporary socket if we created one
+    if (!wasRunning && socket != m_socket) {
+        // Process any immediate responses
+        QCoreApplication::processEvents();
+        socket->deleteLater();
+    }
+}
+
 void KPA1500UdpPoller::initDispatchTable()
 {
     // Power & SWR [file:124]
@@ -90,6 +126,7 @@ void KPA1500UdpPoller::initDispatchTable()
 
     // Band / ATU / antenna / fault [file:124]
     m_dispatch.insert("^BN",  [this](const QString &r){ handleBN(r);  });
+    m_dispatch.insert("^OS",  [this](const QString &r){ handleOS(r);  });
     m_dispatch.insert("^AI",  [this](const QString &r){ handleAI(r);  });
     m_dispatch.insert("^AM",  [this](const QString &r){ handleAM(r);  });
     m_dispatch.insert("^AN",  [this](const QString &r){ handleAN(r);  });
@@ -240,6 +277,18 @@ void KPA1500UdpPoller::handleBN(const QString &resp)
     if (band != m_lastBandNumber) {
         m_lastBandNumber = band;
         emit bandNumberChanged(band);
+    }
+}
+
+// ^OS1; Operate mode, ^OS0; Standby mode [file:124]
+void KPA1500UdpPoller::handleOS(const QString &resp)
+{
+    if (resp.size() < 5) return;
+    QChar c = resp[3];
+    bool operateMode = (c == QLatin1Char('1'));
+    if (operateMode != m_lastOperatingStatus) {
+        m_lastOperatingStatus = operateMode;
+        emit operatingStatusChanged(operateMode);
     }
 }
 

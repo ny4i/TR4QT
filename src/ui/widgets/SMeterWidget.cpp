@@ -110,6 +110,18 @@ void SMeterWidget::clear() {
     m_currentPowerLevel = 0;
 }
 
+void SMeterWidget::setMaxPower(int maxWatts) {
+    if (m_maxPowerWatts != maxWatts) {
+        m_maxPowerWatts = maxWatts;
+        // Recalculate power level with new scale
+        if (m_isTxMode) {
+            int powerTenths = m_powerWatts * 10;
+            m_currentPowerLevel = powerToLevel(powerTenths);
+            update();
+        }
+    }
+}
+
 int SMeterWidget::rawToSUnit(int rawValue) const {
     // Detect format: dBm (negative) vs raw Icom/K4 (positive)
     if (rawValue < 0) {
@@ -175,18 +187,18 @@ int SMeterWidget::rawToSUnit(int rawValue) const {
 
 int SMeterWidget::powerToLevel(int powerTenths) const {
     // Convert power (tenths of watts) to bar level (0-12)
-    // Scale: 0-150W → 0-12 bars (12.5W per bar)
-    // K4 typical: 0.5W-200W range, but 150W is common max
-    constexpr int MAX_POWER_TENTHS = 1500;  // 150W in tenths
+    // Scale: 0-maxPowerWatts → 0-12 bars
+    // Default: 150W for radios, 1500W for KPA1500 amplifier
+    int maxPowerTenths = m_maxPowerWatts * 10;
     constexpr int BARS = SMeterConstants::TOTAL_BARS;
 
     if (powerTenths <= 0) {
         return 0;
-    } else if (powerTenths >= MAX_POWER_TENTHS) {
+    } else if (powerTenths >= maxPowerTenths) {
         return BARS;
     } else {
-        // Linear mapping: 0-150W → 0-12 bars
-        return (powerTenths * BARS) / MAX_POWER_TENTHS;
+        // Linear mapping: 0-maxPowerWatts → 0-12 bars
+        return (powerTenths * BARS) / maxPowerTenths;
     }
 }
 
@@ -206,9 +218,9 @@ QString SMeterWidget::sUnitLabel(int sUnit) const {
 }
 
 QString SMeterWidget::powerLabel(int level) const {
-    // Power labels: every 2 bars (0, 25W, 50W, 75W, 100W, 125W, 150W)
-    // Level 0 = 0W, 2 = 25W, 4 = 50W, 6 = 75W, 8 = 100W, 10 = 125W, 12 = 150W
-    int watts = (level * 150) / SMeterConstants::TOTAL_BARS;
+    // Power labels scale with max power
+    // Level 0 = 0W, 12 = maxPowerWatts (evenly distributed)
+    int watts = (level * m_maxPowerWatts) / SMeterConstants::TOTAL_BARS;
     return QString::number(watts);
 }
 

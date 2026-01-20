@@ -24,6 +24,7 @@ public:
     bool isConnected() const;
     RadioState getCurrentState() const;
     QString getRadioModel() const;
+    int maxPowerWatts() const;  // Maximum TX power rating
     QList<ModeType> getSupportedModes() const;
     bool supportsCWSending() const;  // Check if radio supports CW via Hamlib
 

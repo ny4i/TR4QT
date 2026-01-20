@@ -363,6 +363,12 @@ void RadioControlWidget::setRadioNumber(int number) {
     m_titleLabel->setText(QString("Radio %1").arg(number));
 }
 
+void RadioControlWidget::setMaxPower(int maxPowerWatts) {
+    if (m_sMeterWidget) {
+        m_sMeterWidget->setMaxPower(maxPowerWatts);
+    }
+}
+
 void RadioControlWidget::setRadioController(RadioController* controller) {
     m_radioController = controller;
 }

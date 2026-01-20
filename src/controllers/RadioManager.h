@@ -10,6 +10,8 @@
 
 namespace TR4QT {
 
+class KPA1500UdpPoller;
+
 /**
  * RadioManager
  *
@@ -129,6 +131,12 @@ signals:
      */
     void flashStateChanged(bool flashState);
 
+    /**
+     * Emitted when TX power meter max power should be updated
+     * @param maxPowerWatts Maximum power in watts (110W for K4, 1800W for KPA1500 in operate mode)
+     */
+    void maxPowerChanged(int maxPowerWatts);
+
 private slots:
     /**
      * Handle radio connection status change
@@ -167,6 +175,24 @@ private slots:
      */
     void onFlashTimeout();
 
+    /**
+     * Handle amplifier forward power change
+     * @param watts Forward power in watts
+     */
+    void onAmplifierPowerChanged(int watts);
+
+    /**
+     * Handle amplifier operating status change
+     * @param operateMode true if amplifier is in operate mode, false if standby
+     */
+    void onAmplifierOperatingStatusChanged(bool operateMode);
+
+    /**
+     * Handle amplifier error
+     * @param error Error message
+     */
+    void onAmplifierError(const QString& error);
+
 private:
     static const int RECONNECT_INTERVAL_MS = 10000;  // 10 seconds between reconnect attempts
     static const int FLASH_INTERVAL_MS = 500;        // 500ms flash rate
@@ -180,6 +206,11 @@ private:
     int m_radioReconnectAttempts;       // Reconnection attempt counter
     QTimer* m_radioFlashTimer;          // Timer for flashing red indicator
     bool m_radioFlashState;             // Current flash state (on/off)
+
+    // Amplifier (KPA1500) state
+    KPA1500UdpPoller* m_amplifier;      // Amplifier UDP poller (null if disabled)
+    bool m_amplifierOperateMode;        // Operating status (true=operate, false=standby)
+    int m_amplifierForwardPower;        // Amplifier forward power in watts
 };
 
 } // namespace TR4QT
