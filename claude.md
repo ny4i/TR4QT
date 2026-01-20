@@ -631,11 +631,9 @@ Detailed explanation of what changed and why.
 Changes:
 - Bullet point list of specific changes
 - Include file locations if helpful
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ```
+
+**Note:** Git attribution disabled in settings.json (includeCoAuthoredBy=false, gitAttribution=false)
 
 ## Pre-Release Checklist
 
