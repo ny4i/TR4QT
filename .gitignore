@@ -41,3 +41,6 @@ cty.dat
 !tests/fixtures/*.adi
 !tests/fixtures/*.adif
 .mcp.json
+
+# Claude Code local settings (user-specific)
+.claude/settings.local.json
