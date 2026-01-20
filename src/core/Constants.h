@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.42";  // S-meter widget: K4 dBm + Icom, dynamic scaling, no magic numbers/colors
+constexpr const char* APP_VERSION = "3.38.43";  // Add Icom power meter + fix S-meter RX mode repaint bug
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

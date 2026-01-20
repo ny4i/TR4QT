@@ -119,6 +119,11 @@ void K4Radio::onSocketConnected()
     // SMH1; = enable dBm S-meter reporting, SMH0; = disable
     sendCommand("SMH1");
 
+    // Enable unsolicited power/ALC/SWR reporting for TX meter display
+    // TM1; = enable, TM0; = disable
+    // Format: TMaaabbbcccddd; where aaa=ALC, bbb=CMP(dB), ccc=FWD power(watts), ddd=SWR(tenths)
+    sendCommand("TM1");
+
     // Query AI mode to confirm it was set (K4 doesn't echo AI4, must query with AI;)
     sendCommand("AI");
 
@@ -386,6 +391,33 @@ void K4Radio::processMessage(const QString& message)
         if (ok && power != m_state.powerOutput) {
             m_state.powerOutput = power;
             emit stateUpdated(m_state);
+        }
+    }
+    else if (command == "TM") {
+        // Power/ALC/SWR monitoring (format: TMaaabbbcccddd;)
+        // aaa = ALC (bars 0-7), bbb = CMP (dB), ccc = FWD power (watts), ddd = SWR (tenths)
+        if (data.length() >= 12) {
+            bool ok;
+            int alc = data.mid(0, 3).toInt(&ok);
+            if (ok) m_state.alcLevel = alc;
+
+            int cmp = data.mid(3, 3).toInt(&ok);
+            if (ok) m_state.compressionLevel = cmp;
+
+            int power = data.mid(6, 3).toInt(&ok);
+            if (ok) {
+                // Power is in watts (QRO mode) or tenths of watts (QRP mode)
+                // Store as tenths of watts for consistency with PO command
+                // TODO: Detect QRP mode and multiply by 10 if needed
+                m_state.powerOutput = power * 10;  // Assume QRO mode (watts → tenths)
+            }
+
+            int swr = data.mid(9, 3).toInt(&ok);
+            if (ok) m_state.swr = swr;
+
+            emit stateUpdated(m_state);
+            LOG_DEBUG("K4Radio", QString("TM: ALC=%1 bars, CMP=%2 dB, FWD=%3W, SWR=%4")
+                .arg(alc).arg(cmp).arg(power).arg(swr / 10.0, 0, 'f', 1));
         }
     }
     else if (command == "CW") {

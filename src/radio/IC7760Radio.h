@@ -35,6 +35,7 @@ public:
     bool supportsTransceive() const override { return true; }
     bool supportsVfoB() const override { return true; }
     bool supportsScope() const override { return true; }
+    int maxPowerWatts() const override { return 200; }  // IC-7760 is 200W radio
 };
 
 } // namespace TR4QT

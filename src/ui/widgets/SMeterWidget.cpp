@@ -30,8 +30,11 @@ namespace SMeterConstants {
 
 SMeterWidget::SMeterWidget(QWidget* parent)
     : QWidget(parent)
+    , m_isTxMode(false)
     , m_rawValue(0)
     , m_currentSUnit(0)
+    , m_powerWatts(0)
+    , m_currentPowerLevel(0)
 {
     // Derive all dimensions from font metrics (no magic numbers)
     QFont labelFont;
@@ -69,8 +72,42 @@ void SMeterWidget::setValue(int rawValue) {
     }
 }
 
+void SMeterWidget::updateFromRadioState(const RadioState& state) {
+    bool wasTxMode = m_isTxMode;
+    m_isTxMode = state.isTransmitting;
+    bool needsUpdate = false;
+
+    if (m_isTxMode) {
+        // TX mode: display forward power
+        int powerTenths = state.powerOutput;
+        int newPowerWatts = powerTenths / 10;
+        int newPowerLevel = powerToLevel(powerTenths);
+
+        if (m_powerWatts != newPowerWatts || m_currentPowerLevel != newPowerLevel) {
+            m_powerWatts = newPowerWatts;
+            m_currentPowerLevel = newPowerLevel;
+            needsUpdate = true;
+        }
+    } else {
+        // RX mode: display S-meter
+        if (m_rawValue != state.signalStrength) {
+            m_rawValue = state.signalStrength;
+            m_currentSUnit = rawToSUnit(state.signalStrength);
+            needsUpdate = true;
+        }
+    }
+
+    // Repaint if mode changed or values updated
+    if (wasTxMode != m_isTxMode || needsUpdate) {
+        update();
+    }
+}
+
 void SMeterWidget::clear() {
     setValue(0);
+    m_isTxMode = false;
+    m_powerWatts = 0;
+    m_currentPowerLevel = 0;
 }
 
 int SMeterWidget::rawToSUnit(int rawValue) const {
@@ -136,6 +173,23 @@ int SMeterWidget::rawToSUnit(int rawValue) const {
     }
 }
 
+int SMeterWidget::powerToLevel(int powerTenths) const {
+    // Convert power (tenths of watts) to bar level (0-12)
+    // Scale: 0-150W → 0-12 bars (12.5W per bar)
+    // K4 typical: 0.5W-200W range, but 150W is common max
+    constexpr int MAX_POWER_TENTHS = 1500;  // 150W in tenths
+    constexpr int BARS = SMeterConstants::TOTAL_BARS;
+
+    if (powerTenths <= 0) {
+        return 0;
+    } else if (powerTenths >= MAX_POWER_TENTHS) {
+        return BARS;
+    } else {
+        // Linear mapping: 0-150W → 0-12 bars
+        return (powerTenths * BARS) / MAX_POWER_TENTHS;
+    }
+}
+
 QString SMeterWidget::sUnitLabel(int sUnit) const {
     if (sUnit == 0) {
         return "S0";
@@ -149,6 +203,13 @@ QString SMeterWidget::sUnitLabel(int sUnit) const {
         return "+60";
     }
     return "";
+}
+
+QString SMeterWidget::powerLabel(int level) const {
+    // Power labels: every 2 bars (0, 25W, 50W, 75W, 100W, 125W, 150W)
+    // Level 0 = 0W, 2 = 25W, 4 = 50W, 6 = 75W, 8 = 100W, 10 = 125W, 12 = 150W
+    int watts = (level * 150) / SMeterConstants::TOTAL_BARS;
+    return QString::number(watts);
 }
 
 void SMeterWidget::applyTheme() {
@@ -178,7 +239,9 @@ void SMeterWidget::paintEvent(QPaintEvent* event) {
     // Get colors from theme
     QColor textColor = theme.color(ColorRole::PrimaryText);
     QColor borderColor = theme.color(ColorRole::BorderColor);
-    QColor barActiveColor = theme.color(ColorRole::ConnectedStatus);  // Green for active
+
+    // TX mode: orange bars for power, RX mode: green bars for S-meter
+    QColor barActiveColor = m_isTxMode ? QColor(255, 140, 0) : theme.color(ColorRole::ConnectedStatus);  // Orange TX, Green RX
     QColor barInactiveColor = theme.color(ColorRole::SecondaryText);  // Gray for inactive
 
     // Setup fonts
@@ -203,30 +266,52 @@ void SMeterWidget::paintEvent(QPaintEvent* event) {
     int labelY = m_labelHeight;
     int barY = labelY + m_barSpacing;
 
-    // Draw each bar (S1-S9, +20, +40, +60)
+    // Draw each bar (RX: S1-S9/+20/+40/+60, TX: 0-150W in 12 bars)
     for (int i = 0; i < SMeterConstants::TOTAL_BARS; ++i) {
-        int sUnit = i + 1;  // S-unit level (1-12)
+        int level = i + 1;  // Level 1-12
         int x = startX + (i * (barWidth + m_barSpacing));
 
-        // Draw label (S1, S3, S5, S7, S9, +20, +40, +60)
-        bool showLabel = (i == 0) || (i == 2) || (i == 4) || (i == 6) ||
-                         (i == 8) || (i == 9) || (i == 10) || (i == 11);
-        if (showLabel) {
-            QString label = sUnitLabel(sUnit);
-            int textWidth = fm.horizontalAdvance(label);
-            painter.setPen(textColor);
-            painter.drawText(x + (barWidth - textWidth) / 2, labelY, label);
+        // Draw labels
+        if (m_isTxMode) {
+            // TX mode: show power labels (0W, 25W, 50W, 75W, 100W, 125W, 150W)
+            // Show labels at bars: 0, 2, 4, 6, 8, 10, 12
+            bool showLabel = (i == 0) || (i == 2) || (i == 4) || (i == 6) ||
+                             (i == 8) || (i == 10) || (i == 11);
+            if (showLabel) {
+                QString label = powerLabel(level);
+                int textWidth = fm.horizontalAdvance(label);
+                painter.setPen(textColor);
+                painter.drawText(x + (barWidth - textWidth) / 2, labelY, label);
+            }
+
+            // Draw bar (filled if power >= this level)
+            QRect barRect(x, barY, barWidth, m_barHeight);
+            bool isActive = (m_currentPowerLevel >= level);
+
+            QColor barColor = isActive ? barActiveColor : barInactiveColor;
+            painter.setPen(borderColor);
+            painter.setBrush(barColor);
+            painter.drawRect(barRect);
+        } else {
+            // RX mode: show S-meter labels (S1, S3, S5, S7, S9, +20, +40, +60)
+            bool showLabel = (i == 0) || (i == 2) || (i == 4) || (i == 6) ||
+                             (i == 8) || (i == 9) || (i == 10) || (i == 11);
+            if (showLabel) {
+                QString label = sUnitLabel(level);
+                int textWidth = fm.horizontalAdvance(label);
+                painter.setPen(textColor);
+                painter.drawText(x + (barWidth - textWidth) / 2, labelY, label);
+            }
+
+            // Draw bar (filled if signal >= this S-unit)
+            QRect barRect(x, barY, barWidth, m_barHeight);
+            bool isActive = (m_currentSUnit >= level);
+
+            QColor barColor = isActive ? barActiveColor : barInactiveColor;
+            painter.setPen(borderColor);
+            painter.setBrush(barColor);
+            painter.drawRect(barRect);
         }
-
-        // Draw bar (filled if signal >= this S-unit)
-        QRect barRect(x, barY, barWidth, m_barHeight);
-        bool isActive = (m_currentSUnit >= sUnit);
-
-        // Use green for active bars, gray for inactive
-        QColor barColor = isActive ? barActiveColor : barInactiveColor;
-        painter.setPen(borderColor);
-        painter.setBrush(barColor);
-        painter.drawRect(barRect);
     }
 }
 
