@@ -1,8 +1,10 @@
 #include "RadioManager.h"
+#include "KPA1500UdpPoller.h"
 #include "../logging/LogMacros.h"
 #include "../utils/DialogHelper.h"
 #include <QApplication>
 #include <QThread>
+#include <QHostAddress>
 
 // TODO: UX Improvement - Don't show Hamlib model ID when using direct interfaces
 // When radioType is K4_DIRECT or ICOM_DIRECT, the Hamlib model ID is only used
@@ -41,6 +43,9 @@ RadioManager::RadioManager(QObject* parent)
     , m_radioReconnectAttempts(0)
     , m_radioFlashTimer(new QTimer(this))
     , m_radioFlashState(false)
+    , m_amplifier(nullptr)
+    , m_amplifierOperateMode(false)
+    , m_amplifierForwardPower(0)
 {
     // Setup reconnection timer (single-shot, 10 seconds)
     m_radioReconnectTimer->setSingleShot(true);
@@ -64,6 +69,32 @@ RadioManager::RadioManager(QObject* parent)
     // Mode changes are less frequent and handled by periodic stateUpdated
     connect(m_radio, &RadioController::frequencyChanged,
             this, &RadioManager::onFrequencyChanged);
+
+    // Setup amplifier poller (KPA1500)
+    AppSettings& settings = AppSettings::instance();
+    if (settings.getAmplifierEnabled()) {
+        QString ipAddress = settings.getAmplifierIpAddress();
+        int port = settings.getAmplifierPort();
+
+        if (!ipAddress.isEmpty()) {
+            m_amplifier = new KPA1500UdpPoller(this);
+            m_amplifier->setAmplifierAddress(QHostAddress(ipAddress), port);
+            m_amplifier->setPollIntervalMs(100);  // Fast polling (100ms) during TX
+            m_amplifier->setPollCommands({"^PWF;", "^OS;"});  // Forward power + Operating status
+
+            // Connect amplifier signals
+            connect(m_amplifier, &KPA1500UdpPoller::forwardPowerChanged,
+                    this, &RadioManager::onAmplifierPowerChanged);
+            connect(m_amplifier, &KPA1500UdpPoller::operatingStatusChanged,
+                    this, &RadioManager::onAmplifierOperatingStatusChanged);
+            connect(m_amplifier, &KPA1500UdpPoller::errorOccurred,
+                    this, &RadioManager::onAmplifierError);
+
+            LOG_INFO("RadioManager", QString("KPA1500 amplifier configured at %1:%2").arg(ipAddress).arg(port));
+        } else {
+            LOG_WARN("RadioManager", "Amplifier enabled but no IP address configured");
+        }
+    }
 }
 
 RadioManager::~RadioManager()
@@ -205,6 +236,10 @@ void RadioManager::onRadioConnected(bool connected)
         m_radioFlashState = false;
         emit flashStateChanged(false);  // Update to normal color
 
+        // Set TX power meter scale to radio's max power (amplifier may override later)
+        int radioMaxPower = m_radio->maxPowerWatts();
+        emit maxPowerChanged(radioMaxPower);
+
         // Don't show "waiting for state" - stateUpdated will arrive immediately
         // Status will be updated when radio model arrives in state update
     } else {
@@ -254,11 +289,44 @@ void RadioManager::onRadioStateUpdated(const RadioState& state)
     bool frequencyChanged = (state.frequencyA != m_currentState.frequencyA);
     bool bandChanged = (state.bandA != m_currentState.bandA);
 
-    // Update cached state
+    // Check for transmit state change (to start/stop amplifier polling)
+    bool wasTransmitting = m_currentState.isTransmitting;
+    bool isTransmitting = state.isTransmitting;
+
+    // Start/stop amplifier polling based on transmit state
+    if (m_amplifier) {
+        if (isTransmitting && !wasTransmitting) {
+            // Entering TX mode - fail closed: assume standby until amplifier confirms operate mode
+            // 1. Reset cached state to standby (safe default)
+            m_amplifierOperateMode = false;
+
+            // 2. Set power meter to radio-only scale (110W for K4)
+            int radioMaxPower = m_radio->maxPowerWatts();
+            emit maxPowerChanged(radioMaxPower);
+            LOG_DEBUG("RadioManager", QString("TX mode: Assumed standby, set power scale to %1W").arg(radioMaxPower));
+
+            // 3. Query amplifier operating status
+            // If ^OS1; response arrives, onAmplifierOperatingStatusChanged() will update to 1800W
+            // If ^OS0; or no response, we stay at radio power (fail closed)
+            m_amplifier->queryNow();  // Send ^OS; query
+            m_amplifier->start();      // Start continuous polling
+        } else if (!isTransmitting && wasTransmitting) {
+            // Leaving TX mode - stop amplifier polling
+            m_amplifier->stop();
+            LOG_DEBUG("RadioManager", "RX mode: Stopped KPA1500 amplifier polling");
+        }
+    }
+
+    // Update cached state (use amplifier power if ATU is inline and transmitting)
     m_currentState = state;
+    if (m_amplifier && isTransmitting && m_amplifierOperateMode) {
+        // Override radio power with amplifier power when in operate mode
+        m_currentState.powerOutput = m_amplifierForwardPower * 10;  // Convert watts to tenths
+        LOG_DEBUG("RadioManager", QString("Using amplifier power: %1W (ATU inline)").arg(m_amplifierForwardPower));
+    }
 
     // Emit radio state updated signal
-    emit radioStateUpdated(state);
+    emit radioStateUpdated(m_currentState);
 
     // Emit frequency/band change signals if changed
     if (frequencyChanged && state.frequencyA > 0) {
@@ -338,6 +406,40 @@ void RadioManager::onFlashTimeout()
 {
     m_radioFlashState = !m_radioFlashState;
     emit flashStateChanged(m_radioFlashState);
+}
+
+void RadioManager::onAmplifierPowerChanged(int watts)
+{
+    m_amplifierForwardPower = watts;
+    LOG_DEBUG("RadioManager", QString("KPA1500 forward power: %1W").arg(watts));
+
+    // If transmitting and ATU is inline, update current state immediately
+    if (m_currentState.isTransmitting && m_amplifierOperateMode) {
+        m_currentState.powerOutput = watts * 10;  // Convert to tenths
+        emit radioStateUpdated(m_currentState);
+    }
+}
+
+void RadioManager::onAmplifierOperatingStatusChanged(bool operateMode)
+{
+    m_amplifierOperateMode = operateMode;
+    LOG_INFO("RadioManager", QString("KPA1500 operating status: %1").arg(operateMode ? "Operate (100-1800W)" : "Standby (0-110W)"));
+
+    // Update TX power meter scale based on operating status
+    if (operateMode) {
+        // Amplifier in operate mode: KPA1500 can output up to 1800W
+        emit maxPowerChanged(1800);
+    } else {
+        // Amplifier in standby: use radio's max power
+        int radioMaxPower = m_radio->maxPowerWatts();
+        emit maxPowerChanged(radioMaxPower);
+    }
+}
+
+void RadioManager::onAmplifierError(const QString& error)
+{
+    LOG_ERROR("RadioManager", QString("KPA1500 error: %1").arg(error));
+    emit statusMessage(QString("Amplifier error: %1").arg(error));
 }
 
 } // namespace TR4QT

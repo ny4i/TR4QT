@@ -47,6 +47,12 @@ public:
     void setRadioNumber(int number);
 
     /**
+     * Set maximum TX power for power meter scale
+     * @param maxPowerWatts Maximum power in watts (110W for K4, 1800W for amplifier)
+     */
+    void setMaxPower(int maxPowerWatts);
+
+    /**
      * Set radio controller reference (for mode menu)
      */
     void setRadioController(RadioController* controller);

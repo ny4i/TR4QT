@@ -85,6 +85,7 @@ signals:
     void atuModeChanged(QString mode);       // ^AM - ATU mode ("Inline" or "Bypassed")
 
     // Status and monitoring
+    void operatingStatusChanged(bool operateMode); // ^OS - Operating status (true=operate, false=standby)
     void faultCodeChanged(int code);         // ^FL - Fault code (0 = no fault)
     void temperatureChanged(double celsius); // ^TM - PA temperature in °C
     void inputVoltageChanged(double volts);  // ^VI - Input DC voltage
@@ -116,6 +117,12 @@ public slots:
      */
     void stop();
 
+    /**
+     * Query amplifier status immediately (one-shot poll, doesn't start timer)
+     * Useful for getting fresh status when entering TX mode
+     */
+    void queryNow();
+
 private slots:
     void doPollCycle();
     void onReadyRead();
@@ -131,6 +138,7 @@ private:
     void handlePWR(const QString& resp);  // Reflected power
     void handleSW(const QString& resp);   // SWR
     void handleBN(const QString& resp);   // Band number
+    void handleOS(const QString& resp);   // Operating status
     void handleAI(const QString& resp);   // ATU inline
     void handleAM(const QString& resp);   // ATU mode
     void handleAN(const QString& resp);   // Antenna
@@ -162,6 +170,7 @@ private:
     double m_lastSwr{-1.0};
 
     int m_lastBandNumber{-1};
+    bool m_lastOperatingStatus{false};  // ^OS - Operate (true) or Standby (false)
     bool m_lastAtuInline{false};
     QString m_lastAtuMode;
     int m_lastAntenna{-1};

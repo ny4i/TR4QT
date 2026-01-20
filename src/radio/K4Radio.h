@@ -79,6 +79,7 @@ public:
 
     // Radio capabilities
     bool supportsDiscreteBandCommand() const override;
+    int maxPowerWatts() const override { return 110; }  // K4 is 110W radio (100W + 10W headroom)
 
     // Radio information
     Q_INVOKABLE QList<ModeType> getSupportedModes() const;

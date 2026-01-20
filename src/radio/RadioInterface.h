@@ -170,6 +170,9 @@ public slots:
 public:
     virtual bool isConnected() const = 0;
 
+    // Radio capabilities
+    virtual int maxPowerWatts() const = 0;  // Maximum TX power rating (110W for K4, 100W for IC-9700, 200W for IC-7760)
+
     // Frequency query (const, called synchronously)
     virtual freq_t getFrequency(VFO vfo = VFO::VFO_A) const = 0;
 

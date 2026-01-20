@@ -283,6 +283,18 @@ QString RadioController::getRadioModel() const {
     return m_radioModel;
 }
 
+int RadioController::maxPowerWatts() const {
+    // Call into worker thread to get max power (thread-safe)
+    int maxPower = 100;  // Default fallback
+    if (m_radio) {
+        // Use blocking queued connection to safely call across threads
+        QMetaObject::invokeMethod(m_radio, "maxPowerWatts",
+                                 Qt::BlockingQueuedConnection,
+                                 Q_RETURN_ARG(int, maxPower));
+    }
+    return maxPower;
+}
+
 QList<ModeType> RadioController::getSupportedModes() const {
     // Call into worker thread to get supported modes
     QList<ModeType> modes;

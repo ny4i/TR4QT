@@ -607,6 +607,35 @@ QString HamlibRadio::getRadioVersion() const {
     return QString::fromStdString(m_rig->caps->version);
 }
 
+int HamlibRadio::maxPowerWatts() const {
+    QMutexLocker locker(&m_rigMutex);
+    if (!m_rig || !m_rig->caps) {
+        return 100;  // Fallback default
+    }
+
+    // Query max power from Hamlib tx_range_list
+    // Power is in milliwatts in Hamlib, need to convert to watts
+    int maxPowerMw = 0;
+    const struct freq_range_list *tx_ranges = m_rig->caps->tx_range_list1;
+
+    for (int i = 0; i < HAMLIB_FRQRANGESIZ && tx_ranges[i].startf != 0; i++) {
+        // high_power is the max power in milliwatts
+        if (tx_ranges[i].high_power > maxPowerMw) {
+            maxPowerMw = tx_ranges[i].high_power;
+        }
+    }
+
+    // Convert milliwatts to watts and round
+    int maxPowerWatts = (maxPowerMw + 500) / 1000;  // Round to nearest watt
+
+    // Fallback to 100W if no valid power found
+    if (maxPowerWatts <= 0) {
+        maxPowerWatts = 100;
+    }
+
+    return maxPowerWatts;
+}
+
 QList<ModeType> HamlibRadio::getSupportedModes() const {
     QMutexLocker locker(&m_rigMutex);
     QList<ModeType> modes;

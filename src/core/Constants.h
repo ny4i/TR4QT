@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.44";  // Integrate KPA1500 UDP poller with settings UI
+constexpr const char* APP_VERSION = "3.38.45";  // KPA1500 amplifier integration with dynamic TX power meter scaling
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

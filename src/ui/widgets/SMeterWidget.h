@@ -52,6 +52,12 @@ public:
      */
     int value() const { return m_rawValue; }
 
+    /**
+     * Set maximum power for TX meter scale
+     * @param maxWatts Maximum power in watts (default 150W for radios, 1500W for amplifiers)
+     */
+    void setMaxPower(int maxWatts);
+
     // Size hints for layout
     QSize minimumSizeHint() const override;
     QSize sizeHint() const override;
@@ -94,6 +100,7 @@ private:
     int m_currentSUnit;     // Current S-unit level (0-12)
     int m_powerWatts;       // Current power output in watts (for display)
     int m_currentPowerLevel; // Current power bar level (0-12)
+    int m_maxPowerWatts{150}; // Maximum power for scale (150W radio default, 1500W for amplifier)
 
     // Layout dimensions (derived from font metrics in constructor)
     int m_barWidth;         // Width of each discrete bar

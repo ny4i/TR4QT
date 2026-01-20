@@ -1,0 +1,23 @@
+Frame 3657: Audio socket disconnect
+100000000500000003c2da49485c8d95
+- Length: 16 bytes (0x10)
+- Type: 0x05 (disconnect)
+
+Frame 3658: CI-V close packet  
+160000000000200002c2da49485c8d95c00100000500
+- Length: 22 bytes (0x16)
+- Type: 0x00 (data)
+- Payload: c00100000500
+  * 0xc0 0x01 = CI-V stream data marker
+  * 0x00 = magic byte for CLOSE
+  * 0x0500 = ???
+
+Frame 3659: CI-V socket disconnect
+100000000500000002c2da49485c8d95
+- Length: 16 bytes (0x10)
+- Type: 0x05 (disconnect)
+
+Frame 3661: Control socket disconnect
+100000000500000001c2da49f3d38074
+- Length: 16 bytes (0x10)
+- Type: 0x05 (disconnect)

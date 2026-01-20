@@ -266,6 +266,8 @@ MainWindow::MainWindow(QWidget* parent)
                 m_radioFlashState = flashState;
                 updateRadioStatusFlash();
             });
+    connect(m_radioManager, &RadioManager::maxPowerChanged,
+            m_radioControlWindow, &RadioControlWidget::setMaxPower);
 
     // Fast frequency update from transceive mode (bypasses slow radioStateUpdated)
     connect(m_radioManager, &RadioManager::frequencyChanged,
