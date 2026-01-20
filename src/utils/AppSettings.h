@@ -48,6 +48,14 @@ public:
     void setShowUntestedRadios(bool show);
     bool getShowUntestedRadios() const;
 
+    // Amplifier (KPA1500) settings
+    void setAmplifierIpAddress(const QString& ipAddress);
+    QString getAmplifierIpAddress() const;
+    void setAmplifierPort(int port);
+    int getAmplifierPort() const;
+    void setAmplifierEnabled(bool enabled);
+    bool getAmplifierEnabled() const;
+
     // Morse code settings
     void setMorseWPM(int wpm);
     int getMorseWPM() const;  // Default: 25 WPM

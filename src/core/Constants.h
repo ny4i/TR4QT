@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.43";  // Add Icom power meter + fix S-meter RX mode repaint bug
+constexpr const char* APP_VERSION = "3.38.44";  // Integrate KPA1500 UDP poller with settings UI
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
