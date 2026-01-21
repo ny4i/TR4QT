@@ -37,6 +37,8 @@ find_package(Qt6 REQUIRED COMPONENTS
     PrintSupport
     Concurrent
     SerialPort
+    Svg
+    Xml
     Test
 )
 

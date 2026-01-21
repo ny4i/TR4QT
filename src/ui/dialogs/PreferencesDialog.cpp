@@ -15,6 +15,7 @@
 #include "../../core/Types.h"
 #include "../../contests/ContestRegistry.h"
 #include "../../radio/HamlibRadio.h"
+#include "../../amplifiers/AmplifierFactory.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -22,6 +23,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QDialogButtonBox>
+#include <QTabWidget>
 #include <QInputDialog>
 #include <QFileDialog>
 #include <QColorDialog>
@@ -88,7 +90,7 @@ void PreferencesDialog::setupUI() {
     m_categoryList->setMaximumWidth(160);
     m_categoryList->setMinimumWidth(140);
     m_categoryList->addItem("Station");
-    m_categoryList->addItem("Radio");
+    m_categoryList->addItem("Hardware");
     m_categoryList->addItem("DX Cluster");
     m_categoryList->addItem("SCP");
     m_categoryList->addItem("UDP Broadcast");
@@ -106,8 +108,8 @@ void PreferencesDialog::setupUI() {
     m_settingsStack = new QStackedWidget(this);
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Station page ***");
     m_settingsStack->addWidget(createStationTab());
-    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Radio page ***");
-    m_settingsStack->addWidget(createRadioTab());
+    LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating Hardware page ***");
+    m_settingsStack->addWidget(createHardwareTab());
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating DX Cluster page ***");
     m_settingsStack->addWidget(createDXClusterTab());
     LOG_DEBUG("PreferencesDialog", "*** setupUI: Creating SCP page ***");
@@ -247,10 +249,29 @@ QWidget* PreferencesDialog::createStationTab() {
     return stationTab;
 }
 
-QWidget* PreferencesDialog::createRadioTab() {
-    QWidget* radioTab = new QWidget(this);
-    radioTab->setAutoFillBackground(true);  // Prevent transparent/blank rendering
-    QVBoxLayout* layout = new QVBoxLayout(radioTab);
+QWidget* PreferencesDialog::createHardwareTab() {
+    QWidget* hardwareTab = new QWidget(this);
+    hardwareTab->setAutoFillBackground(true);
+    QVBoxLayout* layout = new QVBoxLayout(hardwareTab);
+
+    // Create tab widget for hardware sub-categories
+    QTabWidget* hardwareTabs = new QTabWidget(hardwareTab);
+
+    // Add sub-tabs
+    hardwareTabs->addTab(createRadioSettingsWidget(), "Radio");
+    hardwareTabs->addTab(createAmplifierSettingsWidget(), "Amplifier");
+    hardwareTabs->addTab(createRotatorSettingsWidget(), "Rotator");
+
+    // Future hardware tabs (commented placeholders)
+    // hardwareTabs->addTab(createWinKeyerSettingsWidget(), "WinKeyer");
+
+    layout->addWidget(hardwareTabs);
+    return hardwareTab;
+}
+
+QWidget* PreferencesDialog::createRadioSettingsWidget() {
+    QWidget* radioWidget = new QWidget();
+    QVBoxLayout* layout = new QVBoxLayout(radioWidget);
 
     // Radio Profile Management Section
     QGroupBox* profileGroup = new QGroupBox("Radio Profiles", this);
@@ -538,28 +559,6 @@ QWidget* PreferencesDialog::createRadioTab() {
 
     layout->addWidget(advancedGroup);
 
-    // Amplifier Settings (KPA1500)
-    QGroupBox* amplifierGroup = new QGroupBox("Amplifier (KPA1500)", this);
-    QFormLayout* amplifierLayout = new QFormLayout(amplifierGroup);
-
-    m_amplifierIpEdit = new QLineEdit(this);
-    m_amplifierIpEdit->setPlaceholderText("e.g., 192.168.1.100");
-    m_amplifierIpEdit->setToolTip("IP address of Elecraft KPA1500 amplifier");
-
-    m_amplifierPortSpin = new QSpinBox(this);
-    m_amplifierPortSpin->setRange(1, 65535);
-    m_amplifierPortSpin->setValue(1500);  // Default KPA1500 UDP port
-    m_amplifierPortSpin->setToolTip("UDP port for KPA1500 communication (default: 1500)");
-
-    m_amplifierEnabledCheck = new QCheckBox("Enable amplifier monitoring", this);
-    m_amplifierEnabledCheck->setToolTip("Enable UDP polling of KPA1500 amplifier status");
-
-    amplifierLayout->addRow("IP Address:", m_amplifierIpEdit);
-    amplifierLayout->addRow("UDP Port:", m_amplifierPortSpin);
-    amplifierLayout->addRow("", m_amplifierEnabledCheck);
-
-    layout->addWidget(amplifierGroup);
-
     // Test connection button and status label
     QHBoxLayout* testLayout = new QHBoxLayout();
     m_testConnectionButton = new QPushButton("Test Connection", this);
@@ -584,7 +583,181 @@ QWidget* PreferencesDialog::createRadioTab() {
             this, &PreferencesDialog::onRadioModelChanged);
     m_radioModelCombo->blockSignals(false);
 
-    return radioTab;
+    return radioWidget;
+}
+
+QWidget* PreferencesDialog::createAmplifierSettingsWidget() {
+    QWidget* amplifierWidget = new QWidget();
+    QVBoxLayout* layout = new QVBoxLayout(amplifierWidget);
+
+    // Amplifier Configuration
+    QGroupBox* configGroup = new QGroupBox("Amplifier Configuration", this);
+    QFormLayout* configLayout = new QFormLayout(configGroup);
+
+    // Enable amplifier checkbox
+    m_amplifierEnabledCheck = new QCheckBox("Enable amplifier control", this);
+    m_amplifierEnabledCheck->setToolTip("Enable amplifier monitoring and control");
+    configLayout->addRow("", m_amplifierEnabledCheck);
+
+    // Model selection
+    m_amplifierModelCombo = new QComboBox(this);
+    m_amplifierModelCombo->setToolTip("Select amplifier model");
+    populateAmplifierList();
+    connect(m_amplifierModelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onAmplifierModelChanged);
+    configLayout->addRow("Model:", m_amplifierModelCombo);
+
+    // Connection type
+    m_amplifierConnectionTypeCombo = new QComboBox(this);
+    m_amplifierConnectionTypeCombo->addItem("Direct (UDP)", "direct");
+    m_amplifierConnectionTypeCombo->addItem("Hamlib (Serial)", "hamlib");
+    m_amplifierConnectionTypeCombo->setToolTip("Direct: Native UDP control\nHamlib: Universal serial control");
+    connect(m_amplifierConnectionTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onAmplifierConnectionTypeChanged);
+    configLayout->addRow("Connection:", m_amplifierConnectionTypeCombo);
+
+    // Port configuration (IP:port or serial port)
+    m_amplifierPortEdit = new QLineEdit(this);
+    m_amplifierPortEdit->setPlaceholderText("192.168.1.100:1500");
+    m_amplifierPortEdit->setToolTip("IP address and port (e.g., 192.168.1.100:1500)");
+    configLayout->addRow("Network:", m_amplifierPortEdit);
+
+    // Serial settings container (hidden for network mode)
+    m_amplifierSerialSettingsWidget = new QWidget(this);
+    QFormLayout* serialLayout = new QFormLayout(m_amplifierSerialSettingsWidget);
+    serialLayout->setContentsMargins(0, 0, 0, 0);
+
+    // Baud rate
+    m_amplifierBaudRateCombo = new QComboBox(this);
+    m_amplifierBaudRateCombo->addItems({"4800", "9600", "19200", "38400", "57600", "115200"});
+    m_amplifierBaudRateCombo->setCurrentText("38400");
+    m_amplifierBaudRateCombo->setToolTip("Serial port baud rate");
+    serialLayout->addRow("Baud Rate:", m_amplifierBaudRateCombo);
+
+    configLayout->addRow("", m_amplifierSerialSettingsWidget);
+    m_amplifierSerialSettingsWidget->hide();  // Hidden by default (network mode)
+
+    // Auto-connect
+    m_amplifierAutoConnectCheck = new QCheckBox("Auto-connect on startup", this);
+    m_amplifierAutoConnectCheck->setToolTip("Automatically connect to amplifier when TR4QT starts");
+    configLayout->addRow("", m_amplifierAutoConnectCheck);
+
+    // Test connection button
+    m_testAmplifierConnectionButton = new QPushButton("Test Connection", this);
+    connect(m_testAmplifierConnectionButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onTestAmplifierConnection);
+    configLayout->addRow("", m_testAmplifierConnectionButton);
+
+    layout->addWidget(configGroup);
+
+    // Add informational label
+    QLabel* infoLabel = new QLabel(
+        "Amplifier control provides monitoring and control for compatible amplifiers. "
+        "Direct mode uses native UDP protocol (KPA1500). "
+        "Hamlib mode provides universal serial support for many amplifiers.",
+        this
+    );
+    infoLabel->setWordWrap(true);
+    infoLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; }");
+    layout->addWidget(infoLabel);
+
+    layout->addStretch();
+    return amplifierWidget;
+}
+
+QWidget* PreferencesDialog::createRotatorSettingsWidget() {
+    QWidget* rotatorWidget = new QWidget();
+    QVBoxLayout* layout = new QVBoxLayout(rotatorWidget);
+
+    // Rotator Configuration
+    QGroupBox* configGroup = new QGroupBox("Rotator Configuration", this);
+    QFormLayout* configLayout = new QFormLayout(configGroup);
+
+    // Enable rotator checkbox
+    m_rotatorEnabledCheck = new QCheckBox("Enable rotator control", this);
+    m_rotatorEnabledCheck->setToolTip("Enable rotator monitoring and control");
+    configLayout->addRow("", m_rotatorEnabledCheck);
+
+    // Model selection
+    m_rotatorModelCombo = new QComboBox(this);
+    m_rotatorModelCombo->setToolTip("Select rotator model");
+    populateRotatorList();
+    connect(m_rotatorModelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onRotatorModelChanged);
+    configLayout->addRow("Model:", m_rotatorModelCombo);
+
+    // Connection type
+    m_rotatorConnectionTypeCombo = new QComboBox(this);
+    m_rotatorConnectionTypeCombo->addItem("Direct (UDP)", "direct");
+    m_rotatorConnectionTypeCombo->addItem("Hamlib", "hamlib");
+    m_rotatorConnectionTypeCombo->setToolTip("Direct: Native UDP control (PSTRotator)\nHamlib: Universal serial control");
+    connect(m_rotatorConnectionTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onRotatorConnectionTypeChanged);
+    configLayout->addRow("Connection:", m_rotatorConnectionTypeCombo);
+
+    // Network settings container
+    m_rotatorNetworkSettingsWidget = new QWidget(this);
+    QFormLayout* networkLayout = new QFormLayout(m_rotatorNetworkSettingsWidget);
+    networkLayout->setContentsMargins(0, 0, 0, 0);
+
+    m_rotatorIpEdit = new QLineEdit(this);
+    m_rotatorIpEdit->setPlaceholderText("192.168.1.100");
+    m_rotatorIpEdit->setToolTip("IP address of rotator controller");
+    networkLayout->addRow("IP Address:", m_rotatorIpEdit);
+
+    m_rotatorPortSpin = new QSpinBox(this);
+    m_rotatorPortSpin->setRange(1, 65535);
+    m_rotatorPortSpin->setValue(12000);  // Default PSTRotator port
+    m_rotatorPortSpin->setToolTip("UDP port for rotator communication");
+    networkLayout->addRow("Port:", m_rotatorPortSpin);
+
+    configLayout->addRow("", m_rotatorNetworkSettingsWidget);
+
+    // Serial settings container
+    m_rotatorSerialSettingsWidget = new QWidget(this);
+    QFormLayout* serialLayout = new QFormLayout(m_rotatorSerialSettingsWidget);
+    serialLayout->setContentsMargins(0, 0, 0, 0);
+
+    m_rotatorSerialPortEdit = new QLineEdit(this);
+    m_rotatorSerialPortEdit->setPlaceholderText("/dev/ttyUSB0 or COM3");
+    m_rotatorSerialPortEdit->setToolTip("Serial port device");
+    serialLayout->addRow("Serial Port:", m_rotatorSerialPortEdit);
+
+    m_rotatorBaudRateCombo = new QComboBox(this);
+    m_rotatorBaudRateCombo->addItems({"4800", "9600", "19200", "38400", "57600", "115200"});
+    m_rotatorBaudRateCombo->setCurrentText("9600");
+    m_rotatorBaudRateCombo->setToolTip("Serial port baud rate");
+    serialLayout->addRow("Baud Rate:", m_rotatorBaudRateCombo);
+
+    configLayout->addRow("", m_rotatorSerialSettingsWidget);
+    m_rotatorSerialSettingsWidget->hide();  // Hidden by default
+
+    // Auto-connect
+    m_rotatorAutoConnectCheck = new QCheckBox("Auto-connect on startup", this);
+    m_rotatorAutoConnectCheck->setToolTip("Automatically connect to rotator when TR4QT starts");
+    configLayout->addRow("", m_rotatorAutoConnectCheck);
+
+    // Test connection button
+    m_testRotatorConnectionButton = new QPushButton("Test Connection", this);
+    connect(m_testRotatorConnectionButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onTestRotatorConnection);
+    configLayout->addRow("", m_testRotatorConnectionButton);
+
+    layout->addWidget(configGroup);
+
+    // Add informational label
+    QLabel* infoLabel = new QLabel(
+        "Rotator control provides azimuth monitoring and control for compatible antenna rotators. "
+        "Direct mode uses native UDP protocol (PSTRotator). "
+        "Hamlib mode provides universal support for EASYCOMM, ROTOREZ, GS-232, and other protocols.",
+        this
+    );
+    infoLabel->setWordWrap(true);
+    infoLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; }");
+    layout->addWidget(infoLabel);
+
+    layout->addStretch();
+    return rotatorWidget;
 }
 
 QWidget* PreferencesDialog::createDXClusterTab() {
@@ -1610,10 +1783,51 @@ void PreferencesDialog::loadSettings() {
     m_cutNumbersEnabledCheck->setChecked(settings.getCutNumbersEnabled());
     m_serialNumberWidthSpin->setValue(settings.getSerialNumberWidth());
 
-    // Amplifier settings
-    m_amplifierIpEdit->setText(settings.getAmplifierIpAddress());
-    m_amplifierPortSpin->setValue(settings.getAmplifierPort());
+    // Amplifier settings (enhanced)
     m_amplifierEnabledCheck->setChecked(settings.getAmplifierEnabled());
+
+    int ampModelId = settings.getAmplifierModel();
+    int ampIndex = m_amplifierModelCombo->findData(ampModelId);
+    if (ampIndex >= 0) {
+        m_amplifierModelCombo->setCurrentIndex(ampIndex);
+    }
+
+    QString ampConnectionType = settings.getAmplifierConnectionType();
+    int ampConnIndex = m_amplifierConnectionTypeCombo->findData(ampConnectionType);
+    if (ampConnIndex >= 0) {
+        m_amplifierConnectionTypeCombo->setCurrentIndex(ampConnIndex);
+    }
+
+    m_amplifierPortEdit->setText(settings.getAmplifierPort());
+    m_amplifierBaudRateCombo->setCurrentText(QString::number(settings.getAmplifierBaudRate()));
+    m_amplifierAutoConnectCheck->setChecked(settings.getAmplifierAutoConnect());
+
+    // Trigger connection type changed to show/hide appropriate widgets
+    onAmplifierConnectionTypeChanged(ampConnIndex);
+
+    // Rotator settings
+    m_rotatorEnabledCheck->setChecked(settings.getRotatorEnabled());
+
+    int rotModelId = settings.getRotatorModel();
+    int rotIndex = m_rotatorModelCombo->findData(rotModelId);
+    if (rotIndex >= 0) {
+        m_rotatorModelCombo->setCurrentIndex(rotIndex);
+    }
+
+    QString rotConnectionType = settings.getRotatorConnectionType();
+    int rotConnIndex = m_rotatorConnectionTypeCombo->findData(rotConnectionType);
+    if (rotConnIndex >= 0) {
+        m_rotatorConnectionTypeCombo->setCurrentIndex(rotConnIndex);
+    }
+
+    m_rotatorIpEdit->setText(settings.getRotatorIpAddress());
+    m_rotatorPortSpin->setValue(settings.getRotatorPort());
+    m_rotatorSerialPortEdit->setText(settings.getRotatorSerialPort());
+    m_rotatorBaudRateCombo->setCurrentText(QString::number(settings.getRotatorBaudRate()));
+    m_rotatorAutoConnectCheck->setChecked(settings.getRotatorAutoConnect());
+
+    // Trigger connection type changed to show/hide appropriate widgets
+    onRotatorConnectionTypeChanged(rotConnIndex);
 
     // Note: Radio status filter checkboxes loaded earlier (before radio model selection)
 
@@ -1752,10 +1966,23 @@ void PreferencesDialog::saveSettings() {
     settings.setShowAlphaRadios(m_showAlphaRadiosCheck->isChecked());
     settings.setShowUntestedRadios(m_showUntestedRadiosCheck->isChecked());
 
-    // Amplifier settings
-    settings.setAmplifierIpAddress(m_amplifierIpEdit->text());
-    settings.setAmplifierPort(m_amplifierPortSpin->value());
+    // Amplifier settings (enhanced)
     settings.setAmplifierEnabled(m_amplifierEnabledCheck->isChecked());
+    settings.setAmplifierModel(m_amplifierModelCombo->currentData().toInt());
+    settings.setAmplifierConnectionType(m_amplifierConnectionTypeCombo->currentData().toString());
+    settings.setAmplifierPort(m_amplifierPortEdit->text());
+    settings.setAmplifierBaudRate(m_amplifierBaudRateCombo->currentText().toInt());
+    settings.setAmplifierAutoConnect(m_amplifierAutoConnectCheck->isChecked());
+
+    // Rotator settings
+    settings.setRotatorEnabled(m_rotatorEnabledCheck->isChecked());
+    settings.setRotatorModel(m_rotatorModelCombo->currentData().toInt());
+    settings.setRotatorConnectionType(m_rotatorConnectionTypeCombo->currentData().toString());
+    settings.setRotatorIpAddress(m_rotatorIpEdit->text());
+    settings.setRotatorPort(m_rotatorPortSpin->value());
+    settings.setRotatorSerialPort(m_rotatorSerialPortEdit->text());
+    settings.setRotatorBaudRate(m_rotatorBaudRateCombo->currentText().toInt());
+    settings.setRotatorAutoConnect(m_rotatorAutoConnectCheck->isChecked());
 
     // DX Cluster tab
     settings.setDXClusterCallsign(m_dxClusterCallsignEdit->text());
@@ -2234,6 +2461,165 @@ void PreferencesDialog::onSetActiveProfile() {
     m_setActiveButton->setEnabled(false);
 
     LOG_INFO("PreferencesDialog", QString("Set active profile: %1").arg(profile.name));
+}
+
+// Amplifier slots
+void PreferencesDialog::onAmplifierModelChanged(int index) {
+    int modelId = m_amplifierModelCombo->currentData().toInt();
+
+    // Auto-select connection type based on model
+    const int AMP_MODEL_ELECRAFT_KPA1500 = 1201;
+    if (modelId == AMP_MODEL_ELECRAFT_KPA1500) {
+        // KPA1500: Prefer direct UDP
+        m_amplifierConnectionTypeCombo->setCurrentIndex(0);  // Direct
+        m_amplifierPortEdit->setPlaceholderText("192.168.1.100:1500");
+        m_amplifierPortEdit->setToolTip("IP address and port for KPA1500 UDP control");
+    } else {
+        // Other models: Use Hamlib serial
+        m_amplifierConnectionTypeCombo->setCurrentIndex(1);  // Hamlib
+        m_amplifierPortEdit->setPlaceholderText("/dev/ttyUSB0 or COM3");
+        m_amplifierPortEdit->setToolTip("Serial port device");
+    }
+}
+
+void PreferencesDialog::onAmplifierConnectionTypeChanged(int index) {
+    QString connectionType = m_amplifierConnectionTypeCombo->currentData().toString();
+
+    if (connectionType == "direct") {
+        // Direct mode: Show network settings, hide serial settings
+        m_amplifierPortEdit->setPlaceholderText("192.168.1.100:1500");
+        m_amplifierPortEdit->setToolTip("IP address and port (e.g., 192.168.1.100:1500)");
+        m_amplifierSerialSettingsWidget->hide();
+    } else {
+        // Hamlib mode: Show serial settings
+        m_amplifierPortEdit->setPlaceholderText("/dev/ttyUSB0 or COM3");
+        m_amplifierPortEdit->setToolTip("Serial port device");
+        m_amplifierSerialSettingsWidget->show();
+    }
+}
+
+void PreferencesDialog::onTestAmplifierConnection() {
+    // Build AmplifierConfig from current dialog settings
+    int modelId = m_amplifierModelCombo->currentData().toInt();
+    if (modelId == 0) {
+        DialogHelper::warning(this, "Invalid Configuration",
+                           "Please select an amplifier model.");
+        return;
+    }
+
+    QString port = m_amplifierPortEdit->text().trimmed();
+    if (port.isEmpty()) {
+        DialogHelper::warning(this, "Invalid Configuration",
+                           "Please specify an IP:port or serial port.");
+        return;
+    }
+
+    QString connectionType = m_amplifierConnectionTypeCombo->currentData().toString();
+    int baudRate = m_amplifierBaudRateCombo->currentText().toInt();
+
+    // Create temporary amplifier for testing
+    AmplifierConfig config;
+    config.hamlibModelId = modelId;
+    config.connectionType = connectionType;
+    config.port = port;
+    config.baudRate = baudRate;
+
+    AmplifierFactory::AmplifierType type;
+    const int AMP_MODEL_ELECRAFT_KPA1500 = 1201;
+    if (connectionType == "direct" && modelId == AMP_MODEL_ELECRAFT_KPA1500) {
+        type = AmplifierFactory::AmplifierType::KPA1500_DIRECT;
+    } else {
+        type = AmplifierFactory::AmplifierType::HAMLIB;
+    }
+
+    IAmplifierController* testAmplifier = AmplifierFactory::createAmplifier(type, config, this);
+
+    if (!testAmplifier) {
+        DialogHelper::critical(this, "Error", "Failed to create amplifier instance.");
+        return;
+    }
+
+    // Try to connect
+    bool connected = testAmplifier->connect(config);
+
+    if (!connected) {
+        DialogHelper::critical(this, "Connection Failed",
+                            QString("Failed to connect to amplifier.\n\n"
+                                    "Model ID: %1\n"
+                                    "Port: %2\n\n"
+                                    "Check your settings and ensure the amplifier is powered on and connected.")
+                                .arg(modelId)
+                                .arg(port));
+        delete testAmplifier;
+        return;
+    }
+
+    // Connection successful - query status
+    AmplifierState state = testAmplifier->getState();
+
+    // Disconnect
+    testAmplifier->disconnect();
+    delete testAmplifier;
+
+    // Show success message
+    DialogHelper::information(this, "Connection Successful",
+                           QString("Successfully connected to amplifier!\n\n"
+                                   "Forward Power: %1 W\n"
+                                   "SWR: %2\n"
+                                   "Status: %3")
+                               .arg(state.forwardPowerWatts)
+                               .arg(state.swr, 0, 'f', 1)
+                               .arg(state.connected ? "Connected" : "Disconnected"));
+}
+
+// Rotator slots
+void PreferencesDialog::onRotatorModelChanged(int index) {
+    int modelId = m_rotatorModelCombo->currentData().toInt();
+
+    // Auto-select connection type based on model
+    const int ROT_MODEL_PSTROTATOR = 9999;
+    if (modelId == ROT_MODEL_PSTROTATOR) {
+        // PSTRotator: Use direct UDP
+        m_rotatorConnectionTypeCombo->setCurrentIndex(0);  // Direct
+        m_rotatorNetworkSettingsWidget->show();
+        m_rotatorSerialSettingsWidget->hide();
+    } else {
+        // Other models: Use Hamlib serial
+        m_rotatorConnectionTypeCombo->setCurrentIndex(1);  // Hamlib
+        m_rotatorNetworkSettingsWidget->hide();
+        m_rotatorSerialSettingsWidget->show();
+    }
+}
+
+void PreferencesDialog::onRotatorConnectionTypeChanged(int index) {
+    QString connectionType = m_rotatorConnectionTypeCombo->currentData().toString();
+
+    if (connectionType == "direct") {
+        // Direct mode: Show network settings, hide serial settings
+        m_rotatorNetworkSettingsWidget->show();
+        m_rotatorSerialSettingsWidget->hide();
+    } else {
+        // Hamlib mode: Show serial settings, hide network settings
+        m_rotatorNetworkSettingsWidget->hide();
+        m_rotatorSerialSettingsWidget->show();
+    }
+}
+
+void PreferencesDialog::onTestRotatorConnection() {
+    // Build RotatorConfig from current dialog settings
+    int modelId = m_rotatorModelCombo->currentData().toInt();
+    if (modelId == 0) {
+        DialogHelper::warning(this, "Invalid Configuration",
+                           "Please select a rotator model.");
+        return;
+    }
+
+    QString connectionType = m_rotatorConnectionTypeCombo->currentData().toString();
+
+    // TODO: Implement rotator test connection
+    // For now, just show a placeholder message
+    DialogHelper::information(this, "Not Implemented",
+                           "Rotator connection testing will be implemented in a future update.");
 }
 
 // Helper methods
@@ -3038,6 +3424,67 @@ void PreferencesDialog::populateRadioList() {
     m_radioModelCombo->blockSignals(false);
 
     LOG_DEBUG("PreferencesDialog", QString("Radio list filtered: %1 radios shown (out of %2 total)").arg(addedCount).arg(allRadios.size()));
+}
+
+void PreferencesDialog::populateAmplifierList() {
+    // Block signals while populating
+    m_amplifierModelCombo->blockSignals(true);
+    m_amplifierModelCombo->clear();
+
+    // Add default item
+    m_amplifierModelCombo->addItem("Select amplifier...", 0);
+
+    // Add KPA1500 (Hamlib model ID 1201) - most common
+    const int AMP_MODEL_ELECRAFT_KPA1500 = 1201;
+    m_amplifierModelCombo->addItem("Elecraft KPA1500", AMP_MODEL_ELECRAFT_KPA1500);
+
+    // Add KPA500 (Hamlib model ID 1202)
+    const int AMP_MODEL_ELECRAFT_KPA500 = 1202;
+    m_amplifierModelCombo->addItem("Elecraft KPA500", AMP_MODEL_ELECRAFT_KPA500);
+
+    // Add common amplifiers from Hamlib (example models - can expand later)
+    const int AMP_MODEL_DUMMY = 1;
+    m_amplifierModelCombo->addItem("Dummy Amplifier (Test)", AMP_MODEL_DUMMY);
+
+    m_amplifierModelCombo->addItem("Custom (enter model ID)...", -1);
+
+    m_amplifierModelCombo->blockSignals(false);
+}
+
+void PreferencesDialog::populateRotatorList() {
+    // Block signals while populating
+    m_rotatorModelCombo->blockSignals(true);
+    m_rotatorModelCombo->clear();
+
+    // Add default item
+    m_rotatorModelCombo->addItem("Select rotator...", 0);
+
+    // Add PSTRotator (custom model - use 9999 as placeholder)
+    const int ROT_MODEL_PSTROTATOR = 9999;
+    m_rotatorModelCombo->addItem("PSTRotator", ROT_MODEL_PSTROTATOR);
+
+    // Add common Hamlib rotators
+    const int ROT_MODEL_DUMMY = 1;
+    m_rotatorModelCombo->addItem("Dummy Rotator (Test)", ROT_MODEL_DUMMY);
+
+    const int ROT_MODEL_EASYCOMM1 = 201;
+    m_rotatorModelCombo->addItem("EASYCOMM I", ROT_MODEL_EASYCOMM1);
+
+    const int ROT_MODEL_EASYCOMM2 = 202;
+    m_rotatorModelCombo->addItem("EASYCOMM II", ROT_MODEL_EASYCOMM2);
+
+    const int ROT_MODEL_ROTOREZ = 301;
+    m_rotatorModelCombo->addItem("Hy-Gain DCU-1/DCU-1X (ROTOREZ)", ROT_MODEL_ROTOREZ);
+
+    const int ROT_MODEL_GS232A = 603;
+    m_rotatorModelCombo->addItem("Yaesu GS-232A", ROT_MODEL_GS232A);
+
+    const int ROT_MODEL_GS232B = 604;
+    m_rotatorModelCombo->addItem("Yaesu GS-232B", ROT_MODEL_GS232B);
+
+    m_rotatorModelCombo->addItem("Custom (enter model ID)...", -1);
+
+    m_rotatorModelCombo->blockSignals(false);
 }
 
 void PreferencesDialog::onRadioStatusFilterChanged() {

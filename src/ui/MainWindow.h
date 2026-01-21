@@ -34,6 +34,8 @@
 #include "../services/FrequencyInputService.h"
 #include "../services/SpotProcessingService.h"
 #include "../services/QSOQueryService.h"
+#include "../services/AmplifierService.h"
+#include "../services/RotatorService.h"
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
@@ -61,6 +63,7 @@ class MultiplierWidget;
 class StatisticsWindow;
 class FunctionKeysWindow;
 class GraylineMapDialog;
+class AmplifierControlWindow;
 class UdpBroadcastManager;
 class WebServer;
 class CountryFileDownloader;
@@ -126,6 +129,7 @@ private slots:
     void onShowSectionsMap();       // Show ARRL Sections map
     void onShowStatesMap();         // Show US States map (WAS)
     void onShowGraylineMap();       // Show Grayline propagation map
+    void onShowAmplifierControl();  // Show amplifier control window
     void onSwapMultView();          // TODO: Implement swap multiplier view
     void onMissingMultsReport();    // TODO: Implement missing mults report
 
@@ -220,6 +224,7 @@ private:
     void createStatusBar();
     void createCentralWidget();
     QWidget* createBottomPanel();
+    void initializeHardwareServices();
     void loadSettings();
     void saveSettings();
     void applyFontSettings();
@@ -350,6 +355,7 @@ private:
     QAction* m_sectionsMapAction;
     QAction* m_statesMapAction;
     QAction* m_graylineMapAction;
+    QAction* m_amplifierControlAction;
 
     // Window widgets
     DXClusterWindow* m_dxClusterWindow;
@@ -361,6 +367,7 @@ private:
     NativeMapViewer* m_sectionsMapViewer;
     NativeMapViewer* m_statesMapViewer;
     GraylineMapDialog* m_graylineMapDialog;
+    AmplifierControlWindow* m_amplifierControlWindow;
 
     // Time tracking
     QTimer* m_updateTimer;
@@ -416,6 +423,10 @@ private:
     RadioManager* m_radioManager;
     BandSwitchingManager* m_bandSwitchingManager;
     CWMessageManager* m_cwMessageManager;
+
+    // Hardware control services
+    AmplifierService* m_amplifierService;
+    RotatorService* m_rotatorService;
 
     // Country file for lookups
     CountryFile m_countryFile;

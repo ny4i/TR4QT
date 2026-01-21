@@ -111,20 +111,13 @@ void K4Radio::onSocketConnected()
 {
     LOG_INFO("K4Radio", QString("Connected to K4 at %1:%2").arg(m_host).arg(m_port));
 
-    // Enable AI4 mode for automatic updates (includes S-meter data)
-    // AI4 = all async updates including S-meter, AI5 = all except S-meter
-    enableAIMode(4);
+    // Start with minimal polling (AI5, TM0, SMH0)
+    // Detailed info (AI4, TM1, SMH1) will be enabled when Radio Control window is shown
+    enableAIMode(5);    // AI5 = all async updates except S-meter
+    sendCommand("TM0");   // Disable temperature/power/SWR monitoring
+    sendCommand("SMH0");  // Disable S-meter
 
-    // Enable unsolicited S-meter reporting in dBm format (more accurate than segment counts)
-    // SMH1; = enable dBm S-meter reporting, SMH0; = disable
-    sendCommand("SMH1");
-
-    // Enable unsolicited power/ALC/SWR reporting for TX meter display
-    // TM1; = enable, TM0; = disable
-    // Format: TMaaabbbcccddd; where aaa=ALC, bbb=CMP(dB), ccc=FWD power(watts), ddd=SWR(tenths)
-    sendCommand("TM1");
-
-    // Query AI mode to confirm it was set (K4 doesn't echo AI4, must query with AI;)
+    // Query AI mode to confirm it was set (K4 doesn't echo AI commands, must query with AI;)
     sendCommand("AI");
 
     // Query initial state
@@ -240,7 +233,7 @@ void K4Radio::processMessage(const QString& message)
     QMutexLocker locker(&m_stateMutex);
 
     // DEBUG: Log all processed messages to diagnose state update issues
-    LOG_DEBUG("K4Radio", QString("Processing: cmd=%1 vfo=%2 data=%3")
+    LOG_TRACE("K4Radio", QString("Processing: cmd=%1 vfo=%2 data=%3")
               .arg(command)
               .arg(vfo == VFO::VFO_A ? "A" : "B")
               .arg(data));
@@ -580,7 +573,7 @@ void K4Radio::processMessage(const QString& message)
             if (ok && dbm != m_state.signalStrength) {
                 m_state.signalStrength = dbm;
                 emit stateUpdated(m_state);
-                LOG_DEBUG("K4Radio", QString("S-meter: %1 dBm").arg(dbm));
+                LOG_TRACE("K4Radio", QString("S-meter: %1 dBm").arg(dbm));
             }
         } else {
             // SM response: segment format (0000-0030)
@@ -595,7 +588,7 @@ void K4Radio::processMessage(const QString& message)
                 if (dbm != m_state.signalStrength) {
                     m_state.signalStrength = dbm;
                     emit stateUpdated(m_state);
-                    LOG_DEBUG("K4Radio", QString("S-meter: %1 segments ≈ %2 dBm").arg(segments).arg(dbm));
+                    LOG_TRACE("K4Radio", QString("S-meter: %1 segments ≈ %2 dBm").arg(segments).arg(dbm));
                 }
             }
         }
@@ -848,6 +841,29 @@ void K4Radio::enableAIMode(int level)
 
     sendCommand(QString("AI%1").arg(level));
     LOG_INFO("K4Radio", QString("Enabled AI mode %1 (automatic status updates)").arg(level));
+}
+
+void K4Radio::setDetailedRigInfoEnabled(bool enabled)
+{
+    if (m_collectDetailedRigInfo == enabled) {
+        return;  // Already in desired state
+    }
+
+    m_collectDetailedRigInfo = enabled;
+
+    if (enabled) {
+        // Enable detailed rig info: S-meter, temperature
+        LOG_INFO("K4Radio", "Enabling detailed rig info (AI4, TM1, SMH1)");
+        enableAIMode(4);  // AI4 = all async updates including S-meter
+        sendCommand("TM1");   // Enable temperature/power/SWR monitoring
+        sendCommand("SMH1");  // Enable S-meter in dBm format
+    } else {
+        // Disable detailed rig info for reduced polling
+        LOG_INFO("K4Radio", "Disabling detailed rig info (AI5, TM0, SMH0)");
+        enableAIMode(5);  // AI5 = all async updates except S-meter
+        sendCommand("TM0");   // Disable temperature/power/SWR monitoring
+        sendCommand("SMH0");  // Disable S-meter
+    }
 }
 
 void K4Radio::queryInitialState()

@@ -6,6 +6,55 @@ None currently.
 
 ## Medium Priority
 
+### Create Qt Resource File for Images
+**Added**: 2026-01-21 (v3.38.45+)
+**Priority**: Medium (Deployment improvement)
+
+**Problem**:
+Images (KPA1500 front panel, NASA maps, etc.) are currently loaded from filesystem paths. This requires careful path management and images can be missing if not deployed correctly.
+
+**Solution**:
+Create a Qt resource file (`.qrc`) to embed images directly into the executable.
+
+**Implementation Details**:
+1. Create `resources/resources.qrc`:
+   ```xml
+   <RCC>
+       <qresource prefix="/images">
+           <file>images/kpa1500.png</file>
+           <file>images/world_map.png</file>
+           <!-- Add other images as needed -->
+       </qresource>
+   </RCC>
+   ```
+
+2. Add to `CMakeLists.txt`:
+   ```cmake
+   qt_add_resources(RESOURCE_FILES resources/resources.qrc)
+   target_sources(tr4qt PRIVATE ${RESOURCE_FILES})
+   ```
+
+3. Update image loading code:
+   - Change: `QPixmap("/path/to/kpa1500.png")`
+   - To: `QPixmap(":/images/kpa1500.png")`
+
+**Benefits**:
+- Images embedded in executable (no missing file errors)
+- Simpler deployment (no separate image files)
+- Path-independent (works regardless of installation location)
+- Faster loading (already in memory)
+
+**Affected Files**:
+- New: `/resources/resources.qrc`
+- Update: `/CMakeLists.txt`
+- Update: `/src/ui/windows/AmplifierControlWindow.cpp`
+- Update: Map viewer components (once implemented)
+
+**When to Implement**:
+After images are finalized and no longer changing frequently. Current filesystem approach is better for active development.
+
+---
+
 ### Implement Secure Credential Storage
 **Added**: 2026-01-10 (v3.34.3)
 **Priority**: Medium (Security improvement)

@@ -32,8 +32,8 @@ UdpBroadcastManager::UdpBroadcastManager(QObject* parent)
         QString messageType = "Unknown";
         if (data.contains("<RadioInfo>")) {
             messageType = "RadioInfo";
-        } else if (data.contains("<ContactInfo>")) {
-            messageType = "ContactInfo";
+        } else if (data.contains("<contactinfo>")) {
+            messageType = "contactinfo";
         }
         emit messageSent(messageType, destinationCount);
     });

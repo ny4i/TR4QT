@@ -74,7 +74,7 @@ RadioManager::RadioManager(QObject* parent)
     AppSettings& settings = AppSettings::instance();
     if (settings.getAmplifierEnabled()) {
         QString ipAddress = settings.getAmplifierIpAddress();
-        int port = settings.getAmplifierPort();
+        int port = settings.getAmplifierPortNumber();  // Use new method that returns int
 
         if (!ipAddress.isEmpty()) {
             m_amplifier = new KPA1500UdpPoller(this);
@@ -268,7 +268,7 @@ void RadioManager::onRadioStateUpdated(const RadioState& state)
     static int updateCount = 0;
     updateCount++;
     double freqKHz = state.frequencyA / 1000.0;
-    LOG_INFO("RadioManager", QString("onRadioStateUpdated called (count=%1, model=%2, freq=%3 kHz)")
+    LOG_TRACE("RadioManager", QString("onRadioStateUpdated called (count=%1, model=%2, freq=%3 kHz)")
              .arg(updateCount)
              .arg(state.radioModel)
              .arg(freqKHz, 0, 'f', 1));
@@ -385,8 +385,10 @@ void RadioManager::onFrequencyChanged(freq_t freq, VFO vfo)
     emit this->bandChanged(m_currentState.bandA);
 
     qint64 fwdEnd = fwdTimer.nsecsElapsed();
-    LOG_DEBUG("RadioManager", QString("Frequency forwarded: %1 Hz [forward=%2μs]")
-        .arg(freq).arg((fwdEnd - fwdStart) / 1000));
+    // Format frequency as MHz with 4 decimal places (e.g., "7.0510 MHz")
+    double freqMhz = freq / 1000000.0;
+    LOG_DEBUG("RadioManager", QString("Frequency forwarded: %1 MHz [forward=%2μs]")
+        .arg(freqMhz, 0, 'f', 4).arg((fwdEnd - fwdStart) / 1000));
 }
 
 void RadioManager::onReconnectTimeout()

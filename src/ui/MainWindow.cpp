@@ -14,12 +14,15 @@
 #include "widgets/RadioControlWidget.h"
 #include "widgets/MultiplierWidget.h"
 #include "widgets/StatisticsWindow.h"
+#include "windows/AmplifierControlWindow.h"
 #include "NativeMapViewer.h"
 #include "../network/UdpBroadcastManager.h"
 #include "../network/WebServer.h"
 #include "../controllers/ImportExportManager.h"
 #include "../controllers/CWMessageManager.h"
 #include "../controllers/BandSwitchingManager.h"
+#include "../amplifiers/AmplifierFactory.h"
+#include "../rotator/RotatorFactory.h"
 #include "../core/Constants.h"
 #include "../core/BandConstants.h"
 #include "../logging/LogMacros.h"
@@ -35,6 +38,7 @@
 #include "../utils/LOTWUserDownloader.h"
 #include "../utils/SCPDownloader.h"
 #include "../utils/GeographicUtils.h"
+#include "../radio/K4Radio.h"
 #include "../utils/PathManager.h"
 #include "../data/Database.h"
 #include "../data/QSORepository.h"
@@ -107,6 +111,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_sectionsMapViewer(nullptr)
     , m_statesMapViewer(nullptr)
     , m_graylineMapDialog(nullptr)
+    , m_amplifierControlWindow(nullptr)
     , m_qsosThisHour(0)
     , m_qsosSinceLastIntegrityCheck(0)
     , m_hasActiveContest(false)
@@ -131,6 +136,8 @@ MainWindow::MainWindow(QWidget* parent)
     , m_radioManager(nullptr)
     , m_bandSwitchingManager(nullptr)
     , m_cwMessageManager(nullptr)
+    , m_amplifierService(nullptr)
+    , m_rotatorService(nullptr)
     , m_qsoTableModel(new QSOTableModel(this))
     , m_scpMatcher(new SCPMatcher())
     , m_countryFileDownloader(new CountryFileDownloader(this))
@@ -187,6 +194,9 @@ MainWindow::MainWindow(QWidget* parent)
     m_windowManager = new WindowManager(this);
     m_settingsManager = new SettingsManager();
     LOG_DEBUG("MainWindow", "Controllers and UI managers created");
+
+    // Initialize hardware control services (amplifier and rotator)
+    initializeHardwareServices();
 
     loadSettings();
     loadUdpBroadcastSettings();
@@ -472,6 +482,7 @@ void MainWindow::createMenuBar() {
     config.onShowSectionsMap = [this]() { onShowSectionsMap(); };
     config.onShowStatesMap = [this]() { onShowStatesMap(); };
     config.onShowGraylineMap = [this]() { onShowGraylineMap(); };
+    config.onShowAmplifierControl = [this]() { onShowAmplifierControl(); };
     config.onSwapMultView = [this]() { onSwapMultView(); };
     config.onMissingMultsReport = [this]() { onMissingMultsReport(); };
     
@@ -899,6 +910,104 @@ void MainWindow::createStatusBar() {
     status->addPermanentWidget(m_radioStatusLabel);
 }
 
+void MainWindow::initializeHardwareServices() {
+    AppSettings& settings = AppSettings::instance();
+
+    // Initialize amplifier service if enabled
+    if (settings.getAmplifierEnabled()) {
+        int modelId = settings.getAmplifierModel();
+        QString connectionType = settings.getAmplifierConnectionType();
+        QString port = settings.getAmplifierPort();
+        int baudRate = settings.getAmplifierBaudRate();
+
+        AmplifierConfig config;
+        config.hamlibModelId = modelId;
+        config.connectionType = connectionType;
+        config.port = port;
+        config.baudRate = baudRate;
+
+        // Determine amplifier type
+        AmplifierFactory::AmplifierType type;
+        const int AMP_MODEL_ELECRAFT_KPA1500 = 1201;
+        if (connectionType == "direct" && modelId == AMP_MODEL_ELECRAFT_KPA1500) {
+            type = AmplifierFactory::AmplifierType::KPA1500_DIRECT;
+        } else {
+            type = AmplifierFactory::AmplifierType::HAMLIB;
+        }
+
+        // Create amplifier controller
+        IAmplifierController* amplifierController = AmplifierFactory::createAmplifier(type, config, this);
+
+        if (amplifierController) {
+            // Create amplifier service
+            m_amplifierService = new AmplifierService(amplifierController, this);
+
+            // Auto-connect if enabled
+            if (settings.getAmplifierAutoConnect()) {
+                bool connected = m_amplifierService->connectToAmplifier(config);
+                if (connected) {
+                    LOG_INFO("MainWindow", "Amplifier auto-connected successfully");
+                } else {
+                    LOG_WARN("MainWindow", "Amplifier auto-connect failed");
+                }
+            }
+
+            LOG_DEBUG("MainWindow", "Amplifier service initialized");
+        } else {
+            LOG_ERROR("MainWindow", "Failed to create amplifier controller");
+        }
+    }
+
+    // Initialize rotator service if enabled
+    if (settings.getRotatorEnabled()) {
+        int modelId = settings.getRotatorModel();
+        QString connectionType = settings.getRotatorConnectionType();
+
+        RotatorConfig config;
+
+        if (connectionType == "direct") {
+            config.ipAddress = settings.getRotatorIpAddress();
+            config.port = settings.getRotatorPort();
+        } else {
+            config.serialPort = settings.getRotatorSerialPort();
+            config.baudRate = settings.getRotatorBaudRate();
+        }
+
+        // Determine rotator type
+        RotatorFactory::RotatorType type;
+        const int ROT_MODEL_PSTROTATOR = 9999;
+        if (connectionType == "direct" && modelId == ROT_MODEL_PSTROTATOR) {
+            type = RotatorFactory::RotatorType::PSTROTATOR;
+            config.rotatorType = 0;  // PSTRotator
+        } else {
+            type = RotatorFactory::RotatorType::HAMLIB;
+            config.rotatorType = modelId;  // Hamlib model ID
+        }
+
+        // Create rotator controller
+        IRotatorController* rotatorController = RotatorFactory::createRotator(type, config, this);
+
+        if (rotatorController) {
+            // Create rotator service
+            m_rotatorService = new RotatorService(rotatorController, this);
+
+            // Auto-connect if enabled
+            if (settings.getRotatorAutoConnect()) {
+                bool connected = rotatorController->connect(config);
+                if (connected) {
+                    LOG_INFO("MainWindow", "Rotator auto-connected successfully");
+                } else {
+                    LOG_WARN("MainWindow", "Rotator auto-connect failed");
+                }
+            }
+
+            LOG_DEBUG("MainWindow", "Rotator service initialized");
+        } else {
+            LOG_ERROR("MainWindow", "Failed to create rotator controller");
+        }
+    }
+}
+
 void MainWindow::loadSettings() {
     if (!m_settingsManager) {
         return;
@@ -1003,11 +1112,26 @@ void MainWindow::loadSettings() {
     } else {
         LOG_DEBUG("MainWindow", "NOT restoring Grayline Map window (was hidden on exit)");
     }
+
+    if (geometry.amplifierControlVisible) {
+        LOG_DEBUG("MainWindow", "Restoring Amplifier Control window (was visible on exit)");
+        onShowAmplifierControl();
+        if (m_amplifierControlWindow && !geometry.amplifierControlGeometry.isEmpty()) {
+            m_amplifierControlWindow->restoreGeometry(geometry.amplifierControlGeometry);
+        }
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring Amplifier Control window (was hidden on exit)");
+    }
 }
 
 void MainWindow::saveSettings() {
     if (!m_settingsManager) {
         return;
+    }
+
+    LOG_DEBUG("MainWindow", "saveSettings() called - checking window visibility");
+    if (m_amplifierControlWindow) {
+        LOG_DEBUG("MainWindow", QString("At start of saveSettings: amplifier window exists, isVisible=%1").arg(m_amplifierControlWindow->isVisible()));
     }
 
     // Build geometry struct
@@ -1047,9 +1171,16 @@ void MainWindow::saveSettings() {
         geometry.graylineMapGeometry = m_graylineMapDialog->saveGeometry();
         geometry.graylineMapVisible = m_graylineMapDialog->isVisible();
     }
+    if (m_amplifierControlWindow) {
+        geometry.amplifierControlGeometry = m_amplifierControlWindow->saveGeometry();
+        geometry.amplifierControlVisible = m_amplifierControlWindow->isVisible();
+        LOG_DEBUG("MainWindow", QString("Amplifier window exists, isVisible() returns: %1").arg(geometry.amplifierControlVisible));
+    } else {
+        LOG_DEBUG("MainWindow", "Amplifier window pointer is null");
+    }
 
     // Debug logging for window visibility
-    LOG_DEBUG("MainWindow", QString("Saving window visibility - DXCluster:%1 BandMap:%2 RadioCtrl:%3 Mult:%4 Stats:%5 Sections:%6 States:%7 Grayline:%8")
+    LOG_DEBUG("MainWindow", QString("Saving window visibility - DXCluster:%1 BandMap:%2 RadioCtrl:%3 Mult:%4 Stats:%5 Sections:%6 States:%7 Grayline:%8 AmpCtrl:%9")
         .arg(geometry.dxClusterVisible)
         .arg(geometry.bandMapVisible)
         .arg(geometry.radioControlVisible)
@@ -1057,7 +1188,8 @@ void MainWindow::saveSettings() {
         .arg(geometry.statisticsVisible)
         .arg(geometry.sectionsMapVisible)
         .arg(geometry.statesMapVisible)
-        .arg(geometry.graylineMapVisible));
+        .arg(geometry.graylineMapVisible)
+        .arg(geometry.amplifierControlVisible));
 
     // Delegate save to SettingsManager
     m_settingsManager->saveWindowGeometry(geometry);
@@ -1335,6 +1467,25 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
                 widget == m_statisticsWindow) {
                 // Raise all windows to bring them all to front
                 raiseAllWindows();
+            }
+        }
+    }
+
+    // Radio Control window show/hide: Toggle detailed rig info (S-meter, temperature)
+    if (obj == m_radioControlWindow) {
+        if (event->type() == QEvent::Show) {
+            // Window shown - enable detailed rig info
+            if (m_radio && m_radioConnected) {
+                if (K4Radio* k4 = qobject_cast<K4Radio*>(m_radio)) {
+                    k4->setDetailedRigInfoEnabled(true);
+                }
+            }
+        } else if (event->type() == QEvent::Hide) {
+            // Window hidden - disable detailed rig info to reduce polling
+            if (m_radio && m_radioConnected) {
+                if (K4Radio* k4 = qobject_cast<K4Radio*>(m_radio)) {
+                    k4->setDetailedRigInfoEnabled(false);
+                }
             }
         }
     }
@@ -2887,7 +3038,13 @@ void MainWindow::updateRadioStatusGrid() {
 }
 
 void MainWindow::updateWindowMenuCheckmarks() {
+    // Skip if menu manager not initialized
+    if (!m_menuManager) {
+        return;
+    }
+
     // Update checkmarks in Window menu to reflect which windows are currently open
+    // Check each action pointer for null before using (actions can be destroyed during shutdown)
     if (m_bandMapAction) {
         m_bandMapAction->setChecked(m_bandMapWindow && m_bandMapWindow->isVisible());
     }
@@ -2911,6 +3068,12 @@ void MainWindow::updateWindowMenuCheckmarks() {
     }
     if (m_graylineMapAction) {
         m_graylineMapAction->setChecked(m_graylineMapDialog && m_graylineMapDialog->isVisible());
+    }
+
+    // Amplifier control action
+    QAction* ampAction = m_menuManager->amplifierControlAction();
+    if (ampAction) {
+        ampAction->setChecked(m_amplifierControlWindow && m_amplifierControlWindow->isVisible());
     }
 }
 
@@ -3577,6 +3740,19 @@ void MainWindow::onShowRadioControl() {
                     m_radio->setSplit(enabled, VFO::VFO_B);
                 });
 
+        // Connect close/hide event to disable detailed rig info
+        connect(m_radioControlWindow, &QWidget::destroyed, this, [this]() {
+            // Window destroyed - disable detailed rig info polling
+            if (m_radio && m_radioConnected) {
+                if (K4Radio* k4 = qobject_cast<K4Radio*>(m_radio)) {
+                    k4->setDetailedRigInfoEnabled(false);
+                }
+            }
+        });
+
+        // Install event filter to catch show/hide events
+        m_radioControlWindow->installEventFilter(this);
+
         // Update with current radio state
         if (m_radioConnected) {
             double freqKHz = m_currentState.frequencyA / 1000.0;
@@ -3591,6 +3767,13 @@ void MainWindow::onShowRadioControl() {
     m_radioControlWindow->raise();
     m_radioControlWindow->activateWindow();
     updateWindowMenuCheckmarks();
+
+    // Enable detailed rig info when window is shown
+    if (m_radio && m_radioConnected) {
+        if (K4Radio* k4 = qobject_cast<K4Radio*>(m_radio)) {
+            k4->setDetailedRigInfoEnabled(true);
+        }
+    }
 }
 
 void MainWindow::onShowMultipliers() {
@@ -3657,6 +3840,43 @@ void MainWindow::onShowGraylineMap() {
     m_graylineMapDialog->show();
     m_graylineMapDialog->raise();
     m_graylineMapDialog->activateWindow();
+    updateWindowMenuCheckmarks();
+}
+
+void MainWindow::onShowAmplifierControl() {
+    // Create and show amplifier control window
+    if (!m_amplifierControlWindow) {
+        if (!m_amplifierService) {
+            LOG_WARN("MainWindow", "Cannot show amplifier control: amplifier service not initialized");
+            return;
+        }
+        m_amplifierControlWindow = new AmplifierControlWindow(m_amplifierService, this);
+        m_amplifierControlWindow->setWindowFlags(Qt::Window);
+        m_amplifierControlWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Restore geometry
+        QByteArray geometry = AppSettings::instance().loadAmplifierControlGeometry();
+        if (!geometry.isEmpty()) {
+            m_amplifierControlWindow->restoreGeometry(geometry);
+        } else {
+            // First time opening - position offset from main window
+            QPoint offset(50, 50);
+            m_amplifierControlWindow->move(this->pos() + offset);
+        }
+
+        // Connect destroyed signal to clear pointer
+        connect(m_amplifierControlWindow, &QWidget::destroyed, this, [this]() {
+            // Geometry and visibility saved in MainWindow::saveSettings()
+            // DON'T save visibility here - it causes race condition on shutdown
+            m_amplifierControlWindow = nullptr;  // Clear pointer
+            // DON'T call updateWindowMenuCheckmarks() here - menu might be destroyed during shutdown
+        });
+    }
+
+    m_amplifierControlWindow->show();
+    m_amplifierControlWindow->raise();
+    m_amplifierControlWindow->activateWindow();
+    // Visibility will be saved in MainWindow::saveSettings() on exit
     updateWindowMenuCheckmarks();
 }
 

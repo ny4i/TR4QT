@@ -91,6 +91,11 @@ public:
     bool playDVKMessage(int message);
     bool stopDVK();
 
+    // Detailed rig info control (S-meter, temperature)
+    // Only collect when Radio Control window is visible to reduce unnecessary polling
+    void setDetailedRigInfoEnabled(bool enabled);
+    bool isDetailedRigInfoEnabled() const { return m_collectDetailedRigInfo; }
+
 private slots:
     void onSocketConnected();
     void onSocketDisconnected();
@@ -108,6 +113,7 @@ private:
     QString m_cwBuffer;
     QTimer* m_cwTimer{nullptr};
     bool m_cwInProgress{false};
+    bool m_collectDetailedRigInfo{false};  // Control S-meter, temperature polling
 
     // K4 protocol helpers
     void sendCommand(const QString& cmd, VFO vfo = VFO::VFO_A);

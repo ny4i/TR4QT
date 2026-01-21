@@ -22,12 +22,23 @@ add_library(tr4qt_core OBJECT
     radio/HamRadioPrivileges.cpp
     radio/icomnetwork.cpp
 
-    # Rotator control (PSTRotator, future: GS-232, etc.)
+    # Rotator control (PSTRotator, Hamlib, etc.)
     rotator/IRotatorController.h
     rotator/PSTRotatorController.cpp
     rotator/PSTRotatorController.h
+    rotator/HamlibRotator.cpp
+    rotator/HamlibRotator.h
     rotator/RotatorFactory.cpp
     rotator/RotatorFactory.h
+
+    # Amplifier control (KPA1500, Hamlib, etc.)
+    amplifiers/IAmplifierController.h
+    amplifiers/HamlibAmplifier.cpp
+    amplifiers/HamlibAmplifier.h
+    amplifiers/KPA1500Direct.cpp
+    amplifiers/KPA1500Direct.h
+    amplifiers/AmplifierFactory.cpp
+    amplifiers/AmplifierFactory.h
 
     # Core types
     core/Types.cpp
@@ -160,6 +171,7 @@ set(SOURCES
     services/SpotProcessingService.cpp
     services/QSOQueryService.cpp
     services/RotatorService.cpp
+    services/AmplifierService.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp
@@ -188,6 +200,8 @@ set(SOURCES
     ui/widgets/DXClusterWindow.cpp
     ui/widgets/StatisticsWindow.cpp
     ui/widgets/NeedsDisplayWidget.cpp
+    ui/widgets/SvgPanelWidget.cpp
+    ui/windows/AmplifierControlWindow.cpp
     ui/plots/qcustomplot.cpp
     3rdparty/miniz/miniz.cpp
 )
@@ -345,6 +359,8 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::PrintSupport
     Qt6::Concurrent
     Qt6::SerialPort
+    Qt6::Svg
+    Qt6::Xml
 )
 
 # Note: Qt6::EntryPoint is not needed for console applications
