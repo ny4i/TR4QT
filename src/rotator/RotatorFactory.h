@@ -16,7 +16,8 @@ class RotatorFactory {
 public:
     enum class RotatorType {
         PSTROTATOR,  // PSTRotator UDP protocol (XML-like commands)
-        // Future: GS232, Yaesu, DCU-1, etc.
+        HAMLIB,      // Hamlib library (universal compatibility - EASYCOMM, ROTOREZ, GS-232, NETROTCTL, etc.)
+        // Future: GREEN_HERON_DIRECT, GS232_DIRECT, etc.
     };
 
     /**
@@ -66,6 +67,21 @@ public:
      * @return true if type uses IP/UDP, false if serial
      */
     static bool isNetworkRotator(RotatorType type);
+
+    /**
+     * @brief Check if rotator type supports the given Hamlib model
+     * @param type Rotator type enum
+     * @param hamlibModelId Hamlib ROT_MODEL_* constant
+     * @return true if type supports this rotator model
+     */
+    static bool supportsRotatorModel(RotatorType type, int hamlibModelId);
+
+    /**
+     * @brief Get recommended rotator type for a Hamlib model
+     * @param hamlibModelId Hamlib ROT_MODEL_* constant
+     * @return Recommended RotatorType for best performance
+     */
+    static RotatorType recommendedTypeForModel(int hamlibModelId);
 };
 
 } // namespace TR4QT

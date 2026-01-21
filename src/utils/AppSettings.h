@@ -48,13 +48,55 @@ public:
     void setShowUntestedRadios(bool show);
     bool getShowUntestedRadios() const;
 
-    // Amplifier (KPA1500) settings
-    void setAmplifierIpAddress(const QString& ipAddress);
-    QString getAmplifierIpAddress() const;
-    void setAmplifierPort(int port);
-    int getAmplifierPort() const;
+    // Amplifier settings (expanded for Hamlib support)
     void setAmplifierEnabled(bool enabled);
     bool getAmplifierEnabled() const;
+
+    void setAmplifierModel(int hamlibModelId);
+    int getAmplifierModel() const;  // Hamlib AMP_MODEL_* constant
+
+    void setAmplifierConnectionType(const QString& type);  // "direct" or "hamlib"
+    QString getAmplifierConnectionType() const;
+
+    void setAmplifierPort(const QString& port);  // IP:port or serial port
+    QString getAmplifierPort() const;
+
+    void setAmplifierBaudRate(int baudRate);
+    int getAmplifierBaudRate() const;
+
+    void setAmplifierAutoConnect(bool autoConnect);
+    bool getAmplifierAutoConnect() const;
+
+    // Legacy settings (for backward compatibility with existing KPA1500 configs)
+    void setAmplifierIpAddress(const QString& ipAddress);
+    QString getAmplifierIpAddress() const;
+    void setAmplifierPortNumber(int port);  // Renamed to avoid conflict with setAmplifierPort(QString)
+    int getAmplifierPortNumber() const;
+
+    // Rotator settings (new for Hamlib support)
+    void setRotatorEnabled(bool enabled);
+    bool getRotatorEnabled() const;
+
+    void setRotatorModel(int hamlibModelId);  // Hamlib ROT_MODEL_* constant
+    int getRotatorModel() const;
+
+    void setRotatorConnectionType(const QString& type);  // "direct" or "hamlib"
+    QString getRotatorConnectionType() const;
+
+    void setRotatorIpAddress(const QString& ipAddress);
+    QString getRotatorIpAddress() const;
+
+    void setRotatorPort(int port);
+    int getRotatorPort() const;
+
+    void setRotatorSerialPort(const QString& serialPort);
+    QString getRotatorSerialPort() const;
+
+    void setRotatorBaudRate(int baudRate);
+    int getRotatorBaudRate() const;
+
+    void setRotatorAutoConnect(bool autoConnect);
+    bool getRotatorAutoConnect() const;
 
     // Morse code settings
     void setMorseWPM(int wpm);
@@ -201,6 +243,11 @@ public:
     QByteArray loadGraylineMapGeometry() const;
     void setGraylineMapVisible(bool visible);
     bool getGraylineMapVisible() const;
+
+    void saveAmplifierControlGeometry(const QByteArray& geometry);
+    QByteArray loadAmplifierControlGeometry() const;
+    void setAmplifierControlVisible(bool visible);
+    bool getAmplifierControlVisible() const;
 
     // DX Cluster settings
     void setDXClusterCallsign(const QString& callsign);

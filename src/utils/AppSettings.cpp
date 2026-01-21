@@ -258,23 +258,7 @@ bool AppSettings::getShowUntestedRadios() const {
     return m_settings.value("Radio/showUntestedRadios", false).toBool();  // Default: false
 }
 
-void AppSettings::setAmplifierIpAddress(const QString& ipAddress) {
-    m_settings.setValue("Amplifier/ipAddress", ipAddress);
-    m_settings.sync();
-}
-
-QString AppSettings::getAmplifierIpAddress() const {
-    return m_settings.value("Amplifier/ipAddress", "").toString();  // Default: empty (not configured)
-}
-
-void AppSettings::setAmplifierPort(int port) {
-    m_settings.setValue("Amplifier/port", port);
-    m_settings.sync();
-}
-
-int AppSettings::getAmplifierPort() const {
-    return m_settings.value("Amplifier/port", 1500).toInt();  // Default: 1500 (KPA1500 standard port)
-}
+// ===== Amplifier Settings (Expanded for Hamlib Support) =====
 
 void AppSettings::setAmplifierEnabled(bool enabled) {
     m_settings.setValue("Amplifier/enabled", enabled);
@@ -282,7 +266,152 @@ void AppSettings::setAmplifierEnabled(bool enabled) {
 }
 
 bool AppSettings::getAmplifierEnabled() const {
-    return m_settings.value("Amplifier/enabled", false).toBool();  // Default: false (disabled)
+    return m_settings.value("Amplifier/enabled", false).toBool();
+}
+
+void AppSettings::setAmplifierModel(int hamlibModelId) {
+    m_settings.setValue("Amplifier/model", hamlibModelId);
+    m_settings.sync();
+}
+
+int AppSettings::getAmplifierModel() const {
+    return m_settings.value("Amplifier/model", 1201).toInt();  // Default: 1201 (AMP_MODEL_ELECRAFT_KPA1500)
+}
+
+void AppSettings::setAmplifierConnectionType(const QString& type) {
+    m_settings.setValue("Amplifier/connectionType", type);
+    m_settings.sync();
+}
+
+QString AppSettings::getAmplifierConnectionType() const {
+    return m_settings.value("Amplifier/connectionType", "direct").toString();  // Default: "direct" (KPA1500 UDP)
+}
+
+void AppSettings::setAmplifierPort(const QString& port) {
+    m_settings.setValue("Amplifier/port", port);
+    m_settings.sync();
+}
+
+QString AppSettings::getAmplifierPort() const {
+    return m_settings.value("Amplifier/port", "192.168.1.100:1500").toString();  // Default: IP:port format
+}
+
+void AppSettings::setAmplifierBaudRate(int baudRate) {
+    m_settings.setValue("Amplifier/baudRate", baudRate);
+    m_settings.sync();
+}
+
+int AppSettings::getAmplifierBaudRate() const {
+    return m_settings.value("Amplifier/baudRate", 38400).toInt();  // Default: 38400 (Hamlib default)
+}
+
+void AppSettings::setAmplifierAutoConnect(bool autoConnect) {
+    m_settings.setValue("Amplifier/autoConnect", autoConnect);
+    m_settings.sync();
+}
+
+bool AppSettings::getAmplifierAutoConnect() const {
+    return m_settings.value("Amplifier/autoConnect", false).toBool();
+}
+
+// Legacy settings (for backward compatibility)
+void AppSettings::setAmplifierIpAddress(const QString& ipAddress) {
+    // For backward compatibility, also update the new port format
+    QString currentPort = getAmplifierPort();
+    QStringList parts = currentPort.split(":");
+    int portNumber = parts.size() > 1 ? parts[1].toInt() : 1500;
+    setAmplifierPort(QString("%1:%2").arg(ipAddress).arg(portNumber));
+}
+
+QString AppSettings::getAmplifierIpAddress() const {
+    QString port = getAmplifierPort();
+    QStringList parts = port.split(":");
+    return parts.size() > 0 ? parts[0] : "";
+}
+
+void AppSettings::setAmplifierPortNumber(int port) {
+    QString currentIp = getAmplifierIpAddress();
+    setAmplifierPort(QString("%1:%2").arg(currentIp).arg(port));
+}
+
+int AppSettings::getAmplifierPortNumber() const {
+    QString port = getAmplifierPort();
+    QStringList parts = port.split(":");
+    return parts.size() > 1 ? parts[1].toInt() : 1500;
+}
+
+// ===== Rotator Settings (New for Hamlib Support) =====
+
+void AppSettings::setRotatorEnabled(bool enabled) {
+    m_settings.setValue("Rotator/enabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getRotatorEnabled() const {
+    return m_settings.value("Rotator/enabled", false).toBool();
+}
+
+void AppSettings::setRotatorModel(int hamlibModelId) {
+    m_settings.setValue("Rotator/model", hamlibModelId);
+    m_settings.sync();
+}
+
+int AppSettings::getRotatorModel() const {
+    return m_settings.value("Rotator/model", 0).toInt();  // Default: 0 (not configured)
+}
+
+void AppSettings::setRotatorConnectionType(const QString& type) {
+    m_settings.setValue("Rotator/connectionType", type);
+    m_settings.sync();
+}
+
+QString AppSettings::getRotatorConnectionType() const {
+    return m_settings.value("Rotator/connectionType", "direct").toString();  // Default: "direct"
+}
+
+void AppSettings::setRotatorIpAddress(const QString& ipAddress) {
+    m_settings.setValue("Rotator/ipAddress", ipAddress);
+    m_settings.sync();
+}
+
+QString AppSettings::getRotatorIpAddress() const {
+    return m_settings.value("Rotator/ipAddress", "192.168.1.100").toString();
+}
+
+void AppSettings::setRotatorPort(int port) {
+    m_settings.setValue("Rotator/port", port);
+    m_settings.sync();
+}
+
+int AppSettings::getRotatorPort() const {
+    return m_settings.value("Rotator/port", 12000).toInt();  // Default: 12000 (PSTRotator)
+}
+
+void AppSettings::setRotatorSerialPort(const QString& serialPort) {
+    m_settings.setValue("Rotator/serialPort", serialPort);
+    m_settings.sync();
+}
+
+QString AppSettings::getRotatorSerialPort() const {
+    return m_settings.value("Rotator/serialPort", "").toString();
+}
+
+void AppSettings::setRotatorBaudRate(int baudRate) {
+    m_settings.setValue("Rotator/baudRate", baudRate);
+    m_settings.sync();
+}
+
+int AppSettings::getRotatorBaudRate() const {
+    return m_settings.value("Rotator/baudRate", 9600).toInt();  // Default: 9600 (common for serial rotators)
+}
+
+void AppSettings::setRotatorAutoConnect(bool autoConnect) {
+    m_settings.setValue("Rotator/autoConnect", autoConnect);
+    m_settings.sync();
+}
+
+bool AppSettings::getRotatorAutoConnect() const {
+    return m_settings.value("Rotator/autoConnect", false).toBool();
 }
 
 void AppSettings::setMorseWPM(int wpm) {
@@ -792,6 +921,31 @@ void AppSettings::setGraylineMapVisible(bool visible) {
 
 bool AppSettings::getGraylineMapVisible() const {
     return m_settings.value("GraylineMapWindow/visible", false).toBool();
+}
+
+// Amplifier Control window
+void AppSettings::saveAmplifierControlGeometry(const QByteArray& geometry) {
+    m_settings.setValue("AmplifierControlWindow/geometry", geometry);
+    m_settings.sync();
+}
+
+QByteArray AppSettings::loadAmplifierControlGeometry() const {
+    return m_settings.value("AmplifierControlWindow/geometry").toByteArray();
+}
+
+void AppSettings::setAmplifierControlVisible(bool visible) {
+    LOG_DEBUG("AppSettings", QString("setAmplifierControlVisible(%1) - writing to QSettings").arg(visible));
+    m_settings.setValue("AmplifierControlWindow/visible", visible);
+    m_settings.sync();
+    // Verify write
+    bool readBack = m_settings.value("AmplifierControlWindow/visible", false).toBool();
+    LOG_DEBUG("AppSettings", QString("Verification read-back: %1").arg(readBack));
+}
+
+bool AppSettings::getAmplifierControlVisible() const {
+    bool value = m_settings.value("AmplifierControlWindow/visible", false).toBool();
+    LOG_DEBUG("AppSettings", QString("getAmplifierControlVisible() - reading from QSettings: %1").arg(value));
+    return value;
 }
 
 // DX Cluster settings

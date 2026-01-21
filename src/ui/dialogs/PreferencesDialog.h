@@ -113,6 +113,16 @@ private slots:
     void onDeleteProfile();
     void onSetActiveProfile();
 
+    // Amplifier slots
+    void onAmplifierModelChanged(int index);
+    void onAmplifierConnectionTypeChanged(int index);
+    void onTestAmplifierConnection();
+
+    // Rotator slots
+    void onRotatorModelChanged(int index);
+    void onRotatorConnectionTypeChanged(int index);
+    void onTestRotatorConnection();
+
 protected:
     void showEvent(QShowEvent* event) override;
     void hideEvent(QHideEvent* event) override;
@@ -124,7 +134,10 @@ private:
 
     // Tab creation methods
     QWidget* createStationTab();
-    QWidget* createRadioTab();
+    QWidget* createHardwareTab();
+    QWidget* createRadioSettingsWidget();
+    QWidget* createAmplifierSettingsWidget();
+    QWidget* createRotatorSettingsWidget();
     QWidget* createDXClusterTab();
     QWidget* createSCPTab();
     QWidget* createUDPBroadcastTab();
@@ -139,6 +152,8 @@ private:
 
     // Helper methods
     void populateRadioList();
+    void populateAmplifierList();
+    void populateRotatorList();
     void loadProfileIntoUI(const QString& profileName);
     RadioConfig buildRadioConfigFromUI() const;
 
@@ -200,10 +215,32 @@ private:
     QLabel* m_activeProfileLabel;
     QList<RadioProfile> m_radioProfiles;  // Cache for current session
 
-    // Amplifier (KPA1500) widgets
+    // Amplifier widgets (enhanced for Hamlib support)
+    QCheckBox* m_amplifierEnabledCheck;
+    QComboBox* m_amplifierModelCombo;
+    QComboBox* m_amplifierConnectionTypeCombo;
+    QLineEdit* m_amplifierPortEdit;          // IP:port or serial port
+    QComboBox* m_amplifierBaudRateCombo;
+    QCheckBox* m_amplifierAutoConnectCheck;
+    QPushButton* m_testAmplifierConnectionButton;
+    QWidget* m_amplifierSerialSettingsWidget;  // Container for serial-specific settings
+
+    // Legacy amplifier widgets (for backward compatibility with old UI)
     QLineEdit* m_amplifierIpEdit;
     QSpinBox* m_amplifierPortSpin;
-    QCheckBox* m_amplifierEnabledCheck;
+
+    // Rotator widgets
+    QCheckBox* m_rotatorEnabledCheck;
+    QComboBox* m_rotatorModelCombo;
+    QComboBox* m_rotatorConnectionTypeCombo;
+    QLineEdit* m_rotatorIpEdit;
+    QSpinBox* m_rotatorPortSpin;
+    QLineEdit* m_rotatorSerialPortEdit;
+    QComboBox* m_rotatorBaudRateCombo;
+    QCheckBox* m_rotatorAutoConnectCheck;
+    QPushButton* m_testRotatorConnectionButton;
+    QWidget* m_rotatorNetworkSettingsWidget;   // Container for network-specific settings
+    QWidget* m_rotatorSerialSettingsWidget;    // Container for serial-specific settings
 
     // DX Cluster tab widgets
     QLineEdit* m_dxClusterCallsignEdit;

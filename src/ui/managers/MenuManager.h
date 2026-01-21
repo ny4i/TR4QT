@@ -90,6 +90,7 @@ public:
         std::function<void()> onShowSectionsMap;
         std::function<void()> onShowStatesMap;
         std::function<void()> onShowGraylineMap;
+        std::function<void()> onShowAmplifierControl;
         std::function<void()> onSwapMultView;
         std::function<void()> onMissingMultsReport;
 
@@ -130,6 +131,7 @@ public:
     QAction* sectionsMapAction() const { return m_sectionsMapAction; }
     QAction* statesMapAction() const { return m_statesMapAction; }
     QAction* graylineMapAction() const { return m_graylineMapAction; }
+    QAction* amplifierControlAction() const { return m_amplifierControlAction; }
 
 private:
     void createFileMenu(QMenuBar* menuBar, const Config& config);
@@ -158,6 +160,7 @@ private:
     QAction* m_sectionsMapAction;
     QAction* m_statesMapAction;
     QAction* m_graylineMapAction;
+    QAction* m_amplifierControlAction;
 };
 
 } // namespace TR4QT

@@ -1,6 +1,7 @@
 #include "SettingsManager.h"
 #include "../../utils/AppSettings.h"
 #include "../../network/UdpBroadcaster.h"
+#include "../../logging/LogMacros.h"
 #include <QSettings>
 
 namespace TR4QT {
@@ -69,6 +70,11 @@ WindowGeometry SettingsManager::loadWindowGeometry() const {
     geometry.graylineMapVisible = settings.getGraylineMapVisible();
     geometry.graylineMapGeometry = settings.loadGraylineMapGeometry();
 
+    // Amplifier Control window
+    geometry.amplifierControlVisible = settings.getAmplifierControlVisible();
+    geometry.amplifierControlGeometry = settings.loadAmplifierControlGeometry();
+    LOG_DEBUG("SettingsManager", QString("Loaded amplifier control visibility: %1").arg(geometry.amplifierControlVisible));
+
     // Current operator
     geometry.currentOperator = settings.getCurrentOperator();
 
@@ -110,6 +116,11 @@ void SettingsManager::saveWindowGeometry(const WindowGeometry& geometry) {
     // Grayline Map
     settings.saveGraylineMapGeometry(geometry.graylineMapGeometry);
     settings.setGraylineMapVisible(geometry.graylineMapVisible);
+
+    // Amplifier Control window
+    LOG_DEBUG("SettingsManager", QString("Saving amplifier control visibility: %1").arg(geometry.amplifierControlVisible));
+    settings.saveAmplifierControlGeometry(geometry.amplifierControlGeometry);
+    settings.setAmplifierControlVisible(geometry.amplifierControlVisible);
 
     // Ensure local qsettings are written to disk (important on Windows)
     qsettings.sync();

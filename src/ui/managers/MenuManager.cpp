@@ -369,6 +369,10 @@ void MenuManager::createWindowMenu(QMenuBar* menuBar, const Config& config) {
     m_graylineMapAction->setCheckable(true);
     connect(m_graylineMapAction, &QAction::triggered, this, config.onShowGraylineMap);
 
+    m_amplifierControlAction = windowMenu->addAction("A&mplifier Control");
+    m_amplifierControlAction->setCheckable(true);
+    connect(m_amplifierControlAction, &QAction::triggered, this, config.onShowAmplifierControl);
+
     windowMenu->addSeparator();
 
     QAction* swapMultViewAction = windowMenu->addAction("Swap Mult View");

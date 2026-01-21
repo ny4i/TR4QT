@@ -13,7 +13,7 @@ QByteArray ContactInfo::toXml() const
     QXmlStreamWriter xml(&data);
 
     xml.writeStartDocument();
-    xml.writeStartElement("ContactInfo");
+    xml.writeStartElement("contactinfo");
 
     // Application identity
     xml.writeTextElement("app", app);
@@ -71,7 +71,7 @@ QByteArray ContactInfo::toXml() const
         xml.writeTextElement("ID", id);
     }
 
-    xml.writeEndElement(); // ContactInfo
+    xml.writeEndElement(); // contactinfo
     xml.writeEndDocument();
 
     return data;
