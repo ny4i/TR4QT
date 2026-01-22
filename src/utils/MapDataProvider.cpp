@@ -79,3 +79,39 @@ QJsonObject MapDataProvider::getWorkedStates(QSOTableModel* model) {
 
     return json;
 }
+
+QJsonObject MapDataProvider::getWorkedDXCCEntities(QSOTableModel* model) {
+    if (!model) {
+        return QJsonObject();
+    }
+
+    // Build map of DXCC prefix → QSO count
+    QMap<QString, int> dxccCounts;
+
+    int qsoCount = model->count();
+    for (int row = 0; row < qsoCount; ++row) {
+        QSO qso = model->getQSO(row);
+        QString dxcc = qso.dxccPrefix.trimmed().toUpper();
+
+        if (!dxcc.isEmpty()) {
+            dxccCounts[dxcc]++;
+        }
+    }
+
+    // Convert to JSON array
+    QJsonArray entitiesArray;
+    for (auto it = dxccCounts.begin(); it != dxccCounts.end(); ++it) {
+        QJsonObject entityObj;
+        entityObj["dxcc"] = it.key();
+        entityObj["count"] = it.value();
+        entitiesArray.append(entityObj);
+    }
+
+    QJsonObject json;
+    json["entities"] = entitiesArray;
+    json["totalEntities"] = dxccCounts.size();
+    json["totalQsos"] = qsoCount;
+    json["lastUpdate"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+
+    return json;
+}

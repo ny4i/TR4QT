@@ -22,6 +22,7 @@ MenuManager::MenuManager(QWidget* parent)
     , m_statisticsAction(nullptr)
     , m_sectionsMapAction(nullptr)
     , m_statesMapAction(nullptr)
+    , m_worldMapAction(nullptr)
     , m_graylineMapAction(nullptr)
 {
 }
@@ -364,6 +365,10 @@ void MenuManager::createWindowMenu(QMenuBar* menuBar, const Config& config) {
     m_statesMapAction = windowMenu->addAction("St&ates Map (WAS)");
     m_statesMapAction->setCheckable(true);
     connect(m_statesMapAction, &QAction::triggered, this, config.onShowStatesMap);
+
+    m_worldMapAction = windowMenu->addAction("&World Map (DXCC)");
+    m_worldMapAction->setCheckable(true);
+    connect(m_worldMapAction, &QAction::triggered, this, config.onShowWorldMap);
 
     m_graylineMapAction = windowMenu->addAction("&Grayline Map");
     m_graylineMapAction->setCheckable(true);

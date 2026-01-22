@@ -20,6 +20,7 @@ WindowManager::WindowManager(QObject* parent)
     , m_statisticsWindow(nullptr)
     , m_sectionsMapViewer(nullptr)
     , m_statesMapViewer(nullptr)
+    , m_worldMapViewer(nullptr)
     , m_graylineMapDialog(nullptr)
     , m_inRaiseAllWindows(false)
 {
@@ -33,6 +34,7 @@ void WindowManager::setWindows(const Config& config) {
     m_statisticsWindow = config.statisticsWindow;
     m_sectionsMapViewer = config.sectionsMapViewer;
     m_statesMapViewer = config.statesMapViewer;
+    m_worldMapViewer = config.worldMapViewer;
     m_graylineMapDialog = config.graylineMapDialog;
 }
 
@@ -185,6 +187,10 @@ void WindowManager::raiseAllWindows() {
 
     if (m_statesMapViewer && m_statesMapViewer->isVisible()) {
         m_statesMapViewer->raise();
+    }
+
+    if (m_worldMapViewer && m_worldMapViewer->isVisible()) {
+        m_worldMapViewer->raise();
     }
 
     if (m_graylineMapDialog && m_graylineMapDialog->isVisible()) {

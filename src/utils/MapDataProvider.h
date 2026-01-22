@@ -33,6 +33,13 @@ public:
      */
     static QJsonObject getWorkedStates(TR4QT::QSOTableModel* model);
 
+    /**
+     * @brief Get worked DXCC entities with QSO counts
+     * @param model QSO table model containing contest log
+     * @return JSON object: { entities: [{dxcc, count}], totalEntities, totalQsos, lastUpdate }
+     */
+    static QJsonObject getWorkedDXCCEntities(TR4QT::QSOTableModel* model);
+
 private:
     // Private constructor - this is a static-only utility class
     MapDataProvider() = delete;

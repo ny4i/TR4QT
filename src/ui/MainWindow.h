@@ -132,6 +132,7 @@ private slots:
     void onShowStatistics();
     void onShowSectionsMap();       // Show ARRL Sections map
     void onShowStatesMap();         // Show US States map (WAS)
+    void onShowWorldMap();          // Show World Map (DXCC)
     void onShowGraylineMap();       // Show Grayline propagation map
     void onShowAmplifierControl();  // Show amplifier control window
     void onSwapMultView();          // TODO: Implement swap multiplier view
@@ -358,6 +359,7 @@ private:
     QAction* m_statisticsAction;
     QAction* m_sectionsMapAction;
     QAction* m_statesMapAction;
+    QAction* m_worldMapAction;
     QAction* m_graylineMapAction;
     QAction* m_amplifierControlAction;
 
@@ -370,6 +372,7 @@ private:
     FunctionKeysWindow* m_functionKeysWindow;
     NativeMapViewer* m_sectionsMapViewer;
     NativeMapViewer* m_statesMapViewer;
+    NativeMapViewer* m_worldMapViewer;
     GraylineMapDialog* m_graylineMapDialog;
     AmplifierControlWindow* m_amplifierControlWindow;
 

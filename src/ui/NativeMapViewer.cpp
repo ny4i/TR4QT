@@ -143,7 +143,15 @@ void NativeMapViewer::setupUI() {
 
     QHBoxLayout* totalRow = new QHBoxLayout();
     totalRow->addWidget(new QLabel("Total:"));
-    m_totalLabel = new QLabel(m_mapType == Sections ? "83" : "50");
+    QString totalText;
+    if (m_mapType == Sections) {
+        totalText = "83";
+    } else if (m_mapType == States) {
+        totalText = "50";
+    } else {
+        totalText = "---";  // Will be updated after polygons are loaded
+    }
+    m_totalLabel = new QLabel(totalText);
     totalRow->addStretch();
     totalRow->addWidget(m_totalLabel);
     statsLayout->addLayout(totalRow);
@@ -253,7 +261,7 @@ void NativeMapViewer::loadGeoJSON() {
             geoJsonPath = ":/data/us_states.geojson";
             break;
         case DXCC:
-            geoJsonPath = ":/data/arrl_sections.geojson";  // Placeholder
+            geoJsonPath = ":/data/world_dxcc.geojson";
             break;
     }
 
@@ -286,7 +294,14 @@ QVector<NativeMapViewer::Polygon> NativeMapViewer::parseGeoJSON(const QString& g
         QJsonObject geometry = feature["geometry"].toObject();
 
         Polygon polygon;
-        polygon.name = properties[m_mapType == Sections ? "section" : "state"].toString();
+        // Extract name based on map type
+        if (m_mapType == Sections) {
+            polygon.name = properties["section"].toString();
+        } else if (m_mapType == States) {
+            polygon.name = properties["state"].toString();
+        } else if (m_mapType == DXCC) {
+            polygon.name = properties["dxcc"].toString();
+        }
 
         QString geometryType = geometry["type"].toString();
         QJsonArray coordinates = geometry["coordinates"].toArray();
@@ -443,34 +458,54 @@ void NativeMapViewer::updatePolygonColors() {
 void NativeMapViewer::refreshData() {
     // Get QSO counts from MapDataProvider
     QJsonObject data;
+    QString arrayKey;
+    QString itemKey;
+
     if (m_mapType == Sections) {
         data = MapDataProvider::getWorkedSections(m_qsoModel);
-    } else {
+        arrayKey = "sections";
+        itemKey = "section";
+    } else if (m_mapType == States) {
         data = MapDataProvider::getWorkedStates(m_qsoModel);
+        arrayKey = "states";
+        itemKey = "state";
+    } else {
+        data = MapDataProvider::getWorkedDXCCEntities(m_qsoModel);
+        arrayKey = "entities";
+        itemKey = "dxcc";
     }
 
     // Extract counts (normalize names to uppercase for matching)
     m_counts.clear();
-    QJsonArray items = data[m_mapType == Sections ? "sections" : "states"].toArray();
+    QJsonArray items = data[arrayKey].toArray();
     for (const QJsonValue& itemVal : items) {
         QJsonObject itemObj = itemVal.toObject();
-        QString name = itemObj[m_mapType == Sections ? "section" : "state"].toString();
+        QString name = itemObj[itemKey].toString();
         int count = itemObj["count"].toInt();
         // Normalize to uppercase for case-insensitive matching with GeoJSON names
         m_counts[name.toUpper()] = count;
     }
 
+    QString typeLabel;
+    if (m_mapType == Sections) {
+        typeLabel = "sections";
+    } else if (m_mapType == States) {
+        typeLabel = "states";
+    } else {
+        typeLabel = "DXCC entities";
+    }
+
     LOG_DEBUG("NativeMapViewer", QString("Refreshed data, found %1 %2 with QSOs")
              .arg(m_counts.size())
-             .arg(m_mapType == Sections ? "sections" : "states"));
+             .arg(typeLabel));
 
-    // Debug: Show what sections were found
+    // Debug: Show what entities were found
     if (!m_counts.isEmpty()) {
-        QStringList sectionList;
+        QStringList entityList;
         for (auto it = m_counts.begin(); it != m_counts.end(); ++it) {
-            sectionList << QString("%1(%2)").arg(it.key()).arg(it.value());
+            entityList << QString("%1(%2)").arg(it.key()).arg(it.value());
         }
-        LOG_DEBUG("NativeMapViewer", QString("Sections: %1").arg(sectionList.join(", ")));
+        LOG_DEBUG("NativeMapViewer", QString("%1: %2").arg(typeLabel).arg(entityList.join(", ")));
     }
 
     // Update visuals
@@ -481,7 +516,15 @@ void NativeMapViewer::refreshData() {
 
 void NativeMapViewer::updateStats() {
     int worked = m_counts.size();
-    int total = (m_mapType == Sections) ? 83 : 50;
+    int total;
+    if (m_mapType == Sections) {
+        total = 83;
+    } else if (m_mapType == States) {
+        total = 50;
+    } else {
+        // DXCC - use the number of polygons in the map (entities we have GeoJSON for)
+        total = m_polygonItems.size();
+    }
     double completion = (worked * 100.0) / total;
 
     int totalQsos = 0;
@@ -572,8 +615,18 @@ void NativeMapViewer::restoreViewState() {
         double scaleY = m_view->height() / 40.0;  // ~25 degrees lat + padding
         double scale = qMin(scaleX, scaleY);
         m_view->scale(scale, scale);
+    } else if (m_mapType == DXCC) {
+        // World map - center on Atlantic, show full world
+        QPointF worldCenter = latLonToScene(20.0, -30.0);  // Atlantic Ocean, slight northern bias
+        m_view->centerOn(worldCenter);
+
+        // Scale to show most of the world (360 degrees lon, ~140 degrees lat visible)
+        double scaleX = m_view->width() / 400.0;   // ~360 degrees + padding
+        double scaleY = m_view->height() / 180.0;  // ~140 degrees + padding
+        double scale = qMin(scaleX, scaleY);
+        m_view->scale(scale, scale);
     } else {
-        // For other maps (DXCC future), fit entire scene
+        // Fallback: fit entire scene
         m_view->fitInView(m_scene->sceneRect(), Qt::KeepAspectRatio);
         m_view->scale(2.0, 2.0);
     }

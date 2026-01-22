@@ -110,6 +110,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_functionKeysWindow(nullptr)
     , m_sectionsMapViewer(nullptr)
     , m_statesMapViewer(nullptr)
+    , m_worldMapViewer(nullptr)
     , m_graylineMapDialog(nullptr)
     , m_amplifierControlWindow(nullptr)
     , m_qsosThisHour(0)
@@ -481,6 +482,7 @@ void MainWindow::createMenuBar() {
     config.onShowStatistics = [this]() { onShowStatistics(); };
     config.onShowSectionsMap = [this]() { onShowSectionsMap(); };
     config.onShowStatesMap = [this]() { onShowStatesMap(); };
+    config.onShowWorldMap = [this]() { onShowWorldMap(); };
     config.onShowGraylineMap = [this]() { onShowGraylineMap(); };
     config.onShowAmplifierControl = [this]() { onShowAmplifierControl(); };
     config.onSwapMultView = [this]() { onSwapMultView(); };
@@ -515,6 +517,7 @@ void MainWindow::createMenuBar() {
     m_statisticsAction = m_menuManager->statisticsAction();
     m_sectionsMapAction = m_menuManager->sectionsMapAction();
     m_statesMapAction = m_menuManager->statesMapAction();
+    m_worldMapAction = m_menuManager->worldMapAction();
     m_graylineMapAction = m_menuManager->graylineMapAction();
 }
 
@@ -1114,6 +1117,13 @@ void MainWindow::restoreChildWindows(const WindowGeometry& geometry) {
         LOG_DEBUG("MainWindow", "NOT restoring States Map window (was hidden on exit)");
     }
 
+    if (geometry.worldMapVisible) {
+        LOG_DEBUG("MainWindow", "Restoring World Map window (was visible on exit)");
+        onShowWorldMap();
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring World Map window (was hidden on exit)");
+    }
+
     if (geometry.graylineMapVisible) {
         LOG_DEBUG("MainWindow", "Restoring Grayline Map window (was visible on exit)");
         onShowGraylineMap();
@@ -1178,6 +1188,9 @@ void MainWindow::saveSettings() {
     }
     if (m_statesMapViewer) {
         geometry.statesMapVisible = m_statesMapViewer->isVisible();
+    }
+    if (m_worldMapViewer) {
+        geometry.worldMapVisible = m_worldMapViewer->isVisible();
     }
     if (m_graylineMapDialog) {
         geometry.graylineMapGeometry = m_graylineMapDialog->saveGeometry();
@@ -3095,6 +3108,9 @@ void MainWindow::updateWindowMenuCheckmarks() {
     if (m_statesMapAction) {
         m_statesMapAction->setChecked(m_statesMapViewer && m_statesMapViewer->isVisible());
     }
+    if (m_worldMapAction) {
+        m_worldMapAction->setChecked(m_worldMapViewer && m_worldMapViewer->isVisible());
+    }
     if (m_graylineMapAction) {
         m_graylineMapAction->setChecked(m_graylineMapDialog && m_graylineMapDialog->isVisible());
     }
@@ -3663,6 +3679,7 @@ void MainWindow::onShowDXCluster() {
             config.statisticsWindow = m_statisticsWindow;
             config.sectionsMapViewer = m_sectionsMapViewer;
             config.statesMapViewer = m_statesMapViewer;
+            config.worldMapViewer = m_worldMapViewer;
             config.graylineMapDialog = m_graylineMapDialog;
             m_windowManager->setWindows(config);
         }
@@ -3858,6 +3875,20 @@ void MainWindow::onShowStatesMap() {
     m_statesMapViewer->show();
     m_statesMapViewer->raise();
     m_statesMapViewer->activateWindow();
+    updateWindowMenuCheckmarks();
+}
+
+void MainWindow::onShowWorldMap() {
+    // Create and show World Map (DXCC entity tracking)
+    // Uses native Qt graphics (QGraphicsView), works on all platforms
+    if (!m_worldMapViewer) {
+        m_worldMapViewer = new NativeMapViewer(NativeMapViewer::DXCC, m_qsoTableModel, this);
+        m_worldMapViewer->setWindowFlags(Qt::Window);
+        m_worldMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
+    }
+    m_worldMapViewer->show();
+    m_worldMapViewer->raise();
+    m_worldMapViewer->activateWindow();
     updateWindowMenuCheckmarks();
 }
 
@@ -4120,6 +4151,13 @@ void MainWindow::onResetWindowPositions() {
     if (m_statesMapViewer && m_statesMapViewer->isVisible()) {
         m_statesMapViewer->move(this->pos() + QPoint(offsetX, offsetY));
         LOG_DEBUG("MainWindow", QString("Repositioned States Map window to (%1, %2)").arg(offsetX).arg(offsetY));
+        offsetX += cascadeStep;
+        offsetY += cascadeStep;
+    }
+
+    if (m_worldMapViewer && m_worldMapViewer->isVisible()) {
+        m_worldMapViewer->move(this->pos() + QPoint(offsetX, offsetY));
+        LOG_DEBUG("MainWindow", QString("Repositioned World Map window to (%1, %2)").arg(offsetX).arg(offsetY));
         offsetX += cascadeStep;
         offsetY += cascadeStep;
     }

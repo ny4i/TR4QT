@@ -1,4 +1,5 @@
 #include "ThemeManager.h"
+#include "../core/Constants.h"
 #include <QSettings>
 
 namespace TR4QT {
@@ -108,7 +109,7 @@ QString ThemeManager::themeName(ThemeType theme) {
 }
 
 void ThemeManager::saveToSettings() {
-    QSettings settings;
+    QSettings settings(APP_ORG, APP_NAME);
 
     // Save current theme
     settings.setValue("Theme/currentTheme", themeTypeToString(m_currentTheme));
@@ -127,7 +128,7 @@ void ThemeManager::saveToSettings() {
 }
 
 void ThemeManager::loadFromSettings() {
-    QSettings settings;
+    QSettings settings(APP_ORG, APP_NAME);
 
     // Load current theme
     QString themeStr = settings.value("Theme/currentTheme", "TR4WDefault").toString();
