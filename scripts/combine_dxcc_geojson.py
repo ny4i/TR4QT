@@ -92,6 +92,62 @@ def create_circle_feature(dxcc, name, lon, lat):
     }
 
 
+def is_artifact_polygon(geometry):
+    """
+    Check if a geometry is a clipping artifact (narrow strip spanning the world).
+    Real landmasses may have horizontal edges but span a wide latitude range.
+    Artifacts are thin strips (< 5° latitude) spanning most of the world.
+    """
+    def get_lat_range(coords, geom_type):
+        """Get the total latitude range of a geometry."""
+        all_lats = []
+        if geom_type == "Polygon":
+            for ring in coords:
+                for pt in ring:
+                    all_lats.append(pt[1])
+        elif geom_type == "MultiPolygon":
+            for poly in coords:
+                for ring in poly:
+                    for pt in ring:
+                        all_lats.append(pt[1])
+        if all_lats:
+            return max(all_lats) - min(all_lats)
+        return 0
+
+    def has_world_spanning_edge(coords, geom_type):
+        """Check if geometry has a horizontal edge spanning > 300° longitude."""
+        def check_ring(ring):
+            for i in range(len(ring) - 1):
+                lat1, lat2 = ring[i][1], ring[i + 1][1]
+                lon1, lon2 = ring[i][0], ring[i + 1][0]
+                lon_span = abs(lon2 - lon1)
+                if abs(lat1 - lat2) < 2.0 and lon_span > 300:
+                    return True
+            return False
+
+        if geom_type == "Polygon":
+            for ring in coords:
+                if check_ring(ring):
+                    return True
+        elif geom_type == "MultiPolygon":
+            for poly in coords:
+                for ring in poly:
+                    if check_ring(ring):
+                        return True
+        return False
+
+    geom_type = geometry.get("type")
+    coords = geometry.get("coordinates", [])
+
+    # Only filter if: has world-spanning edge AND narrow latitude range (< 5°)
+    # This keeps legitimate countries like Russia while filtering thin artifact strips
+    if has_world_spanning_edge(coords, geom_type):
+        lat_range = get_lat_range(coords, geom_type)
+        if lat_range < 5.0:  # Artifact: thin strip spanning the world
+            return True
+    return False
+
+
 def add_dxcc_property(feature, dxcc, name):
     """Add DXCC prefix property to a feature."""
     if feature.get("properties") is None:
@@ -178,8 +234,13 @@ def process_mapping(mapping):
             return features
 
         # Process features from the file
+        skipped_artifacts = 0
         if geojson.get("type") == "FeatureCollection":
             for feature in geojson.get("features", []):
+                # Skip artifact polygons (thin strips spanning the world)
+                if "geometry" in feature and is_artifact_polygon(feature["geometry"]):
+                    skipped_artifacts += 1
+                    continue
                 feature = add_dxcc_property(feature.copy(), dxcc, name)
                 # Simplify and round coordinates
                 if "geometry" in feature:
@@ -190,14 +251,21 @@ def process_mapping(mapping):
                         )
                 features.append(feature)
         elif geojson.get("type") == "Feature":
-            feature = add_dxcc_property(geojson.copy(), dxcc, name)
-            if "geometry" in feature:
-                feature["geometry"] = simplify_geometry(feature["geometry"])
-                if "coordinates" in feature["geometry"]:
-                    feature["geometry"]["coordinates"] = round_coordinates(
-                        feature["geometry"]["coordinates"]
-                    )
-            features.append(feature)
+            # Skip artifact polygons (thin strips spanning the world)
+            if "geometry" in geojson and is_artifact_polygon(geojson["geometry"]):
+                skipped_artifacts += 1
+            else:
+                feature = add_dxcc_property(geojson.copy(), dxcc, name)
+                if "geometry" in feature:
+                    feature["geometry"] = simplify_geometry(feature["geometry"])
+                    if "coordinates" in feature["geometry"]:
+                        feature["geometry"]["coordinates"] = round_coordinates(
+                            feature["geometry"]["coordinates"]
+                        )
+                features.append(feature)
+
+        if skipped_artifacts > 0:
+            print(f"    (skipped {skipped_artifacts} artifact polygons)")
 
     elif point:
         # Create a small circle for point-only entities

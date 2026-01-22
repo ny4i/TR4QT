@@ -18,6 +18,7 @@ using namespace TR4QT;
 #include <QFile>
 #include <QBrush>
 #include <QPen>
+#include <QPalette>
 #include <QShowEvent>
 #include <QHideEvent>
 #include <QWheelEvent>
@@ -120,8 +121,13 @@ void NativeMapViewer::setupUI() {
     m_view->setDragMode(QGraphicsView::ScrollHandDrag);
     m_view->setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     m_view->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);  // Allow resizing in both directions
-    // Set view background to match scene (for areas outside scene rect)
+    m_view->setFrameShape(QFrame::NoFrame);  // Remove frame border
+    // Ensure consistent background color for areas outside scene rect
     m_view->setBackgroundBrush(ThemeManager::instance().color(ColorRole::MapBackground));
+    m_view->viewport()->setAutoFillBackground(true);
+    QPalette pal = m_view->viewport()->palette();
+    pal.setColor(QPalette::Window, ThemeManager::instance().color(ColorRole::MapBackground));
+    m_view->viewport()->setPalette(pal);
     mainLayout->addWidget(m_view, 1);  // Stretch factor 1
 
     // Sidebar
@@ -308,18 +314,45 @@ QVector<NativeMapViewer::Polygon> NativeMapViewer::parseGeoJSON(const QString& g
         QString geometryType = geometry["type"].toString();
         QJsonArray coordinates = geometry["coordinates"].toArray();
 
+        // Helper lambda to process a ring, splitting at date line crossings for DXCC maps
+        // This prevents Russia's polygon from drawing a line across the entire map
+        auto processRing = [&](const QJsonArray& ring) {
+            QPolygonF currentPoly;
+            double prevLon = 0;
+            bool firstPoint = true;
+
+            for (const QJsonValue& pointVal : ring) {
+                QJsonArray point = pointVal.toArray();
+                double lon = point[0].toDouble();
+                double lat = point[1].toDouble();
+
+                // For DXCC maps, split polygon at date line crossings (lon jump > 180°)
+                if (m_mapType == DXCC && !firstPoint) {
+                    double lonDiff = qAbs(lon - prevLon);
+                    if (lonDiff > 180.0) {
+                        // Date line crossing detected - save current polygon and start new one
+                        if (currentPoly.size() >= 3) {
+                            polygon.rings.append(currentPoly);
+                        }
+                        currentPoly.clear();
+                    }
+                }
+
+                currentPoly << applyPseudoPosition(lat, lon, polygon.name);
+                prevLon = lon;
+                firstPoint = false;
+            }
+
+            if (currentPoly.size() >= 3) {
+                polygon.rings.append(currentPoly);
+            }
+        };
+
         if (geometryType == "Polygon") {
             // Single polygon
             for (const QJsonValue& ringVal : coordinates) {
                 QJsonArray ring = ringVal.toArray();
-                QPolygonF qpoly;
-                for (const QJsonValue& pointVal : ring) {
-                    QJsonArray point = pointVal.toArray();
-                    double lon = point[0].toDouble();
-                    double lat = point[1].toDouble();
-                    qpoly << applyPseudoPosition(lat, lon, polygon.name);
-                }
-                polygon.rings.append(qpoly);
+                processRing(ring);
             }
         } else if (geometryType == "MultiPolygon") {
             // Multiple polygons (e.g., Alaska, Hawaii)
@@ -327,14 +360,7 @@ QVector<NativeMapViewer::Polygon> NativeMapViewer::parseGeoJSON(const QString& g
                 QJsonArray polyArray = polyVal.toArray();
                 for (const QJsonValue& ringVal : polyArray) {
                     QJsonArray ring = ringVal.toArray();
-                    QPolygonF qpoly;
-                    for (const QJsonValue& pointVal : ring) {
-                        QJsonArray point = pointVal.toArray();
-                        double lon = point[0].toDouble();
-                        double lat = point[1].toDouble();
-                        qpoly << applyPseudoPosition(lat, lon, polygon.name);
-                    }
-                    polygon.rings.append(qpoly);
+                    processRing(ring);
                 }
             }
         }
@@ -387,10 +413,15 @@ void NativeMapViewer::createPolygons() {
     for (const Polygon& polygon : m_polygons) {
         for (const QPolygonF& ring : polygon.rings) {
             QGraphicsPolygonItem* item = m_scene->addPolygon(ring);
-            // Cosmetic pen (width 0) = 1 pixel regardless of zoom
-            QPen pen(Qt::white, 0);
-            pen.setCosmetic(true);
-            item->setPen(pen);
+            // For DXCC world map, don't draw borders (Russia has a horizontal edge artifact at 71°N)
+            // For US maps (Sections/States), use cosmetic white borders
+            if (m_mapType == DXCC) {
+                item->setPen(Qt::NoPen);
+            } else {
+                QPen pen(Qt::white, 0);
+                pen.setCosmetic(true);
+                item->setPen(pen);
+            }
             item->setBrush(QBrush(getColorForCount(0)));  // Initial color
             item->setToolTip(QString("%1: 0 QSOs").arg(polygon.name));
 
@@ -407,25 +438,8 @@ void NativeMapViewer::createPolygons() {
         }
     }
 
-    // Set scene rectangle to match all polygons
-    // For DXCC map, clip to reasonable latitudes to avoid empty Arctic region
-    if (m_mapType == DXCC) {
-        // Scene coords: Y is negated latitude, so lat 85°N = y=-85, lat 60°S = y=60
-        const double MAX_LAT_SCENE_Y = -82.0;  // Don't show above ~82°N (empty Arctic)
-        const double MIN_LAT_SCENE_Y = 60.0;   // Don't show below ~60°S (Antarctica)
-
-        // Clip bounds to reasonable latitudes
-        if (bounds.top() < MAX_LAT_SCENE_Y) {
-            bounds.setTop(MAX_LAT_SCENE_Y);
-        }
-        if (bounds.bottom() > MIN_LAT_SCENE_Y) {
-            bounds.setBottom(MIN_LAT_SCENE_Y);
-        }
-        // Only add horizontal padding for DXCC to avoid re-exposing the Arctic
-        m_scene->setSceneRect(bounds.adjusted(-10, 0, 10, 0));
-    } else {
-        m_scene->setSceneRect(bounds.adjusted(-10, -10, 10, 10));  // Add padding
-    }
+    // Set scene rectangle to match all polygons with padding
+    m_scene->setSceneRect(bounds.adjusted(-10, -10, 10, 10));
 
     QRectF sceneRect = m_scene->sceneRect();
     LOG_DEBUG("NativeMapViewer", QString("Scene rect: QRectF(%1,%2 %3x%4)")
@@ -635,13 +649,13 @@ void NativeMapViewer::restoreViewState() {
         double scale = qMin(scaleX, scaleY);
         m_view->scale(scale, scale);
     } else if (m_mapType == DXCC) {
-        // World map - center on Atlantic, show full world
-        QPointF worldCenter = latLonToScene(20.0, -30.0);  // Atlantic Ocean, slight northern bias
+        // World map - center on Atlantic, show full world including Greenland/Arctic
+        QPointF worldCenter = latLonToScene(35.0, -20.0);  // Center higher to show northern regions
         m_view->centerOn(worldCenter);
 
-        // Scale to show most of the world (360 degrees lon, ~140 degrees lat visible)
-        double scaleX = m_view->width() / 400.0;   // ~360 degrees + padding
-        double scaleY = m_view->height() / 180.0;  // ~140 degrees + padding
+        // Scale to show most of the world (360 degrees lon, ~150 degrees lat visible)
+        double scaleX = m_view->width() / 380.0;   // ~360 degrees + padding
+        double scaleY = m_view->height() / 160.0;  // ~150 degrees lat visible
         double scale = qMin(scaleX, scaleY);
         m_view->scale(scale, scale);
     } else {
