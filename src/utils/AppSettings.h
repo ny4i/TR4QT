@@ -398,6 +398,10 @@ public:
     void setVHFBandsEnabled(bool enabled);
     bool getVHFBandsEnabled() const;  // Default: false (HF only)
 
+    // macOS window behavior
+    void setShowAllWindowsOnActivate(bool enabled);
+    bool getShowAllWindowsOnActivate() const;  // Default: false (macOS only)
+
     // DX Cluster spot color settings
     void setClusterDupeColor(const QString& color);
     QString getClusterDupeColor() const;  // Default: #808080 (gray)

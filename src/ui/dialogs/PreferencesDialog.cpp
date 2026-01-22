@@ -1355,6 +1355,23 @@ QWidget* PreferencesDialog::createAppearanceTab() {
     clusterColorsLayout->addRow("New Multiplier:", multColorLayout);
 
     layout->addWidget(clusterColorsGroup);
+
+#ifdef Q_OS_MAC
+    // macOS Window Behavior group
+    QGroupBox* windowBehaviorGroup = new QGroupBox("Window Behavior (macOS)", this);
+    QVBoxLayout* windowBehaviorLayout = new QVBoxLayout(windowBehaviorGroup);
+
+    m_showAllWindowsOnActivateCheck = new QCheckBox("Show all windows when activating app", this);
+    m_showAllWindowsOnActivateCheck->setToolTip(
+        "When enabled, clicking on the app or its Dock icon brings all TR4QT windows to the front.\n"
+        "When disabled, only the clicked window is raised (standard macOS behavior).");
+    windowBehaviorLayout->addWidget(m_showAllWindowsOnActivateCheck);
+
+    layout->addWidget(windowBehaviorGroup);
+#else
+    m_showAllWindowsOnActivateCheck = nullptr;  // Not used on other platforms
+#endif
+
     layout->addStretch();
 
     return appearanceTab;
@@ -1890,6 +1907,13 @@ void PreferencesDialog::loadSettings() {
     QString multColor = settings.getClusterMultiplierColor();
     m_clusterMultColorButton->setStyleSheet(QString("background-color: %1;").arg(multColor));
 
+#ifdef Q_OS_MAC
+    // macOS Window Behavior
+    if (m_showAllWindowsOnActivateCheck) {
+        m_showAllWindowsOnActivateCheck->setChecked(settings.getShowAllWindowsOnActivate());
+    }
+#endif
+
     // Load current theme
     ThemeManager& theme = ThemeManager::instance();
     ThemeType currentTheme = theme.currentTheme();
@@ -2038,6 +2062,13 @@ void PreferencesDialog::saveSettings() {
     // Band Needs Display
     settings.setVHFBandsEnabled(m_vhfBandsEnabledCheck->isChecked());
     // Colors are saved immediately in button click handlers
+
+#ifdef Q_OS_MAC
+    // macOS Window Behavior
+    if (m_showAllWindowsOnActivateCheck) {
+        settings.setShowAllWindowsOnActivate(m_showAllWindowsOnActivateCheck->isChecked());
+    }
+#endif
 
     // Save theme
     ThemeManager& theme = ThemeManager::instance();

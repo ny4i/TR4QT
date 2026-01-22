@@ -1325,6 +1325,16 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
 }
 
 bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
+#ifdef Q_OS_MAC
+    // macOS: Bring all windows to front when app is activated (if setting enabled)
+    if (event->type() == QEvent::ApplicationActivate) {
+        if (AppSettings::instance().getShowAllWindowsOnActivate()) {
+            LOG_DEBUG("MainWindow", "ApplicationActivate received - raising all windows");
+            raiseAllWindows();
+        }
+    }
+#endif
+
     // Intercept PgUp/PgDn globally for CW speed control
     if (event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);

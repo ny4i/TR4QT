@@ -295,6 +295,7 @@ private:
     QPushButton* m_clusterMultColorButton;
     QPushButton* m_customizeColorsButton;
     QCheckBox* m_useMetricDistanceCheck;
+    QCheckBox* m_showAllWindowsOnActivateCheck;  // macOS: bring all windows to front on activate
 
     // Logging tab widgets
     QComboBox* m_logLevelCombo;
