@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.57";  // Add World Map (DXCC entities) viewer
+constexpr const char* APP_VERSION = "3.38.58";  // Clip DXCC map to hide empty Arctic region
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
