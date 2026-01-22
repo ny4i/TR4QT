@@ -1422,6 +1422,15 @@ bool AppSettings::getVHFBandsEnabled() const {
     return m_settings.value("Appearance/vhfBandsEnabled", false).toBool();
 }
 
+void AppSettings::setShowAllWindowsOnActivate(bool enabled) {
+    m_settings.setValue("Appearance/showAllWindowsOnActivate", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getShowAllWindowsOnActivate() const {
+    return m_settings.value("Appearance/showAllWindowsOnActivate", false).toBool();
+}
+
 void AppSettings::setClusterDupeColor(const QString& color) {
     m_settings.setValue("Appearance/clusterDupeColor", color);
     m_settings.sync();

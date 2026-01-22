@@ -12,10 +12,11 @@
 #include <csignal>
 #if defined(Q_OS_UNIX) || defined(Q_OS_MAC)
 #include <unistd.h>      // For STDERR_FILENO on Unix/Mac
+#define posix_write write
 #elif defined(Q_OS_WIN)
 #include <io.h>          // For _write on Windows
 #define STDERR_FILENO 2
-#define write _write
+#define posix_write _write
 #endif
 #include <hamlib/rig.h>
 #include "core/Constants.h"
@@ -42,10 +43,10 @@ static void signalHandler(int signal) {
     const char* signalName = (signal == SIGTERM) ? "SIGTERM" :
                              (signal == SIGINT) ? "SIGINT" : "UNKNOWN";
 
-    // Use write() instead of LOG_* since we're in a signal handler
+    // Use posix_write() instead of LOG_* since we're in a signal handler
     // (printf/QString are not async-signal-safe)
     const char* msg = "Signal received, performing graceful shutdown...\n";
-    [[maybe_unused]] auto ignored = write(STDERR_FILENO, msg, strlen(msg));
+    [[maybe_unused]] auto ignored = posix_write(STDERR_FILENO, msg, strlen(msg));
 
     // Save window state directly (bypasses confirmation dialog in closeEvent)
     // This must be done via invokeMethod since we're in signal handler context
