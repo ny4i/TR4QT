@@ -1516,15 +1516,21 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
 }
 
 void MainWindow::raiseAllWindows() {
-    if (!m_windowManager) {
-        return;
+    // Raise ALL top-level windows belonging to this application
+    // This is more robust than tracking individual windows, as windows
+    // may be created lazily and WindowManager config may be stale
+    const auto topLevelWidgets = QApplication::topLevelWidgets();
+    for (QWidget* widget : topLevelWidgets) {
+        if (widget && widget->isVisible() && !widget->isMinimized()) {
+            widget->raise();
+        }
     }
 
-    // Raise main window first
+    // Ensure main window is on top and ACTIVE (for macOS menu bar)
+    // Without activateWindow(), a child window may be "active" and
+    // macOS will show that window's (empty) menu bar instead of ours
     raise();
-
-    // Delegate child window raising to WindowManager
-    m_windowManager->raiseAllWindows();
+    activateWindow();
 }
 
 void MainWindow::setStatusMessage(const QString& message) {
