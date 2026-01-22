@@ -321,7 +321,7 @@ void DXClusterWindow::setupUI() {
 }
 
 void DXClusterWindow::loadSettings() {
-    QSettings settings(APP_ORG, APP_NAME);
+    QSettings settings(APP_ORG, APP_NAME);  // Must match AppSettings initialization
 
     // Load downloaded cluster list from AppSettings
     AppSettings& appSettings = AppSettings::instance();
@@ -365,7 +365,7 @@ void DXClusterWindow::loadSettings() {
 }
 
 void DXClusterWindow::saveSettings() {
-    QSettings settings(APP_ORG, APP_NAME);
+    QSettings settings(APP_ORG, APP_NAME);  // Must match AppSettings initialization
 
     // Save current server
     settings.setValue("DXCluster/LastServer", m_serverCombo->currentText());

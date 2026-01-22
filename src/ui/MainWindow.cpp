@@ -4076,7 +4076,8 @@ void MainWindow::onResetWindowPositions() {
     LOG_INFO("MainWindow", "Resetting all window positions to defaults");
 
     // Clear all saved geometries from QSettings
-    QSettings settings("TR4QT", "TR4QT");
+    // Must use explicit org/app names to match AppSettings plist file
+    QSettings settings(APP_ORG, APP_NAME);
     settings.remove("Windows");
     settings.remove("MapViewer");
 

@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.53";  // Fix test suite (SMeter, serialNumbers, K4 simulator)
+constexpr const char* APP_VERSION = "3.38.54";  // Fix QSettings inconsistency causing duplicate plist files and lost settings
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

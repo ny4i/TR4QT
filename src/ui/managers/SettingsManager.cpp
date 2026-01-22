@@ -2,6 +2,7 @@
 #include "../../utils/AppSettings.h"
 #include "../../network/UdpBroadcaster.h"
 #include "../../logging/LogMacros.h"
+#include "../../core/Constants.h"
 #include <QSettings>
 
 namespace TR4QT {
@@ -34,7 +35,7 @@ FontConfig SettingsManager::loadFontConfig() const {
 
 WindowGeometry SettingsManager::loadWindowGeometry() const {
     AppSettings& settings = AppSettings::instance();
-    QSettings qsettings("TR4QT", "TR4QT");
+    QSettings qsettings(APP_ORG, APP_NAME);  // Must match AppSettings initialization
 
     WindowGeometry geometry;
 
@@ -83,7 +84,7 @@ WindowGeometry SettingsManager::loadWindowGeometry() const {
 
 void SettingsManager::saveWindowGeometry(const WindowGeometry& geometry) {
     AppSettings& settings = AppSettings::instance();
-    QSettings qsettings("TR4QT", "TR4QT");
+    QSettings qsettings(APP_ORG, APP_NAME);  // Must match AppSettings initialization
 
     // Main window
     settings.saveWindowGeometry(geometry.mainWindowGeometry);
