@@ -120,6 +120,8 @@ void NativeMapViewer::setupUI() {
     m_view->setDragMode(QGraphicsView::ScrollHandDrag);
     m_view->setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     m_view->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);  // Allow resizing in both directions
+    // Set view background to match scene (for areas outside scene rect)
+    m_view->setBackgroundBrush(ThemeManager::instance().color(ColorRole::MapBackground));
     mainLayout->addWidget(m_view, 1);  // Stretch factor 1
 
     // Sidebar
@@ -406,7 +408,24 @@ void NativeMapViewer::createPolygons() {
     }
 
     // Set scene rectangle to match all polygons
-    m_scene->setSceneRect(bounds.adjusted(-10, -10, 10, 10));  // Add padding
+    // For DXCC map, clip to reasonable latitudes to avoid empty Arctic region
+    if (m_mapType == DXCC) {
+        // Scene coords: Y is negated latitude, so lat 85°N = y=-85, lat 60°S = y=60
+        const double MAX_LAT_SCENE_Y = -82.0;  // Don't show above ~82°N (empty Arctic)
+        const double MIN_LAT_SCENE_Y = 60.0;   // Don't show below ~60°S (Antarctica)
+
+        // Clip bounds to reasonable latitudes
+        if (bounds.top() < MAX_LAT_SCENE_Y) {
+            bounds.setTop(MAX_LAT_SCENE_Y);
+        }
+        if (bounds.bottom() > MIN_LAT_SCENE_Y) {
+            bounds.setBottom(MIN_LAT_SCENE_Y);
+        }
+        // Only add horizontal padding for DXCC to avoid re-exposing the Arctic
+        m_scene->setSceneRect(bounds.adjusted(-10, 0, 10, 0));
+    } else {
+        m_scene->setSceneRect(bounds.adjusted(-10, -10, 10, 10));  // Add padding
+    }
 
     QRectF sceneRect = m_scene->sceneRect();
     LOG_DEBUG("NativeMapViewer", QString("Scene rect: QRectF(%1,%2 %3x%4)")
