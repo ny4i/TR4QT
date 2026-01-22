@@ -35,6 +35,7 @@ public:
     QString getContestName() const override { return "CQ WPX Contest - CW"; }
     ModeType getContestMode() const override { return ModeType::CW; }
     QString getADIFContestId() const override { return ADIF_CONTEST_ID; }
+    int getWA7BNMContestId() const override { return WA7BNM_ID; }
 
     // ===== Bands (all HF bands including 160m) =====
     QList<BandType> getAllowedBands() const override {

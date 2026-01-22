@@ -34,6 +34,7 @@ public:
     QString getContestName() const override { return "North American QSO Party - RTTY"; }
     ModeType getContestMode() const override { return ModeType::RTTY; }
     QString getADIFContestId() const override { return ADIF_CONTEST_ID; }
+    int getWA7BNMContestId() const override { return WA7BNM_ID_MAY; }  // Use May ID as default
 
     // ===== Bands (RTTY excludes 160m) =====
     QList<BandType> getAllowedBands() const override {

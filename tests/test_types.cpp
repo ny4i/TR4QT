@@ -68,9 +68,12 @@ void TestTypes::testStringToBand_Invalid() {
     // Invalid/unknown strings should return None
     QCOMPARE(stringToBand(""), BandType::None);
     QCOMPARE(stringToBand("invalid"), BandType::None);
-    QCOMPARE(stringToBand("160m"), BandType::None);  // Lowercase should fail (case sensitive)
     QCOMPARE(stringToBand("20"), BandType::None);    // Missing "M"
     QCOMPARE(stringToBand("Unknown"), BandType::None);
+
+    // Case-insensitive parsing - lowercase should work
+    QCOMPARE(stringToBand("160m"), BandType::Band160M);
+    QCOMPARE(stringToBand("20m"), BandType::Band20M);
 }
 
 void TestTypes::testBandRoundTrip() {

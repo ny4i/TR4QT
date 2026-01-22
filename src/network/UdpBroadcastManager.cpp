@@ -3,8 +3,62 @@
 #include "ContactInfo.h"
 #include "../core/Types.h"
 #include "../logging/LogMacros.h"
+#include <QHostInfo>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 namespace TR4QT {
+
+// Convert BandType to N1MM+ compatible band string (frequency in MHz)
+// N1MM+ uses frequency values like "1.8", "3.5", "7", "14", "21", "28", etc.
+static QString bandToUdpBandString(BandType band)
+{
+    switch (band) {
+    case BandType::Band160M: return "1.8";
+    case BandType::Band80M:  return "3.5";
+    case BandType::Band60M:  return "5";
+    case BandType::Band40M:  return "7";
+    case BandType::Band30M:  return "10";
+    case BandType::Band20M:  return "14";
+    case BandType::Band17M:  return "18";
+    case BandType::Band15M:  return "21";
+    case BandType::Band12M:  return "24";
+    case BandType::Band10M:  return "28";
+    case BandType::Band6M:   return "50";
+    case BandType::Band4M:   return "70";
+    case BandType::Band2M:   return "144";
+    case BandType::Band1_25M: return "222";
+    case BandType::Band70CM: return "420";
+    case BandType::Band23CM: return "1.2G";
+    default: return "14";  // Default to 20m
+    }
+}
+
+// Get computer name for StationName field in UDP broadcasts
+// Windows: NetBIOS computer name
+// macOS/Linux: hostname without domain suffix (e.g., "macstudio" not "macstudio.lan")
+static QString getComputerName()
+{
+#ifdef Q_OS_WIN
+    // On Windows, use GetComputerName for NetBIOS name
+    wchar_t buffer[MAX_COMPUTERNAME_LENGTH + 1];
+    DWORD size = MAX_COMPUTERNAME_LENGTH + 1;
+    if (GetComputerNameW(buffer, &size)) {
+        return QString::fromWCharArray(buffer);
+    }
+    // Fallback to Qt method
+#endif
+
+    // Get hostname and strip domain suffix
+    QString hostname = QHostInfo::localHostName();
+    int dotIndex = hostname.indexOf('.');
+    if (dotIndex > 0) {
+        hostname = hostname.left(dotIndex);
+    }
+    return hostname;
+}
 
 UdpBroadcastManager::UdpBroadcastManager(QObject* parent)
     : QObject(parent)
@@ -100,7 +154,7 @@ void UdpBroadcastManager::onRadioStateChanged(const RadioState& state,
 }
 
 void UdpBroadcastManager::onQSOLogged(const QSO& qso, const QString& stationCall,
-                                     const QString& contestName)
+                                     const QString& adifContestId, int wa7bnmContestId)
 {
     LOG_DEBUG("UdpBroadcastManager", QString("onQSOLogged called: enabled=%1 contactInfoEnabled=%2 callsign=%3")
               .arg(m_enabled)
@@ -114,7 +168,7 @@ void UdpBroadcastManager::onQSOLogged(const QSO& qso, const QString& stationCall
     }
 
     // Send immediately (no throttling for QSO logging)
-    ContactInfo info = createContactInfo(qso, stationCall, contestName);
+    ContactInfo info = createContactInfo(qso, stationCall, adifContestId, wa7bnmContestId);
     LOG_DEBUG("UdpBroadcastManager", QString("Sending ContactInfo UDP broadcast for %1").arg(qso.callsign));
     m_broadcaster->sendContactInfo(info);
 }
@@ -147,7 +201,7 @@ RadioInfo UdpBroadcastManager::createRadioInfo(const RadioState& state,
 
     // Application identity
     info.app = "TR4QT";
-    info.stationName = "";  // Could be configured in settings
+    info.stationName = getComputerName();
 
     // Radio identification
     info.radioNr = 1;  // For now, single radio only (TODO: SO2R support)
@@ -190,25 +244,31 @@ RadioInfo UdpBroadcastManager::createRadioInfo(const RadioState& state,
 
 ContactInfo UdpBroadcastManager::createContactInfo(const QSO& qso,
                                                    const QString& stationCall,
-                                                   const QString& contestName)
+                                                   const QString& adifContestId,
+                                                   int wa7bnmContestId)
 {
     ContactInfo info;
 
     // Application identity
     info.app = "TR4QT";
-    info.contestName = contestName;
-    info.stationName = "";  // Could be configured in settings
+    info.contestName = adifContestId;      // ADIF Contest-ID (e.g., "CQ-WW-CW")
+    info.contestNr = wa7bnmContestId;       // WA7BNM Contest Calendar ID
+    info.stationName = getComputerName();
 
-    // Timestamp (ISO 8601 format)
-    info.timestamp = qso.timestamp.toString(Qt::ISODate);
+    // Timestamp (N1MM+ format: "YYYY-MM-DD HH:MM:SS")
+    info.timestamp = qso.timestamp.toUTC().toString("yyyy-MM-dd HH:mm:ss");
 
     // Station identification
     info.mycall = stationCall;
     info.call = qso.callsign;
 
     // Frequency and mode
-    info.freq = RadioInfo::hzToTensOfHz(qso.frequency);
-    info.band = bandToString(qso.band);
+    // For simplex QSOs, rxfreq and txfreq are the same
+    // TODO: Support split operation if QSO has separate TX frequency
+    info.rxfreq = RadioInfo::hzToTensOfHz(qso.frequency);
+    info.txfreq = RadioInfo::hzToTensOfHz(qso.frequency);
+    info.freq = info.rxfreq;  // Legacy compatibility
+    info.band = bandToUdpBandString(qso.band);
     info.mode = getModeString(qso.mode);
 
     // Exchange
@@ -298,8 +358,9 @@ QString UdpBroadcastManager::getModeString(ModeType mode)
     case ModeType::DATAR:
         return "DATA";
 
+    case ModeType::None:
     default:
-        return "SSB";  // Default fallback
+        return "";  // Empty if unknown/none
     }
 }
 

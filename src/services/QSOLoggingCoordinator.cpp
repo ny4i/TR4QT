@@ -26,7 +26,8 @@ QStringList QSOLoggingCoordinator::executePostLoggingActions(const PostLoggingPa
     QStringList actions;
 
     // 1. UDP broadcast
-    QString udpAction = broadcastQSO(params.qso, params.stationCallsign, params.contestName);
+    QString udpAction = broadcastQSO(params.qso, params.stationCallsign,
+                                     params.adifContestId, params.wa7bnmContestId);
     if (!udpAction.isEmpty()) {
         actions.append(udpAction);
     }
@@ -53,7 +54,8 @@ QStringList QSOLoggingCoordinator::executePostLoggingActions(const PostLoggingPa
 QString QSOLoggingCoordinator::broadcastQSO(
     const QSO& qso,
     const QString& stationCall,
-    const QString& contestName)
+    const QString& adifContestId,
+    int wa7bnmContestId)
 {
     if (!m_udpManager) {
         return QString();  // No UDP manager
@@ -67,8 +69,8 @@ QString QSOLoggingCoordinator::broadcastQSO(
         return QString();  // ContactInfo messages disabled
     }
 
-    // Broadcast QSO
-    m_udpManager->onQSOLogged(qso, stationCall, contestName);
+    // Broadcast QSO with ADIF Contest-ID and WA7BNM Contest Calendar ID
+    m_udpManager->onQSOLogged(qso, stationCall, adifContestId, wa7bnmContestId);
 
     LOG_DEBUG("QSOLoggingCoordinator",
              QString("UDP broadcast sent for %1").arg(qso.callsign));

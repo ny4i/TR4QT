@@ -33,6 +33,7 @@ public:
     QString getContestName() const override { return "ARRL International DX Contest - Phone"; }
     ModeType getContestMode() const override { return ModeType::USB; }
     QString getADIFContestId() const override { return ADIF_CONTEST_ID; }
+    int getWA7BNMContestId() const override { return WA7BNM_ID; }
 
     // ===== Mode Validation =====
     bool isValidMode(ModeType mode, QString& errorMsg) const override {

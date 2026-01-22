@@ -6,7 +6,9 @@
 #include <QList>
 #include <QRect>
 #include <QEvent>
+#include <memory>
 #include "../../amplifiers/IAmplifierController.h"
+#include "../panels/IAmplifierPanelController.h"
 
 class QLabel;
 class QPushButton;
@@ -86,19 +88,16 @@ private:
     void handleButtonRelease(const QString& buttonName);
     QString findButtonAtPoint(const QPoint& point) const;
 
-    // Rendering helpers (legacy - will be replaced by SVG control)
-    void drawPowerMeter(QPainter& painter);
-    void drawSwrMeter(QPainter& painter);
-    void drawLedIndicators(QPainter& painter);
-    void drawLcdDisplay(QPainter& painter);
-    void drawButtonOverlays(QPainter& painter);  // Draw visible buttons on placeholder
+    // Rendering helpers
     void drawButtonHighlight(QPainter& painter, const QString& buttonName);
+    void drawLcdText(QPainter& painter);  // Draw LCD text into label_MAIN region
 
     // Power meter scaling (watts to proportion)
     double powerWattsToMeterProportion(int watts) const;
     double swrToMeterProportion(float swr) const;
 
     // SVG LED control helpers
+    void initializeLedStates();  // Set all LEDs to OFF state
     void updateSwrMeter(float swr);
     void updatePowerMeter(int watts);  // TODO: Implement when power LEDs are renamed
 
@@ -123,31 +122,21 @@ private:
     // Services
     AmplifierService* m_service;
 
+    // Panel controller (handles amplifier-specific SVG layout, buttons, LEDs)
+    std::unique_ptr<IAmplifierPanelController> m_panelController;
+
     // Test mode controls (shown when not connected)
     QLabel* m_disconnectedLabel{nullptr};
     QPushButton* m_testConnectionButton{nullptr};
 
-    // Constants for power meter ranges (named, not magic numbers)
-    static constexpr int MAX_POWER_WATTS = 1500;  // KPA1500 maximum power
-    static constexpr float MIN_SWR = 1.0f;         // Perfect SWR
-    static constexpr float MAX_SWR_DISPLAY = 5.0f; // Maximum SWR to display on meter
+    // LCD display overlay (positioned over label_MAIN in SVG)
+    QLabel* m_lcdLabel{nullptr};
 
-    // Power meter color thresholds (as proportions of max power)
-    static constexpr double POWER_GREEN_THRESHOLD = 0.66;   // 0-66% power = green
-    static constexpr double POWER_YELLOW_THRESHOLD = 0.85;  // 66-85% power = yellow
-    // Above 85% = red
-
-    // SWR color thresholds
-    static constexpr float SWR_GREEN_THRESHOLD = 1.5f;   // SWR < 1.5 = green
-    static constexpr float SWR_YELLOW_THRESHOLD = 2.0f;  // SWR 1.5-2.0 = yellow
-    // SWR > 2.0 = red
+    // Generic constants (not amplifier-specific)
+    static constexpr float MIN_SWR = 1.0f;  // Perfect SWR
 
     // LED size (as proportion of window height for consistent sizing)
     static constexpr double LED_SIZE_PROPORTION = 0.04;  // 4% of window height
-
-    // Minimum window size (to maintain readability)
-    static constexpr int MIN_WINDOW_WIDTH = 600;
-    static constexpr int MIN_WINDOW_HEIGHT = 200;
 };
 
 } // namespace TR4QT

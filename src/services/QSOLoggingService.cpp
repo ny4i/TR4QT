@@ -117,7 +117,8 @@ QSOLoggingService::LogQSOResult QSOLoggingService::logQSO(const LogQSORequest& r
         QSOLoggingCoordinator::PostLoggingParams coordParams;
         coordParams.qso = result.qso;
         coordParams.stationCallsign = request.stationCallsign;
-        coordParams.contestName = request.contestName;
+        coordParams.adifContestId = request.adifContestId;
+        coordParams.wa7bnmContestId = request.wa7bnmContestId;
         coordParams.databasePath = request.databasePath;
         coordParams.totalQSOCount = request.totalQSOCount;
         coordParams.qsosSinceLastCheck = request.qsosSinceLastCheck;

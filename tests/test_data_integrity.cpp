@@ -161,11 +161,16 @@ void TestDataIntegrity::testFullIntegrityCheck_AllValid_ReturnsReport()
 
 void TestDataIntegrity::testRescoreContest_RecalculatesPoints()
 {
-    // Given: QSO with incorrect points
+    // Given: QSO with incorrect points, saved to database
     QSO qso = TestHelpers::createValidQSO("G3XYZ", BandType::Band20M, ModeType::CW);
     qso.qsoPoints = 999;  // Wrong!
     qso.dxccEntity = "United Kingdom";
     qso.continent = "EU";
+
+    // Save to database first (required for rescore to update)
+    QSORepository repo;
+    QVERIFY2(repo.saveQSO(qso, m_contestId), "Failed to save QSO to database");
+    QVERIFY2(qso.id > 0, "QSO should have valid ID after save");
 
     QList<QSO> qsos;
     qsos.append(qso);

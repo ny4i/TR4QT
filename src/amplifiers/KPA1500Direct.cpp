@@ -508,18 +508,17 @@ void KPA1500Direct::handleSN(const QString &resp)
     }
 }
 
-// ^TMnnn; Temperature in tenths of a degree C
+// ^TMxxx; Temperature in degrees C (NOT tenths - per KPA1500 protocol docs)
 void KPA1500Direct::handleTM(const QString &resp)
 {
     bool ok = false;
     QString valStr = resp.mid(3, resp.size() - 4);
-    int tenths = valStr.toInt(&ok);
+    int celsius = valStr.toInt(&ok);
     if (!ok) return;
 
-    double celsius = tenths / 10.0;
-    if (!qFuzzyCompare(celsius + 1.0, m_lastTemperature + 1.0)) {
+    if (celsius != static_cast<int>(m_lastTemperature)) {
         m_lastTemperature = celsius;
-        emit temperatureChanged(static_cast<int>(celsius));
+        emit temperatureChanged(celsius);
     }
 }
 

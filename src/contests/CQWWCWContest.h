@@ -35,6 +35,7 @@ public:
     QString getContestName() const override { return "CQ World Wide DX Contest - CW"; }
     ModeType getContestMode() const override { return ModeType::CW; }
     QString getADIFContestId() const override { return ADIF_CONTEST_ID; }
+    int getWA7BNMContestId() const override { return WA7BNM_ID; }
 
     // ===== Mode Validation =====
     bool isValidMode(ModeType mode, QString& errorMsg) const override {

@@ -177,6 +177,15 @@ public:
      */
     virtual QString getADIFContestId() const = 0;
 
+    /**
+     * Get WA7BNM Contest Calendar ID for this contest
+     * Returns the numeric contest ID from https://www.contestcalendar.com/
+     * Used in N1MM+ contactinfo UDP broadcasts as <contestnr>
+     *
+     * @return WA7BNM contest calendar ID, or 0 if not assigned
+     */
+    virtual int getWA7BNMContestId() const { return 0; }  // Default: not assigned
+
     // ===== Exchange Configuration =====
 
     /**

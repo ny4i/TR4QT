@@ -25,6 +25,8 @@ AmplifierService::AmplifierService(IAmplifierController* controller, QObject* pa
             this, &AmplifierService::onFaultDetected);
     connect(m_amplifier, &IAmplifierController::operatingStatusChanged,
             this, &AmplifierService::onOperatingStatusChanged);
+    connect(m_amplifier, &IAmplifierController::temperatureChanged,
+            this, &AmplifierService::onTemperatureChanged);
     connect(m_amplifier, &IAmplifierController::errorOccurred,
             this, &AmplifierService::onAmplifierError);
 
@@ -136,6 +138,11 @@ void AmplifierService::onFaultDetected(const QString& faultCode) {
 void AmplifierService::onOperatingStatusChanged(bool operateMode) {
     m_currentState.operateMode = operateMode;
     emit operatingStatusChanged(operateMode);
+}
+
+void AmplifierService::onTemperatureChanged(int celsius) {
+    m_currentState.temperature = celsius;
+    emit temperatureChanged(celsius);
 }
 
 } // namespace TR4QT

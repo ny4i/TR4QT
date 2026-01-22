@@ -60,8 +60,13 @@ public slots:
     /**
      * Called from MainWindow when new QSO is logged
      * Sends immediately (no throttling)
+     * @param qso The logged QSO
+     * @param stationCall Station callsign
+     * @param adifContestId ADIF Contest-ID (e.g., "CQ-WW-CW")
+     * @param wa7bnmContestId WA7BNM Contest Calendar ID (e.g., 4 for CQ WW CW)
      */
-    void onQSOLogged(const QSO& qso, const QString& stationCall, const QString& contestName);
+    void onQSOLogged(const QSO& qso, const QString& stationCall,
+                     const QString& adifContestId, int wa7bnmContestId);
 
 signals:
     void errorOccurred(const QString& error);
@@ -98,7 +103,7 @@ private:
      * Create ContactInfo message from QSO
      */
     ContactInfo createContactInfo(const QSO& qso, const QString& stationCall,
-                                 const QString& contestName);
+                                 const QString& adifContestId, int wa7bnmContestId);
 
     /**
      * Check if radio state has changed significantly

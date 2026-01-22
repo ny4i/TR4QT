@@ -57,6 +57,11 @@ public:
     QString getContestName() const override;
     ModeType getContestMode() const override { return m_mode; }
     QString getADIFContestId() const override;
+    int getWA7BNMContestId() const override {
+        // Return mode-specific ID (CW default if no mode or mixed)
+        if (m_mode == ModeType::USB || m_mode == ModeType::LSB) return WA7BNM_ID_SSB;
+        return WA7BNM_ID_CW;  // Default for CW and other modes
+    }
 
     // ===== Exchange Configuration =====
     QList<ExchangeField> getReceivedExchangeFields() const override;

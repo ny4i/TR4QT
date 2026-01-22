@@ -6,8 +6,17 @@
 #include <QTimer>
 #include <QLockFile>
 #include <QStandardPaths>
+#include <QtGlobal>      // For Q_OS_* macros
 #include <cstdio>
 #include <cstring>
+#include <csignal>
+#if defined(Q_OS_UNIX) || defined(Q_OS_MAC)
+#include <unistd.h>      // For STDERR_FILENO on Unix/Mac
+#elif defined(Q_OS_WIN)
+#include <io.h>          // For _write on Windows
+#define STDERR_FILENO 2
+#define write _write
+#endif
 #include <hamlib/rig.h>
 #include "core/Constants.h"
 #include "utils/CountryFile.h"
@@ -20,6 +29,38 @@
 #include "logging/Logger.h"
 #include "logging/LogMacros.h"
 #include "ui/MainWindow.h"
+
+// Global pointer to application for signal handler
+static QApplication* g_app = nullptr;
+static TR4QT::MainWindow* g_mainWindow = nullptr;
+
+/**
+ * Signal handler for graceful shutdown (SIGTERM, SIGINT)
+ * Ensures settings are saved before the application exits
+ */
+static void signalHandler(int signal) {
+    const char* signalName = (signal == SIGTERM) ? "SIGTERM" :
+                             (signal == SIGINT) ? "SIGINT" : "UNKNOWN";
+
+    // Use write() instead of LOG_* since we're in a signal handler
+    // (printf/QString are not async-signal-safe)
+    const char* msg = "Signal received, performing graceful shutdown...\n";
+    [[maybe_unused]] auto ignored = write(STDERR_FILENO, msg, strlen(msg));
+
+    // Save window state directly (bypasses confirmation dialog in closeEvent)
+    // This must be done via invokeMethod since we're in signal handler context
+    if (g_mainWindow) {
+        QMetaObject::invokeMethod(g_mainWindow, "saveSettings", Qt::BlockingQueuedConnection);
+    }
+
+    // Force sync settings to disk
+    TR4QT::AppSettings::instance().forceSync();
+
+    // Quit the application gracefully (don't call close() - it shows confirmation dialog)
+    if (g_app) {
+        QMetaObject::invokeMethod(g_app, "quit", Qt::QueuedConnection);
+    }
+}
 
 // Hamlib debug callback - routes hamlib debug output through our Logger
 static int hamlibDebugCallback(enum rig_debug_level_e debug_level, rig_ptr_t /*user_data*/, const char *fmt, va_list ap) {
@@ -277,6 +318,18 @@ int main(int argc, char *argv[]) {
     // Create and show main window
     TR4QT::MainWindow mainWindow;
 
+    // Set global pointers for signal handler
+    g_app = &app;
+    g_mainWindow = &mainWindow;
+
+    // Install signal handlers for graceful shutdown
+    std::signal(SIGTERM, signalHandler);
+    std::signal(SIGINT, signalHandler);
+    LOG_INFO("TR4QTMain", "Signal handlers installed for graceful shutdown");
+
+    // Start settings auto-save timer (every 60 seconds)
+    settings.startAutoSave();
+
     // If cty.dat wasn't loaded and user chose to download, trigger download
     if (!ctyLoaded) {
         // Use QTimer to trigger download after window is shown
@@ -288,6 +341,15 @@ int main(int argc, char *argv[]) {
     mainWindow.show();
 
     int result = app.exec();
+
+    // Clear global pointers
+    g_mainWindow = nullptr;
+    g_app = nullptr;
+
+    // Stop auto-save timer and force final sync
+    settings.stopAutoSave();
+    settings.forceSync();
+    LOG_INFO("TR4QTMain", "Final settings sync completed");
 
     // Shutdown logger before exit
     logger.shutdown();

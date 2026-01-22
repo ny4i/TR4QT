@@ -5,6 +5,10 @@
 #include "../logging/LogMacros.h"
 #include <QDir>
 #include <QFileInfo>
+#include <QFile>
+#include <QStandardPaths>
+#include <QDateTime>
+#include <algorithm>
 
 namespace TR4QT {
 
@@ -14,10 +18,197 @@ AppSettings& AppSettings::instance() {
 }
 
 AppSettings::AppSettings()
-    : m_settings(APP_ORG, APP_NAME)
+    : QObject(nullptr)
+    , m_settings(APP_ORG, APP_NAME)
 {
     migrateLegacyPaths();
     migrateToRadioProfiles();
+
+    // Verify settings integrity on startup
+    if (!verifySettingsIntegrity()) {
+        LOG_WARN("AppSettings", "Settings file may be corrupted or missing, attempting to restore from backup");
+        if (restoreFromBackup()) {
+            LOG_INFO("AppSettings", "Successfully restored settings from backup");
+            // Re-read settings after restore
+            m_settings.sync();
+        } else {
+            LOG_WARN("AppSettings", "No backup available, starting with default settings");
+        }
+    }
+
+    LOG_INFO("AppSettings", QString("Settings file location: %1").arg(getSettingsFilePath()));
+}
+
+AppSettings::~AppSettings() {
+    stopAutoSave();
+    forceSync();
+}
+
+void AppSettings::startAutoSave() {
+    if (m_autoSaveTimer) {
+        return;  // Already started
+    }
+
+    m_autoSaveTimer = new QTimer(this);
+    connect(m_autoSaveTimer, &QTimer::timeout, this, &AppSettings::onAutoSaveTimer);
+    m_autoSaveTimer->start(AUTO_SAVE_INTERVAL_MS);
+
+    LOG_INFO("AppSettings", QString("Auto-save timer started (interval: %1 seconds)")
+             .arg(AUTO_SAVE_INTERVAL_MS / 1000));
+}
+
+void AppSettings::stopAutoSave() {
+    if (m_autoSaveTimer) {
+        m_autoSaveTimer->stop();
+        delete m_autoSaveTimer;
+        m_autoSaveTimer = nullptr;
+        LOG_DEBUG("AppSettings", "Auto-save timer stopped");
+    }
+}
+
+void AppSettings::onAutoSaveTimer() {
+    LOG_DEBUG("AppSettings", "Auto-save timer fired, syncing settings to disk");
+    forceSync();
+}
+
+void AppSettings::forceSync() {
+    // Create backup before sync (in case sync corrupts the file)
+    createBackup();
+
+    // Force sync to disk
+    m_settings.sync();
+
+    // Verify the sync succeeded
+    QSettings::Status status = m_settings.status();
+    if (status != QSettings::NoError) {
+        LOG_ERROR("AppSettings", QString("Settings sync failed with status: %1").arg(static_cast<int>(status)));
+    } else {
+        LOG_DEBUG("AppSettings", "Settings synced to disk successfully");
+    }
+}
+
+bool AppSettings::createBackup() {
+    QString settingsPath = getSettingsFilePath();
+    if (settingsPath.isEmpty() || !QFile::exists(settingsPath)) {
+        return false;  // Nothing to backup
+    }
+
+    QString backupDir = getSettingsBackupDir();
+    QDir().mkpath(backupDir);
+
+    // Create timestamped backup filename
+    QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    QString backupPath = QString("%1/settings_backup_%2.plist").arg(backupDir, timestamp);
+
+    // Copy current settings file to backup
+    if (QFile::copy(settingsPath, backupPath)) {
+        LOG_DEBUG("AppSettings", QString("Created settings backup: %1").arg(backupPath));
+
+        // Clean up old backups (keep only MAX_BACKUP_FILES)
+        QDir backupDirObj(backupDir);
+        QStringList backups = backupDirObj.entryList(QStringList() << "settings_backup_*.plist",
+                                                      QDir::Files, QDir::Time);
+        while (backups.size() > MAX_BACKUP_FILES) {
+            QString oldestBackup = backups.takeLast();
+            QFile::remove(backupDir + "/" + oldestBackup);
+            LOG_DEBUG("AppSettings", QString("Removed old backup: %1").arg(oldestBackup));
+        }
+
+        return true;
+    } else {
+        LOG_WARN("AppSettings", QString("Failed to create settings backup to: %1").arg(backupPath));
+        return false;
+    }
+}
+
+bool AppSettings::restoreFromBackup() {
+    QString backupDir = getSettingsBackupDir();
+    QDir backupDirObj(backupDir);
+
+    // Find most recent backup
+    QStringList backups = backupDirObj.entryList(QStringList() << "settings_backup_*.plist",
+                                                  QDir::Files, QDir::Time);
+    if (backups.isEmpty()) {
+        LOG_WARN("AppSettings", "No backup files found");
+        return false;
+    }
+
+    QString newestBackup = backupDir + "/" + backups.first();
+    QString settingsPath = getSettingsFilePath();
+
+    if (settingsPath.isEmpty()) {
+        LOG_ERROR("AppSettings", "Cannot determine settings file path for restore");
+        return false;
+    }
+
+    // Remove corrupted settings file
+    if (QFile::exists(settingsPath)) {
+        QFile::remove(settingsPath);
+    }
+
+    // Copy backup to settings location
+    if (QFile::copy(newestBackup, settingsPath)) {
+        LOG_INFO("AppSettings", QString("Restored settings from backup: %1").arg(newestBackup));
+        return true;
+    } else {
+        LOG_ERROR("AppSettings", QString("Failed to restore settings from backup: %1").arg(newestBackup));
+        return false;
+    }
+}
+
+bool AppSettings::verifySettingsIntegrity() const {
+    // Check if QSettings can read without errors
+    QSettings::Status status = m_settings.status();
+    if (status != QSettings::NoError) {
+        LOG_WARN("AppSettings", QString("QSettings status error: %1").arg(static_cast<int>(status)));
+        return false;
+    }
+
+    // Check if we can read at least one known key
+    // If the settings file is corrupted, this will fail
+    QVariant testValue = m_settings.value("Station/callsign", QVariant());
+
+    // The file exists but we got an error reading it
+    QString settingsPath = getSettingsFilePath();
+    if (!settingsPath.isEmpty() && QFile::exists(settingsPath)) {
+        QFile file(settingsPath);
+        if (!file.open(QIODevice::ReadOnly)) {
+            LOG_WARN("AppSettings", QString("Cannot read settings file: %1").arg(settingsPath));
+            return false;
+        }
+
+        // Check if file is not empty but QSettings found no keys
+        qint64 fileSize = file.size();
+        file.close();
+
+        if (fileSize > 0 && m_settings.allKeys().isEmpty()) {
+            LOG_WARN("AppSettings", "Settings file exists but contains no readable keys - may be corrupted");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+QString AppSettings::getSettingsFilePath() const {
+#ifdef Q_OS_MACOS
+    // macOS uses plist files in ~/Library/Preferences/
+    // Format: com.organization.appname.plist (organization is empty, so just com.TR4QT.plist)
+    QString homePath = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    return homePath + "/Library/Preferences/com." + QString(APP_ORG).toLower()
+           + "." + QString(APP_NAME) + ".plist";
+#elif defined(Q_OS_WIN)
+    // Windows uses registry, but we can get the INI file path if using IniFormat
+    // For native format, return empty (registry-based)
+    return QString();
+#else
+    // Linux uses ~/.config/
+    return m_settings.fileName();
+#endif
+}
+
+QString AppSettings::getSettingsBackupDir() const {
+    return PathManager::getAppDataDir() + "/settings_backups";
 }
 
 void AppSettings::migrateLegacyPaths() {

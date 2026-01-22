@@ -4,22 +4,22 @@ namespace TR4QT {
 
 QString bandToString(BandType band) {
     switch (band) {
-        case BandType::Band160M: return "160m";
-        case BandType::Band80M:  return "80m";
-        case BandType::Band60M:  return "60m";
-        case BandType::Band40M:  return "40m";
-        case BandType::Band30M:  return "30m";
-        case BandType::Band20M:  return "20m";
-        case BandType::Band17M:  return "17m";
-        case BandType::Band15M:  return "15m";
-        case BandType::Band12M:  return "12m";
-        case BandType::Band10M:  return "10m";
-        case BandType::Band6M:   return "6m";
-        case BandType::Band4M:   return "4m";
-        case BandType::Band2M:   return "2m";
-        case BandType::Band1_25M: return "1.25m";
-        case BandType::Band70CM: return "70cm";
-        case BandType::Band23CM: return "23cm";
+        case BandType::Band160M: return "160M";
+        case BandType::Band80M:  return "80M";
+        case BandType::Band60M:  return "60M";
+        case BandType::Band40M:  return "40M";
+        case BandType::Band30M:  return "30M";
+        case BandType::Band20M:  return "20M";
+        case BandType::Band17M:  return "17M";
+        case BandType::Band15M:  return "15M";
+        case BandType::Band12M:  return "12M";
+        case BandType::Band10M:  return "10M";
+        case BandType::Band6M:   return "6M";
+        case BandType::Band4M:   return "4M";
+        case BandType::Band2M:   return "2M";
+        case BandType::Band1_25M: return "1.25M";
+        case BandType::Band70CM: return "70CM";
+        case BandType::Band23CM: return "23CM";
         default: return "Unknown";
     }
 }

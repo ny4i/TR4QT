@@ -8,6 +8,7 @@
 #include <QHash>
 #include <QSet>
 #include <QMutex>
+#include "../../core/Constants.h"
 
 namespace TR4QT {
 
@@ -70,7 +71,7 @@ public:
     /**
      * Get default "off" color for LEDs
      */
-    static QColor defaultOffColor() { return QColor("#202020"); }
+    static QColor defaultOffColor() { return QColor(TR4QT::LedColors::OFF); }
 
     /**
      * Get the SVG's intrinsic size from the renderer
@@ -108,6 +109,12 @@ private:
      * Thread-safe (uses mutex)
      */
     void updateElementFill(const QString& elementId, const QColor& color);
+
+    /**
+     * Update SVG element fill with a string value (e.g., "none" for transparent)
+     * Thread-safe (uses mutex)
+     */
+    void updateElementFillWithValue(const QString& elementId, const QString& fillValue);
 
     /**
      * Reload SVG renderer from modified DOM
