@@ -56,7 +56,7 @@ void NativeMapViewer::showEvent(QShowEvent* event) {
     QDialog::showEvent(event);
 
     // Restore window geometry (position and size)
-    QSettings settings("TR4QT", "TR4QT");
+    QSettings settings(APP_ORG, APP_NAME);  // Must match AppSettings initialization
     QString geometryKey = QString("MapViewer/%1/Geometry").arg(m_mapType == Sections ? "Sections" :
                                                                  m_mapType == States ? "States" : "DXCC");
     if (settings.contains(geometryKey)) {
@@ -71,7 +71,7 @@ void NativeMapViewer::showEvent(QShowEvent* event) {
 
 void NativeMapViewer::hideEvent(QHideEvent* event) {
     // Save window geometry (position and size)
-    QSettings settings("TR4QT", "TR4QT");
+    QSettings settings(APP_ORG, APP_NAME);  // Must match AppSettings initialization
     QString geometryKey = QString("MapViewer/%1/Geometry").arg(m_mapType == Sections ? "Sections" :
                                                                  m_mapType == States ? "States" : "DXCC");
     settings.setValue(geometryKey, saveGeometry());
@@ -541,7 +541,7 @@ void NativeMapViewer::onResetView() {
 }
 
 void NativeMapViewer::saveViewState() {
-    QSettings settings("TR4QT", "TR4QT");
+    QSettings settings(APP_ORG, APP_NAME);  // Must match AppSettings initialization
     QString key = QString("MapViewer/%1/Transform").arg(m_mapType == Sections ? "Sections" :
                                                          m_mapType == States ? "States" : "DXCC");
 
@@ -557,7 +557,7 @@ void NativeMapViewer::saveViewState() {
 }
 
 void NativeMapViewer::restoreViewState() {
-    QSettings settings("TR4QT", "TR4QT");
+    QSettings settings(APP_ORG, APP_NAME);  // Must match AppSettings initialization
     QString key = QString("MapViewer/%1/Transform").arg(m_mapType == Sections ? "Sections" :
                                                          m_mapType == States ? "States" : "DXCC");
 
