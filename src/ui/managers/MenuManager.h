@@ -89,6 +89,7 @@ public:
         std::function<void()> onShowStatistics;
         std::function<void()> onShowSectionsMap;
         std::function<void()> onShowStatesMap;
+        std::function<void()> onShowWorldMap;
         std::function<void()> onShowGraylineMap;
         std::function<void()> onShowAmplifierControl;
         std::function<void()> onSwapMultView;
@@ -130,6 +131,7 @@ public:
     QAction* statisticsAction() const { return m_statisticsAction; }
     QAction* sectionsMapAction() const { return m_sectionsMapAction; }
     QAction* statesMapAction() const { return m_statesMapAction; }
+    QAction* worldMapAction() const { return m_worldMapAction; }
     QAction* graylineMapAction() const { return m_graylineMapAction; }
     QAction* amplifierControlAction() const { return m_amplifierControlAction; }
 
@@ -159,6 +161,7 @@ private:
     QAction* m_statisticsAction;
     QAction* m_sectionsMapAction;
     QAction* m_statesMapAction;
+    QAction* m_worldMapAction;
     QAction* m_graylineMapAction;
     QAction* m_amplifierControlAction;
 };

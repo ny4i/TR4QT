@@ -66,6 +66,7 @@ WindowGeometry SettingsManager::loadWindowGeometry() const {
     // Map viewers (visibility only, geometry saved by viewers)
     geometry.sectionsMapVisible = qsettings.value("MapViewer/Sections/Visible", false).toBool();
     geometry.statesMapVisible = qsettings.value("MapViewer/States/Visible", false).toBool();
+    geometry.worldMapVisible = qsettings.value("MapViewer/DXCC/Visible", false).toBool();
 
     // Grayline Map
     geometry.graylineMapVisible = settings.getGraylineMapVisible();
@@ -113,6 +114,7 @@ void SettingsManager::saveWindowGeometry(const WindowGeometry& geometry) {
     // Map viewers (visibility only, geometry saved by viewers)
     qsettings.setValue("MapViewer/Sections/Visible", geometry.sectionsMapVisible);
     qsettings.setValue("MapViewer/States/Visible", geometry.statesMapVisible);
+    qsettings.setValue("MapViewer/DXCC/Visible", geometry.worldMapVisible);
 
     // Grayline Map
     settings.saveGraylineMapGeometry(geometry.graylineMapGeometry);

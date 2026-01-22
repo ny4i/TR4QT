@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.56";  // Add Hawaii to states map, fix raiseAllWindows for macOS
+constexpr const char* APP_VERSION = "3.38.57";  // Add World Map (DXCC entities) viewer
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

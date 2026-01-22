@@ -259,6 +259,46 @@ ADIFImportDialog dialog(&m_countryFile, this);
 
 **This principle applies to ALL projects, not just TR4QT.**
 
+### ALWAYS Use Explicit QSettings Constructor (macOS plist issue)
+
+**CRITICAL**: On macOS, ALWAYS use `QSettings(APP_ORG, APP_NAME)` instead of `QSettings()`.
+
+**The Problem**:
+Using the default `QSettings()` constructor creates a DIFFERENT plist file than `QSettings(APP_ORG, APP_NAME)`:
+- Default constructor: `com.tr4qt.tr4qt.TR4QT.plist` (WRONG)
+- Explicit constructor: `com.tr4qt.TR4QT.plist` (CORRECT)
+
+This causes preferences to be split across two files, making them appear "lost".
+
+**Pattern to follow**:
+```cpp
+#include "../core/Constants.h"  // For APP_ORG, APP_NAME
+
+// ❌ NEVER do this:
+QSettings settings;
+
+// ✅ ALWAYS do this:
+QSettings settings(APP_ORG, APP_NAME);
+```
+
+**Files that have caused this bug**:
+- ThemeManager.cpp (fixed v3.38.57)
+- Prior fix (v3.38.54) missed ThemeManager
+
+**macOS Preferences Cache**:
+After manually editing plist files, run `pkill cfprefsd` to clear the macOS preferences daemon cache and force it to re-read from disk.
+
+**Verification**:
+```bash
+# Should only show ONE plist file:
+ls ~/Library/Preferences/ | grep -i tr4
+# Expected: com.tr4qt.TR4QT.plist
+
+# If you see com.tr4qt.tr4qt.TR4QT.plist, something is using default QSettings()
+```
+
+**This applies to ALL Qt projects on macOS.**
+
 ### ALWAYS Use DialogHelper for User Dialogs
 
 **CRITICAL**: ALL dialog messages MUST go through DialogHelper. Never use QMessageBox directly.

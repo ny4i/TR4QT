@@ -48,6 +48,7 @@ public:
         StatisticsWindow* statisticsWindow = nullptr;
         NativeMapViewer* sectionsMapViewer = nullptr;
         NativeMapViewer* statesMapViewer = nullptr;
+        NativeMapViewer* worldMapViewer = nullptr;
         GraylineMapDialog* graylineMapDialog = nullptr;
     };
 
@@ -104,6 +105,7 @@ private:
     StatisticsWindow* m_statisticsWindow;
     NativeMapViewer* m_sectionsMapViewer;
     NativeMapViewer* m_statesMapViewer;
+    NativeMapViewer* m_worldMapViewer;
     GraylineMapDialog* m_graylineMapDialog;
 
     // Helper to show/raise/activate a window

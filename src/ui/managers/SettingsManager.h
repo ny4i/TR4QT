@@ -40,6 +40,7 @@ struct WindowGeometry {
     QByteArray statisticsGeometry;
     bool sectionsMapVisible = false;
     bool statesMapVisible = false;
+    bool worldMapVisible = false;
     bool graylineMapVisible = false;
     QByteArray graylineMapGeometry;
     bool amplifierControlVisible = false;
