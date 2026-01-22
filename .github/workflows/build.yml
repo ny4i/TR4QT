@@ -53,7 +53,7 @@ jobs:
         target: desktop
         arch: win64_mingw
         tools: 'tools_mingw1310'
-        modules: 'qtwebsockets qthttpserver qtserialport qtsvg'  # HttpServer for web UI, SerialPort for radio, Svg+Xml for front panels
+        modules: 'qtwebsockets qthttpserver qtserialport'  # HttpServer for web UI, SerialPort for radio (Svg/Xml in base Qt)
         cache: true
 
     - name: Download Hamlib
