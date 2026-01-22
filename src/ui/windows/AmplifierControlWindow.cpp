@@ -1,5 +1,7 @@
 #include "AmplifierControlWindow.h"
 #include "../widgets/SvgPanelWidget.h"
+#include "../panels/AmplifierPanelFactory.h"
+#include "../panels/KPA1500PanelController.h"
 #include "../../services/AmplifierService.h"
 #include "../../utils/AppSettings.h"
 #include "../../logging/LogMacros.h"
@@ -21,17 +23,26 @@ AmplifierControlWindow::AmplifierControlWindow(AmplifierService* service, QWidge
     : QWidget(parent)
     , m_service(service)
 {
-    setWindowTitle("Amplifier Control");
-    setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT);
+    // Create panel controller for KPA1500 (TODO: get from service/settings)
+    m_panelController = AmplifierPanelFactory::createPanelController(
+        AmplifierPanelFactory::AmplifierType::KPA1500);
 
-    // Create SVG panel widget with KPA1500 front panel
-    QString svgPath = QApplication::applicationDirPath() + "/../../../resources/images/kpa1500_panel.svg";
+    if (!m_panelController) {
+        LOG_ERROR("AmplifierControlWindow", "Failed to create panel controller");
+        return;
+    }
+
+    setWindowTitle(m_panelController->getAmplifierName() + " Control");
+    setMinimumSize(m_panelController->getMinimumWindowSize());
+
+    // Create SVG panel widget using path from panel controller
+    QString svgPath = m_panelController->getSvgResourcePath();
     m_svgPanel = new SvgPanelWidget(svgPath, this);
 
-    // Fallback: try absolute path if relative path fails (for development)
+    // Fallback: try development path if resource path fails
     if (!m_svgPanel->isValid()) {
         delete m_svgPanel;
-        svgPath = "/Users/toms/projects/TR4QT/resources/images/kpa1500_panel.svg";
+        svgPath = m_panelController->getSvgFallbackPath();
         m_svgPanel = new SvgPanelWidget(svgPath, this);
     }
 
@@ -88,6 +99,20 @@ AmplifierControlWindow::AmplifierControlWindow(AmplifierService* service, QWidge
     connect(m_testConnectionButton, &QPushButton::clicked,
             this, &AmplifierControlWindow::onTestConnection);
 
+    // Create LCD display overlay label (positioned over label_MAIN in SVG)
+    m_lcdLabel = new QLabel("---", this);
+    m_lcdLabel->setAlignment(Qt::AlignCenter);
+    m_lcdLabel->setStyleSheet(
+        "QLabel { "
+        "  background-color: transparent; "
+        "  color: #000032; "  // Dark blue text on teal background
+        "  font-family: 'Courier New', Courier, monospace; "
+        "  font-size: 10pt; "
+        "  font-weight: bold; "
+        "}"
+    );
+    m_lcdLabel->setAttribute(Qt::WA_TransparentForMouseEvents, true);  // Don't block clicks
+
     // Connect to amplifier service signals
     if (m_service) {
         connect(m_service, &AmplifierService::stateUpdated,
@@ -100,6 +125,11 @@ AmplifierControlWindow::AmplifierControlWindow(AmplifierService* service, QWidge
         LOG_INFO("AmplifierControlWindow", QString("Initial connection state: %1").arg(m_connected ? "connected" : "disconnected"));
         if (m_connected) {
             m_currentState = m_service->currentState();
+            // Apply initial state to LEDs
+            onAmplifierStateUpdated(m_currentState);
+        } else {
+            // Not connected - set all LEDs to OFF state
+            initializeLedStates();
         }
     }
 
@@ -122,75 +152,13 @@ AmplifierControlWindow::~AmplifierControlWindow() {
 }
 
 void AmplifierControlWindow::initializeButtonRegions() {
-    // All coordinates are proportional to image dimensions (0.0 = left/top, 1.0 = right/bottom)
-    // These values are measured from the KPA1500 front panel SVG
-    // Button names match SVG element IDs (btn_*)
+    // ALL button regions are now read from SVG element bounds
+    // This ensures click detection matches the actual button positions in the SVG
 
-    // ON/OFF button (right side of front panel)
-    m_buttonRegions.append({
-        "btn_ON_OFF",
-        0.82,   // x: 82% from left
-        0.60,   // y: 60% from top
-        0.08,   // width: 8% of image width
-        0.25,   // height: 25% of image height
-        "Toggle Operate/Standby mode",
-        true    // is toggle button
-    });
-
-    // RESET/INFO button
-    m_buttonRegions.append({
-        "btn_RESET_INFO",
-        0.42,   // x position
-        0.40,   // y position
-        0.06,   // width
-        0.15,   // height
-        "Reset fault / Show info",
-        false   // momentary button
-    });
-
-    // MODE button
-    m_buttonRegions.append({
-        "btn_MODE",
-        0.50,   // x position
-        0.40,
-        0.06,
-        0.15,
-        "Change operating mode",
-        false
-    });
-
-    // ANTENNA button
-    m_buttonRegions.append({
-        "btn_ANTENNA",
-        0.58,   // x position
-        0.40,
-        0.06,
-        0.15,
-        "Select antenna",
-        false
-    });
-
-    // AUX button
-    m_buttonRegions.append({
-        "btn_AUX",
-        0.66,   // x position
-        0.40,
-        0.06,
-        0.15,
-        "Auxiliary function",
-        false
-    });
-
-    // Band buttons - use actual SVG element bounds for hit detection
-    QStringList bandButtonIds = {
-        "btn_160m", "btn_80m", "btn_40m", "btn_20m", "btn_15m", "btn_10m",
-        "btn_60m", "btn_30m", "btn_17m", "btn_12m", "btn_6m"
-    };
-
-    QStringList bandLabels = {
-        "160m", "80m", "40m", "20m", "15m", "10m",
-        "60m", "30m", "17m", "12m", "6m"
-    };
+    if (!m_svgPanel || !m_panelController) {
+        LOG_ERROR("AmplifierControl", "Cannot initialize button regions - missing SVG panel or controller");
+        return;
+    }
 
     // CRITICAL: Use viewBox dimensions, NOT pixel dimensions!
     // boundsOnElement() returns coordinates in viewBox space
@@ -207,8 +175,10 @@ void AmplifierControlWindow::initializeButtonRegions() {
         return;
     }
 
-    for (int i = 0; i < bandButtonIds.size(); ++i) {
-        QString buttonId = bandButtonIds[i];
+    // Get all button IDs from the panel controller
+    QStringList allButtonIds = m_panelController->getButtonIds();
+
+    for (const QString& buttonId : allButtonIds) {
         QRectF bounds = m_svgPanel->getElementBounds(buttonId);
 
         if (bounds.isEmpty()) {
@@ -221,6 +191,12 @@ void AmplifierControlWindow::initializeButtonRegions() {
         double y = bounds.y() / svgHeight;
         double w = bounds.width() / svgWidth;
         double h = bounds.height() / svgHeight;
+
+        // Get button label from panel controller
+        QString label = m_panelController->getButtonLabel(buttonId);
+
+        // Determine if it's a toggle button (ON_OFF and MODE toggle operate/standby)
+        bool isToggle = (buttonId == "btn_ON_OFF" || buttonId == "btn_MODE");
 
         LOG_INFO("AmplifierControl", QString("Button %1: viewBox(%2,%3 %4x%5) -> proportional(%6,%7 %8x%9)")
             .arg(buttonId)
@@ -235,10 +211,12 @@ void AmplifierControlWindow::initializeButtonRegions() {
             y,
             w,
             h,
-            bandLabels[i],
-            false
+            label,
+            isToggle
         });
     }
+
+    LOG_INFO("AmplifierControl", QString("Initialized %1 button regions from SVG").arg(m_buttonRegions.size()));
 }
 
 void AmplifierControlWindow::initializeLedIndicators() {
@@ -319,254 +297,19 @@ bool AmplifierControlWindow::event(QEvent* event) {
 }
 
 void AmplifierControlWindow::paintEvent(QPaintEvent* event) {
+    // Let the base class and child widgets (SvgPanelWidget) paint first
+    QWidget::paintEvent(event);
+
+    // Draw overlays on top of the SVG panel
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    painter.setRenderHint(QPainter::TextAntialiasing);
 
-    // Calculate scaled image rectangle maintaining aspect ratio
-    QRect targetRect = rect();
-    int scaledWidth = targetRect.width();
-    int scaledHeight = static_cast<int>(scaledWidth / m_aspectRatio);
+    // LCD text is now handled by m_lcdLabel QLabel widget (proper z-order)
 
-    if (scaledHeight > targetRect.height()) {
-        // Height constrained - scale by height
-        scaledHeight = targetRect.height();
-        scaledWidth = static_cast<int>(scaledHeight * m_aspectRatio);
-    }
-
-    // Center the image in the window
-    int offsetX = (targetRect.width() - scaledWidth) / 2;
-    int offsetY = (targetRect.height() - scaledHeight) / 2;
-    QRect scaledRect(offsetX, offsetY, scaledWidth, scaledHeight);
-
-    // Draw front panel image
-    painter.drawPixmap(scaledRect, m_frontPanelImage);
-
-    // Only draw live elements if connected
-    if (m_connected) {
-        // Set clipping to image area
-        painter.setClipRect(scaledRect);
-
-        // Draw live meters and displays
-        drawPowerMeter(painter);
-        drawSwrMeter(painter);
-        drawLcdDisplay(painter);
-        drawLedIndicators(painter);
-
-        // Draw button overlays if using placeholder image (so buttons are visible)
-        if (m_frontPanelImage.size() == QSize(1200, 400)) {  // Placeholder dimensions
-            drawButtonOverlays(painter);
-        }
-
-        // Draw button highlight if button is pressed
-        if (!m_pressedButton.isEmpty()) {
-            drawButtonHighlight(painter, m_pressedButton);
-        }
-    }
-}
-
-void AmplifierControlWindow::drawPowerMeter(QPainter& painter) {
-    // Find power meter display region
-    const DisplayRegion* meterRegion = nullptr;
-    for (const auto& region : m_displayRegions) {
-        if (region.name == "power_meter") {
-            meterRegion = &region;
-            break;
-        }
-    }
-    if (!meterRegion) return;
-
-    QRect meterRect = scaleRegionToWidget(meterRegion->x, meterRegion->y,
-                                          meterRegion->width, meterRegion->height);
-
-    // Calculate meter fill proportion
-    double fillProportion = powerWattsToMeterProportion(m_currentState.forwardPowerWatts);
-
-    // Determine color based on power level
-    QColor meterColor;
-    if (fillProportion < POWER_GREEN_THRESHOLD) {
-        meterColor = QColor(0, 255, 0);  // Green
-    } else if (fillProportion < POWER_YELLOW_THRESHOLD) {
-        meterColor = QColor(255, 200, 0);  // Yellow
-    } else {
-        meterColor = QColor(255, 0, 0);  // Red
-    }
-
-    // Draw meter bar
-    int fillWidth = static_cast<int>(meterRect.width() * fillProportion);
-    QRect fillRect(meterRect.x(), meterRect.y(), fillWidth, meterRect.height());
-
-    painter.fillRect(fillRect, meterColor);
-
-    // Draw power value text
-    QFont font = painter.font();
-    font.setFamily("Courier");  // Monospaced font similar to LCD
-    font.setPointSize(12);
-    font.setBold(true);
-    painter.setFont(font);
-    painter.setPen(Qt::white);
-
-    QString powerText = QString("%1 W").arg(m_currentState.forwardPowerWatts);
-    painter.drawText(meterRect, Qt::AlignCenter, powerText);
-}
-
-void AmplifierControlWindow::drawSwrMeter(QPainter& painter) {
-    const DisplayRegion* meterRegion = nullptr;
-    for (const auto& region : m_displayRegions) {
-        if (region.name == "swr_meter") {
-            meterRegion = &region;
-            break;
-        }
-    }
-    if (!meterRegion) return;
-
-    QRect meterRect = scaleRegionToWidget(meterRegion->x, meterRegion->y,
-                                          meterRegion->width, meterRegion->height);
-
-    // Calculate meter fill proportion
-    double fillProportion = swrToMeterProportion(m_currentState.swr);
-
-    // Determine color based on SWR
-    QColor meterColor;
-    if (m_currentState.swr < SWR_GREEN_THRESHOLD) {
-        meterColor = QColor(0, 255, 0);  // Green
-    } else if (m_currentState.swr < SWR_YELLOW_THRESHOLD) {
-        meterColor = QColor(255, 200, 0);  // Yellow
-    } else {
-        meterColor = QColor(255, 0, 0);  // Red
-    }
-
-    // Draw meter bar
-    int fillWidth = static_cast<int>(meterRect.width() * fillProportion);
-    QRect fillRect(meterRect.x(), meterRect.y(), fillWidth, meterRect.height());
-
-    painter.fillRect(fillRect, meterColor);
-
-    // Draw SWR value text
-    QFont font = painter.font();
-    font.setFamily("Courier");
-    font.setPointSize(12);
-    font.setBold(true);
-    painter.setFont(font);
-    painter.setPen(Qt::white);
-
-    QString swrText = QString("%1:1").arg(m_currentState.swr, 0, 'f', 1);
-    painter.drawText(meterRect, Qt::AlignCenter, swrText);
-}
-
-void AmplifierControlWindow::drawLcdDisplay(QPainter& painter) {
-    const DisplayRegion* lcdRegion = nullptr;
-    for (const auto& region : m_displayRegions) {
-        if (region.name == "lcd") {
-            lcdRegion = &region;
-            break;
-        }
-    }
-    if (!lcdRegion) return;
-
-    QRect lcdRect = scaleRegionToWidget(lcdRegion->x, lcdRegion->y,
-                                        lcdRegion->width, lcdRegion->height);
-
-    // Draw LCD background (cyan/blue-green typical of KPA1500 LCD)
-    painter.fillRect(lcdRect, QColor(100, 180, 180));
-
-    // Use monospaced font to emulate LCD characters
-    QFont lcdFont;
-    lcdFont.setFamily("Courier");  // Monospaced
-    lcdFont.setPointSize(14);
-    lcdFont.setBold(true);
-    painter.setFont(lcdFont);
-    painter.setPen(QColor(0, 0, 50));  // Dark blue text on cyan background
-
-    // Format display text (2 lines like KPA1500)
-    // Line 1: Forward power and reflected power
-    QString line1 = QString("F:%1W  R:%2W")
-        .arg(m_currentState.forwardPowerWatts, 4)
-        .arg(m_currentState.reflectedPowerWatts, 3);
-
-    // Line 2: Frequency and temperature
-    double freqMhz = m_currentState.frequency / 1000000.0;
-    QString line2 = QString("%1MHz   %2C")
-        .arg(freqMhz, 0, 'f', 2)
-        .arg(m_currentState.temperature);
-
-    // Draw text with padding
-    const int LCD_PADDING = 5;
-    QRect line1Rect = lcdRect.adjusted(LCD_PADDING, LCD_PADDING, -LCD_PADDING, -lcdRect.height()/2);
-    QRect line2Rect = lcdRect.adjusted(LCD_PADDING, lcdRect.height()/2, -LCD_PADDING, -LCD_PADDING);
-
-    painter.drawText(line1Rect, Qt::AlignLeft | Qt::AlignVCenter, line1);
-    painter.drawText(line2Rect, Qt::AlignLeft | Qt::AlignVCenter, line2);
-}
-
-void AmplifierControlWindow::drawLedIndicators(QPainter& painter) {
-    // Update LED states based on amplifier state
-    for (auto& led : m_ledIndicators) {
-        if (led.name == "oper") {
-            led.isActive = m_currentState.operateMode;
-        } else if (led.name == "stby") {
-            led.isActive = !m_currentState.operateMode;
-        } else if (led.name == "fault") {
-            led.isActive = m_currentState.faultDetected;
-        }
-    }
-
-    // Draw all LEDs
-    for (const auto& led : m_ledIndicators) {
-        QRect ledRect = scaleRegionToWidget(led.x, led.y, led.size, led.size);
-
-        // Make LED circular
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        QColor color = led.isActive ? led.activeColor : led.inactiveColor;
-        painter.setBrush(color);
-        painter.setPen(Qt::NoPen);
-        painter.drawEllipse(ledRect);
-
-        // Add glow effect if active
-        if (led.isActive) {
-            const int GLOW_ITERATIONS = 3;
-            for (int i = 1; i <= GLOW_ITERATIONS; i++) {
-                QColor glowColor = led.activeColor;
-                glowColor.setAlpha(80 / i);  // Fade out
-                int expand = i * 2;
-                QRect glowRect = ledRect.adjusted(-expand, -expand, expand, expand);
-                painter.setBrush(glowColor);
-                painter.drawEllipse(glowRect);
-            }
-        }
-    }
-}
-
-void AmplifierControlWindow::drawButtonOverlays(QPainter& painter) {
-    // Draw visible button overlays on placeholder background
-    for (const auto& button : m_buttonRegions) {
-        QRect buttonRect = scaleRegionToWidget(button.x, button.y, button.width, button.height);
-
-        // Draw button background
-        painter.fillRect(buttonRect, QColor(60, 60, 60, 200));
-
-        // Draw button border
-        painter.setPen(QPen(QColor(100, 100, 100), 2));
-        painter.setBrush(Qt::NoBrush);
-        painter.drawRect(buttonRect);
-
-        // Draw button label
-        QFont font = painter.font();
-        font.setPointSize(8);
-        font.setBold(true);
-        painter.setFont(font);
-        painter.setPen(Qt::white);
-
-        // Extract short label from button name
-        QString label = button.name;
-        if (label == "operate_standby") label = "OPER/\nSTBY";
-        else if (label == "reset") label = "RESET";
-        else if (label == "mode") label = "MODE";
-        else if (label == "antenna") label = "ANT";
-        else if (label == "atu_tune") label = "ATU\nTUNE";
-        else if (label.startsWith("band_")) label = label.mid(5) + "m";
-
-        painter.drawText(buttonRect, Qt::AlignCenter, label);
+    // Draw button highlight for visual feedback when pressed
+    if (!m_pressedButton.isEmpty() && m_connected) {
+        drawButtonHighlight(painter, m_pressedButton);
     }
 }
 
@@ -589,6 +332,82 @@ void AmplifierControlWindow::drawButtonHighlight(QPainter& painter, const QStrin
     painter.setPen(QPen(QColor(255, 255, 0), 2));
     painter.setBrush(Qt::NoBrush);
     painter.drawRect(buttonRect);
+}
+
+void AmplifierControlWindow::drawLcdText(QPainter& painter) {
+    if (!m_svgPanel) return;
+
+    // Get the bounds of label_MAIN from the SVG (in SVG viewBox coordinates)
+    QRectF svgBounds = m_svgPanel->getElementBounds("label_MAIN");
+    if (svgBounds.isEmpty()) {
+        LOG_WARN("AmplifierControl", "label_MAIN element not found in SVG");
+        return;
+    }
+
+    // Get viewBox dimensions for coordinate conversion
+    QRectF viewBox = m_svgPanel->getViewBox();
+    if (viewBox.isEmpty()) return;
+
+    // Convert SVG viewBox coordinates to proportional coordinates (0.0-1.0)
+    double propX = svgBounds.x() / viewBox.width();
+    double propY = svgBounds.y() / viewBox.height();
+    double propW = svgBounds.width() / viewBox.width();
+    double propH = svgBounds.height() / viewBox.height();
+
+    // Convert proportional coordinates to widget coordinates
+    // (accounting for SVG scaling and centering within m_svgPanel)
+    int widgetWidth = m_svgPanel->width();
+    int widgetHeight = m_svgPanel->height();
+
+    double widthRatio = static_cast<double>(widgetWidth) / m_originalImageSize.width();
+    double heightRatio = static_cast<double>(widgetHeight) / m_originalImageSize.height();
+    double scale = qMin(widthRatio, heightRatio);
+
+    int scaledWidth = static_cast<int>(m_originalImageSize.width() * scale);
+    int scaledHeight = static_cast<int>(m_originalImageSize.height() * scale);
+
+    // Center offset within the SVG panel widget
+    int offsetX = (widgetWidth - scaledWidth) / 2;
+    int offsetY = (widgetHeight - scaledHeight) / 2;
+
+    // Calculate LCD rect in widget coordinates (relative to m_svgPanel)
+    int lcdX = offsetX + static_cast<int>(propX * scaledWidth);
+    int lcdY = offsetY + static_cast<int>(propY * scaledHeight);
+    int lcdW = static_cast<int>(propW * scaledWidth);
+    int lcdH = static_cast<int>(propH * scaledHeight);
+
+    // Convert from m_svgPanel coordinates to AmplifierControlWindow coordinates
+    QPoint svgPanelPos = m_svgPanel->mapTo(this, QPoint(0, 0));
+    QRect lcdRect(svgPanelPos.x() + lcdX, svgPanelPos.y() + lcdY, lcdW, lcdH);
+
+    // Set up font - scale based on LCD height for consistent appearance
+    QFont lcdFont("Courier", 1);  // Start with size 1, will be scaled
+    lcdFont.setBold(true);
+    int fontSize = qMax(8, lcdH / 3);  // Scale font to ~1/3 of LCD height
+    lcdFont.setPixelSize(fontSize);
+    painter.setFont(lcdFont);
+    painter.setPen(QColor(0, 0, 50));  // Dark blue text on cyan background
+
+    // Format display text based on connection state
+    QString displayText;
+    if (m_connected) {
+        // Show amplifier state data
+        double freqMhz = m_currentState.frequency / 1000000.0;
+        QString line1 = QString("F:%1W R:%2W")
+            .arg(m_currentState.forwardPowerWatts, 4)
+            .arg(m_currentState.reflectedPowerWatts, 3);
+        QString line2 = QString("%1MHz %2C")
+            .arg(freqMhz, 0, 'f', 2)
+            .arg(m_currentState.temperature);
+        displayText = line1 + "\n" + line2;
+    } else {
+        displayText = "---";
+    }
+
+    // Draw text centered in LCD region
+    const int LCD_PADDING = 2;
+    QRect textRect = lcdRect.adjusted(LCD_PADDING, LCD_PADDING, -LCD_PADDING, -LCD_PADDING);
+    painter.drawText(textRect, Qt::AlignCenter, displayText);
 }
 
 void AmplifierControlWindow::mousePressEvent(QMouseEvent* event) {
@@ -635,52 +454,18 @@ void AmplifierControlWindow::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void AmplifierControlWindow::handleButtonPress(const QString& buttonName) {
-    if (!m_service) return;
+    if (!m_service || !m_panelController) return;
 
     LOG_TRACE("AmplifierControl", QString("Button pressed: %1").arg(buttonName));
 
-    // Map button presses to amplifier commands
-    if (buttonName == "btn_ON_OFF") {
-        // Toggle between operate and standby
-        if (m_currentState.operateMode) {
-            m_service->sendCommand("^OS0;");  // Go to standby
-        } else {
-            m_service->sendCommand("^OS1;");  // Go to operate
-        }
-    } else if (buttonName == "btn_RESET_INFO") {
-        m_service->sendCommand("^RS;");  // Reset fault
-    } else if (buttonName.startsWith("btn_")) {
-        // Map band buttons to KPA1500 band numbers
-        // KPA1500 protocol: ^BN00; = 160m, ^BN01; = 80m, etc.
-        QString bandCommand;
-        if (buttonName == "btn_160m") {
-            bandCommand = "^BN00;";  // 160m
-        } else if (buttonName == "btn_80m") {
-            bandCommand = "^BN01;";  // 80m
-        } else if (buttonName == "btn_60m") {
-            bandCommand = "^BN02;";  // 60m
-        } else if (buttonName == "btn_40m") {
-            bandCommand = "^BN03;";  // 40m
-        } else if (buttonName == "btn_30m") {
-            bandCommand = "^BN04;";  // 30m
-        } else if (buttonName == "btn_20m") {
-            bandCommand = "^BN05;";  // 20m
-        } else if (buttonName == "btn_17m") {
-            bandCommand = "^BN06;";  // 17m
-        } else if (buttonName == "btn_15m") {
-            bandCommand = "^BN07;";  // 15m
-        } else if (buttonName == "btn_12m") {
-            bandCommand = "^BN08;";  // 12m
-        } else if (buttonName == "btn_10m") {
-            bandCommand = "^BN09;";  // 10m
-        } else if (buttonName == "btn_6m") {
-            bandCommand = "^BN10;";  // 6m
-        }
+    // Get command from panel controller (handles amplifier-specific mappings)
+    QString command = m_panelController->getButtonCommand(buttonName, m_currentState);
 
-        if (!bandCommand.isEmpty()) {
-            LOG_INFO("AmplifierControl", QString("Band button pressed: %1, sending: %2").arg(buttonName).arg(bandCommand));
-            m_service->sendCommand(bandCommand);
-        }
+    if (!command.isEmpty()) {
+        QString label = m_panelController->getButtonLabel(buttonName);
+        LOG_INFO("AmplifierControl", QString("Button '%1' pressed, sending: %2")
+            .arg(label).arg(command));
+        m_service->sendCommand(command);
     }
 }
 
@@ -781,23 +566,38 @@ QPointF AmplifierControlWindow::imageToProportional(const QPoint& imagePoint) co
 
 double AmplifierControlWindow::powerWattsToMeterProportion(int watts) const {
     if (watts <= 0) return 0.0;
-    if (watts >= MAX_POWER_WATTS) return 1.0;
-    return static_cast<double>(watts) / MAX_POWER_WATTS;
+    int maxPower = m_panelController ? m_panelController->getMaxPowerWatts() : 1500;
+    if (watts >= maxPower) return 1.0;
+    return static_cast<double>(watts) / maxPower;
 }
 
 double AmplifierControlWindow::swrToMeterProportion(float swr) const {
     if (swr <= MIN_SWR) return 0.0;
-    if (swr >= MAX_SWR_DISPLAY) return 1.0;
-    return (swr - MIN_SWR) / (MAX_SWR_DISPLAY - MIN_SWR);
+    float maxSwr = m_panelController ? m_panelController->getMaxSwrDisplay() : 5.0f;
+    if (swr >= maxSwr) return 1.0;
+    return (swr - MIN_SWR) / (maxSwr - MIN_SWR);
 }
 
 void AmplifierControlWindow::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
 
+    // Enforce SVG aspect ratio: adjust height based on width
+    // This ensures the window always perfectly fits the panel with no whitespace
+    int newWidth = event->size().width();
+    int expectedHeight = static_cast<int>(newWidth / m_aspectRatio);
+
+    // Only resize if height doesn't match (with small tolerance to prevent loops)
+    const int HEIGHT_TOLERANCE = 2;
+    if (qAbs(event->size().height() - expectedHeight) > HEIGHT_TOLERANCE) {
+        // Resize window to match aspect ratio (height follows width)
+        resize(newWidth, expectedHeight);
+        return;  // Will trigger another resizeEvent with correct size
+    }
+
     // Reposition disconnected overlay widgets
     if (m_disconnectedLabel && m_testConnectionButton) {
         if (!m_connected) {
-            // Connected: Position overlay in center
+            // Disconnected: Position overlay in center
             const int OVERLAY_SPACING = 20;
             QSize labelSize = m_disconnectedLabel->sizeHint();
             QSize buttonSize = m_testConnectionButton->sizeHint();
@@ -819,9 +619,57 @@ void AmplifierControlWindow::resizeEvent(QResizeEvent* event) {
                 buttonSize.height()
             );
         } else {
-            // Disconnected: Move overlay FAR offscreen so it can't block mouse
+            // Connected: Move overlay FAR offscreen so it can't block mouse
             m_disconnectedLabel->setGeometry(-10000, -10000, 1, 1);
             m_testConnectionButton->setGeometry(-10000, -10000, 1, 1);
+        }
+    }
+
+    // Position LCD label over label_MAIN region in SVG
+    if (m_lcdLabel && m_svgPanel) {
+        QRectF svgBounds = m_svgPanel->getElementBounds("label_MAIN");
+        if (!svgBounds.isEmpty()) {
+            QRectF viewBox = m_svgPanel->getViewBox();
+            if (!viewBox.isEmpty()) {
+                // Convert SVG viewBox coordinates to proportional
+                double propX = svgBounds.x() / viewBox.width();
+                double propY = svgBounds.y() / viewBox.height();
+                double propW = svgBounds.width() / viewBox.width();
+                double propH = svgBounds.height() / viewBox.height();
+
+                // Convert to widget coordinates
+                int widgetWidth = m_svgPanel->width();
+                int widgetHeight = m_svgPanel->height();
+                double widthRatio = static_cast<double>(widgetWidth) / m_originalImageSize.width();
+                double heightRatio = static_cast<double>(widgetHeight) / m_originalImageSize.height();
+                double scale = qMin(widthRatio, heightRatio);
+
+                int scaledWidth = static_cast<int>(m_originalImageSize.width() * scale);
+                int scaledHeight = static_cast<int>(m_originalImageSize.height() * scale);
+                int offsetX = (widgetWidth - scaledWidth) / 2;
+                int offsetY = (widgetHeight - scaledHeight) / 2;
+
+                int lcdX = offsetX + static_cast<int>(propX * scaledWidth);
+                int lcdY = offsetY + static_cast<int>(propY * scaledHeight);
+                int lcdW = static_cast<int>(propW * scaledWidth);
+                int lcdH = static_cast<int>(propH * scaledHeight);
+
+                // Convert from SVG panel to window coordinates
+                QPoint svgPanelPos = m_svgPanel->mapTo(this, QPoint(0, 0));
+                m_lcdLabel->setGeometry(svgPanelPos.x() + lcdX, svgPanelPos.y() + lcdY, lcdW, lcdH);
+
+                // Scale font based on LCD height
+                int fontSize = qMax(8, lcdH / 3);
+                m_lcdLabel->setStyleSheet(QString(
+                    "QLabel { "
+                    "  background-color: transparent; "
+                    "  color: #000032; "
+                    "  font-family: 'Courier New', Courier, monospace; "
+                    "  font-size: %1px; "
+                    "  font-weight: bold; "
+                    "}"
+                ).arg(fontSize));
+            }
         }
     }
 }
@@ -833,65 +681,92 @@ void AmplifierControlWindow::closeEvent(QCloseEvent* event) {
 }
 
 void AmplifierControlWindow::onAmplifierStateUpdated(const AmplifierState& state) {
+    // Preserve last valid frequency if incoming frequency is 0
+    // (avoids brief 0.00MHz display during band changes)
+    freq_t preservedFrequency = m_currentState.frequency;
     m_currentState = state;
+    if (state.frequency == 0 && preservedFrequency > 0) {
+        m_currentState.frequency = preservedFrequency;
+    }
 
-    // Update SVG panel LEDs based on amplifier state
-    if (m_svgPanel) {
-        // Operate/Standby LEDs
-        if (state.operateMode) {
-            m_svgPanel->setLedOn("led_OPER", QColor("#00ff00"));  // Green
-            m_svgPanel->setLedOff("led_STBY");
-        } else {
-            m_svgPanel->setLedOff("led_OPER");
-            m_svgPanel->setLedOn("led_STBY", QColor("#ffaa00"));  // Amber
+    // Update SVG panel LEDs based on amplifier state using panel controller
+    if (m_svgPanel && m_panelController) {
+        // Update all LEDs based on state via panel controller
+        for (const QString& ledId : m_panelController->getLedIds()) {
+            bool isOn = m_panelController->getLedState(ledId, state);
+            if (isOn) {
+                QColor color = m_panelController->getLedOnColor(ledId);
+                m_svgPanel->setLedOn(ledId, color);
+            } else {
+                m_svgPanel->setLedOff(ledId);
+            }
         }
 
-        // Fault LED
-        if (state.faultDetected) {
-            m_svgPanel->setLedOn("led_FAULT", QColor("#ff0000"));  // Red
-        } else {
-            m_svgPanel->setLedOff("led_FAULT");
-        }
-
-        // TX indicator (example - amplifier doesn't report this directly)
-        // m_svgPanel->setLedOn("led_TX", QColor("#ff0000"));
-
-        // SWR meter (10 LEDs: led_SWR_1 through led_SWR_10)
+        // SWR meter (handled separately for bargraph animation)
         updateSwrMeter(state.swr);
 
         // TODO: Power meter when LED IDs are renamed in SVG
         // updatePowerMeter(state.forwardPowerWatts);
     }
 
+    // Update LCD label text
+    if (m_lcdLabel) {
+        double freqMhz = m_currentState.frequency / 1000000.0;
+        QString line1 = QString("F:%1W R:%2W")
+            .arg(m_currentState.forwardPowerWatts, 4)
+            .arg(m_currentState.reflectedPowerWatts, 3);
+        QString line2 = QString("%1MHz %2C")
+            .arg(freqMhz, 0, 'f', 2)
+            .arg(m_currentState.temperature);
+        m_lcdLabel->setText(line1 + "\n" + line2);
+    }
+
     update();  // Trigger repaint
+}
+
+// Initialize all LEDs to OFF state
+void AmplifierControlWindow::initializeLedStates() {
+    if (!m_svgPanel || !m_panelController) return;
+
+    LOG_DEBUG("AmplifierControlWindow", "Initializing all LEDs to OFF state");
+
+    // Set all LEDs to OFF
+    for (const QString& ledId : m_panelController->getLedIds()) {
+        m_svgPanel->setLedOff(ledId);
+    }
+
+    // Also turn off SWR meter LEDs
+    for (const QString& ledId : m_panelController->getSwrMeterLedIds()) {
+        m_svgPanel->setLedOff(ledId);
+    }
 }
 
 // Helper method: Update SWR meter LEDs
 void AmplifierControlWindow::updateSwrMeter(float swr) {
-    if (!m_svgPanel) return;
+    if (!m_svgPanel || !m_panelController) return;
 
-    // SWR ranges: 1.0-1.5 (green), 1.5-2.5 (yellow), 2.5+ (red)
-    const int NUM_SWR_LEDS = 10;
+    // Get SWR meter LED IDs from panel controller
+    QStringList swrLedIds = m_panelController->getSwrMeterLedIds();
+    int numLeds = swrLedIds.size();
+    if (numLeds == 0) return;
 
-    // Calculate how many LEDs to light based on SWR
-    // SWR 1.0 = 0 LEDs, SWR 3.0+ = 10 LEDs
-    float swrRange = swr - 1.0f;  // 0.0 to 2.0+ (1.0=perfect, 3.0=bad)
-    int ledsToLight = static_cast<int>((swrRange / 2.0f) * NUM_SWR_LEDS);
-    ledsToLight = qBound(0, ledsToLight, NUM_SWR_LEDS);
+    // Only show SWR when transmitting (swr > 0 and swr >= 1.0)
+    // When not transmitting, swr is typically 0 or undefined
+    int ledsToLight = 0;
+    if (swr >= MIN_SWR && m_currentState.forwardPowerWatts > 0) {
+        // Calculate how many LEDs to light based on SWR
+        float maxSwr = m_panelController->getMaxSwrDisplay();
+        float swrRange = swr - MIN_SWR;  // 0.0 to maxSwr-1
+        ledsToLight = static_cast<int>((swrRange / (maxSwr - MIN_SWR)) * numLeds);
+        ledsToLight = qBound(0, ledsToLight, numLeds);
+    }
 
-    for (int i = 1; i <= NUM_SWR_LEDS; i++) {
-        QString ledId = QString("led_SWR_%1").arg(i);
+    for (int i = 0; i < numLeds; i++) {
+        const QString& ledId = swrLedIds[i];
 
-        if (i <= ledsToLight) {
-            // Determine LED color based on SWR level
-            QColor color;
-            if (swr < 1.5f) {
-                color = QColor("#00ff00");  // Green (SWR 1.0-1.5)
-            } else if (swr < 2.5f) {
-                color = QColor("#ffff00");  // Yellow (SWR 1.5-2.5)
-            } else {
-                color = QColor("#ff0000");  // Red (SWR 2.5+)
-            }
+        if (i < ledsToLight) {
+            // Get LED color from panel controller based on SWR level
+            QColor color = m_panelController->getSwrMeterColor(swr);
             m_svgPanel->setLedOn(ledId, color);
         } else {
             m_svgPanel->setLedOff(ledId);

@@ -34,6 +34,7 @@ public:
     QString getContestName() const override { return "North American QSO Party - CW"; }
     ModeType getContestMode() const override { return ModeType::CW; }
     QString getADIFContestId() const override { return ADIF_CONTEST_ID; }
+    int getWA7BNMContestId() const override { return WA7BNM_ID_JAN; }  // Use January ID as default
 
     // ===== Bands =====
     QList<BandType> getAllowedBands() const override {

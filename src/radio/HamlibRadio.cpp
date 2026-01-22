@@ -785,9 +785,17 @@ RadioState HamlibRadio::pollCurrentState() {
 
     rmode_t modeA = RIG_MODE_NONE;
     pbwidth_t widthA = 0;
-    if (rig_get_mode(m_rig, RIG_VFO_A, &modeA, &widthA) == RIG_OK) {
+    int modeRet = rig_get_mode(m_rig, RIG_VFO_A, &modeA, &widthA);
+    if (modeRet == RIG_OK) {
         state.modeA = fromHamlibMode(modeA);
         state.filterWidth = widthA;
+        LOG_DEBUG("HamlibRadio", QString("Mode poll: hamlib mode=%1 (0x%2), translated to ModeType=%3")
+            .arg(rig_strrmode(modeA))
+            .arg(static_cast<unsigned long long>(modeA), 0, 16)
+            .arg(static_cast<int>(state.modeA)));
+    } else {
+        LOG_WARN("HamlibRadio", QString("rig_get_mode failed: %1 (%2)")
+            .arg(rigerror(modeRet)).arg(modeRet));
     }
 
     // Poll VFO B frequency and mode
@@ -916,16 +924,56 @@ rmode_t HamlibRadio::toHamlibMode(ModeType mode) const {
 
 ModeType HamlibRadio::fromHamlibMode(rmode_t mode) const {
     switch (mode) {
+        // CW modes
         case RIG_MODE_CW:      return ModeType::CW;
         case RIG_MODE_CWR:     return ModeType::CWR;
+
+        // SSB modes
         case RIG_MODE_LSB:     return ModeType::LSB;
         case RIG_MODE_USB:     return ModeType::USB;
+
+        // FM modes
         case RIG_MODE_FM:      return ModeType::FM;
+        case RIG_MODE_WFM:     return ModeType::FM;   // Wideband FM -> FM
+        case RIG_MODE_FMN:     return ModeType::FM;   // Narrow FM -> FM
+
+        // AM modes
         case RIG_MODE_AM:      return ModeType::AM;
+        case RIG_MODE_AMS:     return ModeType::AM;   // Sync AM -> AM
+        case RIG_MODE_SAM:     return ModeType::AM;   // Sync AM -> AM
+        case RIG_MODE_SAL:     return ModeType::AM;   // Sync AM lower -> AM
+        case RIG_MODE_SAH:     return ModeType::AM;   // Sync AM higher -> AM
+        case RIG_MODE_DSB:     return ModeType::AM;   // Double sideband -> AM
+        case RIG_MODE_AMN:     return ModeType::AM;   // Narrow AM -> AM
+
+        // RTTY modes
         case RIG_MODE_RTTY:    return ModeType::RTTY;
         case RIG_MODE_RTTYR:   return ModeType::RTTYR;
-        case RIG_MODE_PKTUSB:  return ModeType::DATA;  // Generic data mode
-        case RIG_MODE_PKTLSB:  return ModeType::DATAR;
+
+        // PSK modes (explicit Hamlib PSK)
+        case RIG_MODE_PSK:     return ModeType::PSK;
+        case RIG_MODE_PSKR:    return ModeType::PSKR;
+
+        // Data/Packet modes - map to generic DATA
+        case RIG_MODE_PKTUSB:  return ModeType::DATA;   // USB packet/data
+        case RIG_MODE_PKTLSB:  return ModeType::DATAR;  // LSB packet/data
+        case RIG_MODE_PKTFM:   return ModeType::DATA;   // FM packet -> DATA
+        case RIG_MODE_PKTAM:   return ModeType::DATA;   // AM packet -> DATA
+
+        // Special modes
+        case RIG_MODE_FAX:     return ModeType::DATA;   // Fax -> DATA
+        case RIG_MODE_ECSSUSB: return ModeType::USB;    // ECSS USB -> USB
+        case RIG_MODE_ECSSLSB: return ModeType::LSB;    // ECSS LSB -> LSB
+
+        // Digital voice modes -> treat as FM
+        case RIG_MODE_P25:     return ModeType::FM;
+        case RIG_MODE_DSTAR:   return ModeType::FM;
+        case RIG_MODE_DPMR:    return ModeType::FM;
+        case RIG_MODE_NXDNVN:  return ModeType::FM;
+        case RIG_MODE_NXDN_N:  return ModeType::FM;
+        case RIG_MODE_DCR:     return ModeType::FM;
+
+        case RIG_MODE_NONE:
         default:               return ModeType::None;
     }
 }

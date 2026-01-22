@@ -196,6 +196,8 @@ add_tr4qt_test(test_qso_logging_service
     ../src/ui/models/QSOTableModel.cpp
     ../src/contests/CQWWContest.cpp
     ../src/contests/CQWWBase.cpp
+    ../src/contests/CQWPXContest.cpp
+    ../src/contests/CQWPXBase.cpp
     ../src/contests/ContestRegistry.cpp
     ../src/utils/ADIFExporter.cpp
     ../src/utils/CallsignValidator.cpp

@@ -1038,6 +1038,17 @@ void MainWindow::loadSettings() {
             this, &MainWindow::applyTheme);
     applyTheme();
 
+    // Defer child window restoration until event loop is running
+    // Qt forum advice: restoreGeometry works better after show() and event loop start
+    // Using QTimer::singleShot(0, ...) defers execution to after event loop starts
+    QTimer::singleShot(0, this, [this, geometry]() {
+        restoreChildWindows(geometry);
+    });
+}
+
+void MainWindow::restoreChildWindows(const WindowGeometry& geometry) {
+    LOG_DEBUG("MainWindow", "Restoring child windows (deferred to event loop)");
+
     // Restore child windows if they were visible
     if (geometry.dxClusterVisible) {
         LOG_DEBUG("MainWindow", "Restoring DX Cluster window (was visible on exit)");
@@ -1151,8 +1162,9 @@ void MainWindow::saveSettings() {
     }
     if (m_radioControlWindow) {
         geometry.radioControlGeometry = m_radioControlWindow->saveGeometry();
-        geometry.radioControlVisible = m_radioControlWindow->isVisible();
     }
+    // Use tracked visibility (Qt's isVisible() can return false during SIGTERM shutdown)
+    geometry.radioControlVisible = m_radioControlWindowVisible;
     if (m_multiplierWindow) {
         geometry.multipliersGeometry = m_multiplierWindow->saveGeometry();
         geometry.multipliersVisible = m_multiplierWindow->isVisible();
@@ -1173,11 +1185,10 @@ void MainWindow::saveSettings() {
     }
     if (m_amplifierControlWindow) {
         geometry.amplifierControlGeometry = m_amplifierControlWindow->saveGeometry();
-        geometry.amplifierControlVisible = m_amplifierControlWindow->isVisible();
-        LOG_DEBUG("MainWindow", QString("Amplifier window exists, isVisible() returns: %1").arg(geometry.amplifierControlVisible));
-    } else {
-        LOG_DEBUG("MainWindow", "Amplifier window pointer is null");
     }
+    // Use tracked visibility (Qt's isVisible() can return false during SIGTERM shutdown)
+    geometry.amplifierControlVisible = m_amplifierControlWindowVisible;
+    LOG_DEBUG("MainWindow", QString("Amplifier window tracked visibility: %1").arg(m_amplifierControlWindowVisible));
 
     // Debug logging for window visibility
     LOG_DEBUG("MainWindow", QString("Saving window visibility - DXCluster:%1 BandMap:%2 RadioCtrl:%3 Mult:%4 Stats:%5 Sections:%6 States:%7 Grayline:%8 AmpCtrl:%9")
@@ -2084,7 +2095,8 @@ QSOLoggingService::LogQSORequest MainWindow::buildLogQSORequest(const QString& c
 
     // Context for post-logging actions
     request.stationCallsign = AppSettings::instance().getMyCallsign();
-    request.contestName = m_hasActiveContest ? m_currentContest.contestName : "Unknown";
+    request.adifContestId = m_activeContest ? m_activeContest->getADIFContestId() : "";
+    request.wa7bnmContestId = m_activeContest ? m_activeContest->getWA7BNMContestId() : 0;
     request.contestId = m_activeContest ? m_activeContest->getContestId() : "";
     request.databasePath = m_currentContest.databasePath;
     request.totalQSOCount = m_qsoTableModel->count() + 1;
@@ -2916,16 +2928,17 @@ void MainWindow::onRebroadcastLog() {
     // This prevents race conditions if main thread modifies model during rebroadcast
     QList<QSO> qsosCopy = m_qsoTableModel->getAllQSOs();
     QString stationCall = AppSettings::instance().getMyCallsign();
-    QString contestName = m_currentContest.contestName;
+    QString adifContestId = m_activeContest ? m_activeContest->getADIFContestId() : "";
+    int wa7bnmContestId = m_activeContest ? m_activeContest->getWA7BNMContestId() : 0;
 
     // Run in separate thread to avoid blocking UI
-    auto future = QtConcurrent::run([this, qsosCopy, stationCall, contestName, totalQSOs]() {
+    auto future = QtConcurrent::run([this, qsosCopy, stationCall, adifContestId, wa7bnmContestId, totalQSOs]() {
         int quarter = qMax(1, totalQSOs / 4);  // For progress updates
         int sent = 0;
 
         for (const QSO& qso : qsosCopy) {
             // Broadcast this QSO
-            m_udpBroadcastManager->onQSOLogged(qso, stationCall, contestName);
+            m_udpBroadcastManager->onQSOLogged(qso, stationCall, adifContestId, wa7bnmContestId);
             sent++;
 
             // Progress updates at 25%, 50%, 75%
@@ -3748,6 +3761,7 @@ void MainWindow::onShowRadioControl() {
                     k4->setDetailedRigInfoEnabled(false);
                 }
             }
+            m_radioControlWindowVisible = false;  // Track closure
         });
 
         // Install event filter to catch show/hide events
@@ -3766,6 +3780,7 @@ void MainWindow::onShowRadioControl() {
     m_radioControlWindow->show();
     m_radioControlWindow->raise();
     m_radioControlWindow->activateWindow();
+    m_radioControlWindowVisible = true;  // Track visibility for reliable shutdown save
     updateWindowMenuCheckmarks();
 
     // Enable detailed rig info when window is shown
@@ -3869,6 +3884,7 @@ void MainWindow::onShowAmplifierControl() {
             // Geometry and visibility saved in MainWindow::saveSettings()
             // DON'T save visibility here - it causes race condition on shutdown
             m_amplifierControlWindow = nullptr;  // Clear pointer
+            m_amplifierControlWindowVisible = false;  // Track closure
             // DON'T call updateWindowMenuCheckmarks() here - menu might be destroyed during shutdown
         });
     }
@@ -3876,6 +3892,7 @@ void MainWindow::onShowAmplifierControl() {
     m_amplifierControlWindow->show();
     m_amplifierControlWindow->raise();
     m_amplifierControlWindow->activateWindow();
+    m_amplifierControlWindowVisible = true;  // Track visibility for reliable shutdown save
     // Visibility will be saved in MainWindow::saveSettings() on exit
     updateWindowMenuCheckmarks();
 }

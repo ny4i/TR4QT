@@ -102,6 +102,10 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
     bool eventFilter(QObject* obj, QEvent* event) override;
 
+public slots:
+    // Called from signal handler for graceful shutdown (saves window visibility/geometry)
+    void saveSettings();
+
 private slots:
     // Menu actions
     void onNewOpenContest();
@@ -226,7 +230,7 @@ private:
     QWidget* createBottomPanel();
     void initializeHardwareServices();
     void loadSettings();
-    void saveSettings();
+    void restoreChildWindows(const WindowGeometry& geometry);
     void applyFontSettings();
     void applyTheme();
     void saveQSOTableColumnWidths();
@@ -368,6 +372,11 @@ private:
     NativeMapViewer* m_statesMapViewer;
     GraylineMapDialog* m_graylineMapDialog;
     AmplifierControlWindow* m_amplifierControlWindow;
+
+    // Window visibility tracking (for reliable save during shutdown)
+    // Qt's isVisible() can return false during SIGTERM handling, so we track state ourselves
+    bool m_amplifierControlWindowVisible{false};
+    bool m_radioControlWindowVisible{false};
 
     // Time tracking
     QTimer* m_updateTimer;

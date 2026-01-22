@@ -267,6 +267,8 @@ void K4Radio::processMessage(const QString& message)
     else if (command == "MD") {
         // Mode
         ModeType mode = modeStringToMode(data, "0");
+        LOG_DEBUG("K4Radio", QString("MD command: raw=%1 -> ModeType=%2 (%3)")
+            .arg(data).arg(static_cast<int>(mode)).arg(modeToString(mode)));
         ModeType& currentMode = (vfo == VFO::VFO_A) ? m_state.modeA : m_state.modeB;
         if (mode != currentMode) {
             currentMode = mode;
@@ -694,7 +696,10 @@ bool K4Radio::parseIFCommand(const QString& response, VFO vfo)
     if (vfo == VFO::VFO_A) {
         m_state.frequencyA = freq;
         m_state.bandA = frequencyToBand(freq);
-        m_state.modeA = modeStringToMode(modeStr, dataModeStr);
+        ModeType mode = modeStringToMode(modeStr, dataModeStr);
+        LOG_DEBUG("K4Radio", QString("IF command VFO-A: modeStr=%1 dataModeStr=%2 -> ModeType=%3 (%4)")
+            .arg(modeStr).arg(dataModeStr).arg(static_cast<int>(mode)).arg(modeToString(mode)));
+        m_state.modeA = mode;
         m_state.ritOffsetA = ritOffset;
         m_state.xitOffsetA = ritOffset;  // K4 uses same offset
     } else {

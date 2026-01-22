@@ -92,7 +92,8 @@ public:
 
         // Contest context (for post-logging actions)
         QString stationCallsign;            // Station callsign (for UDP broadcast)
-        QString contestName;                // Contest name (for UDP broadcast)
+        QString adifContestId;              // ADIF Contest-ID (e.g., "CQ-WW-CW") for UDP broadcast
+        int wa7bnmContestId = 0;            // WA7BNM Contest Calendar ID for UDP broadcast
         QString contestId;                  // Contest identifier (e.g., "WFD", "CQWW")
         QString databasePath;               // Database path (for auto-backup)
         int totalQSOCount = 0;              // Total QSOs in contest (for auto-backup)

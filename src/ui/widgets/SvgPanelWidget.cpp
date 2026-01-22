@@ -74,7 +74,8 @@ void SvgPanelWidget::setLedOn(const QString& elementId, const QColor& colorOn) {
 }
 
 void SvgPanelWidget::setLedOff(const QString& elementId) {
-    updateElementFill(elementId, defaultOffColor());
+    // Set fill to "none" for transparent background when LED is off
+    updateElementFillWithValue(elementId, "none");
     m_elementColors.remove(elementId);
     update();
 }
@@ -140,6 +141,10 @@ QDomElement SvgPanelWidget::findElementById(const QString& elementId) {
 }
 
 void SvgPanelWidget::updateElementFill(const QString& elementId, const QColor& color) {
+    updateElementFillWithValue(elementId, color.name());
+}
+
+void SvgPanelWidget::updateElementFillWithValue(const QString& elementId, const QString& fillValue) {
     QMutexLocker locker(&m_mutex);
 
     // Find element by ID using cached search
@@ -149,14 +154,14 @@ void SvgPanelWidget::updateElementFill(const QString& elementId, const QColor& c
     }
 
     // Update fill attribute
-    element.setAttribute("fill", color.name());
+    element.setAttribute("fill", fillValue);
 
     // Also update style attribute if it contains fill
     QString style = element.attribute("style");
     if (style.contains("fill:")) {
         // Replace fill value in style
         QRegularExpression fillRegex("fill:\\s*[^;]+");
-        style.replace(fillRegex, QString("fill:%1").arg(color.name()));
+        style.replace(fillRegex, QString("fill:%1").arg(fillValue));
         element.setAttribute("style", style);
     }
 

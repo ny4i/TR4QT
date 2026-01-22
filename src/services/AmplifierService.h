@@ -176,6 +176,12 @@ signals:
     void operatingStatusChanged(bool operateMode);
 
     /**
+     * Emitted when temperature changes
+     * @param celsius Temperature in Celsius
+     */
+    void temperatureChanged(int celsius);
+
+    /**
      * Emitted when an error occurs
      * UI should display this in status bar
      * @param errorMessage Error message
@@ -230,6 +236,12 @@ private slots:
      * @param operateMode Operating mode
      */
     void onOperatingStatusChanged(bool operateMode);
+
+    /**
+     * Handle temperature change
+     * @param celsius Temperature in Celsius
+     */
+    void onTemperatureChanged(int celsius);
 
 private:
     IAmplifierController* m_amplifier;  // Amplifier controller instance (not owned)

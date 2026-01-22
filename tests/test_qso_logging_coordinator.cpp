@@ -55,7 +55,8 @@ private:
         QSOLoggingCoordinator::PostLoggingParams params;
         params.qso = createTestQSO();
         params.stationCallsign = "W1AW";
-        params.contestName = "Test Contest";
+        params.adifContestId = "TEST";  // ADIF Contest-ID
+        params.wa7bnmContestId = 0;       // WA7BNM Contest Calendar ID
         params.databasePath = m_testDbPath;
         params.totalQSOCount = 100;
         params.qsosSinceLastCheck = 0;

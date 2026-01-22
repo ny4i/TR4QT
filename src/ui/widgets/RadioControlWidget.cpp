@@ -260,11 +260,17 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
         m_vfoBFreqLabel->setText("---");
     }
 
-    // Update mode
+    // Update mode - handle all ModeType values
     QString modeStr;
     switch (state.modeA) {
+    case ModeType::None:
+        modeStr = "---";
+        break;
     case ModeType::CW:
         modeStr = "CW";
+        break;
+    case ModeType::CWR:
+        modeStr = "CWR";
         break;
     case ModeType::USB:
         modeStr = "USB";
@@ -281,8 +287,26 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
     case ModeType::RTTY:
         modeStr = "RTTY";
         break;
-    default:
-        modeStr = "---";
+    case ModeType::RTTYR:
+        modeStr = "RTTY-R";
+        break;
+    case ModeType::PSK:
+        modeStr = "PSK";
+        break;
+    case ModeType::PSKR:
+        modeStr = "PSK-R";
+        break;
+    case ModeType::FT8:
+        modeStr = "FT8";
+        break;
+    case ModeType::FT4:
+        modeStr = "FT4";
+        break;
+    case ModeType::DATA:
+        modeStr = "DATA";
+        break;
+    case ModeType::DATAR:
+        modeStr = "DATA-R";
         break;
     }
     m_modeLabel->setText(modeStr);

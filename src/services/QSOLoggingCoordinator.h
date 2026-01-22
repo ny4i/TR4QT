@@ -60,7 +60,8 @@ public:
     struct PostLoggingParams {
         QSO qso;                  // The QSO that was just logged
         QString stationCallsign;  // Station callsign (for UDP broadcast)
-        QString contestName;      // Contest name (for UDP broadcast)
+        QString adifContestId;    // ADIF Contest-ID (e.g., "CQ-WW-CW") for UDP broadcast
+        int wa7bnmContestId;      // WA7BNM Contest Calendar ID for UDP broadcast
         QString databasePath;     // Database path (for auto-backup)
         int totalQSOCount;        // Total QSOs in contest (for auto-backup)
         int qsosSinceLastCheck;   // QSOs since last integrity check (triggers at 50)
@@ -68,7 +69,8 @@ public:
         int memoryQSOCount;       // QSO count in memory (for integrity check)
 
         PostLoggingParams()
-            : totalQSOCount(0)
+            : wa7bnmContestId(0)
+            , totalQSOCount(0)
             , qsosSinceLastCheck(0)
             , contestDbId(-1)
             , memoryQSOCount(0)
@@ -108,7 +110,8 @@ private:
      * Broadcast QSO via UDP
      * @return Action description (empty if skipped)
      */
-    QString broadcastQSO(const QSO& qso, const QString& stationCall, const QString& contestName);
+    QString broadcastQSO(const QSO& qso, const QString& stationCall,
+                        const QString& adifContestId, int wa7bnmContestId);
 
     /**
      * Check if auto-backup is needed

@@ -129,3 +129,19 @@ src/ui/MainWindow.cpp:3640:        QSqlQuery sampleQuery = db.execute(
 src/ui/MainWindow.cpp:3999:    QSqlQuery query = db.execute("SELECT contest_id, contest_name, start_time, contest_type FROM contests LIMIT 1", {});
 ```
 
+## Violation: 2026-01-22 00:33:04
+- Type: God Class (File Size)
+- File: src/ui/MainWindow.cpp
+- Lines: 4583
+- Limit: 1500
+- Overage: 3083 lines (205.5% over)
+- Status: ❌ RED
+
+## Violation: 2026-01-22 00:33:04
+- Type: SQL in UI Class
+- Details: SQL queries found in src/ui/ directory
+- Lines:
+```
+src/ui/dialogs/BackupRestoreDialog.cpp:306:        QSqlQuery query = db.execute(
+```
+

@@ -202,6 +202,9 @@ set(SOURCES
     ui/widgets/NeedsDisplayWidget.cpp
     ui/widgets/SvgPanelWidget.cpp
     ui/windows/AmplifierControlWindow.cpp
+    ui/panels/IAmplifierPanelController.h
+    ui/panels/KPA1500PanelController.cpp
+    ui/panels/AmplifierPanelFactory.cpp
     ui/plots/qcustomplot.cpp
     3rdparty/miniz/miniz.cpp
 )
@@ -305,6 +308,11 @@ set(HEADERS
     ui/widgets/DXClusterWindow.h
     ui/widgets/StatisticsWindow.h
     ui/widgets/NeedsDisplayWidget.h
+    ui/widgets/SvgPanelWidget.h
+    ui/windows/AmplifierControlWindow.h
+    ui/panels/IAmplifierPanelController.h
+    ui/panels/KPA1500PanelController.h
+    ui/panels/AmplifierPanelFactory.h
     ui/plots/qcustomplot.h
 )
 
@@ -326,8 +334,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.38.45"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.38.45"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.38.53"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.38.53"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

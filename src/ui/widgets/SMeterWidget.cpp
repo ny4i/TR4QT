@@ -123,8 +123,9 @@ void SMeterWidget::setMaxPower(int maxWatts) {
 }
 
 int SMeterWidget::rawToSUnit(int rawValue) const {
-    // Detect format: dBm (negative) vs raw Icom/K4 (positive)
-    if (rawValue < 0) {
+    // Detect format: dBm (negative or zero) vs raw Icom/K4 (positive)
+    // Note: 0 dBm is an extremely strong signal (S9+60+), so include 0 in dBm handling
+    if (rawValue <= 0) {
         // dBm format (K4 with SMH1; enabled, or calculated values)
         // S0 = -127 dBm, S9 = -73 dBm (6 dB per S-unit)
         // Above S9: -53 dBm = +20, -33 dBm = +40, -13 dBm = +60
@@ -140,12 +141,15 @@ int SMeterWidget::rawToSUnit(int rawValue) const {
             // S1-S9: each S-unit is 6 dB
             int sUnit = ((rawValue - S0_DBM) / 6) + 1;
             return qBound(1, sUnit, SMeterConstants::NUM_S_UNITS);
-        } else if (rawValue <= S9_PLUS_20_DBM) {
-            return 10;  // +20dB over S9
-        } else if (rawValue <= S9_PLUS_40_DBM) {
-            return 11;  // +40dB over S9
+        } else if (rawValue < S9_PLUS_20_DBM) {
+            // Above S9 but below S9+20: still display as S9
+            return 9;
+        } else if (rawValue < S9_PLUS_40_DBM) {
+            return 10;  // S9+20 through S9+39 dB
+        } else if (rawValue < S9_PLUS_60_DBM) {
+            return 11;  // S9+40 through S9+59 dB
         } else {
-            return 12;  // +60dB over S9
+            return 12;  // S9+60 and above
         }
     }
 

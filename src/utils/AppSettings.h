@@ -5,6 +5,8 @@
 #include <QString>
 #include <QList>
 #include <QDateTime>
+#include <QTimer>
+#include <QObject>
 #include "../radio/RadioInterface.h"
 #include "../logging/LogLevel.h"
 
@@ -16,11 +18,55 @@ struct UdpDestination;
 /**
  * Application settings wrapper using QSettings
  * Provides persistent storage for radio config, user preferences, etc.
+ *
+ * SAFETY FEATURES:
+ * - Periodic auto-save every 60 seconds
+ * - Settings backup before critical writes
+ * - Verification that writes actually persisted
+ * - Graceful shutdown handlers
  */
-class AppSettings {
+class AppSettings : public QObject {
+    Q_OBJECT
+
 public:
     // Singleton access
     static AppSettings& instance();
+
+    /**
+     * @brief Start periodic auto-save timer
+     * Call this once from main() after QApplication is created
+     */
+    void startAutoSave();
+
+    /**
+     * @brief Stop periodic auto-save timer
+     * Call this during application shutdown
+     */
+    void stopAutoSave();
+
+    /**
+     * @brief Force immediate sync of all settings to disk
+     * Call this before any potentially dangerous operation
+     */
+    void forceSync();
+
+    /**
+     * @brief Create a backup of current settings file
+     * @return true if backup was created successfully
+     */
+    bool createBackup();
+
+    /**
+     * @brief Restore settings from most recent backup
+     * @return true if restore was successful
+     */
+    bool restoreFromBackup();
+
+    /**
+     * @brief Check if settings file exists and is readable
+     * @return true if settings are accessible
+     */
+    bool verifySettingsIntegrity() const;
 
     // Radio configuration (legacy single-config system)
     void saveRadioConfig(const RadioConfig& config);
@@ -433,9 +479,12 @@ public:
      */
     QString getValue(const QString& key, const QString& defaultValue = QString()) const;
 
+private slots:
+    void onAutoSaveTimer();
+
 private:
     AppSettings();
-    ~AppSettings() = default;
+    ~AppSettings();
 
     // Prevent copying
     AppSettings(const AppSettings&) = delete;
@@ -457,7 +506,25 @@ private:
      */
     void migrateToRadioProfiles();
 
+    /**
+     * @brief Get the path to the settings file
+     * Platform-specific: plist on macOS, registry/ini on Windows
+     */
+    QString getSettingsFilePath() const;
+
+    /**
+     * @brief Get the path to the settings backup directory
+     */
+    QString getSettingsBackupDir() const;
+
     mutable QSettings m_settings;
+    QTimer* m_autoSaveTimer{nullptr};
+
+    // Auto-save interval in milliseconds (60 seconds)
+    static constexpr int AUTO_SAVE_INTERVAL_MS = 60000;
+
+    // Maximum number of backup files to keep
+    static constexpr int MAX_BACKUP_FILES = 5;
 };
 
 } // namespace TR4QT
