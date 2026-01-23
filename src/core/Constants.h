@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.60";  // Expand DXCC map to 269 entities, fix coordinate normalization
+constexpr const char* APP_VERSION = "3.38.61";  // Expand DXCC map to 347 entities with point markers for islands
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
@@ -64,20 +64,20 @@ constexpr int AUTO_SP_SENSITIVITY_STEP_HZ = 100;     // Step size for input dial
 // Grayline propagation window
 constexpr int GRAYLINE_WINDOW_MINUTES = 30;  // Minutes before/after sunrise/sunset
 
-// LED/indicator colors (for amplifier panels, meters, etc.)
+// LED/indicator colors (for amplifier panels, meters, etc.) - Hardware colors, not themed
 namespace LedColors {
-    constexpr const char* GREEN = "#00ff00";         // Operating, good status, antenna selected
-    constexpr const char* AMBER = "#ffaa00";         // Standby, caution, bypassed
-    constexpr const char* RED = "#ff0000";           // Fault, TX, overdrive, error
-    constexpr const char* YELLOW = "#ffff00";        // Warning, moderate SWR
-    constexpr const char* OFF = "#363636";           // LED off (Elecraft Mine Shaft dark gray)
+    constexpr const char* GREEN = "#00ff00";         // Hardware: Operating, good status
+    constexpr const char* AMBER = "#ffaa00";         // Hardware: Standby, caution
+    constexpr const char* RED = "#ff0000";           // Hardware: Fault, TX, error
+    constexpr const char* YELLOW = "#ffff00";        // Hardware: Warning, moderate SWR
+    constexpr const char* OFF = "#363636";           // Hardware: LED off state
 }
 
-// Elecraft brand colors (official palette)
+// Elecraft brand colors (official palette) - Hardware colors, not themed
 namespace ElecraftColors {
-    constexpr const char* RED_DAMASK = "#E1783F";    // Orange/amber - standby, caution
-    constexpr const char* STARSHIP = "#F0E24D";      // Yellow - warnings, moderate SWR
-    constexpr const char* MINE_SHAFT = "#363636";    // Dark gray - LED off state
+    constexpr const char* RED_DAMASK = "#E1783F";    // Hardware: Orange/amber - standby
+    constexpr const char* STARSHIP = "#F0E24D";      // Hardware: Yellow - warnings
+    constexpr const char* MINE_SHAFT = "#363636";    // Hardware: Dark gray - LED off
 }
 
 // UI window/dialog dimensions
