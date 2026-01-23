@@ -1,6 +1,7 @@
 #ifndef DOWNLOADMANAGER_H
 #define DOWNLOADMANAGER_H
 
+#include <QObject>
 #include <QString>
 #include <QWidget>
 
@@ -54,16 +55,16 @@ struct SCPDownloadResult {
  * - Parse and import downloaded data
  * - Update AppSettings with timestamps/versions
  * - Reload CountryFile after CTY.DAT download
- *
- * UI updates are NOT handled here - MainWindow uses the returned
- * Result structures to update status bar.
+ * - Emit signals when downloads complete (for UI updates)
  *
  * Thread Safety:
  * - All methods must be called from the Qt main/UI thread
  * - Uses Qt's signal/slot mechanism for async downloads
  * - Progress dialogs are modal (blocks UI thread)
  */
-class DownloadManager {
+class DownloadManager : public QObject {
+    Q_OBJECT
+
 public:
     /**
      * Configuration for DownloadManager
@@ -125,6 +126,14 @@ public:
      * @param config New configuration
      */
     void updateConfig(const Config& config);
+
+signals:
+    /**
+     * Emitted when CTY.DAT download completes (success or failure)
+     * MainWindow can connect to this to clear "update available" status
+     * @param success true if download and reload succeeded
+     */
+    void ctyDownloadCompleted(bool success);
 
 private:
     Config m_config;
