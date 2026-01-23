@@ -80,6 +80,10 @@ public:
     void setActiveRadioProfile(const QString& profileName);
     QString getActiveRadioProfile() const;
 
+    // Unified radio config access (checks profiles first, then legacy)
+    RadioConfig getActiveRadioConfig() const;
+    bool hasAnyRadioConfig() const;
+
     // Radio auto-connect
     void setRadioAutoConnect(bool autoConnect);
     bool getRadioAutoConnect() const;

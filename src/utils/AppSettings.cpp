@@ -404,6 +404,37 @@ void AppSettings::migrateToRadioProfiles() {
     }
 }
 
+RadioConfig AppSettings::getActiveRadioConfig() const {
+    // Check profiles first (new system), then fall back to legacy
+    if (hasRadioProfiles()) {
+        QList<RadioProfile> profiles = loadRadioProfiles();
+        QString activeProfileName = getActiveRadioProfile();
+
+        for (const RadioProfile& profile : profiles) {
+            if (profile.name == activeProfileName) {
+                return profile.config;
+            }
+        }
+
+        // Active profile not found - use first profile if available
+        if (!profiles.isEmpty()) {
+            return profiles.first().config;
+        }
+    }
+
+    // Fall back to legacy single-radio config
+    if (hasRadioConfig()) {
+        return loadRadioConfig();
+    }
+
+    // No config at all - return default empty config
+    return RadioConfig();
+}
+
+bool AppSettings::hasAnyRadioConfig() const {
+    return hasRadioProfiles() || hasRadioConfig();
+}
+
 void AppSettings::setRadioAutoConnect(bool autoConnect) {
     m_settings.setValue("Radio/autoConnect", autoConnect);
     m_settings.sync();
