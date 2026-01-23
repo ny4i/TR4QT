@@ -36,6 +36,7 @@
 #include "../services/QSOQueryService.h"
 #include "../services/AmplifierService.h"
 #include "../services/RotatorService.h"
+#include "../services/MaintenanceService.h"
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
@@ -440,6 +441,9 @@ private:
     // Hardware control services
     AmplifierService* m_amplifierService;
     RotatorService* m_rotatorService;
+
+    // Maintenance service (log clearing, backups)
+    MaintenanceService* m_maintenanceService;
 
     // Country file for lookups
     CountryFile m_countryFile;

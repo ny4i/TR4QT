@@ -1,5 +1,7 @@
 # Post-Refactoring Analysis: TR4QT Code Quality Assessment
 
+> **NOTE**: This document is historical. For current refactoring plans, see **docs/FUTURE_REFACTORING.md**
+
 **Date**: 2026-01-09
 **Review Type**: Comprehensive code review after major god class refactoring
 **Scope**: 231 source files, ~40,000+ lines of code
