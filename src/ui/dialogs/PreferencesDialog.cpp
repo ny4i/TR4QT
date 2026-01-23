@@ -3595,7 +3595,10 @@ void PreferencesDialog::onK4DiscoveryFinished(int count) {
                 // Multiple K4s found - let user select which one
                 QStringList radioOptions;
                 for (const K4RadioInfo& radio : m_foundK4Radios) {
-                    radioOptions << QString("K4 SN%1 - %2")
+                    // K4/0 (K4 Zero) uses "K4Z" prefix, regular K4 uses "K4"
+                    QString prefix = (radio.rigType.toLower() == "k4z") ? "K4Z" : "K4";
+                    radioOptions << QString("%1 SN%2 - %3")
+                        .arg(prefix)
                         .arg(radio.serialNumber.rightJustified(5, '0'))
                         .arg(radio.ipAddress);
                 }
