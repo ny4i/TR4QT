@@ -15,7 +15,8 @@
 namespace TR4QT {
 
 DownloadManager::DownloadManager(const Config& config, QWidget* parent)
-    : m_config(config)
+    : QObject(parent)
+    , m_config(config)
     , m_parent(parent)
 {
 }
@@ -172,6 +173,9 @@ CTYDownloadResult DownloadManager::downloadCTY(bool headless)
 
     // Wait for download to complete
     eventLoop.exec();
+
+    // Emit signal so MainWindow can clear "update available" status
+    emit ctyDownloadCompleted(result.success);
 
     return result;
 }

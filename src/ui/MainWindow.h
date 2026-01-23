@@ -155,6 +155,7 @@ private slots:
     void onDownloadLOTW(bool headless = false);  // Download LOTW user list (headless=true for testing)
     void onDownloadSCP(bool headless = false);   // Download MASTER.SCP (headless=true for testing)
     void onCTYUpdateAvailable(int currentVersion, int latestVersion, const QString& versionString);
+    void onCTYDownloadCompleted(bool success);  // Clear status bar after CTY download
     void onInitialize();            // TODO: Implement initialize
     void onResetWindowPositions();  // Reset all window positions to defaults
 

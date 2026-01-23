@@ -188,6 +188,8 @@ MainWindow::MainWindow(QWidget* parent)
 
     // Create managers after setupUI (some need UI widgets)
     m_downloadManager = new DownloadManager({&m_countryFile}, this);
+    connect(m_downloadManager, &DownloadManager::ctyDownloadCompleted,
+            this, &MainWindow::onCTYDownloadCompleted);
     m_radioManager = new RadioManager(this);
     m_radio = m_radioManager->radioController();  // Get RadioController from RadioManager
     m_bandSwitchingManager = new BandSwitchingManager(this);
@@ -4210,11 +4212,19 @@ void MainWindow::onCTYUpdateAvailable(int currentVersion, int latestVersion, con
     // Don't use timeout - we want this to stay visible
 }
 
+void MainWindow::onCTYDownloadCompleted(bool success) {
+    if (success) {
+        // Clear the "update available" status bar message now that update is applied
+        statusBar()->clearMessage();
+        LOG_DEBUG("MainWindow", "CTY download completed - cleared status bar notification");
+    }
+}
+
 void MainWindow::onDownloadCTY(bool headless) {
     LOG_DEBUG("MainWindow", QString("Download CTY.dat (Alt+O) - Starting download (headless=%1)").arg(headless));
-    
+
     CTYDownloadResult result = m_downloadManager->downloadCTY(headless);
-    
+
     if (result.success) {
         m_statusLabel->setText(result.statusMessage);
         LOG_INFO("MainWindow", result.statusMessage);
@@ -4222,6 +4232,7 @@ void MainWindow::onDownloadCTY(bool headless) {
         m_statusLabel->setText(QString("CTY download failed: %1").arg(result.errorMessage));
         LOG_ERROR("MainWindow", QString("CTY download failed: %1").arg(result.errorMessage));
     }
+    // Note: Status bar cleared via onCTYDownloadCompleted() signal from DownloadManager
 }
 
 void MainWindow::onDownloadLOTW(bool headless) {
