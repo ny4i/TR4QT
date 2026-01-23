@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.68";  // Fix power meter scale, disable amplifier menu when not enabled
+constexpr const char* APP_VERSION = "3.38.69";  // Fix power meter scale, amp menu, amp window LCD positioning
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -7,6 +7,8 @@
 #include "../../logging/LogMacros.h"
 #include <QPainter>
 #include <QMouseEvent>
+#include <QShowEvent>
+#include <QTimer>
 #include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -672,6 +674,18 @@ void AmplifierControlWindow::resizeEvent(QResizeEvent* event) {
             }
         }
     }
+}
+
+void AmplifierControlWindow::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+
+    // Defer LCD label repositioning until after layout is complete
+    // This fixes text appearing in upper-left on first show
+    QTimer::singleShot(0, this, [this]() {
+        // Trigger a resize to reposition all overlays
+        QResizeEvent resizeEvent(size(), size());
+        this->resizeEvent(&resizeEvent);
+    });
 }
 
 void AmplifierControlWindow::closeEvent(QCloseEvent* event) {

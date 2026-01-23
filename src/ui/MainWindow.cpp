@@ -280,7 +280,11 @@ MainWindow::MainWindow(QWidget* parent)
                 updateRadioStatusFlash();
             });
     connect(m_radioManager, &RadioManager::maxPowerChanged,
-            m_radioControlWindow, &RadioControlWidget::setMaxPower);
+            this, [this](int maxPowerWatts) {
+                if (m_radioControlWindow) {
+                    m_radioControlWindow->setMaxPower(maxPowerWatts);
+                }
+            });
 
     // Fast frequency update from transceive mode (bypasses slow radioStateUpdated)
     connect(m_radioManager, &RadioManager::frequencyChanged,
@@ -307,9 +311,13 @@ MainWindow::MainWindow(QWidget* parent)
     AppSettings& settings = AppSettings::instance();
     if (settings.hasRadioConfig()) {
         RadioConfig config = settings.loadRadioConfig();
+        bool autoConnectEnabled = settings.getRadioAutoConnect();
+        LOG_DEBUG("MainWindow", QString("Radio auto-connect check: modelId=%1, autoConnect=%2")
+            .arg(config.hamlibModelId).arg(autoConnectEnabled));
         // Only auto-connect if a valid radio model is selected (not "Select radio...")
-        if (config.hamlibModelId > 0 && settings.getRadioAutoConnect()) {
+        if (config.hamlibModelId > 0 && autoConnectEnabled) {
             // Auto-connect enabled - connect now
+            LOG_INFO("MainWindow", "Auto-connecting to radio...");
             m_statusLabel->setText("Auto-connecting to radio...");
             QTimer::singleShot(500, this, &MainWindow::onRadioConnect);  // Slight delay to let UI initialize
         } else if (config.hamlibModelId > 0) {
@@ -318,6 +326,7 @@ MainWindow::MainWindow(QWidget* parent)
             m_statusLabel->setText("No valid radio model selected. Use Radio → Configure.");
         }
     } else {
+        LOG_DEBUG("MainWindow", "No radio config found");
         m_statusLabel->setText("No radio configuration found. Use Radio → Configure.");
     }
 
