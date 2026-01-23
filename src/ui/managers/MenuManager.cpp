@@ -381,7 +381,6 @@ void MenuManager::createWindowMenu(QMenuBar* menuBar, const Config& config) {
     // Disable if amplifier control is not enabled in settings
     if (!AppSettings::instance().getAmplifierEnabled()) {
         m_amplifierControlAction->setEnabled(false);
-        m_amplifierControlAction->setToolTip("Enable amplifier control in Preferences to use this feature");
     }
 
     windowMenu->addSeparator();
