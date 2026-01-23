@@ -75,8 +75,8 @@ LogExportResult LogExportService::exportLogsForSupport(QWidget* parentWidget, bo
 }
 
 QString LogExportService::buildSystemInfo(bool radioConnected) const {
-    // Get configured radio model from settings
-    RadioConfig radioConfig = AppSettings::instance().loadRadioConfig();
+    // Get configured radio model from settings (uses profile system or legacy)
+    RadioConfig radioConfig = AppSettings::instance().getActiveRadioConfig();
     QString configuredRadio = "None";
     QString connectionType = "None";
     QString connectionDetails = "";

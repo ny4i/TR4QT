@@ -246,7 +246,7 @@ void RadioManager::onRadioConnected(bool connected)
         emit statusMessage("Radio disconnected");
 
         // Start flashing red indicator only if a radio is configured
-        if (AppSettings::instance().hasRadioConfig()) {
+        if (AppSettings::instance().hasAnyRadioConfig()) {
             m_radioFlashTimer->start();
         }
 

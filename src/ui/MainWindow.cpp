@@ -309,8 +309,9 @@ MainWindow::MainWindow(QWidget* parent)
 
     // Try auto-connect if enabled and config exists
     AppSettings& settings = AppSettings::instance();
-    if (settings.hasRadioConfig()) {
-        RadioConfig config = settings.loadRadioConfig();
+
+    if (settings.hasAnyRadioConfig()) {
+        RadioConfig config = settings.getActiveRadioConfig();
         bool autoConnectEnabled = settings.getRadioAutoConnect();
         LOG_DEBUG("MainWindow", QString("Radio auto-connect check: modelId=%1, autoConnect=%2")
             .arg(config.hamlibModelId).arg(autoConnectEnabled));
@@ -1695,9 +1696,9 @@ void MainWindow::onPreferences() {
     // Save current radio config to detect changes
     AppSettings& settings = AppSettings::instance();
     RadioConfig oldConfig;
-    bool hadRadioConfig = settings.hasRadioConfig();
+    bool hadRadioConfig = settings.hasAnyRadioConfig();
     if (hadRadioConfig) {
-        oldConfig = settings.loadRadioConfig();
+        oldConfig = settings.getActiveRadioConfig();
     }
     bool oldAutoConnect = settings.getRadioAutoConnect();
 
@@ -1732,8 +1733,8 @@ void MainWindow::onPreferences() {
 
         // Check if radio settings actually changed
         bool radioSettingsChanged = false;
-        if (settings.hasRadioConfig()) {
-            RadioConfig newConfig = settings.loadRadioConfig();
+        if (settings.hasAnyRadioConfig()) {
+            RadioConfig newConfig = settings.getActiveRadioConfig();
             bool autoConnectChanged = (oldAutoConnect != settings.getRadioAutoConnect());
 
             // Compare configs
