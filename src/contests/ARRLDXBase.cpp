@@ -112,7 +112,8 @@ void ARRLDXBase::parseReceivedExchange(const QString& exchange, QSO& qso) const 
         qso.power = "";
     } else if (!stateOrPower.isEmpty()) {
         qso.state = "";
-        qso.power = stateOrPower;
+        // Normalize power: convert K/KW to watts (e.g., "1K" -> "1000")
+        qso.power = SmartExchangeParser::normalizePower(stateOrPower);
     }
 
     // Format exchangeReceived (e.g., "599 FL" or "599 100")
@@ -214,9 +215,9 @@ bool ARRLDXBase::isWVEStation(const StationInfo& station) {
 }
 
 bool ARRLDXBase::isValidPower(const QString& power) {
-    bool ok;
-    int p = power.toInt(&ok);
-    return ok && p >= 1 && p <= 2000;  // Typical range: 5, 10, 50, 100, 500, 1000, 1500
+    // Use SmartExchangeParser for consistent power validation
+    // Accepts: numeric (100, 1500), K suffix (1K, 1.5K), KW suffix (1KW)
+    return SmartExchangeParser::looksLikePower(power);
 }
 
 } // namespace TR4QT

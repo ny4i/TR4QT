@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS qsos (
     grid_square TEXT,                   -- Maidenhead locator (e.g., "FN42", "DM79")
     iota_reference TEXT,                -- IOTA reference (e.g., "NA-001", "EU-005")
     contest_class TEXT,                 -- Contest class (e.g., "2A" for Field Day)
+    power TEXT,                         -- Power level received (e.g., "100", "1000" for ARRL DX)
 
     -- Scoring
     qso_points INTEGER DEFAULT 0,       -- Points for this QSO
@@ -76,6 +77,13 @@ CREATE TABLE IF NOT EXISTS qsos (
     is_multiplier BOOLEAN DEFAULT 0,    -- Provides multiplier?
     multipliers TEXT,                   -- JSON array of mult values
     is_run_qso BOOLEAN DEFAULT 0,       -- CQ/Run mode (1) vs S&P mode (0)
+
+    -- Contest-specific exchange fields
+    serial_number_received INTEGER DEFAULT 0,  -- Received serial number (CQ WPX, etc.)
+    precedence TEXT,                    -- Sweepstakes precedence (A, B, M, Q, S, U)
+    sweepstakes_check TEXT,             -- Sweepstakes check (2-digit year first licensed)
+    operator_name TEXT,                 -- Operator name received (NAQP, Sweepstakes)
+    itu_zone_exchange TEXT,             -- ITU zone as exchange (IARU HF)
 
     -- Metadata
     serial_number INTEGER,              -- Our serial number sent

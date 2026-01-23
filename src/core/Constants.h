@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.61";  // Expand DXCC map to 347 entities with point markers for islands
+constexpr const char* APP_VERSION = "3.38.62";  // Add K/KW power shorthand, fix ARRL DX power storage
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -331,6 +331,10 @@ public:
         if (fieldName == "Precedence") return qso.precedence;
         if (fieldName == "Power") return qso.power;
         if (fieldName == "Grid" || fieldName == "Grid Square") return qso.gridSquare;
+        // Composite field: State OR Power (ARRL DX)
+        if (fieldName == "State/Power") {
+            return qso.state.isEmpty() ? qso.power : qso.state;
+        }
 
         // Unknown field name - return empty
         return QString();
