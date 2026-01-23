@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.59";  // Fix DXCC map date line crossing for Russia
+constexpr const char* APP_VERSION = "3.38.60";  // Expand DXCC map to 269 entities, fix coordinate normalization
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
