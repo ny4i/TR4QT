@@ -207,6 +207,23 @@ def simplify_geometry(geometry, tolerance=0.01):
     return geometry
 
 
+def normalize_longitude(lon):
+    """Normalize longitude to -180 to 180 range."""
+    while lon > 180:
+        lon -= 360
+    while lon < -180:
+        lon += 360
+    return lon
+
+
+def normalize_coordinates(coords):
+    """Normalize coordinates to standard -180 to 180 longitude range."""
+    if isinstance(coords[0], list):
+        return [normalize_coordinates(c) for c in coords]
+    # coords is [lon, lat]
+    return [normalize_longitude(coords[0]), coords[1]]
+
+
 def round_coordinates(coords, precision=3):
     """Round coordinates to reduce file size."""
     if isinstance(coords[0], list):
@@ -242,8 +259,13 @@ def process_mapping(mapping):
                     skipped_artifacts += 1
                     continue
                 feature = add_dxcc_property(feature.copy(), dxcc, name)
-                # Simplify and round coordinates
+                # Normalize, simplify and round coordinates
                 if "geometry" in feature:
+                    # Normalize longitude to -180 to 180 range (areas/ files use offset coords)
+                    if "coordinates" in feature["geometry"]:
+                        feature["geometry"]["coordinates"] = normalize_coordinates(
+                            feature["geometry"]["coordinates"]
+                        )
                     feature["geometry"] = simplify_geometry(feature["geometry"])
                     if "coordinates" in feature["geometry"]:
                         feature["geometry"]["coordinates"] = round_coordinates(
@@ -257,6 +279,11 @@ def process_mapping(mapping):
             else:
                 feature = add_dxcc_property(geojson.copy(), dxcc, name)
                 if "geometry" in feature:
+                    # Normalize longitude to -180 to 180 range (areas/ files use offset coords)
+                    if "coordinates" in feature["geometry"]:
+                        feature["geometry"]["coordinates"] = normalize_coordinates(
+                            feature["geometry"]["coordinates"]
+                        )
                     feature["geometry"] = simplify_geometry(feature["geometry"])
                     if "coordinates" in feature["geometry"]:
                         feature["geometry"]["coordinates"] = round_coordinates(
