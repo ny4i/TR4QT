@@ -21,8 +21,9 @@ struct K4RadioInfo {
     QString serialNumber; // Serial number (e.g., "278")
 
     QString hostname() const {
-        // Generate K4-SN00278.local format hostname
-        return QString("K4-SN%1.local").arg(serialNumber.rightJustified(5, '0'));
+        // K4/0 (K4 Zero) uses "K4Z-" prefix, regular K4 uses "K4-"
+        QString prefix = (rigType.toLower() == "k4z") ? "K4Z" : "K4";
+        return QString("%1-SN%2.local").arg(prefix).arg(serialNumber.rightJustified(5, '0'));
     }
 };
 
