@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.63";  // Clear CTY update status after successful download
+constexpr const char* APP_VERSION = "3.38.64";  // Remove SQL from BackupRestoreDialog (architecture fix)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
