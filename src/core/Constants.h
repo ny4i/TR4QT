@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.67";  // Restore K4 AI4/TM1/SMH1 init, fix TX logging to LOG_TRACE
+constexpr const char* APP_VERSION = "3.38.68";  // Fix power meter scale, disable amplifier menu when not enabled
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

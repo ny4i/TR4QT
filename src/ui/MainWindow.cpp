@@ -3755,6 +3755,11 @@ void MainWindow::onShowRadioControl() {
         // Set radio controller reference for mode menu
         m_radioControlWindow->setRadioController(m_radio);
 
+        // Set max power from radio (signal may have fired before widget existed)
+        if (m_radio && m_radio->isConnected()) {
+            m_radioControlWindow->setMaxPower(m_radio->maxPowerWatts());
+        }
+
         // Connect mode change requests
         connect(m_radioControlWindow, &RadioControlWidget::modeChangeRequested,
                 this, [this](ModeType mode) {

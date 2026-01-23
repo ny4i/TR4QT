@@ -378,6 +378,12 @@ void MenuManager::createWindowMenu(QMenuBar* menuBar, const Config& config) {
     m_amplifierControlAction->setCheckable(true);
     connect(m_amplifierControlAction, &QAction::triggered, this, config.onShowAmplifierControl);
 
+    // Disable if amplifier control is not enabled in settings
+    if (!AppSettings::instance().getAmplifierEnabled()) {
+        m_amplifierControlAction->setEnabled(false);
+        m_amplifierControlAction->setToolTip("Enable amplifier control in Preferences to use this feature");
+    }
+
     windowMenu->addSeparator();
 
     QAction* swapMultViewAction = windowMenu->addAction("Swap Mult View");
