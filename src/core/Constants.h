@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.65";  // Support K4/0 (K4 Zero) discovery with K4Z- hostname prefix
+constexpr const char* APP_VERSION = "3.38.66";  // Show K4Z prefix in radio selection dropdown for K4 Zero
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
