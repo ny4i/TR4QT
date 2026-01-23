@@ -89,6 +89,9 @@ public:
     // Power detection (for ARRL DX - numeric power values in watts)
     static bool looksLikePower(const QString& token);
 
+    // Power normalization - converts K/KW to watts (e.g., "1K" -> "1000", "1.5KW" -> "1500")
+    static QString normalizePower(const QString& token);
+
     // CQ Zone detection (for CQ WW, IARU - range 1-40)
     static bool looksLikeCQZone(const QString& token);
 

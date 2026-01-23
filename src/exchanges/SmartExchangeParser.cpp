@@ -467,8 +467,28 @@ bool SmartExchangeParser::looksLikeState(const QString& token) {
 }
 
 bool SmartExchangeParser::looksLikePower(const QString& token) {
-    // Power values: numeric watts (5, 100, 500, 1500) or with K suffix (1K, 1.5K)
+    // Power values: numeric watts (5, 100, 500, 1500) or with K/KW suffix (1K, 1.5K, 1KW)
+    // Also accepts bare "K" or "KW" meaning 1000 watts
     QString upper = token.toUpper();
+
+    // Check for exact "KW" (meaning 1KW = 1000 watts)
+    if (upper == "KW") {
+        return true;
+    }
+
+    // Check for exact "K" (meaning 1K = 1000 watts)
+    if (upper == "K") {
+        return true;
+    }
+
+    // Check for KW suffix (kilowatts) - must check before K suffix
+    if (upper.endsWith("KW")) {
+        QString numPart = upper.left(upper.length() - 2);
+        bool ok;
+        double kw = numPart.toDouble(&ok);
+        // Valid range: 0.001KW to 2KW (1W to 2000W)
+        return ok && kw >= 0.001 && kw <= 2.0;
+    }
 
     // Check for K suffix (kilowatts)
     if (upper.endsWith("K")) {
@@ -501,6 +521,52 @@ bool SmartExchangeParser::looksLikePower(const QString& token) {
     }
 
     return watts >= 1 && watts <= 2000;
+}
+
+QString SmartExchangeParser::normalizePower(const QString& token) {
+    // Normalize power values: convert K/KW suffix to watts
+    // "K" -> "1000", "KW" -> "1000", "1K" -> "1000", "1.5KW" -> "1500", "100W" -> "100", "100" -> "100"
+    QString upper = token.toUpper();
+
+    // Check for exact "KW" (meaning 1KW = 1000 watts)
+    if (upper == "KW") {
+        return "1000";
+    }
+
+    // Check for exact "K" (meaning 1K = 1000 watts)
+    if (upper == "K") {
+        return "1000";
+    }
+
+    // Check for KW suffix - must check before K suffix
+    if (upper.endsWith("KW")) {
+        QString numPart = upper.left(upper.length() - 2);
+        bool ok;
+        double kw = numPart.toDouble(&ok);
+        if (ok) {
+            int watts = static_cast<int>(kw * 1000);
+            return QString::number(watts);
+        }
+    }
+
+    // Check for K suffix
+    if (upper.endsWith("K")) {
+        QString numPart = upper.left(upper.length() - 1);
+        bool ok;
+        double kw = numPart.toDouble(&ok);
+        if (ok) {
+            int watts = static_cast<int>(kw * 1000);
+            return QString::number(watts);
+        }
+    }
+
+    // Check for W suffix - just strip it
+    if (upper.endsWith("W")) {
+        return upper.left(upper.length() - 1);
+    }
+
+    // Already numeric, return as-is
+    return token;
 }
 
 bool SmartExchangeParser::looksLikeCQZone(const QString& token) {

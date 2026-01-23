@@ -3,6 +3,7 @@
 #include "ContestMetadata.h"
 #include "../models/QSO.h"
 #include "../utils/ArrlSectionHelper.h"
+#include "../exchanges/SmartExchangeParser.h"
 #include "RSTValidator.h"
 #include <QRegularExpression>
 
@@ -166,7 +167,8 @@ void ARRLDXContest::parseReceivedExchange(const QString& exchange, QSO& qso) con
         qso.power = "";
     } else {
         qso.state = "";
-        qso.power = stateOrPower;
+        // Normalize power: convert K/KW to watts (e.g., "1K" -> "1000")
+        qso.power = SmartExchangeParser::normalizePower(stateOrPower);
     }
 
     // Format exchangeReceived with RST prepended (e.g., "599 FL" or "599 100")
@@ -274,9 +276,9 @@ bool ARRLDXContest::isWVEStation(const StationInfo& station) {
 }
 
 bool ARRLDXContest::isValidPower(const QString& power) {
-    bool ok;
-    int p = power.toInt(&ok);
-    return ok && p >= 1 && p <= 2000;  // Typical range: 5, 10, 50, 100, 500, 1000, 1500
+    // Use SmartExchangeParser for consistent power validation
+    // Accepts: numeric (100, 1500), K suffix (1K, 1.5K), KW suffix (1KW)
+    return SmartExchangeParser::looksLikePower(power);
 }
 
 } // namespace TR4QT
