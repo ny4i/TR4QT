@@ -1,5 +1,5 @@
 #include "BackupRestoreDialog.h"
-#include "../../data/Database.h"
+#include "../../data/ContestRepository.h"
 #include "../../data/QSORepository.h"
 #include "../../utils/AppSettings.h"
 #include "../../utils/DialogHelper.h"
@@ -296,21 +296,13 @@ void BackupRestoreDialog::onRestoreBackup() {
 void BackupRestoreDialog::updateBackupPreview() {
     BackupManager& backup = BackupManager::instance();
 
-    // Get current QSO count
-    QSORepository repo;
-    Database& db = Database::instance();
-
+    // Get current QSO count via repositories (no SQL in UI!)
     int qsoCount = 0;
-    if (db.isOpen()) {
-        // Get contest database ID
-        QSqlQuery query = db.execute(
-            "SELECT id FROM contests WHERE contest_id = ?",
-            {m_contestInfo.contestId});
-
-        if (query.next()) {
-            int contestDbId = query.value(0).toInt();
-            qsoCount = repo.getQSOCount(contestDbId);
-        }
+    ContestRepository contestRepo;
+    ContestRecord contest = contestRepo.findByContestId(m_contestInfo.contestId);
+    if (contest.isValid()) {
+        QSORepository qsoRepo;
+        qsoCount = qsoRepo.getQSOCount(contest.id);
     }
 
     // Generate backup filename preview

@@ -48,10 +48,17 @@ public:
 
     /**
      * Find contest by database ID
-     * @param contestId Database ID (primary key)
+     * @param contestDbId Database ID (primary key)
      * @return Contest record, isValid() == false if not found
      */
-    ContestRecord findById(int contestId);
+    ContestRecord findById(int contestDbId);
+
+    /**
+     * Find contest by string contest ID (e.g., "CQWW-SSB-2024")
+     * @param contestId String contest identifier
+     * @return Contest record, isValid() == false if not found
+     */
+    ContestRecord findByContestId(const QString& contestId);
 
     /**
      * Find first (and usually only) contest in database
