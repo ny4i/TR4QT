@@ -111,11 +111,10 @@ void K4Radio::onSocketConnected()
 {
     LOG_INFO("K4Radio", QString("Connected to K4 at %1:%2").arg(m_host).arg(m_port));
 
-    // Start with minimal polling (AI5, TM0, SMH0)
-    // Detailed info (AI4, TM1, SMH1) will be enabled when Radio Control window is shown
-    enableAIMode(5);    // AI5 = all async updates except S-meter
-    sendCommand("TM0");   // Disable temperature/power/SWR monitoring
-    sendCommand("SMH0");  // Disable S-meter
+    // Enable full async updates including S-meter
+    enableAIMode(4);    // AI4 = all async updates including S-meter
+    sendCommand("TM1");   // Enable temperature/power/SWR monitoring
+    sendCommand("SMH1");  // Enable S-meter in dBm format
 
     // Query AI mode to confirm it was set (K4 doesn't echo AI commands, must query with AI;)
     sendCommand("AI");
@@ -174,7 +173,7 @@ void K4Radio::sendCommand(const QString& cmd, VFO vfo)
         fullCmd += ';';
     }
 
-    LOG_DEBUG("K4Radio", QString("TX: %1").arg(fullCmd.trimmed()));
+    LOG_TRACE("K4Radio", QString("TX: %1").arg(fullCmd.trimmed()));
 
     m_socket->write(fullCmd.toLatin1());
     m_socket->flush();
