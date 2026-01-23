@@ -103,11 +103,25 @@ public:
     };
 
     /**
+     * Error field indicator for validation failures
+     * Used by UI to focus the correct input field
+     */
+    enum class ErrorField {
+        None,           // No error or non-field-specific error
+        Callsign,       // Callsign validation failed
+        Exchange,       // Exchange validation failed
+        Frequency,      // Frequency/band issue
+        Mode,           // Mode issue
+        Database        // Database/persistence error
+    };
+
+    /**
      * Result returned from QSO logging
      */
     struct LogQSOResult {
         bool success = false;               // true if QSO logged successfully
         QString errorMessage;               // Error message if success = false
+        ErrorField errorField = ErrorField::None;  // Which field caused the error
 
         // Success data (if success = true)
         QSO qso;                            // Created QSO object

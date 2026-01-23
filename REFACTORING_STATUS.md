@@ -1,5 +1,7 @@
 # TR4QT Refactoring Status - Post God Class Extraction
 
+> **NOTE**: This document is historical. For current refactoring plans, see **docs/FUTURE_REFACTORING.md**
+
 **Generated**: 2026-01-09
 **Last Review**: 2026-01-10
 **Major Milestone**: MainWindow god class refactored (6,560 → 5,420 lines)

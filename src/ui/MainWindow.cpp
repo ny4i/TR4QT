@@ -170,6 +170,10 @@ MainWindow::MainWindow(QWidget* parent)
     m_scoreCalculationService = new ScoreCalculationService();
     LOG_DEBUG("MainWindow", "ScoreCalculationService created");
 
+    // Create MaintenanceService (clear log, backup workflows)
+    m_maintenanceService = new MaintenanceService(this);
+    LOG_DEBUG("MainWindow", "MaintenanceService created");
+
     // Create QSOQueryService (Phase 13 extraction)
     m_qsoQueryService = new QSOQueryService();
     LOG_DEBUG("MainWindow", "QSOQueryService created");
@@ -1829,76 +1833,49 @@ void MainWindow::onExportCabrillo() {
 }
 
 void MainWindow::onClearLog() {
-    if (m_qsoTableModel->count() == 0) {
-        DialogHelper::information(this, "Clear Log", "Log is already empty.");
-        return;
-    }
+    // Build request for MaintenanceService
+    ClearLogRequest request;
+    request.contestDbId = m_currentContestDbId;
+    request.contestType = m_activeContest ? m_activeContest->getContestId() : QString();
+    request.databasePath = m_currentContest.databasePath;
+    request.qsoCount = m_qsoTableModel->count();
 
-    // Ask if user wants to create a backup first
-    QMessageBox::StandardButton backupReply = DialogHelper::question(
-        this, "Create Backup?",
-        QString("Would you like to create a backup before clearing %1 QSOs?\n\n"
-                "The backup will be saved as an archived copy for safety.")
-            .arg(m_qsoTableModel->count()),
-        QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
-        QMessageBox::Yes);
+    // Call service to handle the workflow (dialogs, backup, database clear)
+    ClearLogResult result = m_maintenanceService->clearLogWithBackup(request);
 
-    if (backupReply == QMessageBox::Cancel) {
-        return;  // User cancelled
-    }
+    // Handle result based on status
+    switch (result.status) {
+        case ClearLogResult::Status::AlreadyEmpty:
+            DialogHelper::information(this, "Clear Log", "Log is already empty.");
+            break;
 
-    // Create backup if requested
-    if (backupReply == QMessageBox::Yes) {
-        BackupManager& backupMgr = BackupManager::instance();
-        QString backupPath;
-        QString backupDir = PathManager::getBackupsDir();
+        case ClearLogResult::Status::UserCancelled:
+        case ClearLogResult::Status::BackupFailedUserAborted:
+            // User cancelled - no action needed
+            break;
 
-        if (!backupMgr.createBackup(m_currentContest.databasePath, backupDir, backupPath)) {
-            QMessageBox::StandardButton continueReply = DialogHelper::warning(
-                this, "Backup Failed",
-                QString("Failed to create backup: %1\n\nDo you still want to clear the log?")
-                    .arg(backupMgr.lastError()),
-                QMessageBox::Yes | QMessageBox::No,
-                QMessageBox::No);
-
-            if (continueReply != QMessageBox::Yes) {
-                return;  // User chose not to continue
-            }
-        } else {
-            m_statusLabel->setText(QString("Backup created: %1")
-                .arg(QFileInfo(backupPath).fileName()));
-        }
-    }
-
-    // Confirm clear
-    QMessageBox::StandardButton reply = DialogHelper::question(
-        this, "Clear Log",
-        QString("Are you sure you want to clear all %1 QSOs from the log?\n\nThis action cannot be undone.")
-            .arg(m_qsoTableModel->count()),
-        QMessageBox::Yes | QMessageBox::No,
-        QMessageBox::No);
-
-    if (reply == QMessageBox::Yes) {
-        // Clear QSOs and multipliers from database
-        QSORepository repo;
-        if (!repo.deleteAllQSOs(m_currentContestDbId)) {
+        case ClearLogResult::Status::ClearFailed:
             DialogHelper::critical(this, "Error",
-                QString("Failed to clear log from database: %1").arg(repo.lastError()));
-            return;
-        }
+                QString("Failed to clear log from database: %1").arg(result.errorMessage));
+            break;
 
-        // Clear exchange memory for this contest
-        ExchangeMemoryRepository memRepo;
-        QString contestType = m_activeContest ? m_activeContest->getContestId() : QString();
-        memRepo.clearForContest(contestType);
+        case ClearLogResult::Status::Success:
+        case ClearLogResult::Status::BackupFailed:
+            // Success (backup may have failed but user chose to continue)
+            // Update UI state
+            m_qsoTableModel->clear();
+            m_lastQSOTime = QDateTime();
+            m_qsosThisHour = 0;
+            updateScoreDisplay();
+            updateTimeDisplay();
 
-        // Clear in-memory model
-        m_qsoTableModel->clear();
-        m_lastQSOTime = QDateTime();  // Reset time tracking
-        m_qsosThisHour = 0;
-        updateScoreDisplay();
-        updateTimeDisplay();
-        m_statusLabel->setText("Log cleared");
+            if (result.backupCreated) {
+                m_statusLabel->setText(QString("Backup created: %1 - Log cleared")
+                    .arg(QFileInfo(result.backupPath).fileName()));
+            } else {
+                m_statusLabel->setText("Log cleared");
+            }
+            break;
     }
 }
 
@@ -2153,11 +2130,22 @@ void MainWindow::handleLogQSOValidationError(const QSOLoggingService::LogQSOResu
     m_statusLabel->setStyleSheet("QLabel { color: #ff0000; font-weight: bold; }");
     QApplication::beep();
 
-    // Set focus to appropriate field
-    if (result.errorMessage.contains("Callsign")) {
-        m_callsignEntry->setFocus();
-    } else if (result.errorMessage.contains("Exchange")) {
-        m_exchangeEntry->setFocus();
+    // Set focus to appropriate field based on structured error enum
+    using ErrorField = QSOLoggingService::ErrorField;
+    switch (result.errorField) {
+        case ErrorField::Callsign:
+            m_callsignEntry->setFocus();
+            break;
+        case ErrorField::Exchange:
+            m_exchangeEntry->setFocus();
+            break;
+        case ErrorField::Frequency:
+        case ErrorField::Mode:
+        case ErrorField::Database:
+        case ErrorField::None:
+        default:
+            // No specific field to focus, keep current focus
+            break;
     }
 }
 

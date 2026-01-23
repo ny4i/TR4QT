@@ -1,5 +1,7 @@
 # TR4QT Code Refactoring Review
 
+> **NOTE**: This document is historical. For current refactoring plans, see **docs/FUTURE_REFACTORING.md**
+
 **Generated**: 2025-12-30
 **Review Scope**: Core application code in src/ (11,445 lines)
 **Overall Quality**: Good foundation with room for improvement

@@ -39,10 +39,24 @@ QSOLoggingService::LogQSOResult QSOLoggingService::logQSO(const LogQSORequest& r
     QSOLogger::Result loggerResult = m_deps.qsoLogger->logQSO(loggerInput, request.existingQSOs);
 
     if (!loggerResult.success) {
-        // Validation failed
+        // Validation failed - determine which field caused the error
         result.success = false;
         result.errorMessage = loggerResult.errorMessage;
-        LOG_DEBUG("QSOLoggingService", QString("QSOLogger validation failed: %1").arg(loggerResult.errorMessage));
+
+        // Set errorField based on error message content (QSOLogger returns specific messages)
+        if (result.errorMessage.contains("Callsign", Qt::CaseInsensitive)) {
+            result.errorField = ErrorField::Callsign;
+        } else if (result.errorMessage.contains("Exchange", Qt::CaseInsensitive)) {
+            result.errorField = ErrorField::Exchange;
+        } else if (result.errorMessage.contains("Band", Qt::CaseInsensitive)) {
+            result.errorField = ErrorField::Frequency;
+        } else if (result.errorMessage.contains("Mode", Qt::CaseInsensitive)) {
+            result.errorField = ErrorField::Mode;
+        }
+
+        LOG_DEBUG("QSOLoggingService", QString("QSOLogger validation failed: %1 (field: %2)")
+                  .arg(loggerResult.errorMessage)
+                  .arg(static_cast<int>(result.errorField)));
         return result;
     }
 
@@ -76,6 +90,7 @@ QSOLoggingService::LogQSOResult QSOLoggingService::logQSO(const LogQSORequest& r
         // Persistence failed completely (database + emergency file)
         result.success = false;
         result.errorMessage = "Failed to save QSO (database and emergency file failed)";
+        result.errorField = ErrorField::Database;
         LOG_ERROR("QSOLoggingService", result.errorMessage);
         return result;
     }
