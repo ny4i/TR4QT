@@ -1,10 +1,12 @@
 #include "KPA1500Direct.h"
 #include "../logging/LogMacros.h"
+#include "../utils/AppSettings.h"
 
 #include <QUdpSocket>
 #include <QTimer>
 #include <QtMath>
 #include <QCoreApplication>
+#include <QDateTime>
 
 namespace TR4QT {
 
@@ -14,14 +16,26 @@ KPA1500Direct::KPA1500Direct(QObject* parent)
     initDispatchTable();
 
     // Default poll commands (can be customized via setPollCommands())
+    // Based on KPA1500 Programming Reference - complete status polling
     m_pollCommands = {
-        "^PWF;",  // Forward power
-        "^PWR;",  // Reflected power
-        "^SW;",   // SWR
-        "^FR;",   // Frequency (kHz)
+        "^PWF;",  // Forward power (watts)
+        "^PWI;",  // Input power (watts)
+        "^PWR;",  // Reflected power (watts)
+        "^SW;",   // SWR (tenths)
+        "^SB;",   // SWR when ATU last bypassed (tenths)
         "^OS;",   // Operating status (Operate/Standby)
-        "^TM;",   // Temperature
-        "^VI;",   // Input voltage
+        "^ON;",   // Power state (on/off)
+        "^BN;",   // Band number (00-10 for 160m-6m)
+        "^FQ;",   // TX frequency counter (kHz)
+        "^AN;",   // Antenna selection
+        "^AI;",   // ATU inline/bypassed
+        "^AM;",   // ATU mode
+        "^TP;",   // Tune in progress
+        "^PC;",   // Drive/input power setting
+        "^TM;",   // Temperature (°C)
+        "^VMH;",  // 50V supply voltage (millivolts)
+        "^DS;",   // LCD display content
+        "^LQ;",   // LED states (hex bitmap)
         "^FL;"    // Fault code
     };
 }
@@ -66,6 +80,10 @@ bool KPA1500Direct::connect(const AmplifierConfig& config)
     // Create UDP socket
     m_socket = new QUdpSocket(this);
     QObject::connect(m_socket, &QUdpSocket::readyRead, this, &KPA1500Direct::onReadyRead);
+
+    // Get poll interval from settings
+    m_intervalMs = AppSettings::instance().getAmplifierPollInterval();
+    LOG_INFO("KPA1500Direct", QString("Using poll interval: %1ms").arg(m_intervalMs));
 
     // Create poll timer
     m_timer = new QTimer(this);
@@ -209,12 +227,20 @@ void KPA1500Direct::initDispatchTable()
 
     // Additional status / info commands
     m_dispatch.insert("^BT",  [this](const QString &r){ handleBT(r);  }); // banner text
-    m_dispatch.insert("^LQ",  [this](const QString &r){ handleLQ(r);  }); // line quality
+    m_dispatch.insert("^LQ",  [this](const QString &r){ handleLQ(r);  }); // LED states (hex)
     m_dispatch.insert("^PC",  [this](const QString &r){ handlePC(r);  }); // drive/input power
     m_dispatch.insert("^SN",  [this](const QString &r){ handleSN(r);  }); // serial number
     m_dispatch.insert("^TM",  [this](const QString &r){ handleTM(r);  }); // temperature
     m_dispatch.insert("^VI",  [this](const QString &r){ handleVI(r);  }); // input voltage
     m_dispatch.insert("^WS",  [this](const QString &r){ handleWS(r);  }); // combined fwd/ref/SWR
+
+    // New commands (KPA1500 Programming Reference)
+    m_dispatch.insert("^SB",  [this](const QString &r){ handleSB(r);  }); // SWR bypass
+    m_dispatch.insert("^TP",  [this](const QString &r){ handleTP(r);  }); // Tune in progress
+    m_dispatch.insert("^DS",  [this](const QString &r){ handleDS(r);  }); // LCD display content
+    m_dispatch.insert("^FQ",  [this](const QString &r){ handleFQ(r);  }); // TX frequency
+    m_dispatch.insert("^VMH", [this](const QString &r){ handleVMH(r); }); // 50V supply voltage
+    m_dispatch.insert("^ON",  [this](const QString &r){ handleON(r);  }); // Power state
 }
 
 void KPA1500Direct::doPollCycle()
@@ -222,7 +248,21 @@ void KPA1500Direct::doPollCycle()
     if (!m_socket || !m_connected)
         return;
 
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+
     for (const QString &cmdStr : m_pollCommands) {
+        // DS command has longer interval to reduce load on amplifier
+        if (cmdStr == "^DS;") {
+            qint64 elapsed = currentTime - m_lastDsSendTime;
+            if (elapsed < DS_POLL_INTERVAL_MS) {
+                LOG_TRACE("KPA1500Direct", QString("Skipping DS: %1ms elapsed (need %2ms)")
+                    .arg(elapsed).arg(DS_POLL_INTERVAL_MS));
+                continue;  // Skip DS this cycle
+            }
+            LOG_TRACE("KPA1500Direct", QString("Sending DS: %1ms since last").arg(elapsed));
+            m_lastDsSendTime = currentTime;
+        }
+
         QByteArray cmd = cmdStr.toUtf8();
         if (!cmd.isEmpty() && cmd.front() == '^' && cmd.back() == ';')
             sendCommand(cmd);
@@ -277,14 +317,23 @@ void KPA1500Direct::processResponse(const QByteArray &datagram)
     QString key = text.left(4);
     emit valueUpdated(key, text);
 
-    // Determine dispatch key: for most commands first 3–4 chars are enough
+    // Determine dispatch key: try 4-char first (^PWF, ^PWI, ^VMH), fallback to 3-char (^SW, ^AM, ^AI)
+    // Some commands like ^AM have letter values (^AMI, ^AMB) that look like 4-char commands
     QString dispatchKey;
-    if (text.size() >= 4 && text[3].isLetter())
-        dispatchKey = text.left(4); // "^PWF", "^PWI", "^BNx", etc.
-    else
-        dispatchKey = text.left(3); // "^SW", "^AI", "^AM", "^AN", "^BT", etc.
+    auto it = m_dispatch.end();
 
-    auto it = m_dispatch.find(dispatchKey);
+    // Try 4-char key first if 4th char is a letter
+    if (text.size() >= 4 && text[3].isLetter()) {
+        dispatchKey = text.left(4);
+        it = m_dispatch.find(dispatchKey);
+    }
+
+    // Fallback to 3-char key if 4-char not found
+    if (it == m_dispatch.end()) {
+        dispatchKey = text.left(3);
+        it = m_dispatch.find(dispatchKey);
+    }
+
     if (it != m_dispatch.end()) {
         (*it)(text);
     } else {
@@ -306,6 +355,8 @@ void KPA1500Direct::updateStateFromPolling()
     m_currentState.temperature = static_cast<int>(m_lastTemperature);
     m_currentState.inputVoltage = m_lastInputVoltage;
     m_currentState.operateMode = m_lastOperatingStatus;
+    m_currentState.lcdLine1 = m_lastDisplayLine1;
+    m_currentState.lcdLine2 = m_lastDisplayLine2;
 
     // Emit stateUpdated signal (defined in IAmplifierController)
     emit stateUpdated(m_currentState);
@@ -470,17 +521,29 @@ void KPA1500Direct::handleBT(const QString &resp)
     }
 }
 
-// ^LQnn; Line quality percent
+// ^LQppppppppssssmm; LED states as hex digits
+// pppppppp = power bar bitmap (32-bit), ssss = SWR bar bitmap (16-bit), mm = status LEDs (8-bit)
+// Status LED bits: x80=FAULT, x40=OVR, x20=ANT2, x10=ANT1, x08=ATU IN, x04=ATU BYP, x02=OPER, x01=TX
 void KPA1500Direct::handleLQ(const QString &resp)
 {
-    bool ok = false;
-    QString valStr = resp.mid(3, resp.size() - 4);
-    int percent = valStr.toInt(&ok);
-    if (!ok) return;
+    // Format: ^LQppppppppssssmm; (16 hex chars between ^LQ and ;)
+    QString payload = resp.mid(3, resp.size() - 4);
+    if (payload.size() < 16) return;
 
-    if (percent != m_lastLineQuality) {
-        m_lastLineQuality = percent;
-        emit lineQualityChanged(percent);
+    bool ok1 = false, ok2 = false, ok3 = false;
+    quint32 powerBar = payload.mid(0, 8).toUInt(&ok1, 16);
+    quint16 swrBar = payload.mid(8, 4).toUShort(&ok2, 16);
+    quint8 statusLeds = static_cast<quint8>(payload.mid(12, 2).toUShort(&ok3, 16));
+
+    if (!ok1 || !ok2 || !ok3) return;
+
+    bool changed = false;
+    if (powerBar != m_lastLedPowerBar) { m_lastLedPowerBar = powerBar; changed = true; }
+    if (swrBar != m_lastLedSwrBar) { m_lastLedSwrBar = swrBar; changed = true; }
+    if (statusLeds != m_lastLedStatus) { m_lastLedStatus = statusLeds; changed = true; }
+
+    if (changed) {
+        emit ledStateChanged(powerBar, swrBar, statusLeds);
     }
 }
 
@@ -566,6 +629,105 @@ void KPA1500Direct::handleWS(const QString &resp)
 
     if (changed)
         emit wsStatusChanged(fwd, ref, swr);
+}
+
+// ^SBswr; SWR when ATU last bypassed (tenths, 123 = 12.3:1)
+void KPA1500Direct::handleSB(const QString &resp)
+{
+    bool ok = false;
+    int tenths = resp.mid(3, resp.size() - 4).toInt(&ok);
+    if (!ok) return;
+
+    double swr = tenths / 10.0;
+    if (!qFuzzyCompare(swr + 1.0, m_lastSwrBypass + 1.0)) {
+        m_lastSwrBypass = swr;
+        emit swrBypassChanged(swr);
+    }
+}
+
+// ^TP0; ATU not tuning, ^TP1; ATU tune in progress
+void KPA1500Direct::handleTP(const QString &resp)
+{
+    if (resp.size() < 5) return;
+    QChar c = resp[3];
+    bool tuning = (c == QLatin1Char('1'));
+    if (tuning != m_lastTuneInProgress) {
+        m_lastTuneInProgress = tuning;
+        emit tuneInProgressChanged(tuning);
+    }
+}
+
+// ^DSFirstLCD Line\nSecond LCD line; LCD display content
+void KPA1500Direct::handleDS(const QString &resp)
+{
+    QString payload = resp.mid(3, resp.size() - 4); // between ^DS and ;
+
+    // Split on newline (0x0A)
+    int nlPos = payload.indexOf(QLatin1Char('\n'));
+    QString line1, line2;
+    if (nlPos >= 0) {
+        line1 = payload.left(nlPos);
+        line2 = payload.mid(nlPos + 1);
+    } else {
+        line1 = payload;
+        line2.clear();
+    }
+
+    LOG_TRACE("KPA1500Direct", QString("^DS response: line1='%1' line2='%2'").arg(line1, line2));
+
+    if (line1 != m_lastDisplayLine1 || line2 != m_lastDisplayLine2) {
+        m_lastDisplayLine1 = line1;
+        m_lastDisplayLine2 = line2;
+
+        // Update cached state for UI consumption
+        m_currentState.lcdLine1 = line1;
+        m_currentState.lcdLine2 = line2;
+
+        emit displayContentChanged(line1, line2);
+    }
+}
+
+// ^FQfffff; TX frequency counter in kHz (8 kHz increments)
+void KPA1500Direct::handleFQ(const QString &resp)
+{
+    bool ok = false;
+    int freqKhz = resp.mid(3, resp.size() - 4).toInt(&ok);
+    if (!ok) return;
+
+    if (freqKhz != m_lastTxFrequency) {
+        m_lastTxFrequency = freqKhz;
+        emit txFrequencyChanged(freqKhz);
+
+        // Also update cached state frequency (convert kHz to Hz)
+        m_currentState.frequency = static_cast<freq_t>(freqKhz) * 1000;
+    }
+}
+
+// ^VMH nnnnn; 50V supply voltage in millivolts (e.g., ^VMH 52749; = 52.749V)
+void KPA1500Direct::handleVMH(const QString &resp)
+{
+    QString payload = resp.mid(4, resp.size() - 5).trimmed(); // ^VMH has space before value
+    bool ok = false;
+    int millivolts = payload.toInt(&ok);
+    if (!ok) return;
+
+    double volts = millivolts / 1000.0;
+    if (!qFuzzyCompare(volts + 1.0, m_lastVoltage50V + 1.0)) {
+        m_lastVoltage50V = volts;
+        emit voltage50VChanged(volts);
+    }
+}
+
+// ^ON0; power off, ^ON1; power on
+void KPA1500Direct::handleON(const QString &resp)
+{
+    if (resp.size() < 5) return;
+    QChar c = resp[3];
+    bool powerOn = (c == QLatin1Char('1'));
+    if (powerOn != m_lastPowerState) {
+        m_lastPowerState = powerOn;
+        emit powerStateChanged(powerOn);
+    }
 }
 
 } // namespace TR4QT

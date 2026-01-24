@@ -314,6 +314,11 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
     // Update WPM label (only enabled in CW mode)
     bool isCWMode = (state.modeA == ModeType::CW || state.modeA == ModeType::CWR);
     int wpm = state.cwSpeed;  // Display radio's CW speed, not app setting
+    static int lastLoggedWpm = -1;
+    if (wpm != lastLoggedWpm) {
+        LOG_DEBUG("RadioControlWidget", QString("CW speed update: %1 WPM (was %2)").arg(wpm).arg(lastLoggedWpm));
+        lastLoggedWpm = wpm;
+    }
     m_wpmLabel->setText(QString("%1 WPM").arg(wpm));
     m_wpmLabel->setEnabled(isCWMode);  // Gray out when not in CW mode
 

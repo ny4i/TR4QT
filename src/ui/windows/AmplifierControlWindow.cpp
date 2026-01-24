@@ -114,6 +114,7 @@ AmplifierControlWindow::AmplifierControlWindow(AmplifierService* service, QWidge
         "}"
     );
     m_lcdLabel->setAttribute(Qt::WA_TransparentForMouseEvents, true);  // Don't block clicks
+    m_lcdLabel->setGeometry(-1000, -1000, 1, 1);  // Move offscreen until properly positioned in showEvent
 
     // Connect to amplifier service signals
     if (m_service) {
@@ -628,51 +629,83 @@ void AmplifierControlWindow::resizeEvent(QResizeEvent* event) {
     }
 
     // Position LCD label over label_MAIN region in SVG
-    if (m_lcdLabel && m_svgPanel) {
-        QRectF svgBounds = m_svgPanel->getElementBounds("label_MAIN");
-        if (!svgBounds.isEmpty()) {
-            QRectF viewBox = m_svgPanel->getViewBox();
-            if (!viewBox.isEmpty()) {
-                // Convert SVG viewBox coordinates to proportional
-                double propX = svgBounds.x() / viewBox.width();
-                double propY = svgBounds.y() / viewBox.height();
-                double propW = svgBounds.width() / viewBox.width();
-                double propH = svgBounds.height() / viewBox.height();
+    repositionLcdLabel();
+}
 
-                // Convert to widget coordinates
-                int widgetWidth = m_svgPanel->width();
-                int widgetHeight = m_svgPanel->height();
-                double widthRatio = static_cast<double>(widgetWidth) / m_originalImageSize.width();
-                double heightRatio = static_cast<double>(widgetHeight) / m_originalImageSize.height();
-                double scale = qMin(widthRatio, heightRatio);
+void AmplifierControlWindow::repositionLcdLabel() {
+    if (!m_lcdLabel || !m_svgPanel) return;
 
-                int scaledWidth = static_cast<int>(m_originalImageSize.width() * scale);
-                int scaledHeight = static_cast<int>(m_originalImageSize.height() * scale);
-                int offsetX = (widgetWidth - scaledWidth) / 2;
-                int offsetY = (widgetHeight - scaledHeight) / 2;
+    QRectF svgBounds = m_svgPanel->getElementBounds("label_MAIN");
+    QRectF viewBox = m_svgPanel->getViewBox();
 
-                int lcdX = offsetX + static_cast<int>(propX * scaledWidth);
-                int lcdY = offsetY + static_cast<int>(propY * scaledHeight);
-                int lcdW = static_cast<int>(propW * scaledWidth);
-                int lcdH = static_cast<int>(propH * scaledHeight);
+    LOG_DEBUG("AmplifierControlWindow", QString("LCD positioning: svgBounds=%1,%2 %3x%4, viewBox=%5,%6 %7x%8")
+        .arg(svgBounds.x()).arg(svgBounds.y()).arg(svgBounds.width()).arg(svgBounds.height())
+        .arg(viewBox.x()).arg(viewBox.y()).arg(viewBox.width()).arg(viewBox.height()));
 
-                // Convert from SVG panel to window coordinates
-                QPoint svgPanelPos = m_svgPanel->mapTo(this, QPoint(0, 0));
-                m_lcdLabel->setGeometry(svgPanelPos.x() + lcdX, svgPanelPos.y() + lcdY, lcdW, lcdH);
+    if (svgBounds.isEmpty() || viewBox.isEmpty()) {
+        // Fallback: position label at approximate LCD location (proportional to panel)
+        QPoint svgPanelPos = m_svgPanel->mapTo(this, QPoint(0, 0));
+        int panelW = m_svgPanel->width();
+        int panelH = m_svgPanel->height();
+        // LCD is roughly at 12% from left, 18% from top, 22% wide, 12% tall
+        int lcdX = svgPanelPos.x() + static_cast<int>(panelW * 0.12);
+        int lcdY = svgPanelPos.y() + static_cast<int>(panelH * 0.18);
+        int lcdW = static_cast<int>(panelW * 0.22);
+        int lcdH = static_cast<int>(panelH * 0.12);
+        LOG_DEBUG("AmplifierControlWindow", QString("LCD fallback position: %1,%2 %3x%4").arg(lcdX).arg(lcdY).arg(lcdW).arg(lcdH));
+        m_lcdLabel->setGeometry(lcdX, lcdY, lcdW, lcdH);
 
-                // Scale font based on LCD height
-                int fontSize = qMax(8, lcdH / 3);
-                m_lcdLabel->setStyleSheet(QString(
-                    "QLabel { "
-                    "  background-color: transparent; "
-                    "  color: #000032; "
-                    "  font-family: 'Courier New', Courier, monospace; "
-                    "  font-size: %1px; "
-                    "  font-weight: bold; "
-                    "}"
-                ).arg(fontSize));
-            }
-        }
+        int fontSize = qMax(8, lcdH / 3);
+        m_lcdLabel->setStyleSheet(QString(
+            "QLabel { "
+            "  background-color: transparent; "
+            "  color: #000032; "
+            "  font-family: 'Courier New', Courier, monospace; "
+            "  font-size: %1px; "
+            "  font-weight: bold; "
+            "}"
+        ).arg(fontSize));
+    } else {
+        // Convert SVG viewBox coordinates to proportional
+        double propX = svgBounds.x() / viewBox.width();
+        double propY = svgBounds.y() / viewBox.height();
+        double propW = svgBounds.width() / viewBox.width();
+        double propH = svgBounds.height() / viewBox.height();
+
+        // Convert to widget coordinates
+        int widgetWidth = m_svgPanel->width();
+        int widgetHeight = m_svgPanel->height();
+        double widthRatio = static_cast<double>(widgetWidth) / m_originalImageSize.width();
+        double heightRatio = static_cast<double>(widgetHeight) / m_originalImageSize.height();
+        double scale = qMin(widthRatio, heightRatio);
+
+        int scaledWidth = static_cast<int>(m_originalImageSize.width() * scale);
+        int scaledHeight = static_cast<int>(m_originalImageSize.height() * scale);
+        int offsetX = (widgetWidth - scaledWidth) / 2;
+        int offsetY = (widgetHeight - scaledHeight) / 2;
+
+        int lcdX = offsetX + static_cast<int>(propX * scaledWidth);
+        int lcdY = offsetY + static_cast<int>(propY * scaledHeight);
+        int lcdW = static_cast<int>(propW * scaledWidth);
+        int lcdH = static_cast<int>(propH * scaledHeight);
+
+        // Convert from SVG panel to window coordinates
+        QPoint svgPanelPos = m_svgPanel->mapTo(this, QPoint(0, 0));
+        LOG_DEBUG("AmplifierControlWindow", QString("LCD SVG position: %1,%2 %3x%4")
+            .arg(svgPanelPos.x() + lcdX).arg(svgPanelPos.y() + lcdY).arg(lcdW).arg(lcdH));
+        m_lcdLabel->setGeometry(svgPanelPos.x() + lcdX, svgPanelPos.y() + lcdY, lcdW, lcdH);
+
+        // Scale font based on LCD height
+        int fontSize = qMax(8, lcdH / 3);
+        m_lcdLabel->setStyleSheet(QString(
+            "QLabel { "
+            "  background-color: transparent; "
+            "  color: #000032; "
+            "  font-family: 'Courier New', Courier, monospace; "
+            "  font-size: %1px; "
+            "  font-weight: bold; "
+            "}"
+        ).arg(fontSize));
     }
 }
 
@@ -681,10 +714,9 @@ void AmplifierControlWindow::showEvent(QShowEvent* event) {
 
     // Defer LCD label repositioning until after layout is complete
     // This fixes text appearing in upper-left on first show
-    QTimer::singleShot(0, this, [this]() {
-        // Trigger a resize to reposition all overlays
-        QResizeEvent resizeEvent(size(), size());
-        this->resizeEvent(&resizeEvent);
+    QTimer::singleShot(50, this, [this]() {
+        // Reposition LCD label directly (resizeEvent has early return issues)
+        repositionLcdLabel();
     });
 }
 
@@ -723,16 +755,36 @@ void AmplifierControlWindow::onAmplifierStateUpdated(const AmplifierState& state
         // updatePowerMeter(state.forwardPowerWatts);
     }
 
-    // Update LCD label text
+    // Update LCD label text from actual amplifier LCD content (^DS; command)
     if (m_lcdLabel) {
-        double freqMhz = m_currentState.frequency / 1000000.0;
-        QString line1 = QString("F:%1W R:%2W")
-            .arg(m_currentState.forwardPowerWatts, 4)
-            .arg(m_currentState.reflectedPowerWatts, 3);
-        QString line2 = QString("%1MHz %2C")
-            .arg(freqMhz, 0, 'f', 2)
-            .arg(m_currentState.temperature);
-        m_lcdLabel->setText(line1 + "\n" + line2);
+        // If label is still offscreen, trigger repositioning directly
+        // (calling resizeEvent can hit early return due to aspect ratio check)
+        if (m_lcdLabel->x() < 0) {
+            repositionLcdLabel();
+        }
+
+        if (!m_currentState.lcdLine1.isEmpty() || !m_currentState.lcdLine2.isEmpty()) {
+            // Use actual LCD content from amplifier
+            QString newContent = m_currentState.lcdLine1 + "\n" + m_currentState.lcdLine2;
+            if (newContent != m_lastLcdContent) {
+                LOG_DEBUG("AmplifierControlWindow", QString("LCD from ^DS: '%1' / '%2' (label geom: %3,%4 %5x%6)")
+                    .arg(m_currentState.lcdLine1, m_currentState.lcdLine2)
+                    .arg(m_lcdLabel->x()).arg(m_lcdLabel->y())
+                    .arg(m_lcdLabel->width()).arg(m_lcdLabel->height()));
+                m_lastLcdContent = newContent;
+            }
+            m_lcdLabel->setText(newContent);
+        } else {
+            // Fallback: show computed values if no LCD content available
+            double freqMhz = m_currentState.frequency / 1000000.0;
+            QString line1 = QString("F:%1W R:%2W")
+                .arg(m_currentState.forwardPowerWatts, 4)
+                .arg(m_currentState.reflectedPowerWatts, 3);
+            QString line2 = QString("%1MHz %2C")
+                .arg(freqMhz, 0, 'f', 2)
+                .arg(m_currentState.temperature);
+            m_lcdLabel->setText(line1 + "\n" + line2);
+        }
     }
 
     update();  // Trigger repaint

@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.71";  // Add ErrorField enum, MaintenanceService, unified refactoring doc
+constexpr const char* APP_VERSION = "3.38.72";  // Fix K4 CW speed display (AI5 mode), amp poll interval setting
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

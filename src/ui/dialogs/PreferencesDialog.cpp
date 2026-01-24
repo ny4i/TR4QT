@@ -642,6 +642,14 @@ QWidget* PreferencesDialog::createAmplifierSettingsWidget() {
     m_amplifierAutoConnectCheck->setToolTip("Automatically connect to amplifier when TR4QT starts");
     configLayout->addRow("", m_amplifierAutoConnectCheck);
 
+    // Poll interval
+    m_amplifierPollIntervalSpin = new QSpinBox(this);
+    m_amplifierPollIntervalSpin->setRange(50, 2000);
+    m_amplifierPollIntervalSpin->setSingleStep(50);
+    m_amplifierPollIntervalSpin->setSuffix(" ms");
+    m_amplifierPollIntervalSpin->setToolTip("Interval between amplifier status polls (50-2000ms)");
+    configLayout->addRow("Poll Interval:", m_amplifierPollIntervalSpin);
+
     // Test connection button
     m_testAmplifierConnectionButton = new QPushButton("Test Connection", this);
     connect(m_testAmplifierConnectionButton, &QPushButton::clicked,
@@ -1818,6 +1826,7 @@ void PreferencesDialog::loadSettings() {
     m_amplifierPortEdit->setText(settings.getAmplifierPort());
     m_amplifierBaudRateCombo->setCurrentText(QString::number(settings.getAmplifierBaudRate()));
     m_amplifierAutoConnectCheck->setChecked(settings.getAmplifierAutoConnect());
+    m_amplifierPollIntervalSpin->setValue(settings.getAmplifierPollInterval());
 
     // Trigger connection type changed to show/hide appropriate widgets
     onAmplifierConnectionTypeChanged(ampConnIndex);
@@ -1997,6 +2006,7 @@ void PreferencesDialog::saveSettings() {
     settings.setAmplifierPort(m_amplifierPortEdit->text());
     settings.setAmplifierBaudRate(m_amplifierBaudRateCombo->currentText().toInt());
     settings.setAmplifierAutoConnect(m_amplifierAutoConnectCheck->isChecked());
+    settings.setAmplifierPollInterval(m_amplifierPollIntervalSpin->value());
 
     // Rotator settings
     settings.setRotatorEnabled(m_rotatorEnabledCheck->isChecked());
