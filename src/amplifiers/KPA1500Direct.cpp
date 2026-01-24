@@ -1,6 +1,5 @@
 #include "KPA1500Direct.h"
 #include "../logging/LogMacros.h"
-#include "../utils/AppSettings.h"
 
 #include <QUdpSocket>
 #include <QTimer>
@@ -81,8 +80,8 @@ bool KPA1500Direct::connect(const AmplifierConfig& config)
     m_socket = new QUdpSocket(this);
     QObject::connect(m_socket, &QUdpSocket::readyRead, this, &KPA1500Direct::onReadyRead);
 
-    // Get poll interval from settings
-    m_intervalMs = AppSettings::instance().getAmplifierPollInterval();
+    // Get poll interval from config
+    m_intervalMs = config.pollIntervalMs;
     LOG_INFO("KPA1500Direct", QString("Using poll interval: %1ms").arg(m_intervalMs));
 
     // Create poll timer

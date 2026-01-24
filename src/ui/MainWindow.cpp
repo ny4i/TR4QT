@@ -944,6 +944,7 @@ void MainWindow::initializeHardwareServices() {
         config.connectionType = connectionType;
         config.port = port;
         config.baudRate = baudRate;
+        config.pollIntervalMs = settings.getAmplifierPollInterval();
 
         // Determine amplifier type
         AmplifierFactory::AmplifierType type;
