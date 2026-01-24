@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.72";  // Fix K4 CW speed display (AI5 mode), amp poll interval setting
+constexpr const char* APP_VERSION = "3.38.73";  // Fix K4 AI4 mode with KS query, fix CI build, cleanup debug logs
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

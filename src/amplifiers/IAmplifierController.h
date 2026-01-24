@@ -23,6 +23,7 @@ struct AmplifierConfig {
     QString flowControl;           // Flow control ("None", "Hardware", "Software")
     int responseTimeoutMs{1000};   // Timeout waiting for amplifier response
     int amplifierType{0};          // AmplifierFactory::AmplifierType (0=Hamlib, 1=KPA1500_DIRECT, etc.)
+    int pollIntervalMs{250};       // Poll interval for status updates (default: 250ms)
 };
 
 // Amplifier state (from queries)

@@ -201,7 +201,7 @@ void AmplifierControlWindow::initializeButtonRegions() {
         // Determine if it's a toggle button (ON_OFF and MODE toggle operate/standby)
         bool isToggle = (buttonId == "btn_ON_OFF" || buttonId == "btn_MODE");
 
-        LOG_INFO("AmplifierControl", QString("Button %1: viewBox(%2,%3 %4x%5) -> proportional(%6,%7 %8x%9)")
+        LOG_TRACE("AmplifierControl", QString("Button %1: viewBox(%2,%3 %4x%5) -> proportional(%6,%7 %8x%9)")
             .arg(buttonId)
             .arg(bounds.x(), 0, 'f', 1).arg(bounds.y(), 0, 'f', 1)
             .arg(bounds.width(), 0, 'f', 1).arg(bounds.height(), 0, 'f', 1)
@@ -219,7 +219,7 @@ void AmplifierControlWindow::initializeButtonRegions() {
         });
     }
 
-    LOG_INFO("AmplifierControl", QString("Initialized %1 button regions from SVG").arg(m_buttonRegions.size()));
+    LOG_TRACE("AmplifierControl", QString("Initialized %1 button regions from SVG").arg(m_buttonRegions.size()));
 }
 
 void AmplifierControlWindow::initializeLedIndicators() {
@@ -638,7 +638,7 @@ void AmplifierControlWindow::repositionLcdLabel() {
     QRectF svgBounds = m_svgPanel->getElementBounds("label_MAIN");
     QRectF viewBox = m_svgPanel->getViewBox();
 
-    LOG_DEBUG("AmplifierControlWindow", QString("LCD positioning: svgBounds=%1,%2 %3x%4, viewBox=%5,%6 %7x%8")
+    LOG_TRACE("AmplifierControlWindow", QString("LCD positioning: svgBounds=%1,%2 %3x%4, viewBox=%5,%6 %7x%8")
         .arg(svgBounds.x()).arg(svgBounds.y()).arg(svgBounds.width()).arg(svgBounds.height())
         .arg(viewBox.x()).arg(viewBox.y()).arg(viewBox.width()).arg(viewBox.height()));
 
@@ -652,7 +652,7 @@ void AmplifierControlWindow::repositionLcdLabel() {
         int lcdY = svgPanelPos.y() + static_cast<int>(panelH * 0.18);
         int lcdW = static_cast<int>(panelW * 0.22);
         int lcdH = static_cast<int>(panelH * 0.12);
-        LOG_DEBUG("AmplifierControlWindow", QString("LCD fallback position: %1,%2 %3x%4").arg(lcdX).arg(lcdY).arg(lcdW).arg(lcdH));
+        LOG_TRACE("AmplifierControlWindow", QString("LCD fallback position: %1,%2 %3x%4").arg(lcdX).arg(lcdY).arg(lcdW).arg(lcdH));
         m_lcdLabel->setGeometry(lcdX, lcdY, lcdW, lcdH);
 
         int fontSize = qMax(8, lcdH / 3);
@@ -691,7 +691,7 @@ void AmplifierControlWindow::repositionLcdLabel() {
 
         // Convert from SVG panel to window coordinates
         QPoint svgPanelPos = m_svgPanel->mapTo(this, QPoint(0, 0));
-        LOG_DEBUG("AmplifierControlWindow", QString("LCD SVG position: %1,%2 %3x%4")
+        LOG_TRACE("AmplifierControlWindow", QString("LCD SVG position: %1,%2 %3x%4")
             .arg(svgPanelPos.x() + lcdX).arg(svgPanelPos.y() + lcdY).arg(lcdW).arg(lcdH));
         m_lcdLabel->setGeometry(svgPanelPos.x() + lcdX, svgPanelPos.y() + lcdY, lcdW, lcdH);
 
@@ -865,6 +865,7 @@ void AmplifierControlWindow::onTestConnection() {
     config.connectionType = settings.getAmplifierConnectionType();
     config.port = settings.getAmplifierPort();
     config.baudRate = settings.getAmplifierBaudRate();
+    config.pollIntervalMs = settings.getAmplifierPollInterval();
 
     // Attempt to connect
     bool connected = m_service->connectToAmplifier(config);

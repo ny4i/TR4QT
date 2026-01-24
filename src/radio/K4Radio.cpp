@@ -111,13 +111,10 @@ void K4Radio::onSocketConnected()
 {
     LOG_INFO("K4Radio", QString("Connected to K4 at %1:%2").arg(m_host).arg(m_port));
 
-    // Enable full async updates including S-meter and command confirmations
-    enableAIMode(5);    // AI5 = AI4 + echoes command confirmations back to sender
+    // Enable full async updates including S-meter
+    enableAIMode(4);    // AI4 = all async updates including S-meter
     sendCommand("TM1");   // Enable temperature/power/SWR monitoring
     sendCommand("SMH1");  // Enable S-meter in dBm format
-
-    // Query AI mode to confirm it was set (K4 doesn't echo AI commands, must query with AI;)
-    sendCommand("AI");
 
     // Query initial state
     queryInitialState();
@@ -859,15 +856,13 @@ void K4Radio::setDetailedRigInfoEnabled(bool enabled)
     m_collectDetailedRigInfo = enabled;
 
     if (enabled) {
-        // Enable detailed rig info: S-meter, temperature, command confirmations
-        LOG_INFO("K4Radio", "Enabling detailed rig info (AI5, TM1, SMH1)");
-        enableAIMode(5);  // AI5 = all async updates + command confirmations
+        // Enable detailed rig info: S-meter, temperature, power
+        LOG_INFO("K4Radio", "Enabling detailed rig info (TM1, SMH1)");
         sendCommand("TM1");   // Enable temperature/power/SWR monitoring
         sendCommand("SMH1");  // Enable S-meter in dBm format
     } else {
-        // Disable detailed rig info (use AI4 which omits command confirmations)
-        LOG_INFO("K4Radio", "Disabling detailed rig info (AI4, TM0, SMH0)");
-        enableAIMode(4);  // AI4 = async updates without command confirmations
+        // Disable detailed rig info (keep AI4 for consistent behavior)
+        LOG_INFO("K4Radio", "Disabling detailed rig info (TM0, SMH0)");
         sendCommand("TM0");   // Disable temperature/power/SWR monitoring
         sendCommand("SMH0");  // Disable S-meter
     }
@@ -1051,7 +1046,8 @@ bool K4Radio::setCWSpeed(int wpm)
     }
 
     sendCommand(QString("KS%1").arg(wpm, 3, 10, QChar('0')));
-    // AI5 mode echoes command confirmations back, so no need to query
+    // AI4 doesn't echo command confirmations, so query to get updated value
+    sendCommand("KS");
     return true;
 }
 
