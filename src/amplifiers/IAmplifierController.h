@@ -38,6 +38,10 @@ struct AmplifierState {
     int temperature{0};            // PA temperature (Celsius)
     double inputVoltage{0.0};      // Input DC voltage
     bool operateMode{false};       // Operating mode (true=operate, false=standby)
+
+    // LCD display content (from ^DS; command - KPA1500 specific but useful for UI)
+    QString lcdLine1;              // First line of LCD display (up to 16 chars)
+    QString lcdLine2;              // Second line of LCD display (up to 16 chars)
 };
 
 // Abstract amplifier interface

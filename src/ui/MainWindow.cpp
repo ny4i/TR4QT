@@ -1949,6 +1949,7 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
     m_udpBroadcastManager->onRadioStateChanged(state, stationCall);
 
     // Validate phone mode privileges (US only)
+    static QString lastPrivilegeWarning;
     if (m_hamPrivileges && state.frequencyA > 0) {
         QString warning = m_hamPrivileges->validatePhoneMode(
             state.frequencyA,
@@ -1959,7 +1960,13 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
             // Display privilege warning in status bar with orange color
             m_statusLabel->setText(QString("⚠ %1").arg(warning));
             m_statusLabel->setStyleSheet("color: orange; font-weight: bold;");
-            LOG_WARN("MainWindow", QString("Phone privilege violation: %1").arg(warning));
+            // Only log once per unique warning to avoid flooding
+            if (warning != lastPrivilegeWarning) {
+                LOG_WARN("MainWindow", QString("Phone privilege violation: %1").arg(warning));
+                lastPrivilegeWarning = warning;
+            }
+        } else {
+            lastPrivilegeWarning.clear();  // Reset when no violation
         }
     }
 

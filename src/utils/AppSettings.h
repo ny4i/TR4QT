@@ -117,6 +117,9 @@ public:
     void setAmplifierAutoConnect(bool autoConnect);
     bool getAmplifierAutoConnect() const;
 
+    void setAmplifierPollInterval(int intervalMs);
+    int getAmplifierPollInterval() const;  // Default: 250ms
+
     // Legacy settings (for backward compatibility with existing KPA1500 configs)
     void setAmplifierIpAddress(const QString& ipAddress);
     QString getAmplifierIpAddress() const;

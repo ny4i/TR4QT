@@ -222,6 +222,7 @@ private:
     QLineEdit* m_amplifierPortEdit;          // IP:port or serial port
     QComboBox* m_amplifierBaudRateCombo;
     QCheckBox* m_amplifierAutoConnectCheck;
+    QSpinBox* m_amplifierPollIntervalSpin;
     QPushButton* m_testAmplifierConnectionButton;
     QWidget* m_amplifierSerialSettingsWidget;  // Container for serial-specific settings
 

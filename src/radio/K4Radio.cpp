@@ -111,8 +111,8 @@ void K4Radio::onSocketConnected()
 {
     LOG_INFO("K4Radio", QString("Connected to K4 at %1:%2").arg(m_host).arg(m_port));
 
-    // Enable full async updates including S-meter
-    enableAIMode(4);    // AI4 = all async updates including S-meter
+    // Enable full async updates including S-meter and command confirmations
+    enableAIMode(5);    // AI5 = AI4 + echoes command confirmations back to sender
     sendCommand("TM1");   // Enable temperature/power/SWR monitoring
     sendCommand("SMH1");  // Enable S-meter in dBm format
 
@@ -330,8 +330,11 @@ void K4Radio::processMessage(const QString& message)
         // CW speed
         bool ok;
         int speed = data.left(3).toInt(&ok);
+        LOG_DEBUG("K4Radio", QString("KS response: data='%1' parsed=%2 ok=%3 current=%4")
+            .arg(data).arg(speed).arg(ok).arg(m_state.cwSpeed));
         if (ok && speed != m_state.cwSpeed) {
             m_state.cwSpeed = speed;
+            LOG_INFO("K4Radio", QString("CW speed changed: %1 WPM").arg(speed));
             emit stateUpdated(m_state);
         }
     }
@@ -856,15 +859,15 @@ void K4Radio::setDetailedRigInfoEnabled(bool enabled)
     m_collectDetailedRigInfo = enabled;
 
     if (enabled) {
-        // Enable detailed rig info: S-meter, temperature
-        LOG_INFO("K4Radio", "Enabling detailed rig info (AI4, TM1, SMH1)");
-        enableAIMode(4);  // AI4 = all async updates including S-meter
+        // Enable detailed rig info: S-meter, temperature, command confirmations
+        LOG_INFO("K4Radio", "Enabling detailed rig info (AI5, TM1, SMH1)");
+        enableAIMode(5);  // AI5 = all async updates + command confirmations
         sendCommand("TM1");   // Enable temperature/power/SWR monitoring
         sendCommand("SMH1");  // Enable S-meter in dBm format
     } else {
-        // Disable detailed rig info for reduced polling
-        LOG_INFO("K4Radio", "Disabling detailed rig info (AI5, TM0, SMH0)");
-        enableAIMode(5);  // AI5 = all async updates except S-meter
+        // Disable detailed rig info (use AI4 which omits command confirmations)
+        LOG_INFO("K4Radio", "Disabling detailed rig info (AI4, TM0, SMH0)");
+        enableAIMode(4);  // AI4 = async updates without command confirmations
         sendCommand("TM0");   // Disable temperature/power/SWR monitoring
         sendCommand("SMH0");  // Disable S-meter
     }
@@ -1048,6 +1051,7 @@ bool K4Radio::setCWSpeed(int wpm)
     }
 
     sendCommand(QString("KS%1").arg(wpm, 3, 10, QChar('0')));
+    // AI5 mode echoes command confirmations back, so no need to query
     return true;
 }
 

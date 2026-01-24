@@ -536,6 +536,15 @@ bool AppSettings::getAmplifierAutoConnect() const {
     return m_settings.value("Amplifier/autoConnect", false).toBool();
 }
 
+void AppSettings::setAmplifierPollInterval(int intervalMs) {
+    m_settings.setValue("Amplifier/pollIntervalMs", intervalMs);
+    m_settings.sync();
+}
+
+int AppSettings::getAmplifierPollInterval() const {
+    return m_settings.value("Amplifier/pollIntervalMs", 250).toInt();  // Default: 250ms
+}
+
 // Legacy settings (for backward compatibility)
 void AppSettings::setAmplifierIpAddress(const QString& ipAddress) {
     // For backward compatibility, also update the new port format
