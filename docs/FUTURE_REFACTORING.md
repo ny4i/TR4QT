@@ -21,7 +21,7 @@ MainWindow is at **4,624 lines** (1.54X over the 3,000 STOP limit). Significant 
 
 | Metric | Current | Target | Gap |
 |--------|---------|--------|-----|
-| MainWindow lines | 4,674 | <3,000 | -1,674 lines |
+| MainWindow lines | 4,595 | <3,000 | -1,595 lines |
 | Business logic in UI | Minimal | No | Continue extraction |
 | Service test coverage | ~60% | >90% | +30% |
 | SQL in MainWindow | Zero | Zero | Complete |
@@ -317,6 +317,7 @@ After extraction:
 | 2026-01-26 | StationInfoService review | 0 | Already extracted (281 lines) |
 | 2026-01-26 | FrequencyInputService review | 0 | Already extracted (88 lines) |
 | 2026-01-26 | SpotProcessingService review | 0 | Already extracted (127 lines) |
+| 2026-01-26 | Revert WindowManager, extract onCallsignChanged | 79 | 4,595 |
 
 ---
 

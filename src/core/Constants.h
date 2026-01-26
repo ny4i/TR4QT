@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.79";  // Enhance WindowManager with AmplifierControlWindow, FunctionKeysWindow support
+constexpr const char* APP_VERSION = "3.38.80";  // Revert WindowManager, add tr4qt.rc validation, extract onCallsignChanged, fix test
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
