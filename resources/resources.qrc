@@ -16,4 +16,7 @@
     <qresource prefix="/maps">
         <file alias="nasabluemarble.jpg">nasabluemarble.jpg</file>
     </qresource>
+    <qresource prefix="/svg">
+        <file alias="kpa1500_panel.svg">images/kpa1500_panel.svg</file>
+    </qresource>
 </RCC>
