@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.75";  // Add SVG resources to Qt resources, add deployment verification script
+constexpr const char* APP_VERSION = "3.38.76";  // Fix verification script to complete all checks
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

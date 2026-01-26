@@ -8,7 +8,7 @@
 # Example:
 #   ./scripts/verify-deployment.sh build/src
 
-set -e
+set -e  # Exit on error (but check functions handle their own errors)
 
 BUILD_DIR="${1:-build/src}"
 ERRORS=0
@@ -35,7 +35,6 @@ check_file() {
 
     if [ -f "$BUILD_DIR/$file" ]; then
         echo -e "${GREEN}✓${NC} $description: $file"
-        return 0
     else
         if [ "$is_critical" = "true" ]; then
             echo -e "${RED}✗ ERROR${NC}: $description missing: $file"
@@ -44,8 +43,9 @@ check_file() {
             echo -e "${YELLOW}⚠ WARNING${NC}: $description missing (optional): $file"
             WARNINGS=$((WARNINGS + 1))
         fi
-        return 1
     fi
+    # Always return 0 to prevent set -e from exiting script
+    return 0
 }
 
 # Function to check directory exists and has files
@@ -59,7 +59,6 @@ check_directory() {
         local file_count=$(find "$BUILD_DIR/$dir" -name "$pattern" -type f 2>/dev/null | wc -l)
         if [ "$file_count" -gt 0 ]; then
             echo -e "${GREEN}✓${NC} $description: $dir/ ($file_count files)"
-            return 0
         else
             if [ "$is_critical" = "true" ]; then
                 echo -e "${RED}✗ ERROR${NC}: $description has no files: $dir/"
@@ -68,7 +67,6 @@ check_directory() {
                 echo -e "${YELLOW}⚠ WARNING${NC}: $description has no files: $dir/"
                 WARNINGS=$((WARNINGS + 1))
             fi
-            return 1
         fi
     else
         if [ "$is_critical" = "true" ]; then
@@ -78,30 +76,31 @@ check_directory() {
             echo -e "${YELLOW}⚠ WARNING${NC}: $description directory missing: $dir/"
             WARNINGS=$((WARNINGS + 1))
         fi
-        return 1
     fi
+    # Always return 0 to prevent set -e from exiting script
+    return 0
 }
 
 echo "=== Executable ==="
-check_file "tr4qt.exe" "Main executable" true || check_file "tr4qt" "Main executable (Unix)" true
+check_file "tr4qt.exe" "Main executable" true || check_file "tr4qt" "Main executable (Unix)" true || true
 echo ""
 
 echo "=== Qt Core DLLs ==="
-check_file "Qt6Core.dll" "Qt Core" true || true
-check_file "Qt6Gui.dll" "Qt GUI" true || true
-check_file "Qt6Widgets.dll" "Qt Widgets" true || true
-check_file "Qt6Network.dll" "Qt Network" true || true
-check_file "Qt6Sql.dll" "Qt SQL" true || true
+check_file "Qt6Core.dll" "Qt Core" true
+check_file "Qt6Gui.dll" "Qt GUI" true
+check_file "Qt6Widgets.dll" "Qt Widgets" true
+check_file "Qt6Network.dll" "Qt Network" true
+check_file "Qt6Sql.dll" "Qt SQL" true
 echo ""
 
 echo "=== Qt Additional DLLs ==="
-check_file "Qt6HttpServer.dll" "Qt HTTP Server" true || true
-check_file "Qt6WebSockets.dll" "Qt WebSockets" true || true
-check_file "Qt6SerialPort.dll" "Qt Serial Port" true || true
-check_file "Qt6PrintSupport.dll" "Qt Print Support" true || true
-check_file "Qt6Concurrent.dll" "Qt Concurrent" true || true
-check_file "Qt6Svg.dll" "Qt SVG" true || true
-check_file "Qt6Xml.dll" "Qt XML" true || true
+check_file "Qt6HttpServer.dll" "Qt HTTP Server" true
+check_file "Qt6WebSockets.dll" "Qt WebSockets" true
+check_file "Qt6SerialPort.dll" "Qt Serial Port" true
+check_file "Qt6PrintSupport.dll" "Qt Print Support" true
+check_file "Qt6Concurrent.dll" "Qt Concurrent" true
+check_file "Qt6Svg.dll" "Qt SVG" true
+check_file "Qt6Xml.dll" "Qt XML" true
 echo ""
 
 echo "=== Qt Plugins ==="
@@ -114,20 +113,35 @@ echo ""
 
 echo "=== Runtime Libraries ==="
 if [ -f "$BUILD_DIR/Qt6Core.dll" ]; then
-    # Windows checks
-    check_file "libgcc_s_seh-1.dll" "MinGW GCC runtime" true || \
-    check_file "libgcc_s_dw2-1.dll" "MinGW GCC runtime (DW2)" true || \
-    check_file "libgcc_s_sjlj-1.dll" "MinGW GCC runtime (SJLJ)" true || true
+    # Windows checks - try different GCC runtime variants
+    if [ -f "$BUILD_DIR/libgcc_s_seh-1.dll" ]; then
+        check_file "libgcc_s_seh-1.dll" "MinGW GCC runtime (SEH)" true
+    elif [ -f "$BUILD_DIR/libgcc_s_dw2-1.dll" ]; then
+        check_file "libgcc_s_dw2-1.dll" "MinGW GCC runtime (DW2)" true
+    elif [ -f "$BUILD_DIR/libgcc_s_sjlj-1.dll" ]; then
+        check_file "libgcc_s_sjlj-1.dll" "MinGW GCC runtime (SJLJ)" true
+    else
+        echo -e "${RED}✗ ERROR${NC}: No MinGW GCC runtime found"
+        ERRORS=$((ERRORS + 1))
+    fi
 
-    check_file "libstdc++-6.dll" "MinGW C++ runtime" true || true
-    check_file "libwinpthread-1.dll" "MinGW pthread" true || true
+    check_file "libstdc++-6.dll" "MinGW C++ runtime" true
+    check_file "libwinpthread-1.dll" "MinGW pthread" true
 fi
 echo ""
 
 echo "=== Hamlib ==="
-check_file "libhamlib-4.dll" "Hamlib library" true || \
-check_file "libhamlib.4.dylib" "Hamlib library (macOS)" true || \
-check_file "libhamlib.so.4" "Hamlib library (Linux)" true || true
+# Try different platforms
+if [ -f "$BUILD_DIR/libhamlib-4.dll" ]; then
+    check_file "libhamlib-4.dll" "Hamlib library (Windows)" true
+elif [ -f "$BUILD_DIR/libhamlib.4.dylib" ]; then
+    check_file "libhamlib.4.dylib" "Hamlib library (macOS)" true
+elif [ -f "$BUILD_DIR/libhamlib.so.4" ]; then
+    check_file "libhamlib.so.4" "Hamlib library (Linux)" true
+else
+    echo -e "${RED}✗ ERROR${NC}: Hamlib library not found"
+    ERRORS=$((ERRORS + 1))
+fi
 echo ""
 
 echo "======================================"
