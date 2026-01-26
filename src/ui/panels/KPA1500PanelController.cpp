@@ -13,12 +13,13 @@ KPA1500PanelController::KPA1500PanelController() {
 // ========== SVG Resource ==========
 
 QString KPA1500PanelController::getSvgResourcePath() const {
-    return QApplication::applicationDirPath() + "/../../../resources/images/kpa1500_panel.svg";
+    // Use Qt resource system - SVG is embedded in executable
+    return ":/svg/kpa1500_panel.svg";
 }
 
 QString KPA1500PanelController::getSvgFallbackPath() const {
-    // Development fallback path
-    return "/Users/toms/projects/TR4QT/resources/images/kpa1500_panel.svg";
+    // No fallback needed - resource is always available
+    return ":/svg/kpa1500_panel.svg";
 }
 
 // ========== Button Configuration ==========

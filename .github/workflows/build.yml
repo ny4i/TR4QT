@@ -255,6 +255,11 @@ jobs:
         echo "MinGW Runtime:"
         ls -lh "$DEST"/lib*.dll | awk '{print "  " $9, $5}'
 
+        # Run comprehensive deployment verification
+        echo ""
+        echo "=== Running Comprehensive Deployment Verification ==="
+        bash scripts/verify-deployment.sh build/src
+
     - name: Create Installer
       shell: bash
       run: |
