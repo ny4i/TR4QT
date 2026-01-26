@@ -16,6 +16,8 @@ class RadioControlWidget;
 class MultiplierWidget;
 class StatisticsWindow;
 class GraylineMapDialog;
+class AmplifierControlWindow;
+class FunctionKeysWindow;
 
 /**
  * @brief Manages lifecycle and visibility of auxiliary windows
@@ -50,6 +52,8 @@ public:
         NativeMapViewer* statesMapViewer = nullptr;
         NativeMapViewer* worldMapViewer = nullptr;
         GraylineMapDialog* graylineMapDialog = nullptr;
+        AmplifierControlWindow* amplifierControlWindow = nullptr;
+        FunctionKeysWindow* functionKeysWindow = nullptr;
     };
 
     explicit WindowManager(QObject* parent = nullptr);
@@ -66,6 +70,8 @@ public:
     void showWindow(StatisticsWindow* window);
     void showWindow(NativeMapViewer* window);
     void showWindow(GraylineMapDialog* window);
+    void showWindow(AmplifierControlWindow* window);
+    void showWindow(FunctionKeysWindow* window);
 
     // Geometry restoration
     void restoreWindowGeometry(DXClusterWindow* window, const QByteArray& geometry);
@@ -75,6 +81,8 @@ public:
     void restoreWindowGeometry(StatisticsWindow* window, const QByteArray& geometry);
     void restoreWindowGeometry(NativeMapViewer* window, const QByteArray& geometry);
     void restoreWindowGeometry(GraylineMapDialog* window, const QByteArray& geometry);
+    void restoreWindowGeometry(AmplifierControlWindow* window, const QByteArray& geometry);
+    void restoreWindowGeometry(FunctionKeysWindow* window, const QByteArray& geometry);
 
     // Multi-window operations
     void raiseAllWindows();
@@ -87,6 +95,8 @@ public:
     bool isVisible(StatisticsWindow* window) const;
     bool isVisible(NativeMapViewer* window) const;
     bool isVisible(GraylineMapDialog* window) const;
+    bool isVisible(AmplifierControlWindow* window) const;
+    bool isVisible(FunctionKeysWindow* window) const;
 
 signals:
     /**
@@ -107,6 +117,8 @@ private:
     NativeMapViewer* m_statesMapViewer;
     NativeMapViewer* m_worldMapViewer;
     GraylineMapDialog* m_graylineMapDialog;
+    AmplifierControlWindow* m_amplifierControlWindow;
+    FunctionKeysWindow* m_functionKeysWindow;
 
     // Helper to show/raise/activate a window
     template<typename T>
