@@ -21,6 +21,19 @@
 namespace TR4QT {
 
 class ContestBase;
+class StationInfoService;
+
+/**
+ * @brief Result struct for needs display calculation
+ *
+ * Contains the bands where a callsign has been worked and
+ * the bands where its multiplier has been worked.
+ */
+struct NeedsDisplayData {
+    QList<BandType> workedBands;      ///< Bands where callsign was worked
+    QList<BandType> workedMultBands;  ///< Bands where multiplier was worked
+    QString multiplierValue;           ///< Multiplier value for this callsign
+};
 
 /**
  * @brief Service for querying QSO collections
@@ -79,6 +92,25 @@ public:
      * @return Rate in QSOs per hour
      */
     int calculateRate(const QList<QSO>& qsos, int lookbackCount = 10) const;
+
+    /**
+     * @brief Get needs display data for a callsign
+     *
+     * Calculates worked bands and multiplier bands with proper handling
+     * for AllBands multiplier scope (e.g., CQ WPX prefixes).
+     *
+     * @param qsos List of QSOs to search
+     * @param callsign Callsign to look up
+     * @param contest Contest instance for multiplier calculation
+     * @param stationInfoService Service for getting multiplier value
+     * @param vhfBandsEnabled Whether VHF bands are enabled in settings
+     * @return NeedsDisplayData with worked bands and multiplier info
+     */
+    NeedsDisplayData getNeedsDisplayData(const QList<QSO>& qsos,
+                                          const QString& callsign,
+                                          ContestBase* contest,
+                                          StationInfoService* stationInfoService,
+                                          bool vhfBandsEnabled) const;
 };
 
 }  // namespace TR4QT

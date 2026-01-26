@@ -2239,44 +2239,15 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
         return;
     }
 
-    // Get worked bands for this callsign
-    QList<BandType> workedBands = getWorkedBandsForCallsign(callsign);
-
-    // Get multiplier value and worked mult bands
-    QString multValue = getMultiplierValueForCallsign(callsign);
-    QList<BandType> workedMultBands;
-
-    if (!multValue.isEmpty()) {
-        // Get the primary multiplier type and scope
-        QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
-        if (!multDefs.isEmpty()) {
-            MultiplierType primaryMultType = multDefs.first().type;
-            MultiplierScope multScope = multDefs.first().scope;
-
-            workedMultBands = getWorkedBandsForMultiplier(multValue, primaryMultType);
-
-            // For AllBands multipliers (like CQ WPX prefix):
-            // If worked on ANY band, consider it worked on ALL bands
-            // (no mult needs to show)
-            if (multScope == MultiplierScope::AllBands && !workedMultBands.isEmpty()) {
-                // Get all valid bands from the contest
-                QList<BandType> allBands = {
-                    BandType::Band160M, BandType::Band80M, BandType::Band40M,
-                    BandType::Band20M, BandType::Band15M, BandType::Band10M
-                };
-                if (AppSettings::instance().getVHFBandsEnabled()) {
-                    allBands.append(BandType::Band6M);
-                    allBands.append(BandType::Band2M);
-                }
-                // Mark all bands as worked for display purposes
-                workedMultBands = allBands;
-            }
-        }
-    }
+    // Get needs display data (worked bands + multiplier bands with AllBands handling)
+    QList<QSO> qsos = m_qsoTableModel ? m_qsoTableModel->getAllQSOs() : QList<QSO>();
+    bool vhfEnabled = AppSettings::instance().getVHFBandsEnabled();
+    NeedsDisplayData needsData = m_qsoQueryService->getNeedsDisplayData(
+        qsos, callsign, m_activeContest.get(), m_stationInfoService.get(), vhfEnabled);
 
     // Update the needs display widget
     m_needsDisplayWidget->updateForCallsign(
-        callsign, m_activeContest.get(), workedBands, workedMultBands);
+        callsign, m_activeContest.get(), needsData.workedBands, needsData.workedMultBands);
 
     // Update SCP matches display (2-column grid format)
     // Shows SCP matches that are in the log, with duplicate highlighting
