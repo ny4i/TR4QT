@@ -150,6 +150,8 @@ jobs:
         cp "$QT_BIN/Qt6PrintSupport.dll" "$DEST/"
         cp "$QT_BIN/Qt6Concurrent.dll" "$DEST/"
         cp "$QT_BIN/Qt6SerialPort.dll" "$DEST/"
+        cp "$QT_BIN/Qt6Svg.dll" "$DEST/"
+        cp "$QT_BIN/Qt6Xml.dll" "$DEST/"
 
         # Copy Qt plugins
         echo "Copying Qt plugins..."
