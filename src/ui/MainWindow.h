@@ -8,6 +8,7 @@
 #include <QTableView>
 #include <QTimer>
 #include <QDateTime>
+#include <memory>  // For std::unique_ptr
 #include "../radio/RadioController.h"
 #include "../radio/HamRadioPrivileges.h"
 #include "../utils/AppSettings.h"
@@ -345,7 +346,7 @@ private:
     bool m_radioFlashState;          // Current flash state (on/off)
 
     // Frequency/mode privilege validation (US only)
-    HamRadioPrivileges* m_hamPrivileges;
+    std::unique_ptr<HamRadioPrivileges> m_hamPrivileges;
 
     // Menus
     QAction* m_connectAction;
@@ -395,48 +396,48 @@ private:
     // Contest information
     ContestInfo m_currentContest;
     bool m_hasActiveContest;
-    ContestBase* m_activeContest;
+    std::unique_ptr<ContestBase> m_activeContest;  // Owned by MainWindow
     int m_currentContestDbId;  // Database primary key for current contest
     int m_nextSerialNumber;
 
     // QSO Logger (handles QSO validation, scoring, duplicate checking)
-    QSOLogger* m_qsoLogger;
+    std::unique_ptr<QSOLogger> m_qsoLogger;
 
     // QSO Logging Services (Phase 4 & 5 extraction)
-    QSOPersistenceService* m_persistenceService;
-    ExchangeMemoryService* m_exchangeMemoryService;
-    QSOLoggingCoordinator* m_loggingCoordinator;
-    QSOLoggingService* m_loggingService;
+    std::unique_ptr<QSOPersistenceService> m_persistenceService;
+    std::unique_ptr<ExchangeMemoryService> m_exchangeMemoryService;
+    std::unique_ptr<QSOLoggingCoordinator> m_loggingCoordinator;
+    std::unique_ptr<QSOLoggingService> m_loggingService;
 
     // Station Info Service (Phase 7 extraction)
-    StationInfoService* m_stationInfoService;
+    std::unique_ptr<StationInfoService> m_stationInfoService;
 
     // Score Calculation Service (Phase 11 extraction)
-    ScoreCalculationService* m_scoreCalculationService;
+    std::unique_ptr<ScoreCalculationService> m_scoreCalculationService;
 
     // QSO Query Service (Phase 13 extraction)
-    QSOQueryService* m_qsoQueryService;
+    std::unique_ptr<QSOQueryService> m_qsoQueryService;
 
     // Data Integrity Manager (handles integrity checks and rescoring)
-    DataIntegrityManager* m_integrityManager;
+    std::unique_ptr<DataIntegrityManager> m_integrityManager;
 
     // Contest Manager (handles contest activation and configuration)
-    ContestManager* m_contestManager;
+    std::unique_ptr<ContestManager> m_contestManager;
 
     // Contest Service (handles contest-level operations like exchange updates)
-    ContestService* m_contestService;
+    std::unique_ptr<ContestService> m_contestService;
 
     // UI Managers
-    MenuManager* m_menuManager;
-    SettingsManager* m_settingsManager;
-    WindowManager* m_windowManager;
+    MenuManager* m_menuManager;                          // Qt parent-managed
+    std::unique_ptr<SettingsManager> m_settingsManager;  // No Qt parent, owned
+    WindowManager* m_windowManager;                      // Qt parent-managed
 
     // Controllers
-    ImportExportManager* m_importExportManager;
-    DownloadManager* m_downloadManager;
-    RadioManager* m_radioManager;
-    BandSwitchingManager* m_bandSwitchingManager;
-    CWMessageManager* m_cwMessageManager;
+    ImportExportManager* m_importExportManager;          // Qt parent-managed
+    DownloadManager* m_downloadManager;                  // Qt parent-managed
+    RadioManager* m_radioManager;                        // Qt parent-managed
+    BandSwitchingManager* m_bandSwitchingManager;        // Qt parent-managed
+    std::unique_ptr<CWMessageManager> m_cwMessageManager;  // No Qt parent, owned
 
     // Hardware control services
     AmplifierService* m_amplifierService;
@@ -451,7 +452,7 @@ private:
     int m_latestCTYVersion;  // Latest CTY version from update check
 
     // Super Check Partial matcher
-    SCPMatcher* m_scpMatcher;
+    std::unique_ptr<SCPMatcher> m_scpMatcher;
 
     // UDP Broadcast manager
     UdpBroadcastManager* m_udpBroadcastManager;

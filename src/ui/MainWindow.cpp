@@ -140,7 +140,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_amplifierService(nullptr)
     , m_rotatorService(nullptr)
     , m_qsoTableModel(new QSOTableModel(this))
-    , m_scpMatcher(new SCPMatcher())
+    , m_scpMatcher(std::make_unique<SCPMatcher>())
     , m_countryFileDownloader(new CountryFileDownloader(this))
     , m_latestCTYVersion(0)
     , m_udpBroadcastManager(new UdpBroadcastManager(this))
@@ -163,11 +163,11 @@ MainWindow::MainWindow(QWidget* parent)
     }
 
     // Create StationInfoService (Phase 7 extraction) - needs CountryFile
-    m_stationInfoService = new StationInfoService(&m_countryFile);
+    m_stationInfoService = std::make_unique<StationInfoService>(&m_countryFile);
     LOG_DEBUG("MainWindow", "StationInfoService created");
 
     // Create ScoreCalculationService (Phase 11 extraction)
-    m_scoreCalculationService = new ScoreCalculationService();
+    m_scoreCalculationService = std::make_unique<ScoreCalculationService>();
     LOG_DEBUG("MainWindow", "ScoreCalculationService created");
 
     // Create MaintenanceService (clear log, backup workflows)
@@ -175,13 +175,13 @@ MainWindow::MainWindow(QWidget* parent)
     LOG_DEBUG("MainWindow", "MaintenanceService created");
 
     // Create QSOQueryService (Phase 13 extraction)
-    m_qsoQueryService = new QSOQueryService();
+    m_qsoQueryService = std::make_unique<QSOQueryService>();
     LOG_DEBUG("MainWindow", "QSOQueryService created");
 
     // Create ContestManager with country file
     ContestManager::Config contestManagerConfig;
     contestManagerConfig.countryFile = &m_countryFile;
-    m_contestManager = new ContestManager(contestManagerConfig);
+    m_contestManager = std::make_unique<ContestManager>(contestManagerConfig);
     LOG_DEBUG("MainWindow", "ContestManager created");
 
     // Create MenuManager (will be used in setupUI -> createMenuBar)
@@ -197,9 +197,9 @@ MainWindow::MainWindow(QWidget* parent)
     m_radioManager = new RadioManager(this);
     m_radio = m_radioManager->radioController();  // Get RadioController from RadioManager
     m_bandSwitchingManager = new BandSwitchingManager(this);
-    m_cwMessageManager = new CWMessageManager({m_radio, nullptr});  // Contest set later
+    m_cwMessageManager = std::make_unique<CWMessageManager>(CWMessageManager::Config{m_radio, nullptr});  // Contest set later
     m_windowManager = new WindowManager(this);
-    m_settingsManager = new SettingsManager();
+    m_settingsManager = std::make_unique<SettingsManager>();
     LOG_DEBUG("MainWindow", "Controllers and UI managers created");
 
     // Initialize hardware control services (amplifier and rotator)
@@ -212,7 +212,7 @@ MainWindow::MainWindow(QWidget* parent)
     QString licenseClassStr = AppSettings::instance().getLicenseClass();
     HamRadioPrivileges::LicenseClass licenseClass =
         HamRadioPrivileges::stringToLicenseClass(licenseClassStr);
-    m_hamPrivileges = new HamRadioPrivileges(licenseClass);
+    m_hamPrivileges = std::make_unique<HamRadioPrivileges>(licenseClass);
 
     // Initialize backup manager from settings
     loadBackupSettings();
@@ -224,7 +224,7 @@ MainWindow::MainWindow(QWidget* parent)
     ImportExportManager::Config importExportConfig;
     importExportConfig.countryFile = &m_countryFile;
     importExportConfig.qsoTableModel = m_qsoTableModel;
-    importExportConfig.activeContest = m_activeContest;
+    importExportConfig.activeContest = m_activeContest.get();
     importExportConfig.currentContestDbId = m_currentContestDbId;
     importExportConfig.currentContestName = m_currentContest.contestName;
     importExportConfig.hasActiveContest = m_hasActiveContest;
@@ -372,20 +372,8 @@ MainWindow::~MainWindow() {
     // Settings are already saved in closeEvent()
     // Don't save here as windows will be closed and visibility will be wrong
 
-    // Clean up active contest
-    if (m_activeContest) {
-        delete m_activeContest;
-        m_activeContest = nullptr;
-    }
-
-    // Clean up logging services
-    delete m_loggingService;
-    delete m_loggingCoordinator;
-    delete m_persistenceService;
-    delete m_exchangeMemoryService;
-    delete m_qsoLogger;
-    delete m_integrityManager;
-    delete m_contestService;
+    // unique_ptr members (m_activeContest, m_loggingService, m_qsoLogger, etc.)
+    // are automatically cleaned up by their destructors - no manual delete needed
 }
 
 void MainWindow::triggerCountryFileDownload() {
@@ -1732,8 +1720,7 @@ void MainWindow::onPreferences() {
         QString licenseClassStr = settings.getLicenseClass();
         HamRadioPrivileges::LicenseClass licenseClass =
             HamRadioPrivileges::stringToLicenseClass(licenseClassStr);
-        delete m_hamPrivileges;
-        m_hamPrivileges = new HamRadioPrivileges(licenseClass);
+        m_hamPrivileges = std::make_unique<HamRadioPrivileges>(licenseClass);
         LOG_DEBUG("MainWindow", QString("License class updated to: %1").arg(licenseClassStr));
 
         // Check if radio settings actually changed
@@ -2289,7 +2276,7 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
 
     // Update the needs display widget
     m_needsDisplayWidget->updateForCallsign(
-        callsign, m_activeContest, workedBands, workedMultBands);
+        callsign, m_activeContest.get(), workedBands, workedMultBands);
 
     // Update SCP matches display (2-column grid format)
     // Shows SCP matches that are in the log, with duplicate highlighting
@@ -2526,7 +2513,7 @@ void MainWindow::onEditQSO(const QModelIndex& index) {
     }
 
     // Open edit dialog with contest for validation
-    EditQSODialog dialog(qso, m_activeContest, this);
+    EditQSODialog dialog(qso, m_activeContest.get(), this);
     if (dialog.exec() == QDialog::Accepted) {
         QSO editedQSO = dialog.getEditedQSO();
 
@@ -2576,7 +2563,7 @@ void MainWindow::updateScoreDisplay() {
     QList<QSO> qsos = m_qsoTableModel->getAllQSOs();
 
     // Delegate calculation to ScoreCalculationService (Phase 11 extraction)
-    ScoreResult result = m_scoreCalculationService->calculateScore(qsos, m_activeContest);
+    ScoreResult result = m_scoreCalculationService->calculateScore(qsos, m_activeContest.get());
 
     // Update band summary grid with calculated values
     QList<BandType> bands = ScoreCalculationService::getStandardBands();
@@ -2643,7 +2630,7 @@ void MainWindow::recalculateAllPoints() {
     QList<QSO> qsos = m_qsoTableModel->getAllQSOs();
 
     // Delegate rescoring to DataIntegrityManager (no business logic loops in UI!)
-    RescoreStats stats = m_integrityManager->rescoreContestSilent(qsos, m_activeContest, myStation);
+    RescoreStats stats = m_integrityManager->rescoreContestSilent(qsos, m_activeContest.get(), myStation);
 
     // Update table model with rescored QSOs
     for (int row = 0; row < qsos.size(); ++row) {
@@ -2760,7 +2747,7 @@ RescoreStats MainWindow::rescoreContestSilent() {
     QList<QSO> qsos = m_qsoTableModel->getAllQSOs();
 
     // Delegate to DataIntegrityManager for rescoring
-    stats = m_integrityManager->rescoreContestSilent(qsos, m_activeContest, myStation);
+    stats = m_integrityManager->rescoreContestSilent(qsos, m_activeContest.get(), myStation);
 
     // Update table model with rescored QSOs
     for (int row = 0; row < qsos.size(); ++row) {
@@ -3312,7 +3299,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
     }
 
     // Step 3: Update MainWindow state from activation result
-    m_activeContest = result.contest;
+    m_activeContest.reset(result.contest);  // Take ownership of contest created by ContestRegistry
     m_currentContestDbId = result.contestDbId;
     m_nextSerialNumber = result.nextSerialNumber;
     m_currentContest = contestInfo;
@@ -3378,10 +3365,9 @@ void MainWindow::resetContestState() {
     m_hasActiveContest = false;
     m_currentContestDbId = -1;
 
-    // Clean up previous contest
+    // Clean up previous contest (unique_ptr handles deletion automatically)
     if (m_activeContest) {
-        delete m_activeContest;
-        m_activeContest = nullptr;
+        m_activeContest.reset();  // Release and destroy the contest
 
         if (m_dxClusterWindow) {
             m_dxClusterWindow->setActiveContest(nullptr, -1);
@@ -3390,76 +3376,55 @@ void MainWindow::resetContestState() {
 }
 
 void MainWindow::createContestServices(const ActivateContestResult& result) {
-    // Create QSOLogger
-    if (m_qsoLogger) {
-        delete m_qsoLogger;
-    }
+    // Create QSOLogger (unique_ptr handles cleanup of previous instance)
     QSOLogger::Config loggerConfig;
-    loggerConfig.contest = m_activeContest;
+    loggerConfig.contest = m_activeContest.get();
     loggerConfig.countryFile = &m_countryFile;
     loggerConfig.myStation = result.myStation;
     loggerConfig.operatorName = result.operatorName;  // For {NAME} substitution
-    m_qsoLogger = new QSOLogger(loggerConfig);
+    m_qsoLogger = std::make_unique<QSOLogger>(loggerConfig);
     LOG_DEBUG("MainWindow", "QSOLogger created for contest");
 
     // Create DataIntegrityManager
-    if (m_integrityManager) {
-        delete m_integrityManager;
-    }
     DataIntegrityManager::Config integrityConfig;
     integrityConfig.countryFile = &m_countryFile;
     integrityConfig.currentContestDbId = m_currentContestDbId;
-    m_integrityManager = new DataIntegrityManager(integrityConfig);
+    m_integrityManager = std::make_unique<DataIntegrityManager>(integrityConfig);
     LOG_DEBUG("MainWindow", "DataIntegrityManager created for contest");
 
     // Create ContestService
-    if (m_contestService) {
-        delete m_contestService;
-    }
     ContestService::Config contestServiceConfig;
-    contestServiceConfig.activeContest = m_activeContest;
+    contestServiceConfig.activeContest = m_activeContest.get();
     contestServiceConfig.qsoTableModel = m_qsoTableModel;
     contestServiceConfig.currentContestDbId = m_currentContestDbId;
-    m_contestService = new ContestService(contestServiceConfig);
+    m_contestService = std::make_unique<ContestService>(contestServiceConfig);
     LOG_DEBUG("MainWindow", "ContestService created for contest");
 
     // Create QSOLoggingCoordinator (orchestrates post-logging actions)
-    if (m_loggingCoordinator) {
-        delete m_loggingCoordinator;
-    }
-    m_loggingCoordinator = new QSOLoggingCoordinator(
+    m_loggingCoordinator = std::make_unique<QSOLoggingCoordinator>(
         m_udpBroadcastManager,
         &BackupManager::instance(),
-        m_integrityManager
+        m_integrityManager.get()
     );
     LOG_DEBUG("MainWindow", "QSOLoggingCoordinator created for contest");
 
     // Create QSOPersistenceService
-    if (m_persistenceService) {
-        delete m_persistenceService;
-    }
     QSOPersistenceService::Config persistenceConfig;
     persistenceConfig.appDataDir = PathManager::getAppDataDir();
-    m_persistenceService = new QSOPersistenceService(persistenceConfig);
+    m_persistenceService = std::make_unique<QSOPersistenceService>(persistenceConfig);
     LOG_DEBUG("MainWindow", "QSOPersistenceService created for contest");
 
     // Create ExchangeMemoryService
-    if (m_exchangeMemoryService) {
-        delete m_exchangeMemoryService;
-    }
-    m_exchangeMemoryService = new ExchangeMemoryService();
+    m_exchangeMemoryService = std::make_unique<ExchangeMemoryService>();
     LOG_DEBUG("MainWindow", "ExchangeMemoryService created for contest");
 
     // Create QSOLoggingService (orchestrates complete logging workflow)
-    if (m_loggingService) {
-        delete m_loggingService;
-    }
     QSOLoggingService::Dependencies loggingDeps;
-    loggingDeps.qsoLogger = m_qsoLogger;
-    loggingDeps.persistenceService = m_persistenceService;
-    loggingDeps.exchangeMemoryService = m_exchangeMemoryService;
-    loggingDeps.coordinator = m_loggingCoordinator;
-    m_loggingService = new QSOLoggingService(loggingDeps);
+    loggingDeps.qsoLogger = m_qsoLogger.get();
+    loggingDeps.persistenceService = m_persistenceService.get();
+    loggingDeps.exchangeMemoryService = m_exchangeMemoryService.get();
+    loggingDeps.coordinator = m_loggingCoordinator.get();
+    m_loggingService = std::make_unique<QSOLoggingService>(loggingDeps);
     LOG_DEBUG("MainWindow", "QSOLoggingService created for contest");
 
     // Update ImportExportManager (if it exists - may not during startup)
@@ -3467,7 +3432,7 @@ void MainWindow::createContestServices(const ActivateContestResult& result) {
         ImportExportManager::Config importExportConfig;
         importExportConfig.countryFile = &m_countryFile;
         importExportConfig.qsoTableModel = m_qsoTableModel;
-        importExportConfig.activeContest = m_activeContest;
+        importExportConfig.activeContest = m_activeContest.get();
         importExportConfig.currentContestDbId = m_currentContestDbId;
         importExportConfig.currentContestName = m_currentContest.contestName;
         importExportConfig.hasActiveContest = m_hasActiveContest;
@@ -3483,7 +3448,7 @@ void MainWindow::createContestServices(const ActivateContestResult& result) {
 void MainWindow::configureUIForContest(const ActivateContestResult& result) {
     // Update DX Cluster window
     if (m_dxClusterWindow) {
-        m_dxClusterWindow->setActiveContest(m_activeContest, m_currentContestDbId);
+        m_dxClusterWindow->setActiveContest(m_activeContest.get(), m_currentContestDbId);
     }
 
     // Update web server
@@ -3596,7 +3561,7 @@ void MainWindow::autoPopulateExchange(const QString& callsign) {
     // Use InitialExchangeManager for sophisticated exchange prediction
     QString prediction = InitialExchangeManager::instance().predictExchange(
         callsign,
-        m_activeContest,
+        m_activeContest.get(),
         m_currentState.modeA
     );
 
@@ -3638,12 +3603,12 @@ QList<BandType> MainWindow::getWorkedBandsForCallsign(const QString& callsign) c
 QList<BandType> MainWindow::getWorkedBandsForMultiplier(const QString& multValue,
                                                         MultiplierType type) const {
     QList<QSO> qsos = m_qsoTableModel->getAllQSOs();
-    return m_qsoQueryService->getWorkedBandsForMultiplier(qsos, multValue, type, m_activeContest);
+    return m_qsoQueryService->getWorkedBandsForMultiplier(qsos, multValue, type, m_activeContest.get());
 }
 
 QString MainWindow::getMultiplierValueForCallsign(const QString& callsign) const {
     // Delegate to StationInfoService (Phase 7 extraction)
-    return m_stationInfoService->getMultiplierValueForCallsign(callsign, m_activeContest);
+    return m_stationInfoService->getMultiplierValueForCallsign(callsign, m_activeContest.get());
 }
 
 // Window menu slot implementations
@@ -3659,7 +3624,7 @@ void MainWindow::onShowDXCluster() {
 
         // Pass active contest if one is loaded
         if (m_hasActiveContest && m_activeContest) {
-            m_dxClusterWindow->setActiveContest(m_activeContest, m_currentContestDbId);
+            m_dxClusterWindow->setActiveContest(m_activeContest.get(), m_currentContestDbId);
         }
 
         // Connect spot signal to forward spots to band map
@@ -4001,7 +3966,7 @@ void MainWindow::onSendMorse() {
 }
 
 void MainWindow::onEditCWMessages() {
-    CWMessageEditorDialog dialog(m_radio, m_activeContest, this);
+    CWMessageEditorDialog dialog(m_radio, m_activeContest.get(), this);
     dialog.exec();
     LOG_DEBUG("MainWindow", "CW Messages Editor closed");
 }
@@ -4266,10 +4231,9 @@ void MainWindow::onDownloadSCP(bool headless) {
     SCPDownloadResult result = m_downloadManager->downloadSCP(headless);
     
     if (result.success) {
-        // Reload SCP matcher with new data
-        delete m_scpMatcher;
-        m_scpMatcher = new SCPMatcher();
-        
+        // Reload SCP matcher with new data (unique_ptr handles cleanup)
+        m_scpMatcher = std::make_unique<SCPMatcher>();
+
         m_statusLabel->setText(result.statusMessage);
         LOG_INFO("MainWindow", result.statusMessage);
     } else {
@@ -4389,7 +4353,7 @@ void MainWindow::onBandUp() {
     }
 
     BandType currentBand = m_currentState.bandA;
-    BandType nextBand = m_bandSwitchingManager->getNextBand(currentBand, m_activeContest);
+    BandType nextBand = m_bandSwitchingManager->getNextBand(currentBand, m_activeContest.get());
 
     if (nextBand != currentBand) {
         LOG_DEBUG("MainWindow", QString("Band up: %1 -> %2")
@@ -4408,7 +4372,7 @@ void MainWindow::onBandDown() {
     }
 
     BandType currentBand = m_currentState.bandA;
-    BandType prevBand = m_bandSwitchingManager->getPreviousBand(currentBand, m_activeContest);
+    BandType prevBand = m_bandSwitchingManager->getPreviousBand(currentBand, m_activeContest.get());
 
     if (prevBand != currentBand) {
         LOG_DEBUG("MainWindow", QString("Band down: %1 -> %2")
