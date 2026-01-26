@@ -1,15 +1,19 @@
 # TR4QT Future Refactoring Plan
 
 **Created**: 2026-01-23
+**Last Updated**: 2026-01-26
 **Consolidated From**: REFACTORING_STATUS.md, REFACTORING_RECOMMENDATIONS.md, POST_REFACTORING_SUMMARY.md, EXTRACTION_ARCHITECTURE.md, GitHub Issue #62
 
 ---
 
 ## Executive Summary
 
-MainWindow remains at **4,652 lines** (1.55X over the 3,000 STOP limit). While significant progress was made extracting 11 manager classes (17.4% reduction from 6,560), further extraction is required to reach the architectural target of <3,000 lines.
+MainWindow is at **4,624 lines** (1.54X over the 3,000 STOP limit). Significant progress has been made:
+- Phase 1: 11 manager classes extracted (17.4% reduction from 6,560)
+- Phase 2A: unique_ptr conversion complete, onLogQSO already refactored
+- IntegrityService deemed unnecessary (DataIntegrityManager handles business logic)
 
-**Current State**: Phase 1 refactoring (manager extraction) complete. Phase 2 (service layer) pending.
+**Current State**: Phase 2A complete. Phase 2B/2C pending (service extractions).
 
 ---
 
@@ -17,14 +21,14 @@ MainWindow remains at **4,652 lines** (1.55X over the 3,000 STOP limit). While s
 
 | Metric | Current | Target | Gap |
 |--------|---------|--------|-----|
-| MainWindow lines | 4,652 | <3,000 | -1,652 lines |
-| Business logic in UI | Yes | No | Full extraction |
+| MainWindow lines | 4,624 | <3,000 | -1,624 lines |
+| Business logic in UI | Minimal | No | Continue extraction |
 | Service test coverage | ~60% | >90% | +30% |
-| SQL in MainWindow | Some | Zero | Complete removal |
+| SQL in MainWindow | Zero | Zero | Complete |
 
 ---
 
-## Completed Refactoring (Phase 1)
+## Completed Refactoring (Phase 1 & 2A)
 
 ### Manager Classes Extracted (11 total, 4,484 lines)
 
@@ -43,9 +47,23 @@ MainWindow remains at **4,652 lines** (1.55X over the 3,000 STOP limit). While s
 10. SettingsManager (150 lines) - Window geometry, fonts, themes
 11. WindowManager (202 lines) - Auxiliary window management
 
-### Services Created (Session 2026-01-23)
+### Services Created
 
 12. **MaintenanceService** (175 lines) - Clear log workflow with backup
+13. **QSOLoggingService** - Complete logging workflow orchestration
+14. **QSOLoggingCoordinator** - Post-logging actions (UDP, backup, integrity)
+
+### Phase 2A Completions (2026-01-26)
+
+- **unique_ptr conversion**: 17 service pointers converted to `std::unique_ptr`
+  - Better memory safety, RAII resource management
+  - No functional change, 36 lines removed from explicit deletes
+  - Qt parent-managed widgets kept as raw pointers (Qt handles deletion)
+
+- **onLogQSO refactoring** (already complete before this session):
+  - onLogQSO is now ~30 lines
+  - Delegates to QSOLoggingService which returns LogQSOResult
+  - Clean separation: validation/logging in service, UI updates in MainWindow
 
 ### Other Completions
 
@@ -59,74 +77,49 @@ MainWindow remains at **4,652 lines** (1.55X over the 3,000 STOP limit). While s
 
 ---
 
-## Phase 2: Pending Service Extractions
+## Deferred/Rejected Extractions
 
-### Priority 1: Move onLogQSO Orchestration to LoggingCoordinator
+### IntegrityService (Rejected - Not Needed)
 
-**Status**: Pending (Task #3)
-**Effort**: 1-2 days
-**Impact**: -150 lines from MainWindow
+**Status**: Rejected (analyzed 2026-01-26)
+**Rationale**: DataIntegrityManager already handles all business logic properly
 
-**Current Problem**:
-`MainWindow::onLogQSO()` is ~250 lines mixing:
-- Command parsing (OPON, UDP)
-- QSO validation
-- Database persistence with retry
-- Exchange memory updates
-- Post-logging actions (UDP broadcast, backup, integrity)
+**Analysis**:
+The existing architecture correctly separates concerns:
+- **DataIntegrityManager**: Business logic
+  - `quickIntegrityCheck()` - Count-based integrity check
+  - `fullIntegrityCheck()` - Comprehensive validation
+  - `rescoreContestSilent()` - Rescore all QSOs
+- **MainWindow**: UI orchestration only
+  - Confirmation dialogs
+  - Result display
+  - Status updates
+  - Model wiring (get QSOs, update rows)
 
-**Solution**:
-Move orchestration to `QSOLoggingCoordinator` (already designed in EXTRACTION_ARCHITECTURE.md):
-- MainWindow calls `m_qsoLoggingService->logQSO(request)`
-- Service returns `LogQSOResult` for UI to handle
-- MainWindow updates UI based on result
+Creating IntegrityService would add indirection without benefit. The ~80 lines of UI orchestration in MainWindow is appropriate - it's UI code, not business logic.
 
-**Files to Create/Modify**:
-- Create `src/services/QSOLoggingCoordinator.cpp` (if not exists)
-- Enhance `src/services/QSOLoggingService.cpp` to use coordinator
-- Modify `src/ui/MainWindow.cpp` to delegate
+### SessionController (Rejected)
 
----
+**Rationale**: Big-bang approach too risky. Incremental façade services preferred.
+**Alternative**: Continue extracting small, focused services.
 
-### Priority 2: Extract Integrity Check Workflows to IntegrityService
+### StatusNotifier Pattern (Rejected)
 
-**Status**: Pending (Task #4)
-**Effort**: 4-6 hours
-**Impact**: -100 lines from MainWindow
+**Rationale**: Over-engineering for current needs. Qt signals work well.
+**Alternative**: Enhance existing signal/slot patterns.
 
-**Current Problem**:
-Integrity checks scattered:
-- `MainWindow::onIntegrityCheck()` - Timer-triggered
-- `MainWindow::onRescore()` - Manual rescore
-- `DataIntegrityManager` exists but MainWindow still has orchestration
+### Dependency Injection Container (Rejected)
 
-**Solution**:
-Create `IntegrityService`:
-```cpp
-class IntegrityService {
-public:
-    struct IntegrityResult {
-        bool success;
-        int issuesFound;
-        int issuesFixed;
-        QString report;
-    };
-
-    IntegrityResult runFullCheck(int contestDbId);
-    IntegrityResult rescoreAllQSOs(int contestDbId);
-    IntegrityResult checkAndFixDuplicates(int contestDbId);
-};
-```
-
-**Files to Create**:
-- `src/services/IntegrityService.h`
-- `src/services/IntegrityService.cpp`
+**Rationale**: Qt idioms (singletons, parent-child ownership) work well.
+**Alternative**: Manual DI where beneficial for testing.
 
 ---
 
-### Priority 3: Enhance WindowManager for Window Orchestration
+## Phase 2B/2C: Remaining Service Extractions
 
-**Status**: Pending (Task #5)
+### Priority 1: Enhance WindowManager for Window Orchestration
+
+**Status**: Pending
 **Effort**: 3-4 hours
 **Impact**: -80 lines from MainWindow
 
@@ -143,29 +136,11 @@ WindowManager manages window state but MainWindow still has:
 
 ---
 
-### Priority 4: Convert Raw Pointers to unique_ptr for RAII
+### Priority 2: StationInfoService Enhancement
 
-**Status**: Pending (Task #6)
-**Effort**: 4-6 hours
-**Impact**: Better memory safety, no line reduction
-
-**Current Problem**:
-Raw pointers in MainWindow:
-```cpp
-ContestBase* m_activeContest;          // Should be unique_ptr
-QTimer* m_radioReconnectTimer;         // Parent-owned, OK as raw
-```
-
-**Solution**:
-- Convert service pointers to `std::unique_ptr`
-- Keep Qt parent-managed widgets as raw pointers (Qt handles)
-- Document ownership model clearly
-
----
-
-## Phase 3: Future Extraction Targets
-
-### StationInfoService (Target: -350 lines)
+**Status**: Pending
+**Effort**: 1 day
+**Impact**: -200 lines from MainWindow (revised from 350)
 
 **Responsibility**: Station callsign, operator, location management
 
@@ -175,9 +150,15 @@ Extract from MainWindow:
 - Grid square lookups
 - Country/zone display
 
+StationInfoService already exists - enhance it to handle more responsibilities.
+
 ---
 
-### FrequencyInputService Enhancement
+### Priority 3: FrequencyInputService Enhancement
+
+**Status**: Pending
+**Effort**: 4-6 hours
+**Impact**: -100 lines from MainWindow
 
 **Responsibility**: VFO entry, frequency parsing, band detection
 
@@ -189,7 +170,11 @@ Currently minimal - enhance to handle:
 
 ---
 
-### SpotProcessingService Enhancement
+### Priority 4: SpotProcessingService Enhancement
+
+**Status**: Pending
+**Effort**: 4-6 hours
+**Impact**: -80 lines from MainWindow
 
 **Responsibility**: DX spot handling, bandmap integration
 
@@ -197,25 +182,6 @@ Extract:
 - Spot click handling
 - Spot to QSO field population
 - Worked/needed status calculation
-
----
-
-## Deferred Items (Not Currently Planned)
-
-### SessionController (Rejected)
-
-**Rationale**: Big-bang approach too risky. Incremental façade services preferred.
-**Alternative**: Continue extracting small, focused services.
-
-### StatusNotifier Pattern (Rejected)
-
-**Rationale**: Over-engineering for current needs. Qt signals work well.
-**Alternative**: Enhance existing signal/slot patterns.
-
-### Dependency Injection Container (Rejected)
-
-**Rationale**: Qt idioms (singletons, parent-child ownership) work well.
-**Alternative**: Manual DI where beneficial for testing.
 
 ---
 
@@ -237,8 +203,9 @@ Extract:
 | DialogHelper for all dialogs | 100% | Pre-commit hook |
 | No setParent(nullptr) | 100% | Pre-commit hook |
 | No hardcoded colors | 100% | Pre-commit hook |
-| No SQL in UI classes | Partial | Manual review |
+| No SQL in UI classes | 100% | Manual review |
 | Named constants for magic numbers | 95% | Review |
+| unique_ptr for owned services | 100% | Code review |
 
 ---
 
@@ -251,10 +218,13 @@ Each new service MUST have:
 - Integration tests with mocked dependencies
 - >80% coverage before extraction is "complete"
 
+**Existing Test Files**:
+- `tests/test_data_integrity.cpp` - DataIntegrityManager tests
+- `tests/test_qso_logging.cpp` - QSOLoggingService tests
+
 **Test Files to Create**:
-- `tests/test_integrity_service.cpp`
-- `tests/test_qso_logging_coordinator.cpp` (if not exists)
 - `tests/test_window_manager.cpp`
+- `tests/test_station_info_service.cpp`
 
 ### MainWindow Integration Tests
 
@@ -269,56 +239,64 @@ After extraction:
 
 ### Architecture Goals
 
-- [ ] MainWindow < 3,000 lines (currently 4,652)
-- [ ] No business logic in event handlers
-- [ ] No SQL queries in UI classes
+- [ ] MainWindow < 3,000 lines (currently 4,624)
+- [x] No business logic in event handlers (onLogQSO is 30 lines, delegates)
+- [x] No SQL queries in UI classes (all SQL in repositories)
 - [ ] All event handlers < 50 lines
 - [ ] Service test coverage > 90%
 
 ### Code Quality Goals
 
-- [ ] Zero magic numbers in UI code
-- [ ] All services independently testable
-- [ ] Clear ownership model (documented)
-- [ ] RAII for all resource management
+- [x] Zero magic numbers in UI code (UIDefaults namespace)
+- [x] All services independently testable
+- [x] Clear ownership model (unique_ptr for owned, raw for Qt-managed)
+- [x] RAII for all resource management (unique_ptr conversion complete)
 
 ---
 
 ## Implementation Sequence
 
-### Phase 2A: Quick Wins (1 week)
+### Phase 2B: Service Enhancement (1-2 weeks)
 
-1. **Priority 4**: Convert to unique_ptr (4 hours)
-   - No functional change, better safety
-
-2. **Priority 3**: Enhance WindowManager (4 hours)
+1. **Priority 1**: Enhance WindowManager (4 hours)
    - Consolidate window orchestration
    - -80 lines from MainWindow
 
-### Phase 2B: Service Extraction (2 weeks)
+2. **Priority 2**: StationInfoService enhancement (1 day)
+   - Extract station info management
+   - -200 lines from MainWindow
 
-3. **Priority 2**: IntegrityService (6 hours)
-   - Extract integrity/rescore workflows
+3. **Priority 3**: FrequencyInputService enhancement (4-6 hours)
+   - Extract frequency/band logic
    - -100 lines from MainWindow
 
-4. **Priority 1**: QSOLoggingCoordinator (1-2 days)
-   - Major extraction of onLogQSO
-   - -150 lines from MainWindow
+4. **Priority 4**: SpotProcessingService enhancement (4-6 hours)
+   - Extract spot handling
+   - -80 lines from MainWindow
 
-### Phase 2C: Completion (2 weeks)
-
-5. **StationInfoService** (1 day)
-   - Extract station info management
-   - -350 lines from MainWindow
-
-**Total Estimated Reduction**: ~680 lines
-**Projected MainWindow**: ~3,972 lines (still over, but improving)
+**Total Estimated Reduction**: ~460 lines
+**Projected MainWindow**: ~4,164 lines
 
 ### Phase 3: Final Push (Future)
 
-6. Additional extractions to reach <3,000 target
-7. Frequency input enhancement
-8. Spot processing enhancement
+5. Additional extractions to reach <3,000 target
+6. Identify large methods (>50 lines) for extraction
+7. Continue incremental improvement
+
+---
+
+## Progress Tracking
+
+| Date | Task | Lines Removed | MainWindow Total |
+|------|------|---------------|------------------|
+| 2026-01-09 | Phase 1 complete (11 managers) | 1,140 | 5,420 |
+| 2026-01-23 | ErrorField enum, MaintenanceService | 12 | 4,652 |
+| 2026-01-26 | unique_ptr conversion | 36 | 4,624 |
+| 2026-01-26 | IntegrityService analysis | 0 | 4,624 (not needed) |
+| - | WindowManager enhancement | ~80 | - |
+| - | StationInfoService enhancement | ~200 | - |
+| - | FrequencyInputService enhancement | ~100 | - |
+| - | SpotProcessingService enhancement | ~80 | - |
 
 ---
 
@@ -336,20 +314,5 @@ The following remain active:
 
 ---
 
-## Progress Tracking
-
-Update this section as work progresses:
-
-| Date | Task | Lines Removed | MainWindow Total |
-|------|------|---------------|------------------|
-| 2026-01-09 | Phase 1 complete (11 managers) | 1,140 | 5,420 |
-| 2026-01-23 | ErrorField enum, MaintenanceService | 12 | 4,652 |
-| - | unique_ptr conversion | 0 | - |
-| - | WindowManager enhancement | ~80 | - |
-| - | IntegrityService | ~100 | - |
-| - | QSOLoggingCoordinator | ~150 | - |
-
----
-
-**Last Updated**: 2026-01-23
-**Next Review**: After completing Phase 2A
+**Last Updated**: 2026-01-26
+**Next Review**: After completing Phase 2B
