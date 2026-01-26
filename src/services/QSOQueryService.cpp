@@ -5,6 +5,7 @@
  */
 
 #include "QSOQueryService.h"
+#include "StationInfoService.h"
 #include "../contests/ContestBase.h"
 
 namespace TR4QT {
@@ -90,6 +91,57 @@ int QSOQueryService::calculateRate(const QList<QSO>& qsos, int lookbackCount) co
     }
 
     return 0;
+}
+
+NeedsDisplayData QSOQueryService::getNeedsDisplayData(const QList<QSO>& qsos,
+                                                       const QString& callsign,
+                                                       ContestBase* contest,
+                                                       StationInfoService* stationInfoService,
+                                                       bool vhfBandsEnabled) const {
+    NeedsDisplayData result;
+
+    if (!contest || callsign.isEmpty()) {
+        return result;
+    }
+
+    // Get worked bands for this callsign
+    result.workedBands = getWorkedBandsForCallsign(qsos, callsign);
+
+    // Get multiplier value for this callsign
+    result.multiplierValue = stationInfoService->getMultiplierValueForCallsign(callsign, contest);
+
+    if (result.multiplierValue.isEmpty()) {
+        return result;
+    }
+
+    // Get the primary multiplier type and scope
+    QList<MultiplierDefinition> multDefs = contest->getMultiplierTypes();
+    if (multDefs.isEmpty()) {
+        return result;
+    }
+
+    MultiplierType primaryMultType = multDefs.first().type;
+    MultiplierScope multScope = multDefs.first().scope;
+
+    result.workedMultBands = getWorkedBandsForMultiplier(qsos, result.multiplierValue,
+                                                          primaryMultType, contest);
+
+    // For AllBands multipliers (like CQ WPX prefix):
+    // If worked on ANY band, consider it worked on ALL bands (no mult needs to show)
+    if (multScope == MultiplierScope::AllBands && !result.workedMultBands.isEmpty()) {
+        QList<BandType> allBands = {
+            BandType::Band160M, BandType::Band80M, BandType::Band40M,
+            BandType::Band20M, BandType::Band15M, BandType::Band10M
+        };
+        if (vhfBandsEnabled) {
+            allBands.append(BandType::Band6M);
+            allBands.append(BandType::Band2M);
+        }
+        // Mark all bands as worked for display purposes
+        result.workedMultBands = allBands;
+    }
+
+    return result;
 }
 
 }  // namespace TR4QT
