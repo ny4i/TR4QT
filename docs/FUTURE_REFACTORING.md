@@ -21,7 +21,7 @@ MainWindow is at **4,624 lines** (1.54X over the 3,000 STOP limit). Significant 
 
 | Metric | Current | Target | Gap |
 |--------|---------|--------|-----|
-| MainWindow lines | 4,624 | <3,000 | -1,624 lines |
+| MainWindow lines | 4,674 | <3,000 | -1,674 lines |
 | Business logic in UI | Minimal | No | Continue extraction |
 | Service test coverage | ~60% | >90% | +30% |
 | SQL in MainWindow | Zero | Zero | Complete |
@@ -258,9 +258,10 @@ After extraction:
 
 ### Phase 2B: Service Enhancement (1-2 weeks)
 
-1. **Priority 1**: Enhance WindowManager (4 hours)
-   - Consolidate window orchestration
-   - -80 lines from MainWindow
+1. **Priority 1**: Enhance WindowManager (4 hours) ✓ **COMPLETE**
+   - Added AmplifierControlWindow and FunctionKeysWindow support
+   - Made all 11 onShow* methods consistently use WindowManager
+   - Focus: consistency over line reduction (+50 lines for delegation pattern)
 
 2. **Priority 2**: StationInfoService enhancement (1 day)
    - Extract station info management
@@ -293,7 +294,7 @@ After extraction:
 | 2026-01-23 | ErrorField enum, MaintenanceService | 12 | 4,652 |
 | 2026-01-26 | unique_ptr conversion | 36 | 4,624 |
 | 2026-01-26 | IntegrityService analysis | 0 | 4,624 (not needed) |
-| - | WindowManager enhancement | ~80 | - |
+| 2026-01-26 | WindowManager enhancement | +50 | 4,674 (consistency focus) |
 | - | StationInfoService enhancement | ~200 | - |
 | - | FrequencyInputService enhancement | ~100 | - |
 | - | SpotProcessingService enhancement | ~80 | - |
