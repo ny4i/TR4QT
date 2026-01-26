@@ -2,6 +2,7 @@
 #include <QSignalSpy>
 #include <QSettings>
 #include "../src/utils/ThemeManager.h"
+#include "../src/core/Constants.h"  // For APP_ORG, APP_NAME
 
 using namespace TR4QT;
 
@@ -76,7 +77,8 @@ void TestThemeManager::cleanup() {
 }
 
 void TestThemeManager::clearSettings() {
-    QSettings settings;
+    // Use explicit APP_ORG/APP_NAME to match ThemeManager's QSettings
+    QSettings settings(APP_ORG, APP_NAME);
     settings.beginGroup("Theme");
     settings.remove("");  // Remove all keys in Theme group
     settings.endGroup();
@@ -305,7 +307,8 @@ void TestThemeManager::testSaveLoad_PreservesCustomColors() {
 
 void TestThemeManager::testLoad_InvalidTheme_FallsBackToDefault() {
     // Manually write invalid theme to settings
-    QSettings settings;
+    // Use explicit APP_ORG/APP_NAME to match ThemeManager's QSettings
+    QSettings settings(APP_ORG, APP_NAME);
     settings.setValue("Theme/currentTheme", "InvalidTheme");
 
     ThemeManager& theme = ThemeManager::instance();
