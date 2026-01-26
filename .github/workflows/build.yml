@@ -45,6 +45,14 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
+    - name: Validate Qt Module Consistency
+      shell: bash
+      run: |
+        echo "=== Validating Qt Module Consistency ==="
+        echo "This checks that all Qt modules in CMakeLists.txt are deployed and verified."
+        echo ""
+        bash scripts/validate-qt-modules.sh
+
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
@@ -382,6 +390,13 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+
+    - name: Validate Qt Module Consistency
+      run: |
+        echo "=== Validating Qt Module Consistency ==="
+        echo "This checks that all Qt modules in CMakeLists.txt are deployed and verified."
+        echo ""
+        bash scripts/validate-qt-modules.sh
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
