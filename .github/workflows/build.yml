@@ -45,6 +45,14 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
+    - name: Validate tr4qt.rc Version Syntax
+      shell: bash
+      run: |
+        echo "=== Validating tr4qt.rc Version Syntax ==="
+        echo "This prevents the 'dots instead of commas' error that broke CI builds."
+        echo ""
+        bash scripts/validate-rc-version.sh
+
     - name: Validate Qt Module Consistency
       shell: bash
       run: |
