@@ -3710,14 +3710,9 @@ void MainWindow::onShowBandMap() {
         m_bandMapWindow->setCurrentBand(m_currentState.bandA);
     }
 
-    // Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->showWindow(m_bandMapWindow);
-    } else {
-        m_bandMapWindow->show();
-        m_bandMapWindow->raise();
-        m_bandMapWindow->activateWindow();
-    }
+    m_bandMapWindow->show();
+    m_bandMapWindow->raise();
+    m_bandMapWindow->activateWindow();
     updateWindowMenuCheckmarks();
 }
 
@@ -3793,14 +3788,9 @@ void MainWindow::onShowRadioControl() {
             m_radioControlWindow->updateRadioState(m_currentState);
         }
     }
-    // Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->showWindow(m_radioControlWindow);
-    } else {
-        m_radioControlWindow->show();
-        m_radioControlWindow->raise();
-        m_radioControlWindow->activateWindow();
-    }
+    m_radioControlWindow->show();
+    m_radioControlWindow->raise();
+    m_radioControlWindow->activateWindow();
     m_radioControlWindowVisible = true;  // Track visibility for reliable shutdown save
     updateWindowMenuCheckmarks();
 
@@ -3819,14 +3809,9 @@ void MainWindow::onShowMultipliers() {
         m_multiplierWindow->setWindowFlags(Qt::Window);
         m_multiplierWindow->setAttribute(Qt::WA_DeleteOnClose, false);
     }
-    // Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->showWindow(m_multiplierWindow);
-    } else {
-        m_multiplierWindow->show();
-        m_multiplierWindow->raise();
-        m_multiplierWindow->activateWindow();
-    }
+    m_multiplierWindow->show();
+    m_multiplierWindow->raise();
+    m_multiplierWindow->activateWindow();
     updateWindowMenuCheckmarks();
 }
 
@@ -3837,14 +3822,9 @@ void MainWindow::onShowStatistics() {
         m_statisticsWindow->setWindowFlags(Qt::Window);
         m_statisticsWindow->setAttribute(Qt::WA_DeleteOnClose, false);
     }
-    // Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->showWindow(m_statisticsWindow);
-    } else {
-        m_statisticsWindow->show();
-        m_statisticsWindow->raise();
-        m_statisticsWindow->activateWindow();
-    }
+    m_statisticsWindow->show();
+    m_statisticsWindow->raise();
+    m_statisticsWindow->activateWindow();
     updateWindowMenuCheckmarks();
 }
 
@@ -3856,14 +3836,9 @@ void MainWindow::onShowSectionsMap() {
         m_sectionsMapViewer->setWindowFlags(Qt::Window);
         m_sectionsMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
     }
-    // Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->showWindow(m_sectionsMapViewer);
-    } else {
-        m_sectionsMapViewer->show();
-        m_sectionsMapViewer->raise();
-        m_sectionsMapViewer->activateWindow();
-    }
+    m_sectionsMapViewer->show();
+    m_sectionsMapViewer->raise();
+    m_sectionsMapViewer->activateWindow();
     updateWindowMenuCheckmarks();
 }
 
@@ -3875,14 +3850,9 @@ void MainWindow::onShowStatesMap() {
         m_statesMapViewer->setWindowFlags(Qt::Window);
         m_statesMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
     }
-    // Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->showWindow(m_statesMapViewer);
-    } else {
-        m_statesMapViewer->show();
-        m_statesMapViewer->raise();
-        m_statesMapViewer->activateWindow();
-    }
+    m_statesMapViewer->show();
+    m_statesMapViewer->raise();
+    m_statesMapViewer->activateWindow();
     updateWindowMenuCheckmarks();
 }
 
@@ -3894,14 +3864,9 @@ void MainWindow::onShowWorldMap() {
         m_worldMapViewer->setWindowFlags(Qt::Window);
         m_worldMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
     }
-    // Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->showWindow(m_worldMapViewer);
-    } else {
-        m_worldMapViewer->show();
-        m_worldMapViewer->raise();
-        m_worldMapViewer->activateWindow();
-    }
+    m_worldMapViewer->show();
+    m_worldMapViewer->raise();
+    m_worldMapViewer->activateWindow();
     updateWindowMenuCheckmarks();
 }
 
@@ -3912,14 +3877,9 @@ void MainWindow::onShowGraylineMap() {
         m_graylineMapDialog->setWindowFlags(Qt::Window);
         m_graylineMapDialog->setAttribute(Qt::WA_DeleteOnClose, false);
     }
-    // Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->showWindow(m_graylineMapDialog);
-    } else {
-        m_graylineMapDialog->show();
-        m_graylineMapDialog->raise();
-        m_graylineMapDialog->activateWindow();
-    }
+    m_graylineMapDialog->show();
+    m_graylineMapDialog->raise();
+    m_graylineMapDialog->activateWindow();
     updateWindowMenuCheckmarks();
 }
 
@@ -3954,14 +3914,9 @@ void MainWindow::onShowAmplifierControl() {
         });
     }
 
-    // Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->showWindow(m_amplifierControlWindow);
-    } else {
-        m_amplifierControlWindow->show();
-        m_amplifierControlWindow->raise();
-        m_amplifierControlWindow->activateWindow();
-    }
+    m_amplifierControlWindow->show();
+    m_amplifierControlWindow->raise();
+    m_amplifierControlWindow->activateWindow();
     m_amplifierControlWindowVisible = true;  // Track visibility for reliable shutdown save
     // Visibility will be saved in MainWindow::saveSettings() on exit
     updateWindowMenuCheckmarks();
@@ -4073,14 +4028,9 @@ void MainWindow::onShowFunctionKeysRef() {
         m_functionKeysWindow->setAttribute(Qt::WA_DeleteOnClose, false);
     }
 
-    // Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->showWindow(m_functionKeysWindow);
-    } else {
-        m_functionKeysWindow->show();
-        m_functionKeysWindow->raise();
-        m_functionKeysWindow->activateWindow();
-    }
+    m_functionKeysWindow->show();
+    m_functionKeysWindow->raise();
+    m_functionKeysWindow->activateWindow();
 }
 
 void MainWindow::onBackupLog() {
