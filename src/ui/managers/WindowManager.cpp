@@ -6,8 +6,6 @@
 #include "../widgets/StatisticsWindow.h"
 #include "../NativeMapViewer.h"
 #include "../dialogs/GraylineMapDialog.h"
-#include "../dialogs/FunctionKeysWindow.h"
-#include "../windows/AmplifierControlWindow.h"
 #include <QTimer>
 #include <QWidget>
 
@@ -24,8 +22,6 @@ WindowManager::WindowManager(QObject* parent)
     , m_statesMapViewer(nullptr)
     , m_worldMapViewer(nullptr)
     , m_graylineMapDialog(nullptr)
-    , m_amplifierControlWindow(nullptr)
-    , m_functionKeysWindow(nullptr)
     , m_inRaiseAllWindows(false)
 {
 }
@@ -40,8 +36,6 @@ void WindowManager::setWindows(const Config& config) {
     m_statesMapViewer = config.statesMapViewer;
     m_worldMapViewer = config.worldMapViewer;
     m_graylineMapDialog = config.graylineMapDialog;
-    m_amplifierControlWindow = config.amplifierControlWindow;
-    m_functionKeysWindow = config.functionKeysWindow;
 }
 
 // Template helper for show/raise/activate pattern
@@ -81,14 +75,6 @@ void WindowManager::showWindow(NativeMapViewer* window) {
 }
 
 void WindowManager::showWindow(GraylineMapDialog* window) {
-    showAndRaise(window);
-}
-
-void WindowManager::showWindow(AmplifierControlWindow* window) {
-    showAndRaise(window);
-}
-
-void WindowManager::showWindow(FunctionKeysWindow* window) {
     showAndRaise(window);
 }
 
@@ -135,18 +121,6 @@ void WindowManager::restoreWindowGeometry(GraylineMapDialog* window, const QByte
     }
 }
 
-void WindowManager::restoreWindowGeometry(AmplifierControlWindow* window, const QByteArray& geometry) {
-    if (window && !geometry.isEmpty()) {
-        window->restoreGeometry(geometry);
-    }
-}
-
-void WindowManager::restoreWindowGeometry(FunctionKeysWindow* window, const QByteArray& geometry) {
-    if (window && !geometry.isEmpty()) {
-        window->restoreGeometry(geometry);
-    }
-}
-
 // Visibility queries
 bool WindowManager::isVisible(DXClusterWindow* window) const {
     return window && window->isVisible();
@@ -173,14 +147,6 @@ bool WindowManager::isVisible(NativeMapViewer* window) const {
 }
 
 bool WindowManager::isVisible(GraylineMapDialog* window) const {
-    return window && window->isVisible();
-}
-
-bool WindowManager::isVisible(AmplifierControlWindow* window) const {
-    return window && window->isVisible();
-}
-
-bool WindowManager::isVisible(FunctionKeysWindow* window) const {
     return window && window->isVisible();
 }
 
@@ -229,14 +195,6 @@ void WindowManager::raiseAllWindows() {
 
     if (m_graylineMapDialog && m_graylineMapDialog->isVisible()) {
         m_graylineMapDialog->raise();
-    }
-
-    if (m_amplifierControlWindow && m_amplifierControlWindow->isVisible()) {
-        m_amplifierControlWindow->raise();
-    }
-
-    if (m_functionKeysWindow && m_functionKeysWindow->isVisible()) {
-        m_functionKeysWindow->raise();
     }
 
     // Use a timer to reset the flag after queued events are processed
