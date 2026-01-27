@@ -205,6 +205,30 @@ MainWindow::MainWindow(QWidget* parent)
     // Initialize hardware control services (amplifier and rotator)
     initializeHardwareServices();
 
+    // Initialize input handler service (keyboard handling for CW, mode switching)
+    InputHandlerService::Config inputConfig;
+    inputConfig.radio = m_radio;
+    inputConfig.currentState = &m_currentState;
+    inputConfig.radioConnected = &m_radioConnected;
+    m_inputHandler = new InputHandlerService(inputConfig, this);
+
+    // Connect InputHandlerService signals to MainWindow slots
+    connect(m_inputHandler, &InputHandlerService::switchToSPMode,
+            this, &MainWindow::onSPMode);
+    connect(m_inputHandler, &InputHandlerService::switchToCQMode,
+            this, &MainWindow::onCQMode);
+    connect(m_inputHandler, &InputHandlerService::sendFunctionKey,
+            this, &MainWindow::handleFunctionKey);
+    connect(m_inputHandler, &InputHandlerService::clearCallsign,
+            m_callsignEntry, &QLineEdit::clear);
+    connect(m_inputHandler, &InputHandlerService::clearExchange,
+            m_exchangeEntry, &QLineEdit::clear);
+    connect(m_inputHandler, &InputHandlerService::focusCallsign,
+            m_callsignEntry, qOverload<>(&QLineEdit::setFocus));
+    connect(m_inputHandler, &InputHandlerService::statusMessage,
+            this, [this](const QString& msg) { m_statusLabel->setText(msg); });
+    LOG_DEBUG("MainWindow", "InputHandlerService created and connected");
+
     loadSettings();
     loadUdpBroadcastSettings();
 
@@ -1356,158 +1380,40 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
     }
 #endif
 
-    // Intercept PgUp/PgDn globally for CW speed control
+    // Delegate keyboard events to InputHandlerService
     if (event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
 
-        // PgUp: Increase CW speed
-        if (keyEvent->key() == Qt::Key_PageUp) {
-            // Only allow CW speed change in CW mode with radio connected
-            bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
-            if (!isCWMode || !m_radioConnected || !m_radio) {
-                m_statusLabel->setText("CW speed adjust requires CW mode and radio connection");
-                return true;  // Event handled, don't propagate
-            }
+        // Build context for input handler
+        InputHandlerService::KeyContext context;
+        context.focusWidget = QApplication::focusWidget();
+        context.callsignEntry = m_callsignEntry;
+        context.exchangeEntry = m_exchangeEntry;
+        context.callsignEmpty = m_callsignEntry->text().isEmpty();
+        context.inSPMode = (m_operatingMode == OperatingMode::SP);
+        context.lastCWMessage = m_lastCWMessage;
 
-            int increment = AppSettings::instance().getMorseWPMIncrement();
-            int currentWpm = m_currentState.cwSpeed;  // Read from radio's actual speed
-            const int MAX_WPM = 100;  // K4 maximum
-            int newWpm = qMin(currentWpm + increment, MAX_WPM);
-
-            // Send to radio - display will update when radio responds via stateUpdated
-            m_radio->setCWSpeed(newWpm);
-
-            m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
-            LOG_DEBUG("MainWindow", QString("WPM increased to %1 (PgUp - eventFilter)").arg(newWpm));
-            return true;  // Event handled, don't propagate
-        }
-
-        // PgDown: Decrease CW speed
-        if (keyEvent->key() == Qt::Key_PageDown) {
-            // Only allow CW speed change in CW mode with radio connected
-            bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
-            if (!isCWMode || !m_radioConnected || !m_radio) {
-                m_statusLabel->setText("CW speed adjust requires CW mode and radio connection");
-                return true;  // Event handled, don't propagate
-            }
-
-            int increment = AppSettings::instance().getMorseWPMIncrement();
-            int currentWpm = m_currentState.cwSpeed;  // Read from radio's actual speed
-            const int MIN_WPM = 8;  // K4 minimum
-            int newWpm = qMax(currentWpm - increment, MIN_WPM);
-
-            // Send to radio - display will update when radio responds via stateUpdated
-            m_radio->setCWSpeed(newWpm);
-
-            m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
-            LOG_DEBUG("MainWindow", QString("WPM decreased to %1 (PgDn - eventFilter)").arg(newWpm));
-            return true;  // Event handled, don't propagate
-        }
-
-        // Tab key in callsign field: Switch to S&P mode
-        if (keyEvent->key() == Qt::Key_Tab && obj == m_callsignEntry) {
-            onSPMode();
-            LOG_DEBUG("MainWindow", "Tab pressed in callsign field - switched to S&P mode");
-            return true;  // Event handled, don't tab to next field
-        }
-
-        // ESC key handling for callsign and exchange fields
-        if (keyEvent->key() == Qt::Key_Escape) {
-            // ALWAYS stop CW transmission first, regardless of where focus is
-            if (m_radioConnected && m_radio) {
-                m_radio->stopCW();
-                m_statusLabel->setText("CW transmission aborted");
-                LOG_DEBUG("MainWindow", "CW transmission aborted via ESC key");
-            }
-
-            // ESC in callsign field: clear if not empty, or switch to CQ if empty & in S&P
-            if (obj == m_callsignEntry) {
-                if (!m_callsignEntry->text().isEmpty()) {
-                    // First ESC: Clear callsign (stay in current mode)
-                    m_callsignEntry->clear();
-                    LOG_DEBUG("MainWindow", "ESC pressed in callsign field - cleared");
-                } else if (m_operatingMode == OperatingMode::SP) {
-                    // Second ESC (empty field in S&P mode): Return to CQ mode
-                    onCQMode();
-                    LOG_DEBUG("MainWindow", "ESC pressed in empty callsign field (S&P mode) - switched to CQ mode");
-                }
-                return true;  // Event handled
-            }
-
-            // ESC in exchange field: clear exchange and return focus to callsign
-            if (obj == m_exchangeEntry) {
-                m_exchangeEntry->clear();
-                m_callsignEntry->setFocus();
-                LOG_DEBUG("MainWindow", "ESC pressed in exchange field - cleared and returned to callsign");
-                return true;  // Event handled
-            }
-        }
-
-        // F1-F12 keys: TR4W-style CW messages (with optional Ctrl/Alt modifiers)
-        if (keyEvent->key() >= Qt::Key_F1 && keyEvent->key() <= Qt::Key_F12) {
-            int fKey = keyEvent->key() - Qt::Key_F1 + 1;  // Convert to 1-12
-
-            Qt::KeyboardModifiers mods = keyEvent->modifiers();
-            bool ctrlPressed = mods & Qt::ControlModifier;
-            bool altPressed = mods & Qt::AltModifier;
-
-            handleFunctionKey(fKey, ctrlPressed, altPressed);
-            return true;  // Event handled
-        }
-
-        // = key: Repeat last CW message
-        if (keyEvent->key() == Qt::Key_Equal) {
-            if (!m_radioConnected || !m_radio) {
-                LOG_WARN("MainWindow", "Cannot send CW: radio not connected");
-                m_statusLabel->setText("CW requires radio connection");
-                return true;
-            }
-
-            bool isCWMode = (m_currentState.modeA == ModeType::CW ||
-                             m_currentState.modeA == ModeType::CWR);
-            if (!isCWMode) {
-                LOG_WARN("MainWindow", "Cannot send CW: not in CW mode");
-                m_statusLabel->setText("CW requires CW mode");
-                return true;
-            }
-
-            if (m_lastCWMessage.isEmpty()) {
-                LOG_INFO("MainWindow", "= key pressed but no previous CW message to repeat");
-                m_statusLabel->setText("No previous CW message to repeat");
-                return true;
-            }
-
-            // Resend the last message
-            int wpm = AppSettings::instance().getMorseWPM();
-            m_radio->setCWSpeed(wpm);
-            m_radio->sendCW(m_lastCWMessage);
-
-            m_statusLabel->setText(QString("Repeating CW: %1").arg(m_lastCWMessage));
-            LOG_INFO("MainWindow", QString("Repeated CW: %1 (via = key)").arg(m_lastCWMessage));
-            return true;  // Event handled
+        if (m_inputHandler->handleKeyPress(keyEvent, context)) {
+            return true;
         }
     }
 
     // Clear callsign warning when exchange field gets focus
-    // This prevents status bar message stacking (callsign warning hiding exchange errors)
     if (event->type() == QEvent::FocusIn && obj == m_exchangeEntry) {
-        statusBar()->clearMessage();  // Clear callsign validation warning
-        return false;  // Let the event propagate normally
+        statusBar()->clearMessage();
+        return false;
     }
 
     // Catch WindowActivate events on any of our windows
     if (event->type() == QEvent::WindowActivate) {
-        // Check if the activated window belongs to our application
         QWidget* widget = qobject_cast<QWidget*>(obj);
         if (widget && widget->isWindow()) {
             // Only raise windows when one of the CHILD windows is activated
-            // Don't do it when MainWindow itself is activated (to avoid stealing focus)
             if (widget == m_dxClusterWindow ||
                 widget == m_bandMapWindow ||
                 widget == m_radioControlWindow ||
                 widget == m_multiplierWindow ||
                 widget == m_statisticsWindow) {
-                // Raise all windows to bring them all to front
                 raiseAllWindows();
             }
         }
@@ -1516,14 +1422,12 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
     // Radio Control window show/hide: Toggle detailed rig info (S-meter, temperature)
     if (obj == m_radioControlWindow) {
         if (event->type() == QEvent::Show) {
-            // Window shown - enable detailed rig info
             if (m_radio && m_radioConnected) {
                 if (K4Radio* k4 = qobject_cast<K4Radio*>(m_radio)) {
                     k4->setDetailedRigInfoEnabled(true);
                 }
             }
         } else if (event->type() == QEvent::Hide) {
-            // Window hidden - disable detailed rig info to reduce polling
             if (m_radio && m_radioConnected) {
                 if (K4Radio* k4 = qobject_cast<K4Radio*>(m_radio)) {
                     k4->setDetailedRigInfoEnabled(false);
@@ -1532,7 +1436,6 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
         }
     }
 
-    // Pass event to base class
     return QMainWindow::eventFilter(obj, event);
 }
 
