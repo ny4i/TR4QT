@@ -49,6 +49,18 @@ public:
     );
 
     /**
+     * Show an information dialog with expandable detailed text
+     * Logs the message and detailed text
+     */
+    static void informationWithDetails(
+        QWidget* parent,
+        const QString& title,
+        const QString& text,
+        const QString& detailedText,
+        const QString& styleSheet = QString()
+    );
+
+    /**
      * Show a warning dialog (OK or custom buttons)
      * Logs the message and user's response
      */

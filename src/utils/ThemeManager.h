@@ -45,6 +45,21 @@ enum class ColorRole {
     HoverHighlight,             // Hover effect (default: #e0e0e0)
     BorderColor,                // Widget borders (default: #ccc)
 
+    // Validation State Colors
+    ValidationValidBorder,      // Valid input border (default: green #00aa00)
+    ValidationValidBackground,  // Valid input background (default: light green #f0fff0)
+    ValidationWarningBorder,    // Warning input border (default: orange #ffaa00)
+    ValidationWarningBackground,// Warning input background (default: light yellow #fffef0)
+    ValidationErrorBorder,      // Error input border (default: red #ff0000)
+    ValidationErrorBackground,  // Error input background (default: light red #fff0f0)
+
+    // Status and Highlight Colors
+    WarningText,                // Warning status text (default: orange #ff6600)
+    SCPMatchText,               // Super Check Partial matches (default: blue #0066cc)
+    StatusFlashBackground,      // Disconnected status flash background (default: red #ff0000)
+    StatusFlashText,            // Disconnected status flash text (default: white #ffffff)
+    StatusFlashBorder,          // Disconnected status flash border (default: dark red #aa0000)
+
     // Map Colors (QSO count gradient)
     MapBackground,              // Map background (default: light blue #E8F4F8)
     MapNotWorked,               // 0 QSOs (default: gray #CCCCCC)
