@@ -94,6 +94,21 @@ QString ThemeManager::colorRoleName(ColorRole role) {
         case ColorRole::HoverHighlight: return "Hover Highlight";
         case ColorRole::BorderColor: return "Border Color";
 
+        // Validation State Colors
+        case ColorRole::ValidationValidBorder: return "Validation Valid Border";
+        case ColorRole::ValidationValidBackground: return "Validation Valid Background";
+        case ColorRole::ValidationWarningBorder: return "Validation Warning Border";
+        case ColorRole::ValidationWarningBackground: return "Validation Warning Background";
+        case ColorRole::ValidationErrorBorder: return "Validation Error Border";
+        case ColorRole::ValidationErrorBackground: return "Validation Error Background";
+
+        // Status and Highlight Colors
+        case ColorRole::WarningText: return "Warning Text";
+        case ColorRole::SCPMatchText: return "SCP Match Text";
+        case ColorRole::StatusFlashBackground: return "Status Flash Background";
+        case ColorRole::StatusFlashText: return "Status Flash Text";
+        case ColorRole::StatusFlashBorder: return "Status Flash Border";
+
         default: return "Unknown";
     }
 }
@@ -198,6 +213,21 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::HoverHighlight] = QColor("#e0e0e0");
             colors[ColorRole::BorderColor] = QColor("#cccccc");
 
+            // Validation State Colors
+            colors[ColorRole::ValidationValidBorder] = QColor("#00aa00");  // Green
+            colors[ColorRole::ValidationValidBackground] = QColor("#f0fff0");  // Light green
+            colors[ColorRole::ValidationWarningBorder] = QColor("#ffaa00");  // Orange
+            colors[ColorRole::ValidationWarningBackground] = QColor("#fffef0");  // Light yellow
+            colors[ColorRole::ValidationErrorBorder] = QColor("#ff0000");  // Red
+            colors[ColorRole::ValidationErrorBackground] = QColor("#fff0f0");  // Light red
+
+            // Status and Highlight Colors
+            colors[ColorRole::WarningText] = QColor("#ff6600");  // Orange
+            colors[ColorRole::SCPMatchText] = QColor("#0066cc");  // Blue
+            colors[ColorRole::StatusFlashBackground] = QColor("#ff0000");  // Red
+            colors[ColorRole::StatusFlashText] = QColor("#ffffff");  // White
+            colors[ColorRole::StatusFlashBorder] = QColor("#aa0000");  // Dark red
+
             // Map Colors
             colors[ColorRole::MapBackground] = QColor("#E8F4F8");  // Theme default: light blue
             colors[ColorRole::MapNotWorked] = QColor("#CCCCCC");  // Theme default: gray
@@ -246,6 +276,21 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::HoverHighlight] = QColor("#3c3c3c");  // Lighter dark gray
             colors[ColorRole::BorderColor] = QColor("#555555");  // Medium gray
 
+            // Validation State Colors (darker for dark mode)
+            colors[ColorRole::ValidationValidBorder] = QColor("#00cc00");  // Brighter green
+            colors[ColorRole::ValidationValidBackground] = QColor("#1a3d1a");  // Dark green
+            colors[ColorRole::ValidationWarningBorder] = QColor("#ffbb33");  // Brighter orange
+            colors[ColorRole::ValidationWarningBackground] = QColor("#3d3d1a");  // Dark yellow
+            colors[ColorRole::ValidationErrorBorder] = QColor("#ff4444");  // Brighter red
+            colors[ColorRole::ValidationErrorBackground] = QColor("#3d1a1a");  // Dark red
+
+            // Status and Highlight Colors
+            colors[ColorRole::WarningText] = QColor("#ff8833");  // Brighter orange for dark bg
+            colors[ColorRole::SCPMatchText] = QColor("#6699ff");  // Brighter blue for dark bg
+            colors[ColorRole::StatusFlashBackground] = QColor("#cc0000");  // Slightly darker red
+            colors[ColorRole::StatusFlashText] = QColor("#ffffff");  // White
+            colors[ColorRole::StatusFlashBorder] = QColor("#880000");  // Darker red
+
             // Map Colors (darker palette for dark mode)
             colors[ColorRole::MapBackground] = QColor("#1a2530");  // Theme default: dark blue-gray
             colors[ColorRole::MapNotWorked] = QColor("#555555");  // Theme default: dark gray
@@ -293,6 +338,21 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::SecondaryText] = QColor("#404040");  // Dark gray
             colors[ColorRole::HoverHighlight] = QColor("#d0d0d0");  // Light gray
             colors[ColorRole::BorderColor] = QColor(Qt::black);
+
+            // Validation State Colors (high contrast)
+            colors[ColorRole::ValidationValidBorder] = QColor("#00FF00");  // Bright green
+            colors[ColorRole::ValidationValidBackground] = QColor("#ccffcc");  // Very light green
+            colors[ColorRole::ValidationWarningBorder] = QColor("#FF8800");  // Bright orange
+            colors[ColorRole::ValidationWarningBackground] = QColor("#ffffcc");  // Very light yellow
+            colors[ColorRole::ValidationErrorBorder] = QColor("#FF0000");  // Bright red
+            colors[ColorRole::ValidationErrorBackground] = QColor("#ffcccc");  // Very light red
+
+            // Status and Highlight Colors
+            colors[ColorRole::WarningText] = QColor("#FF6600");  // Bright orange
+            colors[ColorRole::SCPMatchText] = QColor("#0000FF");  // Bright blue
+            colors[ColorRole::StatusFlashBackground] = QColor("#FF0000");  // Bright red
+            colors[ColorRole::StatusFlashText] = QColor("#FFFFFF");  // White
+            colors[ColorRole::StatusFlashBorder] = QColor("#880000");  // Dark red
 
             // Map Colors (high contrast palette)
             colors[ColorRole::MapBackground] = QColor("#FFFFFF");  // Theme default: white
@@ -350,6 +410,17 @@ QString ThemeManager::colorRoleToString(ColorRole role) {
         case ColorRole::SecondaryText: return "SecondaryText";
         case ColorRole::HoverHighlight: return "HoverHighlight";
         case ColorRole::BorderColor: return "BorderColor";
+        case ColorRole::ValidationValidBorder: return "ValidationValidBorder";
+        case ColorRole::ValidationValidBackground: return "ValidationValidBackground";
+        case ColorRole::ValidationWarningBorder: return "ValidationWarningBorder";
+        case ColorRole::ValidationWarningBackground: return "ValidationWarningBackground";
+        case ColorRole::ValidationErrorBorder: return "ValidationErrorBorder";
+        case ColorRole::ValidationErrorBackground: return "ValidationErrorBackground";
+        case ColorRole::WarningText: return "WarningText";
+        case ColorRole::SCPMatchText: return "SCPMatchText";
+        case ColorRole::StatusFlashBackground: return "StatusFlashBackground";
+        case ColorRole::StatusFlashText: return "StatusFlashText";
+        case ColorRole::StatusFlashBorder: return "StatusFlashBorder";
         default: return "Unknown";
     }
 }
@@ -379,6 +450,17 @@ ColorRole ThemeManager::stringToColorRole(const QString& str, bool* ok) {
     if (str == "SecondaryText") return ColorRole::SecondaryText;
     if (str == "HoverHighlight") return ColorRole::HoverHighlight;
     if (str == "BorderColor") return ColorRole::BorderColor;
+    if (str == "ValidationValidBorder") return ColorRole::ValidationValidBorder;
+    if (str == "ValidationValidBackground") return ColorRole::ValidationValidBackground;
+    if (str == "ValidationWarningBorder") return ColorRole::ValidationWarningBorder;
+    if (str == "ValidationWarningBackground") return ColorRole::ValidationWarningBackground;
+    if (str == "ValidationErrorBorder") return ColorRole::ValidationErrorBorder;
+    if (str == "ValidationErrorBackground") return ColorRole::ValidationErrorBackground;
+    if (str == "WarningText") return ColorRole::WarningText;
+    if (str == "SCPMatchText") return ColorRole::SCPMatchText;
+    if (str == "StatusFlashBackground") return ColorRole::StatusFlashBackground;
+    if (str == "StatusFlashText") return ColorRole::StatusFlashText;
+    if (str == "StatusFlashBorder") return ColorRole::StatusFlashBorder;
 
     if (ok) *ok = false;
     return ColorRole::PrimaryText; // Default fallback

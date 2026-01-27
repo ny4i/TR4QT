@@ -302,8 +302,8 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_countryFileDownloader, &CountryFileDownloader::updateAvailable,
             this, &MainWindow::onCTYUpdateAvailable);
 
-    // Check for CTY.DAT updates 2 seconds after startup (async, non-blocking)
-    QTimer::singleShot(2000, this, [this]() {
+    // Check for CTY.DAT updates after startup (async, non-blocking)
+    QTimer::singleShot(UITiming::DEFERRED_ACTION_DELAY_MS, this, [this]() {
         LOG_DEBUG("MainWindow", "Checking for CTY.DAT updates...");
         m_countryFileDownloader->checkLatestVersion();
     });
@@ -359,10 +359,11 @@ MainWindow::MainWindow(QWidget* parent)
     });
 
     // Check auto-send status and show message if disabled
-    QTimer::singleShot(100, this, [this]() {
+    QTimer::singleShot(UITiming::QUICK_DELAY_MS, this, [this]() {
         if (!AppSettings::instance().getCWAutoSendEnabled()) {
             m_statusLabel->setText("⚠ CW Auto-Send is OFF - Enable in Radio menu");
-            m_statusLabel->setStyleSheet("QLabel { color: #ff6600; font-weight: bold; }");
+            m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
+                .arg(ThemeManager::instance().colorName(ColorRole::WarningText)));
             LOG_INFO("MainWindow", "Auto-Send is disabled at startup");
         }
     });
@@ -666,8 +667,8 @@ void MainWindow::createCentralWidget() {
     // Calculate minimum window width based on bottom panel's sizeHint
     // This ensures all widgets fit without overlap
     int bottomPanelMinWidth = bottomPanel->minimumSizeHint().width();
-    if (bottomPanelMinWidth < 900) {
-        bottomPanelMinWidth = 900;  // Ensure reasonable minimum
+    if (bottomPanelMinWidth < UIDefaults::BOTTOM_PANEL_MIN_WIDTH) {
+        bottomPanelMinWidth = UIDefaults::BOTTOM_PANEL_MIN_WIDTH;
     }
     setMinimumWidth(bottomPanelMinWidth + 40);  // Add margins
 }
@@ -792,7 +793,9 @@ QWidget* MainWindow::createBottomPanel() {
     // SCP matches label (column 3, spans both rows - 2-column grid)
     int scpFontSize = settings.getSCPFontSize();
     m_scpMatchesLabel = new QLabel(this);
-    m_scpMatchesLabel->setStyleSheet(QString("QLabel { color: #0066cc; font-size: %1pt; }").arg(scpFontSize));
+    m_scpMatchesLabel->setStyleSheet(QString("QLabel { color: %1; font-size: %2pt; }")
+        .arg(ThemeManager::instance().colorName(ColorRole::SCPMatchText))
+        .arg(scpFontSize));
     m_scpMatchesLabel->setMinimumWidth(UIDefaults::SCP_MATCHES_LABEL_WIDTH);
     m_scpMatchesLabel->setMaximumWidth(UIDefaults::SCP_MATCHES_LABEL_WIDTH);
 
@@ -1635,18 +1638,14 @@ void MainWindow::onShowPerformanceReport() {
     // Log the report
     LOG_INFO("MainWindow", "\n" + report);
 
-    // Show in a dialog
-    QMessageBox msgBox(this);
-    msgBox.setWindowTitle("Radio Performance Report");
-    msgBox.setText("Performance comparison between K4 Direct and Hamlib interfaces:");
-    msgBox.setDetailedText(report);
-    msgBox.setIcon(QMessageBox::Information);
-    msgBox.setStandardButtons(QMessageBox::Ok);
-
-    // Make the dialog larger to show more text
-    msgBox.setStyleSheet("QTextEdit { min-width: 600px; min-height: 400px; }");
-
-    msgBox.exec();
+    // Show in a dialog with expandable details
+    DialogHelper::informationWithDetails(
+        this,
+        "Radio Performance Report",
+        "Performance comparison between K4 Direct and Hamlib interfaces:",
+        report,
+        "QTextEdit { min-width: 600px; min-height: 400px; }"  // Make dialog larger
+    );
 }
 #endif
 
@@ -1753,7 +1752,7 @@ void MainWindow::onPreferences() {
 
             if (reply == QMessageBox::Yes) {
                 onRadioDisconnect();
-                QTimer::singleShot(500, this, &MainWindow::onRadioConnect);
+                QTimer::singleShot(UITiming::RECONNECT_DELAY_MS, this, &MainWindow::onRadioConnect);
             }
         }
 
@@ -2122,7 +2121,8 @@ QSOLoggingService::LogQSORequest MainWindow::buildLogQSORequest(const QString& c
 
 void MainWindow::handleLogQSOValidationError(const QSOLoggingService::LogQSOResult& result) {
     m_statusLabel->setText(result.errorMessage);
-    m_statusLabel->setStyleSheet("QLabel { color: #ff0000; font-weight: bold; }");
+    m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
+        .arg(ThemeManager::instance().colorName(ColorRole::ValidationErrorBorder)));
     QApplication::beep();
 
     // Set focus to appropriate field based on structured error enum
@@ -2349,10 +2349,13 @@ void MainWindow::onExchangeTextChanged(const QString& text) {
 
     QString styleSheet;
     QString tooltip;
+    auto& theme = ThemeManager::instance();
 
     if (isValid) {
         // Green border for valid exchange
-        styleSheet = "QLineEdit { border: 2px solid #00aa00; background-color: #f0fff0; }";
+        styleSheet = QString("QLineEdit { border: 2px solid %1; background-color: %2; }")
+            .arg(theme.colorName(ColorRole::ValidationValidBorder))
+            .arg(theme.colorName(ColorRole::ValidationValidBackground));
         tooltip = "✓ Valid exchange";
     } else {
         // Check if this could become valid with more input (partial/incomplete)
@@ -2365,11 +2368,15 @@ void MainWindow::onExchangeTextChanged(const QString& text) {
 
         if (couldBePartial) {
             // Yellow border for incomplete exchange
-            styleSheet = "QLineEdit { border: 2px solid #ffaa00; background-color: #fffef0; }";
+            styleSheet = QString("QLineEdit { border: 2px solid %1; background-color: %2; }")
+                .arg(theme.colorName(ColorRole::ValidationWarningBorder))
+                .arg(theme.colorName(ColorRole::ValidationWarningBackground));
             tooltip = "⚠ Incomplete - " + errorMsg;
         } else {
             // Red border for invalid exchange
-            styleSheet = "QLineEdit { border: 2px solid #ff0000; background-color: #fff0f0; }";
+            styleSheet = QString("QLineEdit { border: 2px solid %1; background-color: %2; }")
+                .arg(theme.colorName(ColorRole::ValidationErrorBorder))
+                .arg(theme.colorName(ColorRole::ValidationErrorBackground));
             tooltip = "✗ " + errorMsg;
         }
     }
@@ -2426,7 +2433,8 @@ void MainWindow::onCallsignEnterPressed() {
     if (isDupe) {
         // Show warning in status bar (allows logging to proceed)
         m_statusLabel->setText("⚠ " + dupeInfo);
-        m_statusLabel->setStyleSheet("QLabel { color: #ff6600; font-weight: bold; }");
+        m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
+            .arg(ThemeManager::instance().colorName(ColorRole::WarningText)));
     } else {
         // Clear warning for non-duplicates
         m_statusLabel->setText("Ready");
@@ -3122,7 +3130,9 @@ void MainWindow::applyFontSettings() {
 
     // Apply SCP matches font size
     int scpFontSize = settings.getSCPFontSize();
-    m_scpMatchesLabel->setStyleSheet(QString("QLabel { color: #0066cc; font-size: %1pt; }").arg(scpFontSize));
+    m_scpMatchesLabel->setStyleSheet(QString("QLabel { color: %1; font-size: %2pt; }")
+        .arg(ThemeManager::instance().colorName(ColorRole::SCPMatchText))
+        .arg(scpFontSize));
 }
 
 void MainWindow::applyTheme() {
@@ -3871,7 +3881,7 @@ void MainWindow::onShowAmplifierControl() {
             m_amplifierControlWindow->restoreGeometry(geometry);
         } else {
             // First time opening - position offset from main window
-            QPoint offset(50, 50);
+            QPoint offset(UIPositioning::WINDOW_INITIAL_OFFSET, UIPositioning::WINDOW_INITIAL_OFFSET);
             m_amplifierControlWindow->move(this->pos() + offset);
         }
 
@@ -4079,9 +4089,9 @@ void MainWindow::onResetWindowPositions() {
 
     // Reposition all currently open windows
     // Use cascade offset so windows don't completely overlap
-    int offsetX = 100;
-    int offsetY = 100;
-    const int cascadeStep = 30;
+    int offsetX = UIPositioning::CASCADE_START_OFFSET;
+    int offsetY = UIPositioning::CASCADE_START_OFFSET;
+    const int cascadeStep = UIPositioning::CASCADE_STEP;
 
     if (m_statisticsWindow && m_statisticsWindow->isVisible()) {
         m_statisticsWindow->move(this->pos() + QPoint(offsetX, offsetY));
@@ -4483,12 +4493,16 @@ void MainWindow::updateRadioStatusFlash() {
         // Disconnected - flash between red and normal
         if (m_radioFlashState) {
             // Red flash
-            QString flashStyle = QString("QLabel { background-color: #ff0000; color: #ffffff; padding: 5px; border: 2px solid #aa0000; border-radius: 3px; font-weight: bold; }");
+            QString flashStyle = QString("QLabel { background-color: %1; color: %2; padding: 5px; border: 2px solid %3; border-radius: 3px; font-weight: bold; }")
+                .arg(theme.colorName(ColorRole::StatusFlashBackground))
+                .arg(theme.colorName(ColorRole::StatusFlashText))
+                .arg(theme.colorName(ColorRole::StatusFlashBorder));
             m_radioFreqBandLabel->setStyleSheet(flashStyle);
         } else {
             // Normal (but still show disconnected state)
-            QString normalStyle = QString("QLabel { background-color: %1; padding: 5px; border: 1px solid #aa0000; border-radius: 3px; }")
-                .arg(theme.color(ColorRole::TextDisplayBackground).name());
+            QString normalStyle = QString("QLabel { background-color: %1; padding: 5px; border: 1px solid %2; border-radius: 3px; }")
+                .arg(theme.colorName(ColorRole::TextDisplayBackground))
+                .arg(theme.colorName(ColorRole::StatusFlashBorder));
             m_radioFreqBandLabel->setStyleSheet(normalStyle);
         }
     }

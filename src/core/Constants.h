@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.81";  // CRITICAL: Fix test wiping user settings on every test run
+constexpr const char* APP_VERSION = "3.38.82";  // Theme-aware colors, timing constants, DialogHelper improvements
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
@@ -80,8 +80,25 @@ namespace ElecraftColors {
     constexpr const char* MINE_SHAFT = "#363636";    // Hardware: Dark gray - LED off
 }
 
+// UI timing constants (milliseconds)
+namespace UITiming {
+    constexpr int DEFERRED_ACTION_DELAY_MS = 2000;   // Delay for non-critical startup tasks (CTY check)
+    constexpr int QUICK_DELAY_MS = 100;              // Short delay for UI state updates
+    constexpr int RECONNECT_DELAY_MS = 500;          // Delay before auto-reconnect after settings change
+}
+
+// UI window positioning
+namespace UIPositioning {
+    constexpr int WINDOW_INITIAL_OFFSET = 50;        // Initial offset from main window for child windows
+    constexpr int CASCADE_START_OFFSET = 100;        // Initial offset for cascade repositioning
+    constexpr int CASCADE_STEP = 30;                 // Step between cascaded windows
+}
+
 // UI window/dialog dimensions
 namespace UIDefaults {
+    // Layout constraints
+    constexpr int BOTTOM_PANEL_MIN_WIDTH = 900;      // Minimum width for bottom panel
+
     // Main window
     constexpr int MAIN_WINDOW_WIDTH = 1024;
     constexpr int MAIN_WINDOW_HEIGHT = 768;

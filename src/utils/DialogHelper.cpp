@@ -24,6 +24,32 @@ void DialogHelper::information(
         QMessageBox::Information, parent, title, text, QMessageBox::Ok, QMessageBox::NoButton, true);
 }
 
+void DialogHelper::informationWithDetails(
+    QWidget* parent,
+    const QString& title,
+    const QString& text,
+    const QString& detailedText,
+    const QString& styleSheet)
+{
+    // Log the message with detailed text
+    LOG_INFO("DialogHelper", QString("[Information] %1 - %2").arg(title, text));
+    LOG_INFO("DialogHelper", QString("[Information] %1 - Details: %2").arg(title, detailedText));
+
+    // Create the message box with detailed text
+    QMessageBox msgBox(QMessageBox::Information, title, text, QMessageBox::Ok, parent);
+    msgBox.setDetailedText(detailedText);
+    msgBox.setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+
+    // Apply custom stylesheet if provided (e.g., for larger dialog size)
+    if (!styleSheet.isEmpty()) {
+        msgBox.setStyleSheet(styleSheet);
+    }
+
+    msgBox.exec();
+
+    LOG_INFO("DialogHelper", QString("[Information] %1 - User closed dialog").arg(title));
+}
+
 QMessageBox::StandardButton DialogHelper::warning(
     QWidget* parent,
     const QString& title,
