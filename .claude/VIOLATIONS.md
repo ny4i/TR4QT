@@ -54,94 +54,19 @@ Resolution (YYYY-MM-DD): {how it was fixed}
 ## Future Violations Will Appear Below
 
 <!-- Violations logged by check_architecture.sh will be appended here -->
-## Violation: 2026-01-12 10:35:29
-- Type: God Class (File Size)
-- File: src/ui/MainWindow.cpp
-- Lines: 5564
-- Limit: 1500
-- Overage: 4064 lines (270.9% over)
-- Status: ❌ RED
 
-## Violation: 2026-01-12 10:35:29
-- Type: SQL in UI Class
-- Details: SQL queries found in src/ui/ directory
-- Lines:
-```
-src/ui/MainWindow.cpp:3104:        QSqlQuery query = db.execute(
-src/ui/MainWindow.cpp:3392:    QSqlQuery checkpointQuery = db.execute("PRAGMA wal_checkpoint(PASSIVE)", {});
-src/ui/MainWindow.cpp:3396:    QSqlQuery countQuery = db.execute(
-src/ui/MainWindow.cpp:3444:    QSqlQuery dbQuery = db.execute(
-src/ui/MainWindow.cpp:3508:    QSqlQuery unknownBandQuery = db.execute(
-src/ui/MainWindow.cpp:3538:        QSqlQuery lowercaseQuery = db.execute(
-src/ui/MainWindow.cpp:3583:    QSqlQuery versionQuery = db.execute("PRAGMA user_version", {});
-src/ui/MainWindow.cpp:3602:    QSqlQuery columnsQuery = db.execute("PRAGMA table_info(qsos)", {});
-src/ui/MainWindow.cpp:3640:        QSqlQuery sampleQuery = db.execute(
-src/ui/MainWindow.cpp:3999:    QSqlQuery query = db.execute("SELECT contest_id, contest_name, start_time, contest_type FROM contests LIMIT 1", {});
-```
+## Resolved Violations
 
-## Violation: 2026-01-12 10:59:26
-- Type: God Class (File Size)
-- File: src/ui/MainWindow.cpp
-- Lines: 5564
-- Limit: 1500
-- Overage: 4064 lines (270.9% over)
-- Status: ❌ RED
+### SQL in UI Class — RESOLVED (2026-01-27)
+- **Original (2026-01-12)**: 10 SQL queries in MainWindow.cpp, 1 in BackupRestoreDialog.cpp
+- **Resolution**: All SQL extracted to Repository/Service classes during phased extraction
+- **Verification**: `grep -r 'db\.execute\|QSqlQuery' src/ui/` returns zero hits
+- **Status**: ✅ RESOLVED — zero SQL in UI layer
 
-## Violation: 2026-01-12 10:59:26
-- Type: SQL in UI Class
-- Details: SQL queries found in src/ui/ directory
-- Lines:
-```
-src/ui/MainWindow.cpp:3104:        QSqlQuery query = db.execute(
-src/ui/MainWindow.cpp:3392:    QSqlQuery checkpointQuery = db.execute("PRAGMA wal_checkpoint(PASSIVE)", {});
-src/ui/MainWindow.cpp:3396:    QSqlQuery countQuery = db.execute(
-src/ui/MainWindow.cpp:3444:    QSqlQuery dbQuery = db.execute(
-src/ui/MainWindow.cpp:3508:    QSqlQuery unknownBandQuery = db.execute(
-src/ui/MainWindow.cpp:3538:        QSqlQuery lowercaseQuery = db.execute(
-src/ui/MainWindow.cpp:3583:    QSqlQuery versionQuery = db.execute("PRAGMA user_version", {});
-src/ui/MainWindow.cpp:3602:    QSqlQuery columnsQuery = db.execute("PRAGMA table_info(qsos)", {});
-src/ui/MainWindow.cpp:3640:        QSqlQuery sampleQuery = db.execute(
-src/ui/MainWindow.cpp:3999:    QSqlQuery query = db.execute("SELECT contest_id, contest_name, start_time, contest_type FROM contests LIMIT 1", {});
-```
-
-## Violation: 2026-01-12 11:40:01
-- Type: God Class (File Size)
-- File: src/ui/MainWindow.cpp
-- Lines: 5564
-- Limit: 1500
-- Overage: 4064 lines (270.9% over)
-- Status: ❌ RED
-
-## Violation: 2026-01-12 11:40:01
-- Type: SQL in UI Class
-- Details: SQL queries found in src/ui/ directory
-- Lines:
-```
-src/ui/MainWindow.cpp:3104:        QSqlQuery query = db.execute(
-src/ui/MainWindow.cpp:3392:    QSqlQuery checkpointQuery = db.execute("PRAGMA wal_checkpoint(PASSIVE)", {});
-src/ui/MainWindow.cpp:3396:    QSqlQuery countQuery = db.execute(
-src/ui/MainWindow.cpp:3444:    QSqlQuery dbQuery = db.execute(
-src/ui/MainWindow.cpp:3508:    QSqlQuery unknownBandQuery = db.execute(
-src/ui/MainWindow.cpp:3538:        QSqlQuery lowercaseQuery = db.execute(
-src/ui/MainWindow.cpp:3583:    QSqlQuery versionQuery = db.execute("PRAGMA user_version", {});
-src/ui/MainWindow.cpp:3602:    QSqlQuery columnsQuery = db.execute("PRAGMA table_info(qsos)", {});
-src/ui/MainWindow.cpp:3640:        QSqlQuery sampleQuery = db.execute(
-src/ui/MainWindow.cpp:3999:    QSqlQuery query = db.execute("SELECT contest_id, contest_name, start_time, contest_type FROM contests LIMIT 1", {});
-```
-
-## Violation: 2026-01-22 00:33:04
-- Type: God Class (File Size)
-- File: src/ui/MainWindow.cpp
-- Lines: 4583
-- Limit: 1500
-- Overage: 3083 lines (205.5% over)
-- Status: ❌ RED
-
-## Violation: 2026-01-22 00:33:04
-- Type: SQL in UI Class
-- Details: SQL queries found in src/ui/ directory
-- Lines:
-```
-src/ui/dialogs/BackupRestoreDialog.cpp:306:        QSqlQuery query = db.execute(
-```
+### MainWindow God Class — ONGOING
+- **Original (2026-01-12)**: 5,564 lines
+- **Current (2026-01-27)**: 4,512 lines (19% reduction)
+- **Limit**: 3,000 (MainWindow-specific threshold)
+- **Status**: ⚠️ Still 1.5X over limit, but business logic extracted to services
+- **Note**: Remaining code is primarily UI setup and window orchestration (see docs/FUTURE_REFACTORING.md)
 
