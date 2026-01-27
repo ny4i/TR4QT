@@ -173,6 +173,7 @@ set(SOURCES
     services/RotatorService.cpp
     services/AmplifierService.cpp
     services/MaintenanceService.cpp
+    services/InputHandlerService.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp

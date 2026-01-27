@@ -38,6 +38,7 @@
 #include "../services/AmplifierService.h"
 #include "../services/RotatorService.h"
 #include "../services/MaintenanceService.h"
+#include "../services/InputHandlerService.h"
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
@@ -445,6 +446,9 @@ private:
 
     // Maintenance service (log clearing, backups)
     MaintenanceService* m_maintenanceService;
+
+    // Input handler service (keyboard handling for CW, mode switching)
+    InputHandlerService* m_inputHandler;
 
     // Country file for lookups
     CountryFile m_countryFile;

@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.82";  // Theme-aware colors, timing constants, DialogHelper improvements
+constexpr const char* APP_VERSION = "3.38.83";  // Extract eventFilter keyboard handling to InputHandlerService
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
@@ -52,6 +52,12 @@ constexpr int INTEGRITY_CHECK_QSO_THRESHOLD = 50;            // Minimum QSOs bef
 constexpr int CW_SPEED_MIN = 5;
 constexpr int CW_SPEED_MAX = 60;
 constexpr int CW_SPEED_DEFAULT = 25;
+
+// K4-specific CW speed limits (Elecraft K4 hardware constraints)
+namespace K4Limits {
+    constexpr int CW_WPM_MIN = 8;    // K4 minimum CW speed
+    constexpr int CW_WPM_MAX = 100;  // K4 maximum CW speed
+}
 
 // Logging
 constexpr qint64 DEFAULT_MAX_LOG_FILE_SIZE = 10 * 1024 * 1024;  // 10 MB
