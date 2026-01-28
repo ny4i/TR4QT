@@ -1,5 +1,6 @@
 #include "ExportPreviewDialog.h"
 #include "../../utils/AppSettings.h"
+#include "../../utils/FontManager.h"
 #include "../../core/Constants.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -57,11 +58,8 @@ void ExportPreviewDialog::setupUI() {
     m_textEdit->setLineWrapMode(QTextEdit::NoWrap);
 
     // Use monospace font with size from appearance settings
-    QFont monoFont("Courier");
-    monoFont.setStyleHint(QFont::Monospace);
     int fontSize = AppSettings::instance().getMiscDisplayFontSize();
-    monoFont.setPointSize(fontSize);
-    m_textEdit->setFont(monoFont);
+    m_textEdit->setFont(FontManager::instance().courierFont(fontSize));
     
     mainLayout->addWidget(m_textEdit);
     

@@ -133,12 +133,14 @@ void NativeMapViewer::setupUI() {
     // Sidebar
     QWidget* sidebar = new QWidget(this);
     sidebar->setFixedWidth(300);
-    sidebar->setStyleSheet("QWidget { background-color: #2C3E50; color: white; }");
+    sidebar->setStyleSheet(QString("QWidget { background-color: %1; color: white; }")
+        .arg(ThemeManager::instance().colorName(ColorRole::SidebarBackground)));
     QVBoxLayout* sidebarLayout = new QVBoxLayout(sidebar);
 
     // Statistics group
     QGroupBox* statsGroup = new QGroupBox("Statistics", sidebar);
-    statsGroup->setStyleSheet("QGroupBox { font-weight: bold; color: #FFD700; }");
+    statsGroup->setStyleSheet(QString("QGroupBox { font-weight: bold; color: %1; }")
+        .arg(ThemeManager::instance().colorName(ColorRole::SectionHeaderText)));
     QVBoxLayout* statsLayout = new QVBoxLayout(statsGroup);
 
     QHBoxLayout* workedRow = new QHBoxLayout();
@@ -167,7 +169,8 @@ void NativeMapViewer::setupUI() {
     QHBoxLayout* completionRow = new QHBoxLayout();
     completionRow->addWidget(new QLabel("Completion:"));
     m_completionLabel = new QLabel("0%");
-    m_completionLabel->setStyleSheet("font-weight: bold; color: #2ECC71;");
+    m_completionLabel->setStyleSheet(QString("font-weight: bold; color: %1;")
+        .arg(ThemeManager::instance().colorName(ColorRole::CompletionText)));
     completionRow->addStretch();
     completionRow->addWidget(m_completionLabel);
     statsLayout->addLayout(completionRow);
@@ -183,7 +186,8 @@ void NativeMapViewer::setupUI() {
 
     // Legend group
     QGroupBox* legendGroup = new QGroupBox("QSO Count Legend", sidebar);
-    legendGroup->setStyleSheet("QGroupBox { font-weight: bold; color: #FFD700; }");
+    legendGroup->setStyleSheet(QString("QGroupBox { font-weight: bold; color: %1; }")
+        .arg(ThemeManager::instance().colorName(ColorRole::SectionHeaderText)));
     QVBoxLayout* legendLayout = new QVBoxLayout(legendGroup);
 
     struct LegendItem { ColorRole role; QString label; };
@@ -216,7 +220,8 @@ void NativeMapViewer::setupUI() {
 
     // Controls group
     QGroupBox* controlsGroup = new QGroupBox("Controls", sidebar);
-    controlsGroup->setStyleSheet("QGroupBox { font-weight: bold; color: #FFD700; }");
+    controlsGroup->setStyleSheet(QString("QGroupBox { font-weight: bold; color: %1; }")
+        .arg(ThemeManager::instance().colorName(ColorRole::SectionHeaderText)));
     QVBoxLayout* controlsLayout = new QVBoxLayout(controlsGroup);
 
     QPushButton* zoomInBtn = new QPushButton("Zoom In", sidebar);
@@ -224,9 +229,11 @@ void NativeMapViewer::setupUI() {
     QPushButton* resetViewBtn = new QPushButton("Reset View", sidebar);
     QPushButton* refreshBtn = new QPushButton("Refresh Data", sidebar);
 
-    QString btnStyle = "QPushButton { background-color: #3498DB; color: white; padding: 8px; "
+    QString btnStyle = QString("QPushButton { background-color: %1; color: white; padding: 8px; "
                        "border: none; border-radius: 4px; } "
-                       "QPushButton:hover { background-color: #2980B9; }";
+                       "QPushButton:hover { background-color: %2; }")
+                       .arg(ThemeManager::instance().colorName(ColorRole::MapButtonBackground))
+                       .arg(ThemeManager::instance().colorName(ColorRole::MapButtonHover));
     zoomInBtn->setStyleSheet(btnStyle);
     zoomOutBtn->setStyleSheet(btnStyle);
     resetViewBtn->setStyleSheet(btnStyle);
@@ -246,11 +253,13 @@ void NativeMapViewer::setupUI() {
 
     // Worked list
     QGroupBox* workedGroup = new QGroupBox("Worked List", sidebar);
-    workedGroup->setStyleSheet("QGroupBox { font-weight: bold; color: #FFD700; }");
+    workedGroup->setStyleSheet(QString("QGroupBox { font-weight: bold; color: %1; }")
+        .arg(ThemeManager::instance().colorName(ColorRole::SectionHeaderText)));
     QVBoxLayout* workedLayout = new QVBoxLayout(workedGroup);
 
     m_workedListWidget = new QListWidget(sidebar);
-    m_workedListWidget->setStyleSheet("QListWidget { background-color: #34495E; color: white; border: none; }");
+    m_workedListWidget->setStyleSheet(QString("QListWidget { background-color: %1; color: white; border: none; }")
+        .arg(ThemeManager::instance().colorName(ColorRole::SidebarListBackground)));
     workedLayout->addWidget(m_workedListWidget);
 
     sidebarLayout->addWidget(workedGroup, 1);  // Stretch to fill remaining space

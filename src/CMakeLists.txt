@@ -93,6 +93,9 @@ set(SOURCES
     utils/PathManager.cpp
     utils/RadioEnumerator.cpp
     utils/ThemeManager.cpp
+    utils/FontManager.cpp
+    utils/PlatformUtils.cpp
+    utils/ReconnectionManager.cpp
     utils/CredentialStore.cpp
     utils/PerformanceProfiler.cpp
     # Radio files now in tr4qt_core object library
@@ -235,6 +238,9 @@ set(HEADERS
     utils/PathManager.h
     utils/RadioEnumerator.h
     utils/ThemeManager.h
+    utils/FontManager.h
+    utils/PlatformUtils.h
+    utils/ReconnectionManager.h
     utils/CredentialStore.h
     # Radio headers now in tr4qt_core object library (removed to prevent duplicate MOC)
     network/TelnetClient.h
@@ -338,8 +344,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.38.85"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.38.85"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.38.86"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.38.86"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
@@ -388,6 +394,11 @@ target_include_directories(tr4qt PRIVATE
 target_link_libraries(tr4qt PRIVATE
     ${HAMLIB_LIBRARIES}
 )
+
+# macOS: SystemConfiguration framework for PlatformUtils (NetBIOS name lookup)
+if(APPLE)
+    target_link_libraries(tr4qt PRIVATE "-framework SystemConfiguration")
+endif()
 
 # Set include directories
 target_include_directories(tr4qt PRIVATE

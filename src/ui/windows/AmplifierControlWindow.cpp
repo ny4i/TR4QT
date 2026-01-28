@@ -4,6 +4,8 @@
 #include "../panels/KPA1500PanelController.h"
 #include "../../services/AmplifierService.h"
 #include "../../utils/AppSettings.h"
+#include "../../utils/FontManager.h"
+#include "../../utils/ThemeManager.h"
 #include "../../logging/LogMacros.h"
 #include <QPainter>
 #include <QMouseEvent>
@@ -72,30 +74,34 @@ AmplifierControlWindow::AmplifierControlWindow(AmplifierService* service, QWidge
     // Create disconnected overlay widgets
     m_disconnectedLabel = new QLabel("Amplifier Not Connected", this);
     m_disconnectedLabel->setAlignment(Qt::AlignCenter);
-    m_disconnectedLabel->setStyleSheet(
+    m_disconnectedLabel->setStyleSheet(QString(
         "QLabel { "
         "  background-color: rgba(0, 0, 0, 180); "
-        "  color: #ff6600; "
+        "  color: %1; "
         "  font-size: 18pt; "
         "  font-weight: bold; "
         "  padding: 20px; "
-        "  border: 2px solid #ff6600; "
-        "}"
+        "  border: 2px solid %1; "
+        "}")
+        .arg(ThemeManager::instance().colorName(ColorRole::WarningText))
     );
 
     m_testConnectionButton = new QPushButton("Test Connection", this);
-    m_testConnectionButton->setStyleSheet(
+    m_testConnectionButton->setStyleSheet(QString(
         "QPushButton { "
-        "  background-color: #006600; "
+        "  background-color: %1; "
         "  color: white; "
         "  font-size: 12pt; "
         "  padding: 10px 20px; "
-        "  border: 2px solid #00aa00; "
+        "  border: 2px solid %2; "
         "  border-radius: 5px; "
         "} "
         "QPushButton:hover { "
-        "  background-color: #008800; "
-        "}"
+        "  background-color: %3; "
+        "}")
+        .arg(ThemeManager::instance().colorName(ColorRole::AmplifierSuccessBackground))
+        .arg(ThemeManager::instance().colorName(ColorRole::ValidationValidBorder))
+        .arg(ThemeManager::instance().colorName(ColorRole::AmplifierSuccessHover))
     );
 
     connect(m_testConnectionButton, &QPushButton::clicked,
@@ -104,14 +110,15 @@ AmplifierControlWindow::AmplifierControlWindow(AmplifierService* service, QWidge
     // Create LCD display overlay label (positioned over label_MAIN in SVG)
     m_lcdLabel = new QLabel("---", this);
     m_lcdLabel->setAlignment(Qt::AlignCenter);
-    m_lcdLabel->setStyleSheet(
+    m_lcdLabel->setStyleSheet(QString(
         "QLabel { "
         "  background-color: transparent; "
-        "  color: #000032; "  // Dark blue text on teal background
+        "  color: %1; "
         "  font-family: 'Courier New', Courier, monospace; "
         "  font-size: 10pt; "
         "  font-weight: bold; "
-        "}"
+        "}")
+        .arg(ThemeManager::instance().colorName(ColorRole::LcdDisplayText))
     );
     m_lcdLabel->setAttribute(Qt::WA_TransparentForMouseEvents, true);  // Don't block clicks
     m_lcdLabel->setGeometry(-1000, -1000, 1, 1);  // Move offscreen until properly positioned in showEvent
@@ -384,12 +391,12 @@ void AmplifierControlWindow::drawLcdText(QPainter& painter) {
     QRect lcdRect(svgPanelPos.x() + lcdX, svgPanelPos.y() + lcdY, lcdW, lcdH);
 
     // Set up font - scale based on LCD height for consistent appearance
-    QFont lcdFont("Courier", 1);  // Start with size 1, will be scaled
+    QFont lcdFont = FontManager::instance().courierFont(1);  // Start with size 1, will be scaled
     lcdFont.setBold(true);
     int fontSize = qMax(8, lcdH / 3);  // Scale font to ~1/3 of LCD height
     lcdFont.setPixelSize(fontSize);
     painter.setFont(lcdFont);
-    painter.setPen(QColor(0, 0, 50));  // Dark blue text on cyan background
+    painter.setPen(ThemeManager::instance().color(ColorRole::LcdDisplayText));
 
     // Format display text based on connection state
     QString displayText;
@@ -660,12 +667,13 @@ void AmplifierControlWindow::repositionLcdLabel() {
         m_lcdLabel->setStyleSheet(QString(
             "QLabel { "
             "  background-color: transparent; "
-            "  color: #000032; "
+            "  color: %1; "
             "  font-family: 'Courier New', Courier, monospace; "
-            "  font-size: %1px; "
+            "  font-size: %2px; "
             "  font-weight: bold; "
-            "}"
-        ).arg(fontSize));
+            "}")
+            .arg(ThemeManager::instance().colorName(ColorRole::LcdDisplayText))
+            .arg(fontSize));
     } else {
         // Convert SVG viewBox coordinates to proportional
         double propX = svgBounds.x() / viewBox.width();
@@ -701,12 +709,13 @@ void AmplifierControlWindow::repositionLcdLabel() {
         m_lcdLabel->setStyleSheet(QString(
             "QLabel { "
             "  background-color: transparent; "
-            "  color: #000032; "
+            "  color: %1; "
             "  font-family: 'Courier New', Courier, monospace; "
-            "  font-size: %1px; "
+            "  font-size: %2px; "
             "  font-weight: bold; "
-            "}"
-        ).arg(fontSize));
+            "}")
+            .arg(ThemeManager::instance().colorName(ColorRole::LcdDisplayText))
+            .arg(fontSize));
     }
 }
 

@@ -2,6 +2,7 @@
 #include "SMeterWidget.h"
 #include "../../radio/RadioController.h"
 #include "../../utils/ThemeManager.h"
+#include "../../utils/FontManager.h"
 #include "../../utils/AppSettings.h"
 #include "../../logging/LogMacros.h"
 #include <QVBoxLayout>
@@ -69,7 +70,7 @@ void RadioControlWidget::setupUI() {
     m_vfoALabel->setFont(labelFont);
 
     m_vfoAFreqLabel = new QLabel("7076.50", this);
-    QFont freqFont("Monospace", 16);
+    QFont freqFont = FontManager::instance().monospaceFont(16);
     freqFont.setBold(true);
     m_vfoAFreqLabel->setFont(freqFont);
     m_vfoAFreqLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
@@ -120,7 +121,8 @@ void RadioControlWidget::setupUI() {
     wpmFont.setBold(true);
     m_wpmLabel->setFont(wpmFont);
     m_wpmLabel->setAlignment(Qt::AlignCenter);
-    m_wpmLabel->setStyleSheet("QLabel { background-color: #E0E0E0; padding: 3px; border-radius: 3px; }");
+    m_wpmLabel->setStyleSheet(QString("QLabel { background-color: %1; padding: 3px; border-radius: 3px; }")
+        .arg(ThemeManager::instance().colorName(ColorRole::ButtonUncheckedBackground)));
     m_wpmLabel->setContextMenuPolicy(Qt::CustomContextMenu);
     m_wpmLabel->setCursor(Qt::PointingHandCursor);  // Show clickable cursor
     m_wpmLabel->installEventFilter(this);  // Handle left-clicks
@@ -140,25 +142,32 @@ void RadioControlWidget::setupUI() {
     buttonLayout->setContentsMargins(5, 5, 5, 5);
 
     // Style for checkable buttons - make checked state very obvious
-    QString buttonStyle =
+    ThemeManager& theme = ThemeManager::instance();
+    QString buttonStyle = QString(
         "QPushButton {"
-        "  background-color: #E0E0E0;"
-        "  border: 1px solid #808080;"
+        "  background-color: %1;"
+        "  border: 1px solid %2;"
         "  padding: 5px;"
         "  border-radius: 3px;"
         "}"
         "QPushButton:checked {"
-        "  background-color: #4CAF50;"  // Green when checked/active
+        "  background-color: %3;"
         "  color: white;"
         "  font-weight: bold;"
-        "  border: 2px solid #2E7D32;"
+        "  border: 2px solid %4;"
         "}"
         "QPushButton:hover {"
-        "  background-color: #D0D0D0;"
+        "  background-color: %5;"
         "}"
         "QPushButton:checked:hover {"
-        "  background-color: #45A049;"
-        "}";
+        "  background-color: %6;"
+        "}")
+        .arg(theme.colorName(ColorRole::ButtonUncheckedBackground))
+        .arg(theme.colorName(ColorRole::ButtonUncheckedBorder))
+        .arg(theme.colorName(ColorRole::ButtonCheckedBackground))
+        .arg(theme.colorName(ColorRole::ButtonCheckedBorder))
+        .arg(theme.colorName(ColorRole::ButtonHoverBackground))
+        .arg(theme.colorName(ColorRole::ButtonCheckedHover));
 
     // RIT widget - clickable frame with two rows (label + offset)
     m_ritWidget = new QFrame(this);
@@ -181,8 +190,7 @@ void RadioControlWidget::setupUI() {
     m_ritTitleLabel->setAlignment(Qt::AlignCenter);
 
     m_ritOffsetLabel = new QLabel("0 Hz", m_ritWidget);
-    QFont offsetFont("Monospace", 8);
-    m_ritOffsetLabel->setFont(offsetFont);
+    m_ritOffsetLabel->setFont(FontManager::instance().monospaceFont(8));
     m_ritOffsetLabel->setAlignment(Qt::AlignCenter);
 
     ritLayout->addWidget(m_ritTitleLabel);
@@ -206,7 +214,7 @@ void RadioControlWidget::setupUI() {
     m_xitTitleLabel->setAlignment(Qt::AlignCenter);
 
     m_xitOffsetLabel = new QLabel("0 Hz", m_xitWidget);
-    m_xitOffsetLabel->setFont(offsetFont);
+    m_xitOffsetLabel->setFont(FontManager::instance().monospaceFont(8));
     m_xitOffsetLabel->setAlignment(Qt::AlignCenter);
 
     xitLayout->addWidget(m_xitTitleLabel);
@@ -611,25 +619,30 @@ void RadioControlWidget::applyTheme() {
 }
 
 void RadioControlWidget::updateRitWidgetStyle() {
+    ThemeManager& theme = ThemeManager::instance();
     if (m_currentState.isRitEnabled) {
         // RIT is ON - green background, white text
-        m_ritWidget->setStyleSheet(
+        m_ritWidget->setStyleSheet(QString(
             "QFrame {"
-            "  background-color: #4CAF50;"  // Green
-            "  border: 2px solid #2E7D32;"
+            "  background-color: %1;"
+            "  border: 2px solid %2;"
             "  border-radius: 3px;"
-            "}"
+            "}")
+            .arg(theme.colorName(ColorRole::ButtonCheckedBackground))
+            .arg(theme.colorName(ColorRole::ButtonCheckedBorder))
         );
         m_ritTitleLabel->setStyleSheet("QLabel { color: white; font-weight: bold; }");
         m_ritOffsetLabel->setStyleSheet("QLabel { color: white; font-weight: bold; }");
     } else {
         // RIT is OFF - gray background, dark text
-        m_ritWidget->setStyleSheet(
+        m_ritWidget->setStyleSheet(QString(
             "QFrame {"
-            "  background-color: #E0E0E0;"
-            "  border: 1px solid #808080;"
+            "  background-color: %1;"
+            "  border: 1px solid %2;"
             "  border-radius: 3px;"
-            "}"
+            "}")
+            .arg(theme.colorName(ColorRole::ButtonUncheckedBackground))
+            .arg(theme.colorName(ColorRole::ButtonUncheckedBorder))
         );
         m_ritTitleLabel->setStyleSheet("QLabel { color: black; }");
         m_ritOffsetLabel->setStyleSheet("QLabel { color: black; }");
@@ -637,25 +650,30 @@ void RadioControlWidget::updateRitWidgetStyle() {
 }
 
 void RadioControlWidget::updateXitWidgetStyle() {
+    ThemeManager& theme = ThemeManager::instance();
     if (m_currentState.isXitEnabled) {
         // XIT is ON - green background, white text
-        m_xitWidget->setStyleSheet(
+        m_xitWidget->setStyleSheet(QString(
             "QFrame {"
-            "  background-color: #4CAF50;"  // Green
-            "  border: 2px solid #2E7D32;"
+            "  background-color: %1;"
+            "  border: 2px solid %2;"
             "  border-radius: 3px;"
-            "}"
+            "}")
+            .arg(theme.colorName(ColorRole::ButtonCheckedBackground))
+            .arg(theme.colorName(ColorRole::ButtonCheckedBorder))
         );
         m_xitTitleLabel->setStyleSheet("QLabel { color: white; font-weight: bold; }");
         m_xitOffsetLabel->setStyleSheet("QLabel { color: white; font-weight: bold; }");
     } else {
         // XIT is OFF - gray background, dark text
-        m_xitWidget->setStyleSheet(
+        m_xitWidget->setStyleSheet(QString(
             "QFrame {"
-            "  background-color: #E0E0E0;"
-            "  border: 1px solid #808080;"
+            "  background-color: %1;"
+            "  border: 1px solid %2;"
             "  border-radius: 3px;"
-            "}"
+            "}")
+            .arg(theme.colorName(ColorRole::ButtonUncheckedBackground))
+            .arg(theme.colorName(ColorRole::ButtonUncheckedBorder))
         );
         m_xitTitleLabel->setStyleSheet("QLabel { color: black; }");
         m_xitOffsetLabel->setStyleSheet("QLabel { color: black; }");

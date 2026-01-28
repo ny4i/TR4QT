@@ -60,6 +60,28 @@ enum class ColorRole {
     StatusFlashText,            // Disconnected status flash text (default: white #ffffff)
     StatusFlashBorder,          // Disconnected status flash border (default: dark red #aa0000)
 
+    // Map Sidebar Colors
+    SectionHeaderText,          // Map sidebar section titles (default: gold #FFD700)
+    SidebarBackground,          // Map sidebar background (default: #2C3E50)
+    SidebarListBackground,      // Map worked list background (default: #34495E)
+    CompletionText,             // Completion percentage text (default: #2ECC71)
+    MapButtonBackground,        // Map button background (default: #3498DB)
+    MapButtonHover,             // Map button hover (default: #2980B9)
+
+    // Toggle Button State Colors
+    ButtonCheckedBackground,    // Toggle on background (default: #4CAF50)
+    ButtonCheckedBorder,        // Toggle on border (default: #2E7D32)
+    ButtonCheckedHover,         // Toggle on hover (default: #45A049)
+    ButtonUncheckedBackground,  // Toggle off background (default: #E0E0E0)
+    ButtonUncheckedBorder,      // Toggle off border (default: #808080)
+    ButtonHoverBackground,      // Toggle off hover (default: #D0D0D0)
+
+    // Amplifier-specific Colors
+    AmplifierSuccessBackground, // Amp connect button background (default: #006600)
+    AmplifierSuccessHover,      // Amp connect button hover (default: #008800)
+    LcdDisplayText,             // Amplifier LCD text color (default: #000032)
+    SvgPanelBackground,         // SVG panel fallback background (default: #2a2a2a)
+
     // Map Colors (QSO count gradient)
     MapBackground,              // Map background (default: light blue #E8F4F8)
     MapNotWorked,               // 0 QSOs (default: gray #CCCCCC)

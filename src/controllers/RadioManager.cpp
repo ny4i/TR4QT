@@ -38,19 +38,17 @@ RadioManager::RadioManager(QObject* parent)
     , m_currentState()
     , m_radioConnected(false)
     , m_radioAutoReconnect(false)
-    , m_radioReconnectTimer(new QTimer(this))
+    , m_reconnectManager(new ReconnectionManager(RECONNECT_INTERVAL_MS, 0, this))
     , m_lastRadioConfig()
-    , m_radioReconnectAttempts(0)
     , m_radioFlashTimer(new QTimer(this))
     , m_radioFlashState(false)
     , m_amplifier(nullptr)
     , m_amplifierOperateMode(false)
     , m_amplifierForwardPower(0)
 {
-    // Setup reconnection timer (single-shot, 10 seconds)
-    m_radioReconnectTimer->setSingleShot(true);
-    m_radioReconnectTimer->setInterval(RECONNECT_INTERVAL_MS);
-    connect(m_radioReconnectTimer, &QTimer::timeout, this, &RadioManager::onReconnectTimeout);
+    // Setup reconnection manager (10 seconds, unlimited retries)
+    connect(m_reconnectManager, &ReconnectionManager::retryRequested,
+            this, &RadioManager::onRetryRequested);
 
     // Setup flash timer (500ms flash rate)
     m_radioFlashTimer->setInterval(FLASH_INTERVAL_MS);
@@ -164,7 +162,7 @@ bool RadioManager::connectToRadio()
 
         // Disable auto-reconnect BEFORE disconnecting (prevent reconnect to old radio)
         m_radioAutoReconnect = false;
-        m_radioReconnectTimer->stop();
+        m_reconnectManager->stop();
 
         // Disconnect from old radio
         m_radio->disconnectFromRadio();
@@ -177,9 +175,8 @@ bool RadioManager::connectToRadio()
     // Update config FIRST (before enabling auto-reconnect)
     m_lastRadioConfig = config;     // Save config for reconnection attempts
 
-    // Stop any pending reconnect timer
-    m_radioReconnectTimer->stop();
-    m_radioReconnectAttempts = 0;   // Reset retry counter
+    // Stop any pending reconnect and reset counter
+    m_reconnectManager->reset();
 
     // TODO: Show radio name + interface type instead of model ID (see TODO at top of file)
     // Should be: "Connecting to radio: IC-7760 (Icom Direct), Port 192.168.1.100:50001..."
@@ -206,7 +203,7 @@ void RadioManager::disconnectFromRadio()
 {
     // Disable auto-reconnect when user manually disconnects
     m_radioAutoReconnect = false;
-    m_radioReconnectTimer->stop();
+    m_reconnectManager->reset();
 
     emit statusMessage("Disconnecting from radio...");
     m_radio->disconnectFromRadio();
@@ -228,8 +225,7 @@ void RadioManager::onRadioConnected(bool connected)
 
     if (connected) {
         // Stop reconnect timer on successful connection
-        m_radioReconnectTimer->stop();
-        m_radioReconnectAttempts = 0;  // Reset retry counter on success
+        m_reconnectManager->recordSuccess();
 
         // Stop flashing indicator
         m_radioFlashTimer->stop();
@@ -254,7 +250,7 @@ void RadioManager::onRadioConnected(bool connected)
         if (m_radioAutoReconnect) {
             LOG_DEBUG("RadioManager", "Radio disconnected - will attempt reconnect in 10 seconds");
             emit statusMessage("Radio disconnected - will retry in 10 seconds...");
-            m_radioReconnectTimer->start();
+            m_reconnectManager->start();
         }
     }
 
@@ -346,8 +342,8 @@ void RadioManager::onRadioError(const QString& error)
     // This handles pre-flight failures during reconnect attempts
     if (m_radioAutoReconnect && !m_radioConnected) {
         LOG_DEBUG("RadioManager", QString("Radio error during reconnect (attempt %1), will retry in 10 seconds")
-            .arg(m_radioReconnectAttempts));
-        m_radioReconnectTimer->start();
+            .arg(m_reconnectManager->attemptCount()));
+        m_reconnectManager->start();
     }
 }
 
@@ -391,16 +387,15 @@ void RadioManager::onFrequencyChanged(freq_t freq, VFO vfo)
         .arg(freqMhz, 0, 'f', 4).arg((fwdEnd - fwdStart) / 1000));
 }
 
-void RadioManager::onReconnectTimeout()
+void RadioManager::onRetryRequested(int attempt)
 {
     if (m_radioAutoReconnect) {
-        m_radioReconnectAttempts++;
         emit statusMessage(QString("Reconnecting to radio (attempt %1)...")
-            .arg(m_radioReconnectAttempts));
+            .arg(attempt));
         LOG_DEBUG("RadioManager", QString("Auto-reconnect: Attempt %1")
-            .arg(m_radioReconnectAttempts));
+            .arg(attempt));
         m_radio->connectToRadio(m_lastRadioConfig);
-        // Note: No attempt limit - will keep trying until radio comes back or user clicks Disconnect
+        // Note: No attempt limit (maxAttempts=0) - will keep trying until radio comes back or user clicks Disconnect
     }
 }
 

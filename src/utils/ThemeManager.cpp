@@ -109,6 +109,28 @@ QString ThemeManager::colorRoleName(ColorRole role) {
         case ColorRole::StatusFlashText: return "Status Flash Text";
         case ColorRole::StatusFlashBorder: return "Status Flash Border";
 
+        // Map Sidebar Colors
+        case ColorRole::SectionHeaderText: return "Section Header Text";
+        case ColorRole::SidebarBackground: return "Sidebar Background";
+        case ColorRole::SidebarListBackground: return "Sidebar List Background";
+        case ColorRole::CompletionText: return "Completion Text";
+        case ColorRole::MapButtonBackground: return "Map Button Background";
+        case ColorRole::MapButtonHover: return "Map Button Hover";
+
+        // Toggle Button State Colors
+        case ColorRole::ButtonCheckedBackground: return "Button Checked Background";
+        case ColorRole::ButtonCheckedBorder: return "Button Checked Border";
+        case ColorRole::ButtonCheckedHover: return "Button Checked Hover";
+        case ColorRole::ButtonUncheckedBackground: return "Button Unchecked Background";
+        case ColorRole::ButtonUncheckedBorder: return "Button Unchecked Border";
+        case ColorRole::ButtonHoverBackground: return "Button Hover Background";
+
+        // Amplifier-specific Colors
+        case ColorRole::AmplifierSuccessBackground: return "Amplifier Success Background";
+        case ColorRole::AmplifierSuccessHover: return "Amplifier Success Hover";
+        case ColorRole::LcdDisplayText: return "LCD Display Text";
+        case ColorRole::SvgPanelBackground: return "SVG Panel Background";
+
         default: return "Unknown";
     }
 }
@@ -228,6 +250,28 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::StatusFlashText] = QColor("#ffffff");  // White
             colors[ColorRole::StatusFlashBorder] = QColor("#aa0000");  // Dark red
 
+            // Map Sidebar Colors
+            colors[ColorRole::SectionHeaderText] = QColor("#FFD700");  // Gold
+            colors[ColorRole::SidebarBackground] = QColor("#2C3E50");  // Dark blue-gray
+            colors[ColorRole::SidebarListBackground] = QColor("#34495E");  // Slightly lighter
+            colors[ColorRole::CompletionText] = QColor("#2ECC71");  // Green
+            colors[ColorRole::MapButtonBackground] = QColor("#3498DB");  // Blue
+            colors[ColorRole::MapButtonHover] = QColor("#2980B9");  // Darker blue
+
+            // Toggle Button State Colors
+            colors[ColorRole::ButtonCheckedBackground] = QColor("#4CAF50");  // Green
+            colors[ColorRole::ButtonCheckedBorder] = QColor("#2E7D32");  // Dark green
+            colors[ColorRole::ButtonCheckedHover] = QColor("#45A049");  // Medium green
+            colors[ColorRole::ButtonUncheckedBackground] = QColor("#E0E0E0");  // Light gray
+            colors[ColorRole::ButtonUncheckedBorder] = QColor("#808080");  // Gray
+            colors[ColorRole::ButtonHoverBackground] = QColor("#D0D0D0");  // Medium gray
+
+            // Amplifier-specific Colors
+            colors[ColorRole::AmplifierSuccessBackground] = QColor("#006600");  // Dark green
+            colors[ColorRole::AmplifierSuccessHover] = QColor("#008800");  // Medium green
+            colors[ColorRole::LcdDisplayText] = QColor("#000032");  // Dark blue
+            colors[ColorRole::SvgPanelBackground] = QColor("#2a2a2a");  // Dark gray
+
             // Map Colors
             colors[ColorRole::MapBackground] = QColor("#E8F4F8");  // Theme default: light blue
             colors[ColorRole::MapNotWorked] = QColor("#CCCCCC");  // Theme default: gray
@@ -291,6 +335,28 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::StatusFlashText] = QColor("#ffffff");  // White
             colors[ColorRole::StatusFlashBorder] = QColor("#880000");  // Darker red
 
+            // Map Sidebar Colors (dark mode)
+            colors[ColorRole::SectionHeaderText] = QColor("#FFD700");  // Gold
+            colors[ColorRole::SidebarBackground] = QColor("#1a2530");  // Dark blue-gray
+            colors[ColorRole::SidebarListBackground] = QColor("#1e2d3d");  // Slightly lighter
+            colors[ColorRole::CompletionText] = QColor("#2ECC71");  // Green
+            colors[ColorRole::MapButtonBackground] = QColor("#2980B9");  // Darker blue
+            colors[ColorRole::MapButtonHover] = QColor("#2471A3");  // Even darker blue
+
+            // Toggle Button State Colors (dark mode)
+            colors[ColorRole::ButtonCheckedBackground] = QColor("#2E7D32");  // Dark green
+            colors[ColorRole::ButtonCheckedBorder] = QColor("#1B5E20");  // Very dark green
+            colors[ColorRole::ButtonCheckedHover] = QColor("#388E3C");  // Medium dark green
+            colors[ColorRole::ButtonUncheckedBackground] = QColor("#424242");  // Dark gray
+            colors[ColorRole::ButtonUncheckedBorder] = QColor("#616161");  // Medium gray
+            colors[ColorRole::ButtonHoverBackground] = QColor("#535353");  // Slightly lighter gray
+
+            // Amplifier-specific Colors (dark mode)
+            colors[ColorRole::AmplifierSuccessBackground] = QColor("#004400");  // Darker green
+            colors[ColorRole::AmplifierSuccessHover] = QColor("#006600");  // Medium green
+            colors[ColorRole::LcdDisplayText] = QColor("#a0a0ff");  // Light blue for dark bg
+            colors[ColorRole::SvgPanelBackground] = QColor("#1a1a1a");  // Very dark gray
+
             // Map Colors (darker palette for dark mode)
             colors[ColorRole::MapBackground] = QColor("#1a2530");  // Theme default: dark blue-gray
             colors[ColorRole::MapNotWorked] = QColor("#555555");  // Theme default: dark gray
@@ -353,6 +419,28 @@ QMap<ColorRole, QColor> ThemeManager::getThemeColors(ThemeType theme) const {
             colors[ColorRole::StatusFlashBackground] = QColor("#FF0000");  // Bright red
             colors[ColorRole::StatusFlashText] = QColor("#FFFFFF");  // White
             colors[ColorRole::StatusFlashBorder] = QColor("#880000");  // Dark red
+
+            // Map Sidebar Colors (high contrast)
+            colors[ColorRole::SectionHeaderText] = QColor("#FFFF00");  // Bright yellow
+            colors[ColorRole::SidebarBackground] = QColor("#000000");  // Black
+            colors[ColorRole::SidebarListBackground] = QColor("#1a1a1a");  // Near black
+            colors[ColorRole::CompletionText] = QColor("#00FF00");  // Bright green
+            colors[ColorRole::MapButtonBackground] = QColor("#0000FF");  // Bright blue
+            colors[ColorRole::MapButtonHover] = QColor("#0000CC");  // Dark blue
+
+            // Toggle Button State Colors (high contrast)
+            colors[ColorRole::ButtonCheckedBackground] = QColor("#00FF00");  // Bright green
+            colors[ColorRole::ButtonCheckedBorder] = QColor("#008000");  // Green
+            colors[ColorRole::ButtonCheckedHover] = QColor("#00CC00");  // Medium green
+            colors[ColorRole::ButtonUncheckedBackground] = QColor("#C0C0C0");  // Silver
+            colors[ColorRole::ButtonUncheckedBorder] = QColor(Qt::black);  // Black
+            colors[ColorRole::ButtonHoverBackground] = QColor("#A0A0A0");  // Gray
+
+            // Amplifier-specific Colors (high contrast)
+            colors[ColorRole::AmplifierSuccessBackground] = QColor("#008800");  // Green
+            colors[ColorRole::AmplifierSuccessHover] = QColor("#00AA00");  // Brighter green
+            colors[ColorRole::LcdDisplayText] = QColor(Qt::black);  // Black
+            colors[ColorRole::SvgPanelBackground] = QColor(Qt::black);  // Black
 
             // Map Colors (high contrast palette)
             colors[ColorRole::MapBackground] = QColor("#FFFFFF");  // Theme default: white
@@ -421,6 +509,22 @@ QString ThemeManager::colorRoleToString(ColorRole role) {
         case ColorRole::StatusFlashBackground: return "StatusFlashBackground";
         case ColorRole::StatusFlashText: return "StatusFlashText";
         case ColorRole::StatusFlashBorder: return "StatusFlashBorder";
+        case ColorRole::SectionHeaderText: return "SectionHeaderText";
+        case ColorRole::SidebarBackground: return "SidebarBackground";
+        case ColorRole::SidebarListBackground: return "SidebarListBackground";
+        case ColorRole::CompletionText: return "CompletionText";
+        case ColorRole::MapButtonBackground: return "MapButtonBackground";
+        case ColorRole::MapButtonHover: return "MapButtonHover";
+        case ColorRole::ButtonCheckedBackground: return "ButtonCheckedBackground";
+        case ColorRole::ButtonCheckedBorder: return "ButtonCheckedBorder";
+        case ColorRole::ButtonCheckedHover: return "ButtonCheckedHover";
+        case ColorRole::ButtonUncheckedBackground: return "ButtonUncheckedBackground";
+        case ColorRole::ButtonUncheckedBorder: return "ButtonUncheckedBorder";
+        case ColorRole::ButtonHoverBackground: return "ButtonHoverBackground";
+        case ColorRole::AmplifierSuccessBackground: return "AmplifierSuccessBackground";
+        case ColorRole::AmplifierSuccessHover: return "AmplifierSuccessHover";
+        case ColorRole::LcdDisplayText: return "LcdDisplayText";
+        case ColorRole::SvgPanelBackground: return "SvgPanelBackground";
         default: return "Unknown";
     }
 }
@@ -461,6 +565,22 @@ ColorRole ThemeManager::stringToColorRole(const QString& str, bool* ok) {
     if (str == "StatusFlashBackground") return ColorRole::StatusFlashBackground;
     if (str == "StatusFlashText") return ColorRole::StatusFlashText;
     if (str == "StatusFlashBorder") return ColorRole::StatusFlashBorder;
+    if (str == "SectionHeaderText") return ColorRole::SectionHeaderText;
+    if (str == "SidebarBackground") return ColorRole::SidebarBackground;
+    if (str == "SidebarListBackground") return ColorRole::SidebarListBackground;
+    if (str == "CompletionText") return ColorRole::CompletionText;
+    if (str == "MapButtonBackground") return ColorRole::MapButtonBackground;
+    if (str == "MapButtonHover") return ColorRole::MapButtonHover;
+    if (str == "ButtonCheckedBackground") return ColorRole::ButtonCheckedBackground;
+    if (str == "ButtonCheckedBorder") return ColorRole::ButtonCheckedBorder;
+    if (str == "ButtonCheckedHover") return ColorRole::ButtonCheckedHover;
+    if (str == "ButtonUncheckedBackground") return ColorRole::ButtonUncheckedBackground;
+    if (str == "ButtonUncheckedBorder") return ColorRole::ButtonUncheckedBorder;
+    if (str == "ButtonHoverBackground") return ColorRole::ButtonHoverBackground;
+    if (str == "AmplifierSuccessBackground") return ColorRole::AmplifierSuccessBackground;
+    if (str == "AmplifierSuccessHover") return ColorRole::AmplifierSuccessHover;
+    if (str == "LcdDisplayText") return ColorRole::LcdDisplayText;
+    if (str == "SvgPanelBackground") return ColorRole::SvgPanelBackground;
 
     if (ok) *ok = false;
     return ColorRole::PrimaryText; // Default fallback

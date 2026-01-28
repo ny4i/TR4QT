@@ -1,5 +1,7 @@
 #include "NeedsDisplayWidget.h"
 #include "../../utils/AppSettings.h"
+#include "../../utils/FontManager.h"
+#include "../../utils/ThemeManager.h"
 #include <QFont>
 
 namespace TR4QT {
@@ -22,7 +24,7 @@ NeedsDisplayWidget::NeedsDisplayWidget(QWidget* parent)
     m_multNeedsBandsLabel = new QLabel(this);
 
     // Set fonts (monospaced for alignment)
-    QFont monoFont("Monospace", m_fontSize);
+    QFont monoFont = FontManager::instance().monospaceFont(m_fontSize);
     m_qsoNeedsHeaderLabel->setFont(monoFont);
     m_qsoNeedsBandsLabel->setFont(monoFont);
     m_multNeedsHeaderLabel->setFont(monoFont);
@@ -49,14 +51,18 @@ NeedsDisplayWidget::NeedsDisplayWidget(QWidget* parent)
     clear();
 
     // Box-style border (left and bottom lines for emphasis)
-    setStyleSheet("NeedsDisplayWidget { "
-                  "border-left: 2px solid #404040; "
-                  "border-bottom: 2px solid #404040; "
-                  "border-top: 1px solid #808080; "
-                  "border-right: 1px solid #808080; "
-                  "background-color: #f5f5f5; "
+    QString borderDark = ThemeManager::instance().colorName(ColorRole::SecondaryText);
+    QString borderLight = ThemeManager::instance().colorName(ColorRole::ButtonUncheckedBorder);
+    QString bgColor = ThemeManager::instance().colorName(ColorRole::WindowBackground);
+    setStyleSheet(QString("NeedsDisplayWidget { "
+                  "border-left: 2px solid %1; "
+                  "border-bottom: 2px solid %1; "
+                  "border-top: 1px solid %2; "
+                  "border-right: 1px solid %2; "
+                  "background-color: %3; "
                   "padding: 5px; "
-                  "}");
+                  "}")
+                  .arg(borderDark, borderLight, bgColor));
 }
 
 void NeedsDisplayWidget::updateForCallsign(const QString& callsign,
@@ -112,7 +118,7 @@ void NeedsDisplayWidget::clear()
 void NeedsDisplayWidget::setFontSize(int pointSize)
 {
     m_fontSize = pointSize;
-    QFont monoFont("Monospace", m_fontSize);
+    QFont monoFont = FontManager::instance().monospaceFont(m_fontSize);
     m_qsoNeedsHeaderLabel->setFont(monoFont);
     m_qsoNeedsBandsLabel->setFont(monoFont);
     m_multNeedsHeaderLabel->setFont(monoFont);
@@ -141,9 +147,10 @@ QString NeedsDisplayWidget::generateBandListHtml(const QList<BandType>& allBands
                    .arg(workedColor, bandName);
         } else {
             // Still needed - highlight with configured needed color
-            html += QString("<span style='color: #000000; background-color: %1; "
-                          "padding: 2px 4px; font-weight: bold;'>%2</span> ")
-                   .arg(neededColor, bandName);
+            html += QString("<span style='color: %1; background-color: %2; "
+                          "padding: 2px 4px; font-weight: bold;'>%3</span> ")
+                   .arg(ThemeManager::instance().colorName(ColorRole::PrimaryText),
+                        neededColor, bandName);
         }
     }
 

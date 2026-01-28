@@ -1435,7 +1435,8 @@ QWidget* PreferencesDialog::createLoggingTab() {
         this
     );
     hamlibWarning->setWordWrap(true);
-    hamlibWarning->setStyleSheet("QLabel { color: #d68910; font-size: 9pt; padding-left: 20px; }");
+    hamlibWarning->setStyleSheet(QString("QLabel { color: %1; font-size: 9pt; padding-left: 20px; }")
+        .arg(ThemeManager::instance().colorName(ColorRole::WarningText)));
     advancedLayout->addWidget(hamlibWarning);
 
     mainLayout->addWidget(advancedGroup);

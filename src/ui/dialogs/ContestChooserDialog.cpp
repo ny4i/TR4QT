@@ -3,6 +3,7 @@
 #include "../../contests/ContestRegistry.h"
 #include "../../contests/ContestMetadata.h"
 #include "../../utils/DialogHelper.h"
+#include "../../utils/ThemeManager.h"
 #include "../../utils/PathManager.h"
 #include "../../utils/AppSettings.h"
 #include "../../logging/LogMacros.h"
@@ -301,7 +302,7 @@ void ContestChooserDialog::loadExistingContests() {
         QTableWidgetItem* versionItem = new QTableWidgetItem(versionStr);
         if (schemaVersion == 0) {
             // Highlight old databases in yellow
-            versionItem->setForeground(QBrush(QColor("#d68910")));  // Orange warning color
+            versionItem->setForeground(QBrush(ThemeManager::instance().color(ColorRole::WarningText)));
             versionItem->setToolTip("This database was created before versioning (will be migrated on open)");
         }
         m_existingContestsTable->setItem(row, 3, versionItem);

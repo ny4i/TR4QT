@@ -8,6 +8,7 @@
 #include <QLineEdit>
 #include <QLabel>
 #include "../../network/TelnetClient.h"
+#include "../../utils/ReconnectionManager.h"
 
 namespace TR4QT {
 
@@ -146,8 +147,7 @@ private:
     bool m_isFrozen;
     QStringList m_recentServers;
     bool m_autoReconnect;
-    QTimer* m_reconnectTimer;
-    int m_reconnectAttempts;
+    ReconnectionManager* m_reconnectManager;
     static constexpr int MAX_RECONNECT_ATTEMPTS = 10;
     int m_spotRowCount;  // For alternating row backgrounds
 
