@@ -11,6 +11,31 @@
 namespace TR4QT {
 
 /**
+ * Criteria for searching QSOs across contests
+ *
+ * All fields are optional - empty/default values are excluded from query.
+ * Multiple criteria are combined with AND.
+ */
+struct QSOSearchCriteria {
+    QString callsign;           ///< Partial match (LIKE %call%)
+    QString operatorCall;       ///< Exact match on operator field
+    QDateTime startTime;        ///< >= start (UTC), null = no lower bound
+    QDateTime endTime;          ///< <= end (UTC), null = no upper bound
+    int contestId = -1;         ///< -1 = search all contests
+
+    /**
+     * @return true if at least one search criterion is specified
+     */
+    bool hasAnyCriteria() const {
+        return !callsign.isEmpty()
+            || !operatorCall.isEmpty()
+            || startTime.isValid()
+            || endTime.isValid()
+            || contestId >= 0;
+    }
+};
+
+/**
  * Repository for QSO database operations
  *
  * Provides CRUD operations for QSOs, dupe checking, and multiplier tracking.
@@ -158,6 +183,17 @@ public:
      * @return List of matching QSOs
      */
     QList<QSO> findByCallsign(const QString& callsign, int contestId) const;
+
+    /**
+     * Search QSOs using flexible criteria
+     *
+     * Builds parameterized SQL with optional WHERE clauses.
+     * All criteria are ANDed together. Empty/default values are skipped.
+     *
+     * @param criteria Search criteria (callsign, operator, time range, contest)
+     * @return List of matching QSOs ordered by timestamp DESC
+     */
+    QList<QSO> search(const QSOSearchCriteria& criteria) const;
 
     // ===== Multiplier Tracking =====
 

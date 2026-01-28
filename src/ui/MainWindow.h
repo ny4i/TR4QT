@@ -25,6 +25,7 @@
 #include "../controllers/DataIntegrityManager.h"
 #include "../controllers/ContestManager.h"
 #include "../controllers/ContestService.h"
+#include "../data/QSORepository.h"  // For QSOSearchCriteria
 #include "../services/QSOPersistenceService.h"
 #include "../services/ExchangeMemoryService.h"
 #include "../services/QSOLoggingCoordinator.h"
@@ -59,6 +60,7 @@ namespace TR4QT {
 
 // RescoreStats now defined in DataIntegrityManager.h
 
+class QSOSearchPanel;
 class DXClusterWindow;
 class BandMapWidget;
 class RadioControlWidget;
@@ -292,6 +294,10 @@ private:
     void setOperatingMode(OperatingMode mode);  // Switch operating mode and update UI
     void checkAutoSP(freq_t newFrequency);      // Check if AUTO S&P should trigger
 
+    // Search helpers
+    void executeSearch();         // Show search dialog and display results
+    void refreshSearchResults();  // Re-run last search (no dialog)
+
     // Sent exchange helpers
     QString substituteSentExchangeTemplate(const QString& templateStr, int serialNumber, const QString& rst) const;
 
@@ -480,6 +486,10 @@ private:
     // AUTO S&P VFO tracking
     freq_t m_lastFrequency;
     QDateTime m_lastFrequencyTime;
+
+    // QSO Search panel (below QSO log)
+    QSOSearchPanel* m_searchPanel;
+    QSOSearchCriteria m_lastSearchCriteria;  // For refreshing results after edit
 };
 
 } // namespace TR4QT

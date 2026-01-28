@@ -2,6 +2,7 @@
 #include "Database.h"
 #include "DatabaseTransaction.h"
 #include "../core/Types.h"
+#include "../core/Constants.h"
 #include "../logging/LogMacros.h"
 #include <QSqlQuery>
 #include <QSqlError>
@@ -526,6 +527,51 @@ QList<QSO> QSORepository::findByCallsign(const QString& callsign, int contestId)
     }
 
     return qsos;
+}
+
+// ===== Search =====
+
+QList<QSO> QSORepository::search(const QSOSearchCriteria& criteria) const {
+    Database& db = Database::instance();
+
+    QString sql = "SELECT * FROM qsos WHERE deleted = 0";
+    QVariantList params;
+
+    if (criteria.contestId >= 0) {
+        sql += " AND contest_id = ?";
+        params << criteria.contestId;
+    }
+
+    if (!criteria.callsign.isEmpty()) {
+        sql += " AND callsign LIKE ?";
+        params << QString("%%%1%%").arg(criteria.callsign.toUpper());
+    }
+
+    if (!criteria.operatorCall.isEmpty()) {
+        sql += " AND operator_call = ?";
+        params << criteria.operatorCall.toUpper();
+    }
+
+    if (criteria.startTime.isValid()) {
+        sql += " AND timestamp >= ?";
+        params << criteria.startTime.toSecsSinceEpoch();
+    }
+
+    if (criteria.endTime.isValid()) {
+        sql += " AND timestamp <= ?";
+        params << criteria.endTime.toSecsSinceEpoch();
+    }
+
+    sql += QString(" ORDER BY timestamp DESC LIMIT %1").arg(SearchLimits::MAX_SEARCH_RESULTS);
+
+    QSqlQuery query = db.execute(sql, params);
+
+    QList<QSO> results;
+    while (query.next()) {
+        results.append(qsoFromQuery(query));
+    }
+
+    return results;
 }
 
 // ===== Multiplier Tracking =====

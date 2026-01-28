@@ -154,6 +154,15 @@ namespace UIDefaults {
     constexpr int STATS_WIDGET_MIN_WIDTH = 200;
     constexpr int STATS_WIDGET_MAX_WIDTH = 300;
     constexpr int NEEDS_DISPLAY_MIN_WIDTH = 200;
+
+    // Search dialog
+    constexpr int SEARCH_DIALOG_MIN_WIDTH = 350;
+}
+
+// Search limits
+namespace SearchLimits {
+    constexpr int MAX_SEARCH_RESULTS = 1000;       // Max QSOs returned by search query
+    constexpr int MAX_CALLSIGN_LENGTH = 20;        // Max callsign field input length (ADIF practical limit with suffixes)
 }
 
 } // namespace TR4QT

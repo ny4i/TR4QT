@@ -178,6 +178,7 @@ set(SOURCES
     services/AmplifierService.cpp
     services/MaintenanceService.cpp
     services/InputHandlerService.cpp
+    services/QSOSearchService.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp
@@ -196,6 +197,7 @@ set(SOURCES
     ui/dialogs/MacroEditDialog.cpp
     ui/dialogs/FunctionKeysWindow.cpp
     ui/dialogs/ADIFImportDialog.cpp
+    ui/dialogs/QSOSearchDialog.cpp
     ui/dialogs/GraylineMapDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
@@ -206,6 +208,7 @@ set(SOURCES
     ui/widgets/DXClusterWindow.cpp
     ui/widgets/StatisticsWindow.cpp
     ui/widgets/NeedsDisplayWidget.cpp
+    ui/widgets/QSOSearchPanel.cpp
     ui/widgets/SvgPanelWidget.cpp
     ui/windows/AmplifierControlWindow.cpp
     ui/panels/IAmplifierPanelController.h
@@ -309,6 +312,7 @@ set(HEADERS
     ui/dialogs/MacroEditDialog.h
     ui/dialogs/FunctionKeysWindow.h
     ui/dialogs/ADIFImportDialog.h
+    ui/dialogs/QSOSearchDialog.h
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
     ui/widgets/CivAddressWidget.h
@@ -318,6 +322,7 @@ set(HEADERS
     ui/widgets/DXClusterWindow.h
     ui/widgets/StatisticsWindow.h
     ui/widgets/NeedsDisplayWidget.h
+    ui/widgets/QSOSearchPanel.h
     ui/widgets/SvgPanelWidget.h
     ui/windows/AmplifierControlWindow.h
     ui/panels/IAmplifierPanelController.h

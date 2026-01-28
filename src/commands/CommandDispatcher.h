@@ -39,6 +39,7 @@ public:
         NotACommand,        // Input is not a command
         ChangeOperator,     // OPON - Open operator dialog
         RebroadcastLog,     // UDP - Rebroadcast entire log via UDP
+        FindQSO,            // /find - Open QSO search dialog
         // Future commands:
         // ChangeBand,      // BAND <band> - Change band
         // ChangeMode,      // MODE <mode> - Change mode
