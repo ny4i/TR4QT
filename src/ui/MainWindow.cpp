@@ -9,12 +9,14 @@
 #include "dialogs/CWMessageEditorDialog.h"
 #include "dialogs/FunctionKeysWindow.h"
 #include "dialogs/GraylineMapDialog.h"
+#include "dialogs/QSOSearchDialog.h"
 #include "widgets/DXClusterWindow.h"
 #include "widgets/BandMapWidget.h"
 #include "widgets/RadioControlWidget.h"
 #include "widgets/MultiplierWidget.h"
 #include "widgets/StatisticsWindow.h"
 #include "windows/AmplifierControlWindow.h"
+#include "widgets/QSOSearchPanel.h"
 #include "NativeMapViewer.h"
 #include "../network/UdpBroadcastManager.h"
 #include "../network/WebServer.h"
@@ -49,6 +51,7 @@
 #include "../data/ExchangeMemoryRepository.h"
 #include "../data/SCPRepository.h"
 #include "../commands/CommandDispatcher.h"
+#include "../services/QSOSearchService.h"
 #include "../contests/RSTValidator.h"
 #include "../cw/CWTemplateEngine.h"
 #include <QFile>
@@ -75,6 +78,8 @@
 #include <QPushButton>
 #include <QFont>
 #include <QHeaderView>
+#include <QSplitter>
+#include <QShortcut>
 #include <QLineEdit>
 #include <QTextEdit>
 #include <QtConcurrent/QtConcurrent>
@@ -151,6 +156,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_operatingMode(OperatingMode::CQ)
     , m_operatingModeLabel(nullptr)
     , m_lastFrequency(0)
+    , m_searchPanel(nullptr)
 {
     setWindowTitle(QString("%1 v%2").arg(APP_NAME).arg(APP_VERSION));
     setWindowIcon(QIcon(":/icons/tr4qt.png"));
@@ -692,13 +698,58 @@ void MainWindow::createCentralWidget() {
     m_qsoTableView->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_qsoTableView, &QTableView::customContextMenuRequested, this, &MainWindow::onQSOTableContextMenu);
 
-    mainLayout->addWidget(m_qsoTableView, 1);  // Stretch factor 1 = takes remaining space
+    // Search results panel (hidden by default)
+    m_searchPanel = new QSOSearchPanel(this);
+    connect(m_searchPanel, &QSOSearchPanel::closeRequested, this, [this]() {
+        m_searchPanel->clear();
+        m_callsignEntry->setFocus();
+    });
+    connect(m_searchPanel, &QSOSearchPanel::qsoSelected, this, [this](const QSO& qso) {
+        if (qso.id < 0) return;
+
+        EditQSODialog dialog(qso, m_activeContest.get(), this);
+        if (dialog.exec() != QDialog::Accepted) return;
+
+        QSO editedQSO = dialog.getEditedQSO();
+        QSORepository repo;
+        if (repo.updateQSO(editedQSO)) {
+            // Update main table if QSO is in current contest
+            QList<QSO> allQSOs = m_qsoTableModel->getAllQSOs();
+            for (int row = 0; row < allQSOs.size(); ++row) {
+                if (allQSOs[row].id == editedQSO.id) {
+                    m_qsoTableModel->updateQSO(row, editedQSO);
+                    break;
+                }
+            }
+            rebuildMultiplierWindow();
+            refreshSearchResults();
+            LOG_INFO("MainWindow", QString("Updated QSO #%1 (%2) from search results")
+                .arg(editedQSO.id).arg(editedQSO.callsign));
+        } else {
+            DialogHelper::warning(this, "Error",
+                QString("Failed to update QSO: %1").arg(repo.lastError()));
+        }
+    });
+
+    // Vertical splitter: QSO table on top, search panel on bottom
+    QSplitter* splitter = new QSplitter(Qt::Vertical, this);
+    splitter->addWidget(m_qsoTableView);
+    splitter->addWidget(m_searchPanel);
+    splitter->setStretchFactor(0, 1);  // QSO table gets all space when search hidden
+    splitter->setStretchFactor(1, 0);
+    splitter->setChildrenCollapsible(false);
+
+    mainLayout->addWidget(splitter, 1);  // Stretch factor 1 = takes remaining space
 
     // Bottom: Entry and stats panel (with radio status on left)
     QWidget* bottomPanel = createBottomPanel();
     mainLayout->addWidget(bottomPanel);
 
     setCentralWidget(central);
+
+    // Ctrl+F: Open QSO search dialog
+    QShortcut* findShortcut = new QShortcut(QKeySequence::Find, this);
+    connect(findShortcut, &QShortcut::activated, this, &MainWindow::executeSearch);
 
     // Calculate minimum window width based on bottom panel's sizeHint
     // This ensures all widgets fit without overlap
@@ -2006,6 +2057,12 @@ bool MainWindow::handleLogQSOCommand(const QString& callsign) {
         return true;
     }
 
+    if (cmd.type == CommandDispatcher::FindQSO) {
+        onClearEntry();
+        executeSearch();
+        return true;
+    }
+
     return false;
 }
 
@@ -3031,6 +3088,11 @@ void MainWindow::applyFontSettings() {
     int tableFontSize = settings.getTableFontSize();
     QFont tableFont = FontManager::instance().monospaceFont(tableFontSize);
     m_qsoTableView->setFont(tableFont);
+
+    // Keep search panel in sync with main table font
+    if (m_searchPanel) {
+        m_searchPanel->syncAppearance(m_qsoTableView);
+    }
 
     // Apply band summary grid font size
     int gridFontSize = settings.getGridFontSize();
@@ -4167,7 +4229,47 @@ void MainWindow::onDupeCheck() {
 }
 
 void MainWindow::onSearchLog() {
-    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::SearchLog, this);
+    executeSearch();
+}
+
+void MainWindow::executeSearch() {
+    int contestId = m_hasActiveContest ? m_currentContestDbId : -1;
+    QSOSearchDialog dialog(contestId, this);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QSOSearchCriteria criteria = dialog.getCriteria();
+    if (!criteria.hasAnyCriteria()) {
+        m_statusLabel->setText("Search cancelled: no criteria specified");
+        return;
+    }
+
+    m_lastSearchCriteria = criteria;
+    refreshSearchResults();
+}
+
+void MainWindow::refreshSearchResults() {
+    if (!m_lastSearchCriteria.hasAnyCriteria()) {
+        return;
+    }
+
+    QSOSearchService searchService;
+    QList<QSO> results = searchService.search(m_lastSearchCriteria);
+
+    if (m_activeContest) {
+        m_searchPanel->setContest(m_activeContest.get());
+    }
+
+    m_searchPanel->syncAppearance(m_qsoTableView);
+    m_searchPanel->setResults(results);
+    m_statusLabel->setText(
+        QString("Search: %1 QSO%2 found")
+            .arg(results.size())
+            .arg(results.size() != 1 ? "s" : ""));
+
+    m_callsignEntry->setFocus();
 }
 
 void MainWindow::onDeleteLastQSO() {

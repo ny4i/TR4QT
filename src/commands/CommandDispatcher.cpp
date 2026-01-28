@@ -25,6 +25,12 @@ CommandDispatcher::CommandResult CommandDispatcher::parseCommand(const QString& 
         return CommandResult(RebroadcastLog, true);
     }
 
+    // Check for /find command (QSO search)
+    // Slash-prefixed commands are unambiguous vs callsigns (K1ABC/VE3 won't match)
+    if (normalized == "/FIND") {
+        return CommandResult(FindQSO, true);
+    }
+
     // Future commands can be added here:
     // if (normalized.startsWith("BAND ")) {
     //     QString band = normalized.mid(5).trimmed();
