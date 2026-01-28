@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.39.87";  // QSO search system: /find command, Cmd+F, search dialog, quick callsign search
+constexpr const char* APP_VERSION = "3.39.88";  // Fix CI builds: qtkeychain MinGW patch, macOS test linking
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
