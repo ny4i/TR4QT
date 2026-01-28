@@ -2967,8 +2967,8 @@ void MainWindow::updateRadioStatusGrid() {
     m_radioWpmLabel->setText(QString("%1 WPM").arg(wpm));
     m_radioWpmLabel->setEnabled(isCWMode && autoSendEnabled);  // Gray out when not in CW mode or auto-send disabled
 
-    // Update date/time (current local time)
-    QDateTime now = QDateTime::currentDateTime();
+    // Update date/time (UTC - contest logging standard)
+    QDateTime now = QDateTime::currentDateTimeUtc();
     QString dateStr = now.toString("ddd dd-MMM-yyyy");
     QString timeStr = now.toString("hh:mm:ss");
     m_radioDateLabel->setText(dateStr);
