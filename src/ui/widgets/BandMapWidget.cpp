@@ -1,5 +1,6 @@
 #include "BandMapWidget.h"
 #include "../../utils/ThemeManager.h"
+#include "../../utils/FontManager.h"
 #include "../../utils/AppSettings.h"
 #include "../../utils/GeographicUtils.h"
 #include "../../utils/CountryFile.h"
@@ -240,7 +241,7 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
     QPainter painter(viewport());
     painter.fillRect(viewport()->rect(), Qt::white);
 
-    QFont font("Monospace", 9);
+    QFont font = FontManager::instance().monospaceFont(9);
     font.setBold(true);
     painter.setFont(font);
 
@@ -475,7 +476,7 @@ void BandMapWidget::contextMenuEvent(QContextMenuEvent* event) {
     QMenu menu(this);
 
     // Check if user clicked in the status bar area (bottom of widget)
-    QFontMetrics fm(QFont("Monospace", 9));
+    QFontMetrics fm(FontManager::instance().monospaceFont(9));
     const int FOOTER_HEIGHT = fm.height() + 10;
     int statusBarY = viewport()->height() - FOOTER_HEIGHT;
 
@@ -615,7 +616,7 @@ int BandMapWidget::findSpotAtPosition(const QPoint& pos) {
     int scrollY = verticalScrollBar()->value();
     int scrollX = horizontalScrollBar()->value();
 
-    QFontMetrics fm(QFont("Monospace", 9));
+    QFontMetrics fm(FontManager::instance().monospaceFont(9));
     const int FOOTER_HEIGHT = fm.height() + 10;
     int availableHeight = viewport()->height() - FOOTER_HEIGHT;
 
@@ -649,8 +650,7 @@ int BandMapWidget::findSpotAtPosition(const QPoint& pos) {
 }
 
 int BandMapWidget::rowHeight() const {
-    QFont font("Monospace", 9);
-    QFontMetrics fm(font);
+    QFontMetrics fm(FontManager::instance().monospaceFont(9));
     return fm.height() + 4;  // 2px padding top and bottom
 }
 
@@ -670,7 +670,7 @@ void BandMapWidget::updateScrollBars() {
     // This function now does ALL layout calculations to avoid circular dependencies
 
     int lineHeight = rowHeight();
-    QFontMetrics fm(QFont("Monospace", 9));
+    QFontMetrics fm(FontManager::instance().monospaceFont(9));
     const int FOOTER_HEIGHT = fm.height() + 10;
     const int SCROLLBAR_HEIGHT = horizontalScrollBar()->sizeHint().height();
     const int MIN_COLUMN_WIDTH = 150;

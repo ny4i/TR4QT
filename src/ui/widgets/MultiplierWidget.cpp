@@ -1,5 +1,6 @@
 #include "MultiplierWidget.h"
 #include "../../utils/ThemeManager.h"
+#include "../../utils/FontManager.h"
 #include "../../utils/ArrlSectionHelper.h"
 #include "../../utils/CountryFile.h"
 #include <QVBoxLayout>
@@ -47,8 +48,7 @@ void MultiplierWidget::setupUI() {
             this, &MultiplierWidget::onContextMenuRequested);
 
     // Set font
-    QFont font("Monospace", 9);
-    m_table->setFont(font);
+    m_table->setFont(FontManager::instance().monospaceFont(9));
 
     // Set initial column widths (will be recalculated on resize)
     for (int i = 0; i < m_columnCount; ++i) {

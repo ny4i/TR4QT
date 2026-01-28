@@ -4,6 +4,7 @@
 #include "../../utils/DialogHelper.h"
 #include "../../utils/AppSettings.h"
 #include "../../utils/ThemeManager.h"
+#include "../../utils/FontManager.h"
 #include "../../data/LOTWUserRepository.h"
 #include "../../contests/ContestBase.h"
 #include "../../data/QSORepository.h"
@@ -12,7 +13,6 @@
 #include <QHBoxLayout>
 #include <QToolBar>
 #include <QAction>
-#include <QMessageBox>
 #include <QFont>
 #include <QSettings>
 #include <QTimer>
@@ -56,8 +56,7 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
     , m_telnetClient(nullptr)
     , m_isFrozen(false)
     , m_autoReconnect(false)
-    , m_reconnectTimer(new QTimer(this))
-    , m_reconnectAttempts(0)
+    , m_reconnectManager(new ReconnectionManager(10000, MAX_RECONNECT_ATTEMPTS, this))
     , m_spotRowCount(0)
     , m_activeContest(nullptr)
     , m_contestDbId(-1)
@@ -92,24 +91,22 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
                 Qt::QueuedConnection);
     }
 
-    // Setup reconnection timer (10 seconds between attempts)
-    m_reconnectTimer->setSingleShot(true);
-    m_reconnectTimer->setInterval(10000);  // 10 seconds
-    connect(m_reconnectTimer, &QTimer::timeout, this, [this]() {
-        if (m_autoReconnect && m_reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-            m_reconnectAttempts++;
+    // Setup reconnection manager (10 seconds, max 10 attempts)
+    connect(m_reconnectManager, &ReconnectionManager::retryRequested, this, [this](int attempt) {
+        if (m_autoReconnect) {
             appendText(QString("Reconnect attempt %1 of %2...")
-                .arg(m_reconnectAttempts).arg(MAX_RECONNECT_ATTEMPTS), Qt::darkYellow);
+                .arg(attempt).arg(MAX_RECONNECT_ATTEMPTS), Qt::darkYellow);
             LOG_DEBUG("DXClusterWindow", QString("Auto-reconnect: Attempt %1 of %2")
-                .arg(m_reconnectAttempts).arg(MAX_RECONNECT_ATTEMPTS));
+                .arg(attempt).arg(MAX_RECONNECT_ATTEMPTS));
             onConnectClicked();
-        } else if (m_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            m_autoReconnect = false;
-            appendText(QString("Failed to reconnect after %1 attempts. Please reconnect manually.")
-                .arg(MAX_RECONNECT_ATTEMPTS), Qt::red);
-            LOG_WARN("DXClusterWindow", QString("Auto-reconnect failed after %1 attempts")
-                .arg(MAX_RECONNECT_ATTEMPTS));
         }
+    });
+    connect(m_reconnectManager, &ReconnectionManager::retriesExhausted, this, [this](int totalAttempts) {
+        m_autoReconnect = false;
+        appendText(QString("Failed to reconnect after %1 attempts. Please reconnect manually.")
+            .arg(totalAttempts), Qt::red);
+        LOG_WARN("DXClusterWindow", QString("Auto-reconnect failed after %1 attempts")
+            .arg(totalAttempts));
     });
 
     // Connect to theme changes
@@ -270,10 +267,7 @@ void DXClusterWindow::setupUI() {
     m_textDisplay->setAcceptRichText(true);  // Enable rich text for modern styling
 
     // Use fixed-width font for proper alignment
-    QFont monoFont("Courier", 10);
-    monoFont.setStyleHint(QFont::Monospace);
-    monoFont.setFixedPitch(true);
-    m_textDisplay->setFont(monoFont);
+    m_textDisplay->setFont(FontManager::instance().courierFont(10));
 
     // Disable word wrap for proper column alignment
     m_textDisplay->setLineWrapMode(QTextEdit::NoWrap);
@@ -388,8 +382,7 @@ void DXClusterWindow::onConnectClicked() {
 
     // Enable auto-reconnect when user initiates connection
     m_autoReconnect = true;
-    m_reconnectTimer->stop();  // Stop any pending reconnect attempt
-    m_reconnectAttempts = 0;   // Reset retry counter
+    m_reconnectManager->reset();  // Stop any pending reconnect and reset counter
 
     QString serverString = m_serverCombo->currentText().trimmed();
     if (serverString.isEmpty()) {
@@ -463,7 +456,7 @@ void DXClusterWindow::onDisconnectClicked() {
 
     // Disable auto-reconnect when user manually disconnects
     m_autoReconnect = false;
-    m_reconnectTimer->stop();
+    m_reconnectManager->reset();
 
     QMetaObject::invokeMethod(m_telnetClient, "disconnectFromServer",
                              Qt::QueuedConnection);
@@ -534,8 +527,7 @@ void DXClusterWindow::onTelnetConnected() {
     appendText("Connected!", Qt::darkGreen);
 
     // Stop reconnect timer on successful connection
-    m_reconnectTimer->stop();
-    m_reconnectAttempts = 0;  // Reset retry counter on success
+    m_reconnectManager->recordSuccess();
 }
 
 void DXClusterWindow::onTelnetDisconnected() {
@@ -546,7 +538,7 @@ void DXClusterWindow::onTelnetDisconnected() {
     if (m_autoReconnect) {
         LOG_DEBUG("DXClusterWindow", "Disconnected - will attempt reconnect in 10 seconds");
         appendText("Will attempt to reconnect in 10 seconds...", Qt::darkYellow);
-        m_reconnectTimer->start();
+        m_reconnectManager->start();
     }
 }
 

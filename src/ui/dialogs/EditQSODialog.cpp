@@ -1,6 +1,7 @@
 #include "EditQSODialog.h"
 #include "../../core/Constants.h"
 #include "../../utils/DialogHelper.h"
+#include "../../utils/ThemeManager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -35,7 +36,7 @@ void EditQSODialog::setupUI() {
     basicLayout->addWidget(new QLabel("GUID:"), 0, 0);
     m_guidEdit = new QLineEdit(this);
     m_guidEdit->setReadOnly(true);
-    m_guidEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+    m_guidEdit->setStyleSheet(QString("QLineEdit { background-color: %1; }").arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
     basicLayout->addWidget(m_guidEdit, 0, 1);
 
     basicLayout->addWidget(new QLabel("Timestamp (UTC):"), 1, 0);
@@ -93,13 +94,13 @@ void EditQSODialog::setupUI() {
     geoLayout->addWidget(new QLabel("DXCC Entity:"), 0, 0);
     m_dxccEntityEdit = new QLineEdit(this);
     m_dxccEntityEdit->setReadOnly(true);
-    m_dxccEntityEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+    m_dxccEntityEdit->setStyleSheet(QString("QLineEdit { background-color: %1; }").arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
     geoLayout->addWidget(m_dxccEntityEdit, 0, 1);
 
     geoLayout->addWidget(new QLabel("DXCC Prefix:"), 0, 2);
     m_dxccPrefixEdit = new QLineEdit(this);
     m_dxccPrefixEdit->setReadOnly(true);
-    m_dxccPrefixEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+    m_dxccPrefixEdit->setStyleSheet(QString("QLineEdit { background-color: %1; }").arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
     geoLayout->addWidget(m_dxccPrefixEdit, 0, 3);
 
     geoLayout->addWidget(new QLabel("CQ Zone:"), 1, 0);
@@ -142,7 +143,7 @@ void EditQSODialog::setupUI() {
     m_qsoPointsSpinBox = new QSpinBox(this);
     m_qsoPointsSpinBox->setRange(0, 999);
     m_qsoPointsSpinBox->setReadOnly(true);
-    m_qsoPointsSpinBox->setStyleSheet("QSpinBox { background-color: #f0f0f0; }");
+    m_qsoPointsSpinBox->setStyleSheet(QString("QSpinBox { background-color: %1; }").arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
     metaLayout->addWidget(m_qsoPointsSpinBox, 0, 1);
 
     m_isDupeCheckBox = new QCheckBox("Is Duplicate", this);
@@ -350,7 +351,7 @@ void EditQSODialog::configureFieldsForContest() {
     bool usesSerial = usedFields.contains("Serial");
     m_serialNumberReceivedSpinBox->setEnabled(usesSerial);
     if (!usesSerial) {
-        m_serialNumberReceivedSpinBox->setStyleSheet("QSpinBox { background-color: #f0f0f0; }");
+        m_serialNumberReceivedSpinBox->setStyleSheet(QString("QSpinBox { background-color: %1; }").arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
     }
 
     // Configure geographic fields based on contest requirements
@@ -360,28 +361,28 @@ void EditQSODialog::configureFieldsForContest() {
                      usedFields.contains("State/Power");  // ARRL DX
     m_stateEdit->setEnabled(usesState);
     if (!usesState) {
-        m_stateEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+        m_stateEdit->setStyleSheet(QString("QLineEdit { background-color: %1; }").arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
     }
 
     // County field - used by QSO parties
     bool usesCounty = usedFields.contains("County");
     m_countyEdit->setEnabled(usesCounty);
     if (!usesCounty) {
-        m_countyEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+        m_countyEdit->setStyleSheet(QString("QLineEdit { background-color: %1; }").arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
     }
 
     // ARRL Section field - used by Field Day, Sweepstakes, etc.
     bool usesSection = usedFields.contains("Section");
     m_arrlSectionEdit->setEnabled(usesSection);
     if (!usesSection) {
-        m_arrlSectionEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+        m_arrlSectionEdit->setStyleSheet(QString("QLineEdit { background-color: %1; }").arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
     }
 
     // Contest Class field - used by Field Day, Winter Field Day
     bool usesClass = usedFields.contains("Class");
     m_contestClassEdit->setEnabled(usesClass);
     if (!usesClass) {
-        m_contestClassEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+        m_contestClassEdit->setStyleSheet(QString("QLineEdit { background-color: %1; }").arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
     }
 
     // Zone fields
@@ -389,7 +390,7 @@ void EditQSODialog::configureFieldsForContest() {
     bool usesCQZone = usedFields.contains("Zone");  // CQ WW uses "Zone"
     m_cqZoneSpinBox->setEnabled(usesCQZone);
     if (!usesCQZone) {
-        m_cqZoneSpinBox->setStyleSheet("QSpinBox { background-color: #f0f0f0; }");
+        m_cqZoneSpinBox->setStyleSheet(QString("QSpinBox { background-color: %1; }").arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
     }
 
     // ITU Zone - used by IARU HF Championship
@@ -398,14 +399,14 @@ void EditQSODialog::configureFieldsForContest() {
     bool usesITUZone = usedFields.contains("ITU Zone");
     m_ituZoneSpinBox->setEnabled(usesITUZone);
     if (!usesITUZone) {
-        m_ituZoneSpinBox->setStyleSheet("QSpinBox { background-color: #f0f0f0; }");
+        m_ituZoneSpinBox->setStyleSheet(QString("QSpinBox { background-color: %1; }").arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
     }
 
     // Operator Name field - used by NAQP
     bool usesOperatorName = usedFields.contains("Name");
     m_operatorNameEdit->setEnabled(usesOperatorName);
     if (!usesOperatorName) {
-        m_operatorNameEdit->setStyleSheet("QLineEdit { background-color: #f0f0f0; }");
+        m_operatorNameEdit->setStyleSheet(QString("QLineEdit { background-color: %1; }").arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
     }
 
     // Note: Some fields like Precedence, Check, Power don't have UI widgets yet

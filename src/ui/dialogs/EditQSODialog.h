@@ -8,7 +8,6 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QTextEdit>
-#include <QMessageBox>
 #include "../../models/QSO.h"
 #include "../../contests/ContestBase.h"
 

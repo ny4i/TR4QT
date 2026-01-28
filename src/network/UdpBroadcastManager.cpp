@@ -3,11 +3,7 @@
 #include "ContactInfo.h"
 #include "../core/Types.h"
 #include "../logging/LogMacros.h"
-#include <QHostInfo>
-
-#ifdef Q_OS_WIN
-#include <windows.h>
-#endif
+#include "../utils/PlatformUtils.h"
 
 namespace TR4QT {
 
@@ -36,29 +32,6 @@ static QString bandToUdpBandString(BandType band)
     }
 }
 
-// Get computer name for StationName field in UDP broadcasts
-// Windows: NetBIOS computer name
-// macOS/Linux: hostname without domain suffix (e.g., "macstudio" not "macstudio.lan")
-static QString getComputerName()
-{
-#ifdef Q_OS_WIN
-    // On Windows, use GetComputerName for NetBIOS name
-    wchar_t buffer[MAX_COMPUTERNAME_LENGTH + 1];
-    DWORD size = MAX_COMPUTERNAME_LENGTH + 1;
-    if (GetComputerNameW(buffer, &size)) {
-        return QString::fromWCharArray(buffer);
-    }
-    // Fallback to Qt method
-#endif
-
-    // Get hostname and strip domain suffix
-    QString hostname = QHostInfo::localHostName();
-    int dotIndex = hostname.indexOf('.');
-    if (dotIndex > 0) {
-        hostname = hostname.left(dotIndex);
-    }
-    return hostname;
-}
 
 UdpBroadcastManager::UdpBroadcastManager(QObject* parent)
     : QObject(parent)
@@ -201,7 +174,7 @@ RadioInfo UdpBroadcastManager::createRadioInfo(const RadioState& state,
 
     // Application identity
     info.app = "TR4QT";
-    info.stationName = getComputerName();
+    info.stationName = PlatformUtils::getNetBiosName();
 
     // Radio identification
     info.radioNr = 1;  // For now, single radio only (TODO: SO2R support)
@@ -253,7 +226,7 @@ ContactInfo UdpBroadcastManager::createContactInfo(const QSO& qso,
     info.app = "TR4QT";
     info.contestName = adifContestId;      // ADIF Contest-ID (e.g., "CQ-WW-CW")
     info.contestNr = wa7bnmContestId;       // WA7BNM Contest Calendar ID
-    info.stationName = getComputerName();
+    info.stationName = PlatformUtils::getNetBiosName();
 
     // Timestamp (N1MM+ format: "YYYY-MM-DD HH:MM:SS")
     info.timestamp = qso.timestamp.toUTC().toString("yyyy-MM-dd HH:mm:ss");

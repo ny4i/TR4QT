@@ -1,4 +1,5 @@
 #include "SvgPanelWidget.h"
+#include "../../utils/ThemeManager.h"
 #include "../../logging/LogMacros.h"
 #include <QPainter>
 #include <QFile>
@@ -223,7 +224,7 @@ void SvgPanelWidget::paintEvent(QPaintEvent* event) {
 
     if (!m_svgRenderer || !m_svgRenderer->isValid()) {
         // Draw placeholder if SVG not loaded
-        painter.fillRect(rect(), QColor("#2a2a2a"));
+        painter.fillRect(rect(), ThemeManager::instance().color(ColorRole::SvgPanelBackground));
         painter.setPen(Qt::white);
         painter.drawText(rect(), Qt::AlignCenter, "SVG Panel\n(No image loaded)");
         return;

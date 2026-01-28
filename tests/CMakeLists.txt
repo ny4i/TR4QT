@@ -612,6 +612,7 @@ add_tr4qt_test(test_window_persistence
     test_window_persistence.cpp
     ../src/utils/AppSettings.cpp
     ../src/utils/CredentialStore.cpp
+    ../src/utils/FontManager.cpp
     ../src/utils/PathManager.cpp
     ../src/ui/managers/SettingsManager.cpp
     ../src/logging/Logger.cpp

@@ -3,6 +3,7 @@
 #include "../../network/UdpBroadcaster.h"
 #include "../../logging/LogMacros.h"
 #include "../../core/Constants.h"
+#include "../../utils/FontManager.h"
 #include <QSettings>
 
 namespace TR4QT {
@@ -14,15 +15,15 @@ FontConfig SettingsManager::loadFontConfig() const {
 
     // Entry field font (callsign, exchange)
     int entryFontSize = settings.getEntryFontSize();
-    config.entryFont = QFont("Monospace", entryFontSize);
+    config.entryFont = FontManager::instance().monospaceFont(entryFontSize);
 
     // QSO table font
     int tableFontSize = settings.getTableFontSize();
-    config.tableFont = QFont("Monospace", tableFontSize);
+    config.tableFont = FontManager::instance().monospaceFont(tableFontSize);
 
     // Misc display font (stats panel: This Hr, Rate, Op, etc.)
     int miscFontSize = settings.getMiscDisplayFontSize();
-    config.miscFont = QFont("Monospace", miscFontSize);
+    config.miscFont = FontManager::instance().monospaceFont(miscFontSize);
 
     // Band summary grid font size
     config.gridFontSize = settings.getGridFontSize();

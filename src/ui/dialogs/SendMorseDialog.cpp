@@ -8,7 +8,6 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
-#include <QMessageBox>
 #include <QMouseEvent>
 #include <QKeyEvent>
 

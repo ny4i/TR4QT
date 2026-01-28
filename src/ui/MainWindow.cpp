@@ -28,6 +28,7 @@
 #include "../logging/LogMacros.h"
 #include "../logging/Logger.h"
 #include "../utils/ThemeManager.h"
+#include "../utils/FontManager.h"
 #include "../utils/DialogHelper.h"
 #include "../utils/AppSettings.h"
 #include "../utils/PerformanceProfiler.h"
@@ -584,7 +585,7 @@ void MainWindow::createCentralWidget() {
 
     // Station info labels (at bottom of right column)
     int miscFontSize = AppSettings::instance().getMiscDisplayFontSize();
-    QFont stationInfoFont("Monospace", miscFontSize);
+    QFont stationInfoFont = FontManager::instance().monospaceFont(miscFontSize);
     QString stationInfoColor = ThemeManager::instance().colorName(ColorRole::LotwUserText);
 
     // Line 1: Country name
@@ -616,7 +617,18 @@ void MainWindow::createCentralWidget() {
     m_qsoTableView->setSelectionMode(QAbstractItemView::SingleSelection);
     m_qsoTableView->horizontalHeader()->setStretchLastSection(true);  // Op column stretches
     m_qsoTableView->verticalHeader()->setVisible(false);
-    m_qsoTableView->setFont(QFont("Monospace", 9));
+    m_qsoTableView->setFont(FontManager::instance().monospaceFont(9));
+
+    // Force visible bottom border on header sections (macOS native style swallows partial stylesheets)
+    m_qsoTableView->horizontalHeader()->setStyleSheet(
+        QString("QHeaderView::section { "
+                "border: none; "
+                "border-bottom: 2px solid %1; "
+                "padding: 2px 4px; "
+                "background: %2; "
+                "}")
+        .arg(ThemeManager::instance().colorName(ColorRole::BorderColor))
+        .arg(ThemeManager::instance().colorName(ColorRole::WindowBackground)));
 
     // Set column widths and resize modes for proper scaling
     QHeaderView* header = m_qsoTableView->horizontalHeader();
@@ -711,7 +723,7 @@ QWidget* MainWindow::createBottomPanel() {
     radioLayout->setSpacing(15);
     radioLayout->setContentsMargins(10, 5, 10, 5);
 
-    QFont labelFont("Monospace", 11);
+    QFont labelFont = FontManager::instance().monospaceFont(11);
     labelFont.setBold(true);
 
     // Band/Mode label (e.g., "15SSB")
@@ -721,7 +733,7 @@ QWidget* MainWindow::createBottomPanel() {
     m_radioFreqBandLabel->setAlignment(Qt::AlignCenter);
 
     // Frequency label
-    QFont freqFont("Monospace", 10);
+    QFont freqFont = FontManager::instance().monospaceFont(10);
     m_radioFreqLabel = new QLabel("0.000 MHz", radioStatusWidget);
     m_radioFreqLabel->setFont(freqFont);
     m_radioFreqLabel->setMinimumWidth(UIDefaults::RADIO_FREQ_LABEL_WIDTH);
@@ -741,7 +753,7 @@ QWidget* MainWindow::createBottomPanel() {
     m_radioWpmLabel->setEnabled(false);  // Grayed out by default
 
     // Date/Time labels - stacked vertically to save width
-    QFont dateTimeFont("Monospace", labelFont.pointSize());
+    QFont dateTimeFont = FontManager::instance().monospaceFont(labelFont.pointSize());
 
     m_radioDateLabel = new QLabel("", radioStatusWidget);
     m_radioDateLabel->setFont(dateTimeFont);
@@ -795,13 +807,13 @@ QWidget* MainWindow::createBottomPanel() {
     m_callsignEntry = new QLineEdit(this);
     m_callsignEntry->setPlaceholderText("Callsign");
     m_callsignEntry->setFixedWidth(ENTRY_FIELD_WIDTH);
-    m_callsignEntry->setFont(QFont("Monospace", miscFontSize));
+    m_callsignEntry->setFont(FontManager::instance().monospaceFont(miscFontSize));
 
     QLabel* exchLabel = new QLabel("Exch:", this);
     m_exchangeEntry = new QLineEdit(this);
     m_exchangeEntry->setPlaceholderText("RST + Zone");
     m_exchangeEntry->setFixedWidth(ENTRY_FIELD_WIDTH);
-    m_exchangeEntry->setFont(QFont("Monospace", miscFontSize));
+    m_exchangeEntry->setFont(FontManager::instance().monospaceFont(miscFontSize));
 
     // Row 0: Call label and entry
     entryLayout->addWidget(callLabel, 0, 0);
@@ -861,7 +873,7 @@ QWidget* MainWindow::createBottomPanel() {
     statsLayout->setContentsMargins(4, 4, 4, 4);
 
     // settings and miscFontSize already declared above
-    QFont monoFont("Monospace", miscFontSize);
+    QFont monoFont = FontManager::instance().monospaceFont(miscFontSize);
 
     // Time and rate
     QHBoxLayout* timeRow = new QHBoxLayout();
@@ -2803,7 +2815,7 @@ void MainWindow::onFullIntegrityCheck() {
     QTextEdit* reportText = new QTextEdit(dialog);
     reportText->setReadOnly(true);
     reportText->setPlainText(report);
-    reportText->setFont(QFont("Monospace", 10));
+    reportText->setFont(FontManager::instance().monospaceFont(10));
     layout->addWidget(reportText);
 
     QPushButton* closeButton = new QPushButton("Close", dialog);
@@ -3011,13 +3023,13 @@ void MainWindow::applyFontSettings() {
 
     // Apply entry field font sizes
     int entryFontSize = settings.getEntryFontSize();
-    QFont entryFont("Monospace", entryFontSize);
+    QFont entryFont = FontManager::instance().monospaceFont(entryFontSize);
     m_callsignEntry->setFont(entryFont);
     m_exchangeEntry->setFont(entryFont);
 
     // Apply QSO table font size
     int tableFontSize = settings.getTableFontSize();
-    QFont tableFont("Monospace", tableFontSize);
+    QFont tableFont = FontManager::instance().monospaceFont(tableFontSize);
     m_qsoTableView->setFont(tableFont);
 
     // Apply band summary grid font size
@@ -3028,7 +3040,7 @@ void MainWindow::applyFontSettings() {
 
     // Apply misc display font size (stats panel: This Hr, Rate, Op, etc.)
     int miscFontSize = settings.getMiscDisplayFontSize();
-    QFont miscFont("Monospace", miscFontSize);
+    QFont miscFont = FontManager::instance().monospaceFont(miscFontSize);
     m_timeLabel->setFont(miscFont);
     m_thisHrLabel->setFont(miscFont);
     m_rateLabel->setFont(miscFont);

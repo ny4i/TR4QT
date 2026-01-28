@@ -7,6 +7,7 @@
 #include "../core/Types.h"
 #include "../radio/RadioController.h"
 #include "../utils/AppSettings.h"
+#include "../utils/ReconnectionManager.h"
 
 namespace TR4QT {
 
@@ -164,10 +165,11 @@ private slots:
     void onFrequencyChanged(freq_t freq, VFO vfo);
 
     /**
-     * Handle reconnection timer timeout
+     * Handle reconnection retry request
      * Attempts to reconnect to radio using last configuration
+     * @param attempt The attempt number (1-based)
      */
-    void onReconnectTimeout();
+    void onRetryRequested(int attempt);
 
     /**
      * Handle flash timer timeout
@@ -201,9 +203,8 @@ private:
     RadioState m_currentState;          // Current radio state
     bool m_radioConnected;              // Connection status
     bool m_radioAutoReconnect;          // Auto-reconnect enabled flag
-    QTimer* m_radioReconnectTimer;      // Timer for auto-reconnect attempts
+    ReconnectionManager* m_reconnectManager;  // Auto-reconnect timer (unlimited retries)
     RadioConfig m_lastRadioConfig;      // Last configuration (for reconnection)
-    int m_radioReconnectAttempts;       // Reconnection attempt counter
     QTimer* m_radioFlashTimer;          // Timer for flashing red indicator
     bool m_radioFlashState;             // Current flash state (on/off)
 

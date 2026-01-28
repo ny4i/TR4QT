@@ -1,5 +1,6 @@
 #include "BandSummaryGrid.h"
 #include "../../utils/ThemeManager.h"
+#include "../../utils/FontManager.h"
 #include "../../logging/LogMacros.h"
 #include <QHBoxLayout>
 #include <QFont>
@@ -141,7 +142,7 @@ QString BandSummaryGrid::bandToColumnLabel(BandType band) const {
 }
 
 void BandSummaryGrid::setFontSize(int pointSize) {
-    QFont font("Monospace", pointSize);
+    QFont font = FontManager::instance().monospaceFont(pointSize);
 
     // Apply to all labels
     for (auto label : m_qsoLabels.values()) {
@@ -209,7 +210,8 @@ void BandSummaryGrid::applyTheme() {
 
 void BandSummaryGrid::setMultipliersEnabled(bool enabled) {
     // Gray out multiplier row for contests that don't use multipliers
-    QString style = enabled ? "" : "color: #808080;";  // Gray text when disabled
+    QString style = enabled ? "" : QString("color: %1;").arg(
+        ThemeManager::instance().colorName(ColorRole::SecondaryText));
 
     // Update all mult labels with gray style
     for (auto it = m_multLabels.begin(); it != m_multLabels.end(); ++it) {
@@ -292,7 +294,7 @@ void BandSummaryGrid::rebuildGrid() {
     headerFont.setBold(true);
     headerFont.setPointSize(10);
 
-    QFont dataFont("Monospace", 11);
+    QFont dataFont = FontManager::instance().monospaceFont(11);
 
     int currentRow = 0;
 

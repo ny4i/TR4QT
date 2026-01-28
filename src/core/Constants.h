@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.85";  // Fix amp window overlay positioning on Windows
+constexpr const char* APP_VERSION = "3.38.86";  // Consolidate fonts, colors, reconnection logic (issues #37, #39, #45, #46)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
