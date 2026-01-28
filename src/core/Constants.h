@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.86";  // Consolidate fonts, colors, reconnection logic (issues #37, #39, #45, #46)
+constexpr const char* APP_VERSION = "3.39.87";  // QSO search system: /find command, Cmd+F, search dialog, quick callsign search
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
