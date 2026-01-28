@@ -57,15 +57,15 @@ bool ADIFFieldMapper::mapToQSO(const QMap<QString, QString>& adifFields, QSO& qs
     }
 
     if (adifFields.contains("MODE")) {
-        qso.mode = parseMode(adifFields["MODE"]);
+        QString submode;
+        if (adifFields.contains("SUBMODE")) {
+            submode = adifFields["SUBMODE"].trimmed().toUpper();
+            qso.submode = submode;
+        }
+        qso.mode = parseMode(adifFields["MODE"], qso.band, submode);
     } else {
         m_lastError = "Missing required field: MODE";
         return false;
-    }
-
-    // ADIF SUBMODE (e.g., "FT4" when MODE is "MFSK")
-    if (adifFields.contains("SUBMODE")) {
-        qso.submode = adifFields["SUBMODE"].trimmed().toUpper();
     }
 
     // Exchange fields
@@ -297,14 +297,38 @@ BandType ADIFFieldMapper::parseBand(const QString& bandStr) {
     return stringToBand(bandStr.trimmed().toUpper());
 }
 
-ModeType ADIFFieldMapper::parseMode(const QString& modeStr) {
+ModeType ADIFFieldMapper::parseMode(const QString& modeStr, BandType band, const QString& submode) {
     // ADIF modes: CW, SSB, RTTY, PSK31, FT8, etc.
-    // Use existing stringToMode function
     QString mode = modeStr.trimmed().toUpper();
 
     // Map common ADIF mode variants
     if (mode == "PSK31" || mode == "PSK63" || mode == "PSK125") {
         mode = "PSK";
+    }
+
+    // ADIF uses "SSB" with SUBMODE of "USB" or "LSB"
+    // Prefer SUBMODE when available, otherwise infer from band convention
+    if (mode == "SSB") {
+        if (!submode.isEmpty()) {
+            ModeType submodeType = stringToMode(submode);
+            if (submodeType != ModeType::None) {
+                return submodeType;
+            }
+        }
+        // Fallback: below 40m (160m, 80m, 60m, 40m) = LSB, above = USB
+        if (band == BandType::Band160M || band == BandType::Band80M ||
+            band == BandType::Band60M  || band == BandType::Band40M) {
+            return ModeType::LSB;
+        }
+        return ModeType::USB;
+    }
+
+    // ADIF uses "MFSK" with SUBMODE of "FT4" or "FT8"
+    if (mode == "MFSK" && !submode.isEmpty()) {
+        ModeType submodeType = stringToMode(submode);
+        if (submodeType != ModeType::None) {
+            return submodeType;
+        }
     }
 
     return stringToMode(mode);

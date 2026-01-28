@@ -75,7 +75,7 @@ private:
      * Convert ADIF mode string to ModeType enum
      * ADIF uses: "CW", "SSB", "RTTY", "FT8", etc.
      */
-    ModeType parseMode(const QString& modeStr);
+    ModeType parseMode(const QString& modeStr, BandType band = BandType::None, const QString& submode = QString());
 
     /**
      * Convert ADIF frequency (MHz) to Hz
