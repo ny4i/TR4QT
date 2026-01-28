@@ -597,39 +597,40 @@ void AmplifierControlWindow::resizeEvent(QResizeEvent* event) {
         return;  // Will trigger another resizeEvent with correct size
     }
 
-    // Reposition disconnected overlay widgets
-    if (m_disconnectedLabel && m_testConnectionButton) {
-        if (!m_connected) {
-            // Disconnected: Position overlay in center
-            const int OVERLAY_SPACING = 20;
-            QSize labelSize = m_disconnectedLabel->sizeHint();
-            QSize buttonSize = m_testConnectionButton->sizeHint();
-
-            int totalHeight = labelSize.height() + OVERLAY_SPACING + buttonSize.height();
-            int startY = (height() - totalHeight) / 2;
-
-            m_disconnectedLabel->setGeometry(
-                (width() - labelSize.width()) / 2,
-                startY,
-                labelSize.width(),
-                labelSize.height()
-            );
-
-            m_testConnectionButton->setGeometry(
-                (width() - buttonSize.width()) / 2,
-                startY + labelSize.height() + OVERLAY_SPACING,
-                buttonSize.width(),
-                buttonSize.height()
-            );
-        } else {
-            // Connected: Move overlay FAR offscreen so it can't block mouse
-            m_disconnectedLabel->setGeometry(-10000, -10000, 1, 1);
-            m_testConnectionButton->setGeometry(-10000, -10000, 1, 1);
-        }
-    }
-
-    // Position LCD label over label_MAIN region in SVG
+    repositionOverlays();
     repositionLcdLabel();
+}
+
+void AmplifierControlWindow::repositionOverlays() {
+    if (!m_disconnectedLabel || !m_testConnectionButton) return;
+
+    if (!m_connected) {
+        // Disconnected: Position overlay in center
+        const int OVERLAY_SPACING = 20;
+        QSize labelSize = m_disconnectedLabel->sizeHint();
+        QSize buttonSize = m_testConnectionButton->sizeHint();
+
+        int totalHeight = labelSize.height() + OVERLAY_SPACING + buttonSize.height();
+        int startY = (height() - totalHeight) / 2;
+
+        m_disconnectedLabel->setGeometry(
+            (width() - labelSize.width()) / 2,
+            startY,
+            labelSize.width(),
+            labelSize.height()
+        );
+
+        m_testConnectionButton->setGeometry(
+            (width() - buttonSize.width()) / 2,
+            startY + labelSize.height() + OVERLAY_SPACING,
+            buttonSize.width(),
+            buttonSize.height()
+        );
+    } else {
+        // Connected: Move overlay FAR offscreen so it can't block mouse
+        m_disconnectedLabel->setGeometry(-10000, -10000, 1, 1);
+        m_testConnectionButton->setGeometry(-10000, -10000, 1, 1);
+    }
 }
 
 void AmplifierControlWindow::repositionLcdLabel() {
@@ -712,10 +713,11 @@ void AmplifierControlWindow::repositionLcdLabel() {
 void AmplifierControlWindow::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
 
-    // Defer LCD label repositioning until after layout is complete
-    // This fixes text appearing in upper-left on first show
+    // Defer all overlay repositioning until after layout is complete
+    // resizeEvent has an early return for aspect ratio enforcement,
+    // so overlays may not be positioned on first resize (Windows issue #64)
     QTimer::singleShot(50, this, [this]() {
-        // Reposition LCD label directly (resizeEvent has early return issues)
+        repositionOverlays();
         repositionLcdLabel();
     });
 }
@@ -849,6 +851,9 @@ void AmplifierControlWindow::onConnectionStatusChanged(bool connected) {
     // Make overlay widgets transparent to mouse events when connected
     m_disconnectedLabel->setAttribute(Qt::WA_TransparentForMouseEvents, connected);
     m_testConnectionButton->setAttribute(Qt::WA_TransparentForMouseEvents, connected);
+
+    // Reposition overlays (centers when disconnected, offscreen when connected)
+    repositionOverlays();
 
     update();
 }

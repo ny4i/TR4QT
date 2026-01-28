@@ -102,7 +102,8 @@ private:
     void updateSwrMeter(float swr);
     void updatePowerMeter(int watts);  // TODO: Implement when power LEDs are renamed
 
-    // LCD label positioning (called from resizeEvent and state updates)
+    // Overlay positioning (called from resizeEvent and showEvent)
+    void repositionOverlays();
     void repositionLcdLabel();
 
     // SVG front panel widget (replaces static QPixmap rendering)
