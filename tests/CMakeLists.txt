@@ -38,6 +38,11 @@ function(add_tr4qt_test test_name)
         ${HAMLIB_LIBRARIES}
     )
 
+    # macOS: SystemConfiguration framework for PlatformUtils (NetBIOS name lookup)
+    if(APPLE)
+        target_link_libraries(${test_name} PRIVATE "-framework SystemConfiguration")
+    endif()
+
     # Register test with CTest
     add_test(NAME ${test_name} COMMAND ${test_name})
 
@@ -176,6 +181,7 @@ add_tr4qt_test(test_qso_logging_coordinator
     ../src/utils/AppSettings.cpp
     ../src/utils/CredentialStore.cpp
     ../src/utils/PathManager.cpp
+    ../src/utils/PlatformUtils.cpp
     ../src/utils/ThemeManager.cpp
     ../src/core/Types.cpp
     ../src/logging/Logger.cpp
@@ -211,6 +217,7 @@ add_tr4qt_test(test_qso_logging_service
     ../src/utils/CountryFile.cpp
     ../src/utils/GeographicUtils.cpp
     ../src/utils/PathManager.cpp
+    ../src/utils/PlatformUtils.cpp
     ../src/utils/AppSettings.cpp
     ../src/utils/CredentialStore.cpp
     ../src/utils/ArrlSectionHelper.cpp

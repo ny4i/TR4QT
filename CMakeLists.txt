@@ -45,9 +45,24 @@ find_package(Qt6 REQUIRED COMPONENTS
 # qtkeychain - Secure credential storage (macOS Keychain, Windows Credential Manager)
 # Built from source via FetchContent for zero deployment overhead (static link)
 include(FetchContent)
+
+# qtkeychain 0.15.0 has a bug: it uses /utf-8 (MSVC-only flag) unconditionally on Windows.
+# MinGW interprets /utf-8 as a filename, causing "linker input file not found" error.
+# We patch the CMakeLists.txt during fetch to wrap /utf-8 in if(MSVC).
+if(MINGW)
+    set(_QTKEYCHAIN_PATCH_COMMAND
+        ${CMAKE_COMMAND} -E env
+        ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/qtkeychain/CMakeLists.txt
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_qtkeychain.cmake
+    )
+else()
+    set(_QTKEYCHAIN_PATCH_COMMAND "")
+endif()
+
 FetchContent_Declare(qtkeychain
     GIT_REPOSITORY https://github.com/frankosterfeld/qtkeychain.git
     GIT_TAG 0.15.0
+    PATCH_COMMAND ${_QTKEYCHAIN_PATCH_COMMAND}
 )
 # Save and override BUILD_SHARED_LIBS for qtkeychain only (static link = no deployment overhead)
 set(_SAVED_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
