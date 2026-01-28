@@ -518,6 +518,37 @@ private:
     void migrateToRadioProfiles();
 
     /**
+     * @brief Migrate plain-text passwords from QSettings to OS-native credential store
+     *
+     * Called once from startAutoSave() (NOT constructor — QEventLoop needs QApplication running).
+     * Reads icomPassword from QSettings, saves to CredentialStore, verifies round-trip,
+     * then removes from QSettings. Gate flag prevents re-running on subsequent launches.
+     * Partial migration retries on next launch.
+     */
+    void migrateCredentialsToSecureStore();
+
+    /**
+     * @brief Save a password to the secure credential store with QSettings fallback.
+     * @param storageKey Credential key (e.g., CredentialKeys::ICOM_RADIO)
+     * @param username Username (empty for password-only auth)
+     * @param password Password to save (empty to delete from both stores)
+     * @param settingsKey QSettings key for plaintext fallback (e.g., "icomPassword")
+     * @return true if saved to secure store, false if fell back to QSettings
+     */
+    bool savePasswordSecurely(const QString& storageKey, const QString& username,
+                              const QString& password, const QString& settingsKey);
+
+    /**
+     * @brief Load a password from the secure credential store with QSettings fallback.
+     * @param storageKey Credential key
+     * @param username Username
+     * @param settingsKey QSettings key for legacy plaintext fallback
+     * @return The password (empty if not found in either store)
+     */
+    QString loadPasswordSecurely(const QString& storageKey, const QString& username,
+                                 const QString& settingsKey) const;
+
+    /**
      * @brief Get the path to the settings file
      * Platform-specific: plist on macOS, registry/ini on Windows
      */
