@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.84";  // Secure credential storage with qtkeychain
+constexpr const char* APP_VERSION = "3.38.85";  // Fix amp window overlay positioning on Windows
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
