@@ -189,7 +189,7 @@ StationInfo ContestManager::buildStationInfo() const
     myStation.cqZone = AppSettings::instance().getMyCQZone();
     myStation.ituZone = AppSettings::instance().getMyITUZone();
     myStation.state = AppSettings::instance().getMyState();
-    // TODO: Add getMyCounty() to AppSettings for QSO Parties
+    myStation.county = AppSettings::instance().getMyCounty();
 
     // Lookup country and other geographic data from cty.dat
     if (m_countryFile) {
