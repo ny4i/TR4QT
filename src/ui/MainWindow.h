@@ -295,8 +295,9 @@ private:
     void checkAutoSP(freq_t newFrequency);      // Check if AUTO S&P should trigger
 
     // Search helpers
-    void executeSearch();         // Show search dialog and display results
-    void refreshSearchResults();  // Re-run last search (no dialog)
+    void executeSearch();                              // Show search dialog and display results
+    void searchForCallsign(const QString& callsign);   // Search for callsign directly (no dialog)
+    void refreshSearchResults();                       // Re-run last search (no dialog)
 
     // Sent exchange helpers
     QString substituteSentExchangeTemplate(const QString& templateStr, int serialNumber, const QString& rst) const;

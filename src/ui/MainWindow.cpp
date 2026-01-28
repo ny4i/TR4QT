@@ -747,9 +747,16 @@ void MainWindow::createCentralWidget() {
 
     setCentralWidget(central);
 
-    // Ctrl+F: Open QSO search dialog
+    // Ctrl+F / Cmd+F: Search for callsign in field, or open search dialog if empty
     QShortcut* findShortcut = new QShortcut(QKeySequence::Find, this);
-    connect(findShortcut, &QShortcut::activated, this, &MainWindow::executeSearch);
+    connect(findShortcut, &QShortcut::activated, this, [this]() {
+        QString callsign = m_callsignEntry->text().trimmed().toUpper();
+        if (!callsign.isEmpty()) {
+            searchForCallsign(callsign);
+        } else {
+            executeSearch();
+        }
+    });
 
     // Calculate minimum window width based on bottom panel's sizeHint
     // This ensures all widgets fit without overlap
@@ -2396,6 +2403,17 @@ void MainWindow::onCallsignEnterPressed() {
         // Clear entry and return (don't process as callsign)
         onClearEntry();
         return;
+    }
+
+    // Check for "CALL /find" pattern: callsign followed by /find suffix
+    // e.g. "W1AW /find" → search log for W1AW
+    if (callsign.endsWith(" /FIND") || callsign.endsWith("/FIND")) {
+        QString searchCall = callsign.left(callsign.lastIndexOf("/FIND")).trimmed();
+        if (!searchCall.isEmpty()) {
+            onClearEntry();
+            searchForCallsign(searchCall);
+            return;
+        }
     }
 
     // Check for special commands (OPON, UDP, etc.) - delegate to onLogQSO
@@ -4244,6 +4262,17 @@ void MainWindow::executeSearch() {
     if (!criteria.hasAnyCriteria()) {
         m_statusLabel->setText("Search cancelled: no criteria specified");
         return;
+    }
+
+    m_lastSearchCriteria = criteria;
+    refreshSearchResults();
+}
+
+void MainWindow::searchForCallsign(const QString& callsign) {
+    QSOSearchCriteria criteria;
+    criteria.callsign = callsign;
+    if (m_hasActiveContest) {
+        criteria.contestId = m_currentContestDbId;
     }
 
     m_lastSearchCriteria = criteria;
