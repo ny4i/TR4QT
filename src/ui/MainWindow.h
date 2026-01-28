@@ -249,7 +249,7 @@ private:
     void recalculateAllPoints();  // Recalculate points for all QSOs in log
     void rebuildMultiplierWindow();  // Rebuild multiplier window from all QSOs
     void updateRadioStatusGrid();
-    void raiseAllWindows();
+    void raiseAllWindows(QWidget* activatedWindow = nullptr);
     void setStatusMessage(const QString& message);  // Set status and log it
     void updateWindowMenuCheckmarks();  // Update checkmarks for open windows
 

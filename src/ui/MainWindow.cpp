@@ -1414,7 +1414,7 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
                 widget == m_radioControlWindow ||
                 widget == m_multiplierWindow ||
                 widget == m_statisticsWindow) {
-                raiseAllWindows();
+                raiseAllWindows(widget);
             }
         }
     }
@@ -1439,22 +1439,29 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
     return QMainWindow::eventFilter(obj, event);
 }
 
-void MainWindow::raiseAllWindows() {
-    // Raise ALL top-level windows belonging to this application
+void MainWindow::raiseAllWindows(QWidget* activatedWindow) {
+    // Raise ALL top-level windows belonging to this application.
     // This is more robust than tracking individual windows, as windows
-    // may be created lazily and WindowManager config may be stale
+    // may be created lazily and WindowManager config may be stale.
+    //
+    // Order matters: raise all windows first, then re-raise the window
+    // the user clicked on so it stays on top (not buried under MainWindow).
     const auto topLevelWidgets = QApplication::topLevelWidgets();
     for (QWidget* widget : topLevelWidgets) {
-        if (widget && widget->isVisible() && !widget->isMinimized()) {
+        if (widget && widget->isVisible() && !widget->isMinimized() && widget != activatedWindow) {
             widget->raise();
         }
     }
 
-    // Ensure main window is on top and ACTIVE (for macOS menu bar)
-    // Without activateWindow(), a child window may be "active" and
-    // macOS will show that window's (empty) menu bar instead of ours
-    raise();
-    activateWindow();
+    // Re-raise the clicked window last so it stays in front
+    if (activatedWindow && activatedWindow->isVisible()) {
+        activatedWindow->raise();
+        activatedWindow->activateWindow();
+    } else {
+        // No specific window activated (e.g., ApplicationActivate) — activate MainWindow
+        raise();
+        activateWindow();
+    }
 }
 
 void MainWindow::setStatusMessage(const QString& message) {
