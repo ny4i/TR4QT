@@ -93,6 +93,7 @@ set(SOURCES
     utils/PathManager.cpp
     utils/RadioEnumerator.cpp
     utils/ThemeManager.cpp
+    utils/CredentialStore.cpp
     utils/PerformanceProfiler.cpp
     # Radio files now in tr4qt_core object library
     network/TelnetClient.cpp
@@ -234,6 +235,7 @@ set(HEADERS
     utils/PathManager.h
     utils/RadioEnumerator.h
     utils/ThemeManager.h
+    utils/CredentialStore.h
     # Radio headers now in tr4qt_core object library (removed to prevent duplicate MOC)
     network/TelnetClient.h
     network/RadioInfo.h
@@ -336,8 +338,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.38.82"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.38.82"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.38.84"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.38.84"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
@@ -358,7 +360,7 @@ else()
     )
 endif()
 
-# Link Qt6 libraries and tr4qt_core object library
+# Link Qt6 libraries, tr4qt_core object library, and qtkeychain
 target_link_libraries(tr4qt PRIVATE
     tr4qt_core  # Core components (radio, logging, types)
     Qt6::Core
@@ -371,6 +373,7 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::SerialPort
     Qt6::Svg
     Qt6::Xml
+    qt6keychain  # Secure credential storage (macOS Keychain, Windows Credential Manager)
 )
 
 # Note: Qt6::EntryPoint is not needed for console applications
@@ -389,6 +392,8 @@ target_link_libraries(tr4qt PRIVATE
 # Set include directories
 target_include_directories(tr4qt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${qtkeychain_SOURCE_DIR}
+    ${qtkeychain_BINARY_DIR}
 )
 
 # Suppress deprecation warnings for third-party qcustomplot.cpp

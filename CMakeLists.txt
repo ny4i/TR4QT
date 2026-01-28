@@ -42,6 +42,21 @@ find_package(Qt6 REQUIRED COMPONENTS
     Test
 )
 
+# qtkeychain - Secure credential storage (macOS Keychain, Windows Credential Manager)
+# Built from source via FetchContent for zero deployment overhead (static link)
+include(FetchContent)
+FetchContent_Declare(qtkeychain
+    GIT_REPOSITORY https://github.com/frankosterfeld/qtkeychain.git
+    GIT_TAG 0.15.0
+)
+# Save and override BUILD_SHARED_LIBS for qtkeychain only (static link = no deployment overhead)
+set(_SAVED_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
+set(BUILD_SHARED_LIBS OFF)
+set(BUILD_WITH_QT6 ON CACHE BOOL "" FORCE)
+set(BUILD_TRANSLATIONS OFF CACHE BOOL "" FORCE)
+set(BUILD_TEST_APPLICATION OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(qtkeychain)
+set(BUILD_SHARED_LIBS ${_SAVED_BUILD_SHARED_LIBS})
 
 # Hamlib configuration
 # HAMLIB_ROOT can be passed via -DHAMLIB_ROOT=path or will use platform defaults

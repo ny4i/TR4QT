@@ -1,4 +1,5 @@
 #include "AppSettings.h"
+#include "CredentialStore.h"
 #include "../core/Constants.h"
 #include "../network/UdpBroadcaster.h"
 #include "PathManager.h"
@@ -48,6 +49,9 @@ void AppSettings::startAutoSave() {
     if (m_autoSaveTimer) {
         return;  // Already started
     }
+
+    // Migrate plain-text passwords to secure store (requires QApplication event loop)
+    migrateCredentialsToSecureStore();
 
     m_autoSaveTimer = new QTimer(this);
     connect(m_autoSaveTimer, &QTimer::timeout, this, &AppSettings::onAutoSaveTimer);
@@ -271,9 +275,14 @@ void AppSettings::saveRadioConfig(const RadioConfig& config) {
     m_settings.setValue("pollInterval", config.pollInterval);
     m_settings.setValue("radioType", config.radioType);  // Save radio interface type
     m_settings.setValue("icomUsername", config.icomUsername);
-    m_settings.setValue("icomPassword", config.icomPassword);
     m_settings.setValue("icomClientName", config.icomClientName);
     m_settings.endGroup();
+
+    m_settings.beginGroup("Radio");
+    savePasswordSecurely(CredentialKeys::ICOM_RADIO, config.icomUsername,
+                         config.icomPassword, "icomPassword");
+    m_settings.endGroup();
+
     m_settings.sync();
 }
 
@@ -287,9 +296,14 @@ RadioConfig AppSettings::loadRadioConfig() const {
     config.pollInterval = m_settings.value("pollInterval", 5000).toInt();  // Default 5s (transceive provides instant updates)
     config.radioType = m_settings.value("radioType", -1).toInt();  // Default: -1 (Auto)
     config.icomUsername = m_settings.value("icomUsername", "").toString();
-    config.icomPassword = m_settings.value("icomPassword", "").toString();
     config.icomClientName = m_settings.value("icomClientName", "TR4QT").toString();
     m_settings.endGroup();
+
+    m_settings.beginGroup("Radio");
+    config.icomPassword = loadPasswordSecurely(
+        CredentialKeys::ICOM_RADIO, config.icomUsername, "icomPassword");
+    m_settings.endGroup();
+
     return config;
 }
 
@@ -319,10 +333,13 @@ void AppSettings::saveRadioProfiles(const QList<RadioProfile>& profiles) {
         m_settings.setValue("pollInterval", profiles[i].config.pollInterval);
         m_settings.setValue("radioType", profiles[i].config.radioType);
         m_settings.setValue("icomUsername", profiles[i].config.icomUsername);
-        m_settings.setValue("icomPassword", profiles[i].config.icomPassword);
         m_settings.setValue("icomClientName", profiles[i].config.icomClientName);
         m_settings.setValue("lastUsed", profiles[i].lastUsed);
         m_settings.setValue("notes", profiles[i].notes);
+
+        savePasswordSecurely(CredentialKeys::icomRadioProfile(profiles[i].name),
+                             profiles[i].config.icomUsername,
+                             profiles[i].config.icomPassword, "icomPassword");
     }
     m_settings.endArray();
     m_settings.endGroup();
@@ -348,10 +365,14 @@ QList<RadioProfile> AppSettings::loadRadioProfiles() const {
         profile.config.pollInterval = m_settings.value("pollInterval", 5000).toInt();  // Default 5s (transceive provides instant updates)
         profile.config.radioType = m_settings.value("radioType", -1).toInt();
         profile.config.icomUsername = m_settings.value("icomUsername", "").toString();
-        profile.config.icomPassword = m_settings.value("icomPassword", "").toString();
         profile.config.icomClientName = m_settings.value("icomClientName", "TR4QT").toString();
         profile.lastUsed = m_settings.value("lastUsed", QDateTime()).toDateTime();
         profile.notes = m_settings.value("notes", "").toString();
+
+        profile.config.icomPassword = loadPasswordSecurely(
+            CredentialKeys::icomRadioProfile(profile.name),
+            profile.config.icomUsername, "icomPassword");
+
         profiles.append(profile);
     }
     m_settings.endArray();
@@ -401,6 +422,136 @@ void AppSettings::migrateToRadioProfiles() {
         setActiveRadioProfile("Default");
 
         LOG_INFO("AppSettings", "Migration complete: created 'Default' profile");
+    }
+}
+
+bool AppSettings::savePasswordSecurely(const QString& storageKey, const QString& username,
+                                       const QString& password, const QString& settingsKey) {
+    if (password.isEmpty()) {
+        // Empty password — remove from both stores
+        m_settings.remove(settingsKey);
+        CredentialStore::instance().deletePassword(storageKey, username);
+        return true;
+    }
+
+    int rc = CredentialStore::instance().savePassword(storageKey, username, password);
+    if (rc == 0) {
+        // Secure save succeeded — remove plain-text from QSettings
+        m_settings.remove(settingsKey);
+        return true;
+    }
+
+    // Fallback: keep password in QSettings so it isn't lost
+    LOG_WARN("AppSettings",
+             QString("Credential store unavailable for '%1', keeping password in QSettings")
+                 .arg(storageKey));
+    m_settings.setValue(settingsKey, password);
+    return false;
+}
+
+QString AppSettings::loadPasswordSecurely(const QString& storageKey, const QString& username,
+                                          const QString& settingsKey) const {
+    // Try secure credential store first
+    QString password = CredentialStore::instance().getPassword(storageKey, username);
+    if (!password.isEmpty()) {
+        return password;
+    }
+
+    // Fallback: try legacy plaintext QSettings (pre-migration or credential store unavailable)
+    return m_settings.value(settingsKey, "").toString();
+}
+
+void AppSettings::migrateCredentialsToSecureStore() {
+    // Gate flag: skip if already migrated
+    if (m_settings.value("Security/credentialsMigrated", false).toBool()) {
+        return;
+    }
+
+    LOG_INFO("AppSettings", "Starting credential migration to secure store");
+    bool allMigrated = true;
+
+    // Migrate radio profiles
+    if (hasRadioProfiles()) {
+        m_settings.beginGroup("RadioProfiles");
+        int size = m_settings.beginReadArray("Profiles");
+        for (int i = 0; i < size; ++i) {
+            m_settings.setArrayIndex(i);
+            QString profileName = m_settings.value("name").toString();
+            QString password = m_settings.value("icomPassword", "").toString();
+            QString username = m_settings.value("icomUsername", "").toString();
+
+            if (!password.isEmpty()) {
+                const QString storageKey = CredentialKeys::icomRadioProfile(profileName);
+                int rc = CredentialStore::instance().savePassword(storageKey, username, password);
+                if (rc == 0) {
+                    // Verify round-trip before removing plain text
+                    QString readBack = CredentialStore::instance().getPassword(storageKey, username);
+                    if (readBack == password) {
+                        LOG_INFO("AppSettings",
+                                 QString("Migrated password for profile '%1' to secure store").arg(profileName));
+                        // Note: can't remove individual array values inside beginReadArray,
+                        // removal happens in a second pass below
+                    } else {
+                        LOG_WARN("AppSettings",
+                                 QString("Round-trip verification failed for profile '%1', keeping in QSettings")
+                                     .arg(profileName));
+                        allMigrated = false;
+                    }
+                } else {
+                    LOG_WARN("AppSettings",
+                             QString("Failed to save profile '%1' password to secure store, keeping in QSettings")
+                                 .arg(profileName));
+                    allMigrated = false;
+                }
+            }
+        }
+        m_settings.endArray();
+        m_settings.endGroup();
+
+        // Second pass: remove plain-text passwords from successfully migrated profiles
+        // We need to re-read and re-write the array to remove individual values
+        if (allMigrated) {
+            QList<RadioProfile> profiles = loadRadioProfiles();
+            // loadRadioProfiles already prefers credential store; just re-save
+            // which won't write icomPassword to QSettings
+            saveRadioProfiles(profiles);
+            LOG_INFO("AppSettings", "Removed plain-text passwords from profile QSettings");
+        }
+    }
+
+    // Migrate legacy single radio config
+    m_settings.beginGroup("Radio");
+    QString legacyPassword = m_settings.value("icomPassword", "").toString();
+    QString legacyUsername = m_settings.value("icomUsername", "").toString();
+    m_settings.endGroup();
+
+    if (!legacyPassword.isEmpty()) {
+        int rc = CredentialStore::instance().savePassword(CredentialKeys::ICOM_RADIO, legacyUsername, legacyPassword);
+        if (rc == 0) {
+            QString readBack = CredentialStore::instance().getPassword(CredentialKeys::ICOM_RADIO, legacyUsername);
+            if (readBack == legacyPassword) {
+                m_settings.beginGroup("Radio");
+                m_settings.remove("icomPassword");
+                m_settings.endGroup();
+                m_settings.sync();
+                LOG_INFO("AppSettings", "Migrated legacy radio password to secure store");
+            } else {
+                LOG_WARN("AppSettings", "Round-trip verification failed for legacy radio password");
+                allMigrated = false;
+            }
+        } else {
+            LOG_WARN("AppSettings", "Failed to save legacy radio password to secure store");
+            allMigrated = false;
+        }
+    }
+
+    // Set gate flag only if ALL passwords migrated successfully
+    if (allMigrated) {
+        m_settings.setValue("Security/credentialsMigrated", true);
+        m_settings.sync();
+        LOG_INFO("AppSettings", "Credential migration complete");
+    } else {
+        LOG_WARN("AppSettings", "Partial credential migration — will retry on next launch");
     }
 }
 

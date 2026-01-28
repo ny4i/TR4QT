@@ -17,12 +17,15 @@ function(add_tr4qt_test test_name)
         Qt6::Sql
         Qt6::Network
         Qt6::Concurrent
+        qt6keychain  # Secure credential storage (needed by AppSettings)
     )
 
     # Add source directory to include path so tests can access source headers
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${HAMLIB_INCLUDE_DIRS}
+        ${qtkeychain_SOURCE_DIR}
+        ${qtkeychain_BINARY_DIR}
     )
 
     # Define TESTS_SOURCE_DIR for test fixture paths
@@ -91,6 +94,7 @@ add_tr4qt_test(test_spot_processing_service
     ../src/data/GlobalDatabase.cpp
     ../src/data/DXCCRepository.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/utils/PathManager.cpp
     ../src/core/Types.cpp
     ../src/logging/Logger.cpp
@@ -107,6 +111,7 @@ add_tr4qt_test(test_station_info_service
     ../src/utils/ThemeManager.cpp
     ../src/utils/PathManager.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/data/DXCCRepository.cpp
     ../src/data/GlobalDatabase.cpp
     ../src/core/Types.cpp
@@ -145,6 +150,7 @@ add_tr4qt_test(test_exchange_memory_service
     ../src/utils/GeographicUtils.cpp
     ../src/utils/PathManager.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/utils/ArrlSectionHelper.cpp
     ../src/data/DXCCRepository.cpp
     ../src/data/GlobalDatabase.cpp
@@ -168,6 +174,7 @@ add_tr4qt_test(test_qso_logging_coordinator
     ../src/data/QSORepository.cpp
     ../src/ui/models/QSOTableModel.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/utils/PathManager.cpp
     ../src/utils/ThemeManager.cpp
     ../src/core/Types.cpp
@@ -205,6 +212,7 @@ add_tr4qt_test(test_qso_logging_service
     ../src/utils/GeographicUtils.cpp
     ../src/utils/PathManager.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/utils/ArrlSectionHelper.cpp
     ../src/utils/ThemeManager.cpp
     ../src/data/DXCCRepository.cpp
@@ -269,6 +277,7 @@ add_tr4qt_test(test_flqp
     ../src/exchanges/SmartExchangeParser.cpp
     ../src/utils/ArrlSectionHelper.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/utils/PathManager.cpp
     ../src/core/Types.cpp
     ../src/logging/Logger.cpp
@@ -316,6 +325,7 @@ add_tr4qt_test(test_winterfieldday
     ../src/exchanges/SmartExchangeParser.cpp
     ../src/utils/ArrlSectionHelper.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/utils/PathManager.cpp
     ../src/core/Types.cpp
     ../src/logging/Logger.cpp
@@ -338,6 +348,7 @@ add_tr4qt_test(test_contest_exchange_update
     ../src/utils/GeographicUtils.cpp
     ../src/utils/PathManager.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/data/DXCCRepository.cpp
     ../src/data/GlobalDatabase.cpp
     ../src/core/Types.cpp
@@ -367,6 +378,7 @@ add_tr4qt_test(test_integrity_checking
     ../src/data/QSORepository.cpp
     ../src/ui/models/QSOTableModel.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/utils/PathManager.cpp
     ../src/utils/ThemeManager.cpp
     ../src/core/Types.cpp
@@ -384,6 +396,7 @@ add_tr4qt_test(test_smartexchangeparser
     ../src/contests/ContestRegistry.cpp
     ../src/utils/ArrlSectionHelper.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/utils/PathManager.cpp
     ../src/core/Types.cpp
     ../src/logging/Logger.cpp
@@ -400,6 +413,7 @@ add_tr4qt_test(test_naqp
     ../src/exchanges/SmartExchangeParser.cpp
     ../src/utils/ArrlSectionHelper.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/utils/PathManager.cpp
     ../src/core/Types.cpp
     ../src/logging/Logger.cpp
@@ -426,6 +440,7 @@ add_tr4qt_test(test_contest_config_fields
     ../src/exchanges/SmartExchangeParser.cpp
     ../src/utils/ArrlSectionHelper.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/utils/PathManager.cpp
     ../src/core/Types.cpp
     ../src/logging/Logger.cpp
@@ -517,6 +532,7 @@ add_tr4qt_test(test_qso_logging
     ../src/utils/CountryFile.cpp
     ../src/utils/GeographicUtils.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/utils/PathManager.cpp
     ../src/utils/ArrlSectionHelper.cpp
     ../src/exchanges/SmartExchangeParser.cpp
@@ -595,6 +611,7 @@ add_tr4qt_test(test_floating_dates
 add_tr4qt_test(test_window_persistence
     test_window_persistence.cpp
     ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
     ../src/utils/PathManager.cpp
     ../src/ui/managers/SettingsManager.cpp
     ../src/logging/Logger.cpp

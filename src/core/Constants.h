@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.38.83";  // Extract eventFilter keyboard handling to InputHandlerService
+constexpr const char* APP_VERSION = "3.38.84";  // Secure credential storage with qtkeychain
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
