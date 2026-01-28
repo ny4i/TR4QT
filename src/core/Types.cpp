@@ -117,6 +117,7 @@ ModeType stringToMode(const QString& str) {
     if (str == "FT4")    return ModeType::FT4;
     if (str == "DATA")   return ModeType::DATA;
     if (str == "DATA-R") return ModeType::DATAR;
+    if (str == "SSB")    return ModeType::USB;  // SSB defaults to USB (ADIF generic mode)
     return ModeType::None;
 }
 

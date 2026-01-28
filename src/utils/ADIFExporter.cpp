@@ -91,27 +91,35 @@ QString ADIFExporter::formatQSO(const QSO& qso, const QString& contestId) {
     // Band
     stream << formatField("BAND", bandToString(qso.band).remove('M').toLower() + "m");
 
-    // Mode (map our modes to ADIF modes)
+    // Mode and Submode (ADIF spec: some modes are parent/child pairs)
+    // e.g., MODE=SSB SUBMODE=USB, MODE=MFSK SUBMODE=FT4
     QString adifMode;
+    QString adifSubmode;
     switch (qso.mode) {
-    case ModeType::CW:
-        adifMode = "CW";
-        break;
-    case ModeType::USB:
-    case ModeType::LSB:
-        adifMode = "SSB";
-        break;
-    case ModeType::RTTY:
-        adifMode = "RTTY";
-        break;
-    case ModeType::FM:
-        adifMode = "FM";
-        break;
-    default:
-        adifMode = "SSB";
-        break;
+    case ModeType::CW:    adifMode = "CW";   break;
+    case ModeType::CWR:   adifMode = "CW";   adifSubmode = "CW-R"; break;
+    case ModeType::USB:   adifMode = "SSB";   adifSubmode = "USB";  break;
+    case ModeType::LSB:   adifMode = "SSB";   adifSubmode = "LSB";  break;
+    case ModeType::FM:    adifMode = "FM";    break;
+    case ModeType::AM:    adifMode = "AM";    break;
+    case ModeType::RTTY:  adifMode = "RTTY";  break;
+    case ModeType::RTTYR: adifMode = "RTTY";  adifSubmode = "RTTY-R"; break;
+    case ModeType::PSK:   adifMode = "PSK";   break;
+    case ModeType::PSKR:  adifMode = "PSK";   adifSubmode = "PSK-R";  break;
+    case ModeType::FT8:   adifMode = "MFSK";  adifSubmode = "FT8";  break;
+    case ModeType::FT4:   adifMode = "MFSK";  adifSubmode = "FT4";  break;
+    case ModeType::DATA:  adifMode = "DATA";  break;
+    case ModeType::DATAR: adifMode = "DATA";  adifSubmode = "DATA-R"; break;
+    default:              adifMode = modeToString(qso.mode); break;
     }
     stream << formatField("MODE", adifMode);
+
+    // Write SUBMODE: prefer stored submode from import, fall back to derived
+    if (!qso.submode.isEmpty()) {
+        stream << formatField("SUBMODE", qso.submode);
+    } else if (!adifSubmode.isEmpty()) {
+        stream << formatField("SUBMODE", adifSubmode);
+    }
 
     // Frequency (in MHz)
     if (qso.frequency > 0) {

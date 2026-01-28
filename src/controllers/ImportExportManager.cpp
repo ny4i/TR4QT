@@ -7,6 +7,7 @@
 #include "../utils/AppSettings.h"
 #include "../ui/models/QSOTableModel.h"
 #include "../data/QSORepository.h"
+#include "../services/ExchangeMemoryService.h"
 #include "../controllers/DataIntegrityManager.h"
 #include "../logging/LogMacros.h"
 #include "../core/Types.h"
@@ -50,15 +51,33 @@ ImportResult ImportExportManager::importADIF() {
             return result;
         }
 
-        // Save imported QSOs to database
+        // Save imported QSOs to database and populate exchange memory
         QSORepository repo;
+        ExchangeMemoryService exchangeService;
         int successCount = 0;
         int failureCount = 0;
+
+        // Determine contest ID for exchange memory
+        QString contestId;
+        if (m_config.activeContest) {
+            contestId = m_config.activeContest->getContestId();
+        }
 
         for (const QSO& qsoConst : importedQSOs) {
             QSO qso = qsoConst;  // Make mutable copy (saveQSO modifies GUID if needed)
             if (repo.saveQSO(qso, m_config.currentContestDbId)) {
                 successCount++;
+
+                // Populate exchange memory so future callsign lookups work
+                if (!qso.exchangeReceived.isEmpty()) {
+                    ExchangeMemoryService::SaveExchangeParams params;
+                    params.callsign = qso.callsign;
+                    params.exchange = qso.exchangeReceived;
+                    params.contestId = contestId;
+                    params.mode = qso.mode;
+                    params.wasAutopopulated = false;  // Treat imported as manual-quality data
+                    exchangeService.saveExchange(params);
+                }
             } else {
                 failureCount++;
                 LOG_WARN("ImportExportManager", QString("Failed to import QSO: %1 - %2")
