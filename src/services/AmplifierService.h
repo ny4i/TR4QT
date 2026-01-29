@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 #include "../amplifiers/IAmplifierController.h"
+#include "../controllers/AmplifierController.h"
 
 namespace TR4QT {
 
@@ -36,9 +37,10 @@ public:
     /**
      * Construct an AmplifierService
      * @param controller Amplifier controller instance (ownership not transferred)
+     *        AmplifierController runs the actual device in a worker thread to prevent UI freezing
      * @param parent Parent QObject
      */
-    explicit AmplifierService(IAmplifierController* controller, QObject* parent = nullptr);
+    explicit AmplifierService(AmplifierController* controller, QObject* parent = nullptr);
 
     /**
      * Destructor
@@ -47,9 +49,9 @@ public:
 
     /**
      * Get amplifier controller instance
-     * @return Pointer to IAmplifierController (never null)
+     * @return Pointer to AmplifierController (never null)
      */
-    IAmplifierController* amplifierController() const { return m_amplifier; }
+    AmplifierController* amplifierController() const { return m_amplifier; }
 
     /**
      * Get current amplifier connection status
@@ -64,11 +66,14 @@ public:
     AmplifierState currentState() const;
 
     /**
-     * Connect to amplifier
+     * Connect to amplifier (async - connection result via connectionStatusChanged signal)
+     * @param amplifierType Type of amplifier (AmplifierFactory::AmplifierType)
      * @param config Amplifier configuration (IP, port, etc.)
-     * @return true if connection successful, false otherwise
+     *
+     * Note: Connection happens asynchronously in worker thread.
+     * Listen for connectionStatusChanged(bool) signal to know when connected.
      */
-    bool connectToAmplifier(const AmplifierConfig& config);
+    void connectToAmplifier(int amplifierType, const AmplifierConfig& config);
 
     /**
      * Disconnect from amplifier
@@ -244,8 +249,8 @@ private slots:
     void onTemperatureChanged(int celsius);
 
 private:
-    IAmplifierController* m_amplifier;  // Amplifier controller instance (not owned)
-    AmplifierState m_currentState;      // Current amplifier state
+    AmplifierController* m_amplifier;  // Amplifier controller instance (not owned, runs device in worker thread)
+    AmplifierState m_currentState;     // Current amplifier state
 };
 
 } // namespace TR4QT

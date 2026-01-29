@@ -34,6 +34,8 @@ struct WindowGeometry {
     QByteArray bandMapGeometry;
     bool radioControlVisible = false;
     QByteArray radioControlGeometry;
+    bool radio2ControlVisible = false;
+    QByteArray radio2ControlGeometry;
     bool multipliersVisible = false;
     QByteArray multipliersGeometry;
     bool statisticsVisible = false;

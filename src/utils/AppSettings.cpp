@@ -1421,6 +1421,25 @@ bool AppSettings::getRadioControlVisible() const {
     return m_settings.value("RadioControlWindow/visible", false).toBool();
 }
 
+// Radio 2 Control window (SO2R)
+void AppSettings::saveRadio2ControlGeometry(const QByteArray& geometry) {
+    m_settings.setValue("Radio2ControlWindow/geometry", geometry);
+    m_settings.sync();
+}
+
+QByteArray AppSettings::loadRadio2ControlGeometry() const {
+    return m_settings.value("Radio2ControlWindow/geometry").toByteArray();
+}
+
+void AppSettings::setRadio2ControlVisible(bool visible) {
+    m_settings.setValue("Radio2ControlWindow/visible", visible);
+    m_settings.sync();
+}
+
+bool AppSettings::getRadio2ControlVisible() const {
+    return m_settings.value("Radio2ControlWindow/visible", false).toBool();
+}
+
 // Multipliers window
 void AppSettings::saveMultipliersGeometry(const QByteArray& geometry) {
     m_settings.setValue("MultipliersWindow/geometry", geometry);

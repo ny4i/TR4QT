@@ -648,8 +648,10 @@ target_include_directories(test_rotator_service PRIVATE
 )
 
 # Link additional source files needed by RotatorService
+# Note: RotatorController runs device in worker thread (Issue #69)
 target_sources(test_rotator_service PRIVATE
     ../src/services/RotatorService.cpp
+    ../src/controllers/RotatorController.cpp
 )
 
 # Register with CTest

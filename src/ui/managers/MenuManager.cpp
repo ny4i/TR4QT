@@ -128,6 +128,19 @@ void MenuManager::createRadioMenu(QMenuBar* menuBar, const Config& config) {
             config.onAutoSendCWToggled(checked);
         }
     });
+
+    // SO2R (Single Operator 2 Radio) section
+    radioMenu->addSeparator();
+
+    QAction* toggleRigsAction = radioMenu->addAction("Toggle &Rigs (SO2R)");
+    toggleRigsAction->setShortcut(QKeySequence("Alt+R"));
+    toggleRigsAction->setStatusTip("Switch active radio between Radio 1 and Radio 2");
+    connect(toggleRigsAction, &QAction::triggered, this, config.onToggleRigs);
+
+    QAction* editSO2RAction = radioMenu->addAction("Edit SO&2R...");
+    editSO2RAction->setShortcut(QKeySequence("Alt+E"));
+    editSO2RAction->setStatusTip("Configure SO2R settings");
+    connect(editSO2RAction, &QAction::triggered, this, config.onEditSO2R);
 }
 
 void MenuManager::createEditMenu(QMenuBar* menuBar, const Config& config) {
@@ -343,7 +356,7 @@ void MenuManager::createWindowMenu(QMenuBar* menuBar, const Config& config) {
     connect(m_radio2ControlAction, &QAction::triggered, this, config.onShowRadio2Control);
 
     QAction* sendMorseAction = windowMenu->addAction("Send &Morse Code");
-    sendMorseAction->setShortcut(QKeySequence("Alt+K"));
+    // No shortcut - Alt+K is used for Kill CW
     connect(sendMorseAction, &QAction::triggered, this, config.onSendMorse);
 
     QAction* editCWMessagesAction = windowMenu->addAction("Edit CW &Messages");
@@ -409,15 +422,7 @@ void MenuManager::createBandMenu(QMenuBar* menuBar, const Config& config) {
     bandDownAction->setShortcut(QKeySequence("Alt+V"));
     connect(bandDownAction, &QAction::triggered, this, config.onBandDown);
 
-    bandMenu->addSeparator();
-
-    QAction* toggleRigsAction = bandMenu->addAction("Toggle Rigs (SO2R)");
-    toggleRigsAction->setShortcut(QKeySequence("Alt+R"));
-    connect(toggleRigsAction, &QAction::triggered, this, config.onToggleRigs);
-
-    QAction* editSO2RAction = bandMenu->addAction("Edit SO2R");
-    editSO2RAction->setShortcut(QKeySequence("Alt+E"));
-    connect(editSO2RAction, &QAction::triggered, this, config.onEditSO2R);
+    // Note: SO2R commands (Toggle Rigs, Edit SO2R) are in the Radio menu
 }
 
 void MenuManager::createHelpMenu(QMenuBar* menuBar, const Config& config) {

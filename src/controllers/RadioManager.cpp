@@ -500,6 +500,9 @@ void RadioManager::onRadioConnectedIndexed(int radioIndex, bool connected)
     if (connected) {
         m_reconnectManagers[radioIndex]->recordSuccess();
 
+        // Clear the "Connecting Radio X..." status message
+        emit statusMessage(QString("Radio %1 connected").arg(radioIndex + 1));
+
         // Update max power for active radio
         if (radioIndex == m_activeRadioIndex) {
             m_radioFlashTimer->stop();

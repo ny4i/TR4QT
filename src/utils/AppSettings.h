@@ -322,6 +322,11 @@ public:
     void setRadioControlVisible(bool visible);
     bool getRadioControlVisible() const;
 
+    void saveRadio2ControlGeometry(const QByteArray& geometry);
+    QByteArray loadRadio2ControlGeometry() const;
+    void setRadio2ControlVisible(bool visible);
+    bool getRadio2ControlVisible() const;
+
     void saveMultipliersGeometry(const QByteArray& geometry);
     QByteArray loadMultipliersGeometry() const;
     void setMultipliersVisible(bool visible);

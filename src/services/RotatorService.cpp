@@ -3,20 +3,21 @@
 
 namespace TR4QT {
 
-RotatorService::RotatorService(IRotatorController* controller, QObject* parent)
+RotatorService::RotatorService(RotatorController* controller, QObject* parent)
     : QObject(parent)
     , m_rotator(controller)
 {
     LOG_DEBUG("RotatorService", "Constructor");
 
     // Connect controller signals to service slots
-    connect(m_rotator, &IRotatorController::connectionStatusChanged,
+    // RotatorController runs the actual device in a worker thread to prevent UI freezing (Issue #69)
+    connect(m_rotator, &RotatorController::connectionStatusChanged,
             this, &RotatorService::onRotatorConnected);
-    connect(m_rotator, &IRotatorController::errorOccurred,
+    connect(m_rotator, &RotatorController::errorOccurred,
             this, &RotatorService::onRotatorError);
-    connect(m_rotator, &IRotatorController::azimuthChanged,
+    connect(m_rotator, &RotatorController::azimuthChanged,
             this, &RotatorService::onAzimuthChanged);
-    connect(m_rotator, &IRotatorController::stateUpdated,
+    connect(m_rotator, &RotatorController::stateUpdated,
             this, &RotatorService::onStateUpdated);
 }
 
@@ -35,32 +36,21 @@ RotatorState RotatorService::currentState() const
     return m_currentState;
 }
 
-bool RotatorService::connectToRotator(const RotatorConfig& config)
+void RotatorService::connectToRotator(int rotatorType, const RotatorConfig& config)
 {
-    LOG_INFO("RotatorService", QString("Connecting to rotator at %1:%2")
+    LOG_INFO("RotatorService", QString("Connecting to rotator at %1:%2 (async)")
         .arg(config.ipAddress).arg(config.port));
 
-    bool success = m_rotator->connect(config);
+    // Connection is async - success/failure will be reported via connectionStatusChanged signal
+    m_rotator->connectToRotator(rotatorType, config);
 
-    if (success) {
-        QString msg = QString("Connected to rotator at %1:%2")
-            .arg(config.ipAddress).arg(config.port);
-        LOG_INFO("RotatorService", msg);
-        emit statusMessage(msg);
-    } else {
-        QString msg = QString("Failed to connect to rotator at %1:%2")
-            .arg(config.ipAddress).arg(config.port);
-        LOG_ERROR("RotatorService", msg);
-        emit errorOccurred(msg);
-    }
-
-    return success;
+    emit statusMessage(QString("Connecting to rotator at %1:%2...").arg(config.ipAddress).arg(config.port));
 }
 
 void RotatorService::disconnectFromRotator()
 {
     LOG_INFO("RotatorService", "Disconnecting from rotator");
-    m_rotator->disconnect();
+    m_rotator->disconnectFromRotator();
     emit statusMessage("Disconnected from rotator");
 }
 

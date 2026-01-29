@@ -3,6 +3,7 @@
 #include "../panels/AmplifierPanelFactory.h"
 #include "../panels/KPA1500PanelController.h"
 #include "../../services/AmplifierService.h"
+#include "../../amplifiers/AmplifierFactory.h"
 #include "../../utils/AppSettings.h"
 #include "../../utils/FontManager.h"
 #include "../../utils/ThemeManager.h"
@@ -874,21 +875,28 @@ void AmplifierControlWindow::onTestConnection() {
 
     // Load amplifier config from settings
     AppSettings& settings = AppSettings::instance();
+    int modelId = settings.getAmplifierModel();
+    QString connectionType = settings.getAmplifierConnectionType();
+
     AmplifierConfig config;
-    config.hamlibModelId = settings.getAmplifierModel();
-    config.connectionType = settings.getAmplifierConnectionType();
+    config.hamlibModelId = modelId;
+    config.connectionType = connectionType;
     config.port = settings.getAmplifierPort();
     config.baudRate = settings.getAmplifierBaudRate();
     config.pollIntervalMs = settings.getAmplifierPollInterval();
 
-    // Attempt to connect
-    bool connected = m_service->connectToAmplifier(config);
-
-    if (connected) {
-        LOG_INFO("AmplifierControl", "Connection test successful");
+    // Determine amplifier type
+    int amplifierType;
+    const int AMP_MODEL_ELECRAFT_KPA1500 = 1201;
+    if (connectionType == "direct" && modelId == AMP_MODEL_ELECRAFT_KPA1500) {
+        amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::KPA1500_DIRECT);
     } else {
-        LOG_WARN("AmplifierControl", "Connection test failed");
+        amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::HAMLIB);
     }
+
+    // Attempt to connect (async - result via connectionStatusChanged signal)
+    m_service->connectToAmplifier(amplifierType, config);
+    LOG_INFO("AmplifierControl", "Connection test initiated (async)");
 }
 
 } // namespace TR4QT

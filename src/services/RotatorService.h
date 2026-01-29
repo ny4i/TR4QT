@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 #include "../rotator/IRotatorController.h"
+#include "../controllers/RotatorController.h"
 
 namespace TR4QT {
 
@@ -38,9 +39,10 @@ public:
     /**
      * Construct a RotatorService
      * @param controller Rotator controller instance (ownership not transferred)
+     *        RotatorController runs the actual device in a worker thread to prevent UI freezing
      * @param parent Parent QObject
      */
-    explicit RotatorService(IRotatorController* controller, QObject* parent = nullptr);
+    explicit RotatorService(RotatorController* controller, QObject* parent = nullptr);
 
     /**
      * Destructor
@@ -49,9 +51,9 @@ public:
 
     /**
      * Get rotator controller instance
-     * @return Pointer to IRotatorController (never null)
+     * @return Pointer to RotatorController (never null)
      */
-    IRotatorController* rotatorController() const { return m_rotator; }
+    RotatorController* rotatorController() const { return m_rotator; }
 
     /**
      * Get current rotator connection status
@@ -66,11 +68,14 @@ public:
     RotatorState currentState() const;
 
     /**
-     * Connect to rotator
+     * Connect to rotator (async - connection result via connectionStatusChanged signal)
+     * @param rotatorType Type of rotator (RotatorFactory::RotatorType)
      * @param config Rotator configuration (IP, port, etc.)
-     * @return true if connection successful, false otherwise
+     *
+     * Note: Connection happens asynchronously in worker thread.
+     * Listen for connectionStatusChanged(bool) signal to know when connected.
      */
-    bool connectToRotator(const RotatorConfig& config);
+    void connectToRotator(int rotatorType, const RotatorConfig& config);
 
     /**
      * Disconnect from rotator
@@ -154,8 +159,8 @@ private slots:
     void onStateUpdated(const RotatorState& state);
 
 private:
-    IRotatorController* m_rotator;  // Rotator controller instance (not owned)
-    RotatorState m_currentState;    // Current rotator state
+    RotatorController* m_rotator;  // Rotator controller instance (not owned, runs device in worker thread)
+    RotatorState m_currentState;   // Current rotator state
 };
 
 } // namespace TR4QT
