@@ -12,12 +12,9 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QLabel>
-#include <QTimer>
 #include "../../radio/RadioInterface.h"
+#include "../../utils/AppSettings.h"
 #include "../../utils/DXClusterListDownloader.h"
-#include "../../utils/K4Discovery.h"
-#include "../../utils/IcomDiscovery.h"
-#include "../widgets/CivAddressWidget.h"
 
 namespace TR4QT {
 
@@ -62,11 +59,23 @@ signals:
 
 private slots:
     void onApply();
-    void onTestRadioConnection();
-    void onConnectionTypeChanged();
-    void onRadioModelChanged(int index);
-    void onRadioStatusFilterChanged();
-    void onRadioTypeChanged(int index);
+
+    // ===== My Radios management slots =====
+    void onAddRadio();
+    void onEditRadio();
+    void onRemoveRadio();
+    void onRadioDoubleClicked(QListWidgetItem* item);
+
+    // ===== Station Profile management slots =====
+    void onStationProfileChanged(int index);
+    void onNewStationProfile();
+    void onRenameStationProfile();
+    void onDeleteStationProfile();
+    void onRadio1AssignChanged(int index);
+    void onRadio2AssignChanged(int index);
+    void onDefaultActiveChanged();
+    void onSO2REnabledChanged(bool enabled);
+    void onActivateProfile();
 
     // UDP Broadcast slots
     void onUdpAddDestination();
@@ -89,29 +98,6 @@ private slots:
 
     // Backup slots
     void onBrowseBackupDirectory();
-
-    // K4 Discovery slots
-    void onFindK4Radios();
-    void onK4RadioFound(const K4RadioInfo& radio);
-    void onK4DiscoveryFinished(int count);
-
-    // Icom Discovery slots
-    void onFindIcomRadios();
-    void onIcomRadioFound(const IcomRadioDiscoveryInfo& radio);
-    void onIcomDiscoveryFinished(int count);
-
-    // Network discovery slot (dispatches to K4 or Icom based on radio type)
-    void onFindNetworkRadios();
-
-    // Serial port discovery slots
-    void refreshSerialPorts();
-
-    // Radio profile management slots
-    void onProfileSelected(int index);
-    void onNewProfile();
-    void onEditProfile();
-    void onDeleteProfile();
-    void onSetActiveProfile();
 
     // Amplifier slots
     void onAmplifierModelChanged(int index);
@@ -151,11 +137,13 @@ private:
     QWidget* createAdvancedTab();
 
     // Helper methods
-    void populateRadioList();
+    void refreshRadioList();           // Refresh My Radios list
+    void refreshRadioAssignCombos();   // Refresh Radio 1/Radio 2 assignment dropdowns
+    void refreshStationProfileCombo(); // Refresh station profile dropdown
+    void loadStationProfileIntoUI(const QString& profileName);  // Load profile settings into UI
+    void saveCurrentStationProfile();  // Save current UI state to profile
     void populateAmplifierList();
     void populateRotatorList();
-    void loadProfileIntoUI(const QString& profileName);
-    RadioConfig buildRadioConfigFromUI() const;
 
     // Station tab widgets
     QLineEdit* m_callsignEdit;
@@ -171,49 +159,38 @@ private:
     QComboBox* m_continentCombo;
     QLineEdit* m_operatorEdit;
 
-    // Radio tab widgets (from RadioConfigDialog)
-    QComboBox* m_radioTypeCombo;        // Radio interface type (Auto/Hamlib/K4 Direct)
-    QComboBox* m_radioModelCombo;
-    QLineEdit* m_customModelEdit;
-    QCheckBox* m_showStableRadiosCheck;
-    QCheckBox* m_showBetaRadiosCheck;
-    QCheckBox* m_showAlphaRadiosCheck;
-    QCheckBox* m_showUntestedRadiosCheck;
-    QRadioButton* m_serialRadio;
-    QRadioButton* m_networkRadio;
-    QComboBox* m_serialPortCombo;       // Dropdown with detected serial ports
-    QLineEdit* m_serialPortEdit;        // Manual entry fallback
-    QPushButton* m_refreshPortsButton;  // Manual refresh button
-    QTimer* m_portRefreshTimer;         // Auto-refresh timer (5 seconds)
-    QComboBox* m_baudRateCombo;
-    QComboBox* m_dataBitsCombo;
-    QComboBox* m_stopBitsCombo;
-    QComboBox* m_parityCombo;
-    QLineEdit* m_ipAddressEdit;
-    QSpinBox* m_portSpin;
-    QLineEdit* m_icomUsernameEdit;
-    QLineEdit* m_icomPasswordEdit;
-    QLineEdit* m_icomClientNameEdit;
-    CivAddressWidget* m_civAddressWidget;
-    QSpinBox* m_pollIntervalSpin;
+    // ===== My Radios Section =====
+    // List of defined radios (name + connection summary)
+    QListWidget* m_radioListWidget;
+    QPushButton* m_addRadioButton;        // [+] Add new radio
+    QPushButton* m_removeRadioButton;     // [-] Remove selected radio
+    QPushButton* m_editRadioButton;       // [Edit...] Edit selected radio
+    QList<RadioProfile> m_radioProfiles;  // Cache of radio profiles for current session
+
+    // ===== Station Profiles Section =====
+    // Station profiles assign radios to Radio 1 and Radio 2 slots
+    QComboBox* m_stationProfileCombo;     // Select station profile
+    QPushButton* m_newStationProfileButton;
+    QPushButton* m_renameStationProfileButton;
+    QPushButton* m_deleteStationProfileButton;
+    QComboBox* m_radio1AssignCombo;       // Radio 1 assignment dropdown
+    QComboBox* m_radio2AssignCombo;       // Radio 2 assignment dropdown
+    QRadioButton* m_radio1DefaultButton;  // Radio 1 is default active
+    QRadioButton* m_radio2DefaultButton;  // Radio 2 is default active
+    QCheckBox* m_so2rEnabledCheck;        // Enable SO2R mode
+
+    // Active profile display/activation
+    QLabel* m_activeProfileLabel;
+    QPushButton* m_activateButton;
+
+    // Checkbox for auto-connect on startup
     QCheckBox* m_autoConnectCheck;
-    QGroupBox* m_serialGroup;
-    QGroupBox* m_networkGroup;
+
+    // CW Settings (kept here, not moved to RadioEditDialog)
     QSpinBox* m_morseWpmSpin;
     QSpinBox* m_morseWpmIncrementSpin;
     QCheckBox* m_cutNumbersEnabledCheck;
     QSpinBox* m_serialNumberWidthSpin;
-    QPushButton* m_testConnectionButton;
-    QLabel* m_connectionStatusLabel;
-
-    // Radio profile management widgets
-    QComboBox* m_profileSelectorCombo;
-    QPushButton* m_newProfileButton;
-    QPushButton* m_editProfileButton;
-    QPushButton* m_deleteProfileButton;
-    QPushButton* m_setActiveButton;
-    QLabel* m_activeProfileLabel;
-    QList<RadioProfile> m_radioProfiles;  // Cache for current session
 
     // Amplifier widgets (enhanced for Hamlib support)
     QCheckBox* m_amplifierEnabledCheck;
@@ -327,15 +304,6 @@ private:
     // Advanced tab widgets
     QLineEdit* m_countryFilePathEdit;
     QCheckBox* m_autoUpdateCountryFileCheck;
-
-    // K4 Discovery
-    K4Discovery* m_k4Discovery;
-    QPushButton* m_findK4Button;
-    QList<K4RadioInfo> m_foundK4Radios;
-
-    // Icom Discovery
-    IcomDiscovery* m_icomDiscovery;
-    QList<IcomRadioDiscoveryInfo> m_foundIcomRadios;
 
     // Sidebar navigation widgets
     QListWidget* m_categoryList;

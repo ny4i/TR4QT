@@ -174,6 +174,9 @@ void QSOLogger::populateQSOFromInput(QSO& qso, const Input& input)
     // Track operating mode (CQ vs S&P)
     qso.isRunQSO = (input.operatingMode == OperatingMode::CQ);
 
+    // Track which radio logged this QSO (for SO2R)
+    qso.radioNr = input.radioNumber;
+
     // Set default sent RST based on mode
     qso.rstSent = RSTValidator::getDefault(qso.mode);
 }

@@ -89,6 +89,7 @@ public:
         QList<QSO> existingQSOs;            // For duplicate/multiplier checking
         bool saveExchangeMemory = true;     // Save to exchange memory?
         bool autoPopulated = false;         // Was exchange auto-populated?
+        int radioNumber = 1;                // Which radio logged this QSO (1 or 2 for SO2R)
 
         // Contest context (for post-logging actions)
         QString stationCallsign;            // Station callsign (for UDP broadcast)

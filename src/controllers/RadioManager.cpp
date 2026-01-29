@@ -6,73 +6,40 @@
 #include <QThread>
 #include <QHostAddress>
 
-// TODO: UX Improvement - Don't show Hamlib model ID when using direct interfaces
-// When radioType is K4_DIRECT or ICOM_DIRECT, the Hamlib model ID is only used
-// internally for configuration (e.g., CI-V address auto-config) but NOT for
-// actual radio communication. Displaying it in status messages/tooltips is
-// misleading because it implies Hamlib is being used.
-//
-// Suggested changes:
-// 1. Status messages: Show radio name instead of model ID for direct interfaces
-//    - CURRENT: "Connecting to radio: Model 3092, Port 192.168.1.100:50001..."
-//    - BETTER:  "Connecting to radio: IC-7760 (Icom Direct), Port 192.168.1.100:50001..."
-//    - BETTER:  "Connecting to radio: K4 (K4 Direct), Port 192.168.73.108:9200..."
-//
-// 2. Error messages: Clarify which interface failed
-//    - CURRENT: "Failed to connect to radio Model 3092"
-//    - BETTER:  "Failed to connect to IC-7760 via Icom Direct"
-//
-// 3. Tooltips: Only mention Hamlib when actually using Hamlib interface
-//
-// Implementation approach:
-// - Add RadioFactory::getRadioDisplayName(hamlibModelId, radioType) helper
-// - Returns model name from rig_get_caps() for all types
-// - Appends interface type for clarity: "(K4 Direct)", "(Icom Direct)", "(Hamlib)"
-// - Use this helper throughout status messages instead of raw model ID
-
 namespace TR4QT {
 
 RadioManager::RadioManager(QObject* parent)
     : QObject(parent)
-    , m_radio(new RadioController(this))
-    , m_currentState()
-    , m_radioConnected(false)
-    , m_radioAutoReconnect(false)
-    , m_reconnectManager(new ReconnectionManager(RECONNECT_INTERVAL_MS, 0, this))
-    , m_lastRadioConfig()
     , m_radioFlashTimer(new QTimer(this))
-    , m_radioFlashState(false)
-    , m_amplifier(nullptr)
-    , m_amplifierOperateMode(false)
-    , m_amplifierForwardPower(0)
 {
-    // Setup reconnection manager (10 seconds, unlimited retries)
-    connect(m_reconnectManager, &ReconnectionManager::retryRequested,
-            this, &RadioManager::onRetryRequested);
+    // Initialize radio controllers and reconnection managers for both radios
+    for (int i = 0; i < MAX_RADIOS; ++i) {
+        m_radios[i] = new RadioController(this);
+        m_reconnectManagers[i] = new ReconnectionManager(RECONNECT_INTERVAL_MS, 0, this);
+    }
+
+    // Set legacy pointer to Radio 1 by default
+    m_radio = m_radios[RADIO_1];
+
+    // Setup reconnection managers
+    connect(m_reconnectManagers[RADIO_1], &ReconnectionManager::retryRequested,
+            this, &RadioManager::onRetryRequested0);
+    connect(m_reconnectManagers[RADIO_2], &ReconnectionManager::retryRequested,
+            this, &RadioManager::onRetryRequested1);
 
     // Setup flash timer (500ms flash rate)
     m_radioFlashTimer->setInterval(FLASH_INTERVAL_MS);
     connect(m_radioFlashTimer, &QTimer::timeout, this, &RadioManager::onFlashTimeout);
 
-    // Connect radio controller signals
-    connect(m_radio, &RadioController::connectionStatusChanged,
-            this, &RadioManager::onRadioConnected);
-    connect(m_radio, &RadioController::stateUpdated,
-            this, &RadioManager::onRadioStateUpdated);
-    connect(m_radio, &RadioController::errorOccurred,
-            this, &RadioManager::onRadioError);
-
-    // Connect fast individual field signals for instant transceive updates
-    // Note: Only frequency/band need fast updates for VFO display
-    // Mode changes are less frequent and handled by periodic stateUpdated
-    connect(m_radio, &RadioController::frequencyChanged,
-            this, &RadioManager::onFrequencyChanged);
+    // Setup signal connections for both radios
+    setupRadioConnections(RADIO_1);
+    setupRadioConnections(RADIO_2);
 
     // Setup amplifier poller (KPA1500)
     AppSettings& settings = AppSettings::instance();
     if (settings.getAmplifierEnabled()) {
         QString ipAddress = settings.getAmplifierIpAddress();
-        int port = settings.getAmplifierPortNumber();  // Use new method that returns int
+        int port = settings.getAmplifierPortNumber();
 
         if (!ipAddress.isEmpty()) {
             m_amplifier = new KPA1500UdpPoller(this);
@@ -93,38 +60,96 @@ RadioManager::RadioManager(QObject* parent)
             LOG_WARN("RadioManager", "Amplifier enabled but no IP address configured");
         }
     }
+
+    // Load SO2R enabled state from active station profile
+    QString activeStationProfile = settings.getActiveStationProfile();
+    if (!activeStationProfile.isEmpty()) {
+        StationProfile profile = settings.getStationProfile(activeStationProfile);
+        m_so2rEnabled = profile.so2rEnabled;
+    } else {
+        // Fall back to legacy setting for backward compatibility
+        m_so2rEnabled = settings.isSO2REnabled();
+    }
+    LOG_INFO("RadioManager", QString("RadioManager initialized, SO2R mode: %1")
+             .arg(m_so2rEnabled ? "enabled" : "disabled"));
 }
 
 RadioManager::~RadioManager()
 {
     // Cleanup handled by Qt parent-child relationship
-    // RadioController and timers will be deleted automatically
+    // RadioControllers, ReconnectionManagers, and timers will be deleted automatically
+}
+
+void RadioManager::setupRadioConnections(int radioIndex)
+{
+    RadioController* radio = m_radios[radioIndex];
+    if (!radio) return;
+
+    // Use indexed slots to route signals to the correct handler
+    if (radioIndex == RADIO_1) {
+        connect(radio, &RadioController::connectionStatusChanged,
+                this, &RadioManager::onRadioConnected0);
+        connect(radio, &RadioController::stateUpdated,
+                this, &RadioManager::onRadioStateUpdated0);
+        connect(radio, &RadioController::errorOccurred,
+                this, &RadioManager::onRadioError0);
+        connect(radio, &RadioController::frequencyChanged,
+                this, &RadioManager::onFrequencyChanged0);
+    } else {
+        connect(radio, &RadioController::connectionStatusChanged,
+                this, &RadioManager::onRadioConnected1);
+        connect(radio, &RadioController::stateUpdated,
+                this, &RadioManager::onRadioStateUpdated1);
+        connect(radio, &RadioController::errorOccurred,
+                this, &RadioManager::onRadioError1);
+        connect(radio, &RadioController::frequencyChanged,
+                this, &RadioManager::onFrequencyChanged1);
+    }
+}
+
+// ========== Single-Radio API (backward compatible) ==========
+
+RadioController* RadioManager::radioController() const
+{
+    return m_radios[m_activeRadioIndex];
+}
+
+bool RadioManager::isConnected() const
+{
+    return m_radioConnected[m_activeRadioIndex];
+}
+
+RadioState RadioManager::currentState() const
+{
+    return m_radioStates[m_activeRadioIndex];
 }
 
 bool RadioManager::connectToRadio()
 {
     AppSettings& settings = AppSettings::instance();
 
-    // Check if radio profiles exist
+    // Try to use new StationProfile system first
+    QString stationProfileName = settings.getActiveStationProfile();
+    if (!stationProfileName.isEmpty()) {
+        StationProfile stationProfile = settings.getStationProfile(stationProfileName);
+        if (!stationProfile.name.isEmpty()) {
+            return connectWithStationProfile(stationProfile);
+        }
+        LOG_WARN("RadioManager", QString("Station profile '%1' not found, falling back to legacy mode")
+                 .arg(stationProfileName));
+    }
+
+    // Legacy single-radio mode for backward compatibility
     if (!settings.hasRadioProfiles()) {
         emit statusMessage("No radio configuration - please configure your radio first");
         return false;
     }
 
-    // Load active profile
     QString activeProfileName = settings.getActiveRadioProfile();
     QList<RadioProfile> profiles = settings.loadRadioProfiles();
 
-    LOG_DEBUG("RadioManager", QString("Active profile name: '%1'").arg(activeProfileName));
-    LOG_DEBUG("RadioManager", QString("Total profiles loaded: %1").arg(profiles.size()));
+    LOG_DEBUG("RadioManager", QString("Legacy mode - Active profile name: '%1'").arg(activeProfileName));
 
-    // Debug: Log all profile names
-    for (const auto& p : profiles) {
-        LOG_DEBUG("RadioManager", QString("  Profile: '%1' (model: %2, port: %3)")
-            .arg(p.name).arg(p.config.hamlibModelId).arg(p.config.port));
-    }
-
-    // Find active profile
     RadioProfile* activeProfile = nullptr;
     for (auto& profile : profiles) {
         if (profile.name == activeProfileName) {
@@ -135,269 +160,530 @@ bool RadioManager::connectToRadio()
 
     if (!activeProfile) {
         emit statusMessage(QString("Active profile '%1' not found - please reconfigure").arg(activeProfileName));
-        LOG_ERROR("RadioManager", QString("Active profile '%1' not found in loaded profiles").arg(activeProfileName));
+        LOG_ERROR("RadioManager", QString("Active profile '%1' not found").arg(activeProfileName));
         return false;
     }
 
-    // Validate that a valid radio model is selected
     if (!activeProfile->isValid()) {
         emit statusMessage("Invalid active profile - please select a valid radio model");
         return false;
     }
 
-    RadioConfig config = activeProfile->config;
-
     // Update last used timestamp
     activeProfile->lastUsed = QDateTime::currentDateTime();
     settings.saveRadioProfiles(profiles);
 
-    // CRITICAL: If switching to a different radio (different port/model), disconnect first
-    // This prevents auto-reconnect from trying to reconnect to the OLD radio
-    bool isDifferentRadio = (m_lastRadioConfig.port != config.port) ||
-                            (m_lastRadioConfig.hamlibModelId != config.hamlibModelId);
+    // Connect Radio 1 with the active profile
+    bool result = connectRadio(RADIO_1, activeProfile->config);
+    m_radioAutoReconnect = result;
+    return result;
+}
 
-    if (m_radio->isConnected() && isDifferentRadio) {
-        LOG_INFO("RadioManager", QString("Profile switch detected: disconnecting from old radio before connecting to %1")
-            .arg(activeProfile->name));
+bool RadioManager::connectWithStationProfile(const StationProfile& stationProfile)
+{
+    AppSettings& settings = AppSettings::instance();
 
-        // Disable auto-reconnect BEFORE disconnecting (prevent reconnect to old radio)
-        m_radioAutoReconnect = false;
-        m_reconnectManager->stop();
+    LOG_INFO("RadioManager", QString("Connecting with station profile '%1': Radio1='%2', Radio2='%3', SO2R=%4, DefaultActive=%5")
+             .arg(stationProfile.name)
+             .arg(stationProfile.radio1Name)
+             .arg(stationProfile.radio2Name)
+             .arg(stationProfile.so2rEnabled ? "yes" : "no")
+             .arg(stationProfile.defaultActive));
 
-        // Disconnect from old radio
-        m_radio->disconnectFromRadio();
+    // Update SO2R state from station profile
+    m_so2rEnabled = stationProfile.so2rEnabled;
 
-        // Wait for disconnect to complete (500ms should be plenty)
-        // This ensures the old radio is fully closed before opening new one
-        QThread::msleep(500);
+    QList<RadioProfile> radioProfiles = settings.loadRadioProfiles();
+    bool success = false;
+
+    // Connect Radio 1 if assigned
+    if (!stationProfile.radio1Name.isEmpty()) {
+        bool found = false;
+        for (const auto& profile : radioProfiles) {
+            if (profile.name == stationProfile.radio1Name) {
+                found = true;
+                if (profile.isValid()) {
+                    if (connectRadio(RADIO_1, profile.config)) {
+                        success = true;
+                    }
+                } else {
+                    LOG_WARN("RadioManager", QString("Radio 1 profile '%1' is invalid")
+                             .arg(stationProfile.radio1Name));
+                }
+                break;
+            }
+        }
+        if (!found) {
+            LOG_WARN("RadioManager", QString("Radio 1 profile '%1' not found")
+                     .arg(stationProfile.radio1Name));
+        }
     }
 
-    // Update config FIRST (before enabling auto-reconnect)
-    m_lastRadioConfig = config;     // Save config for reconnection attempts
+    // Connect Radio 2 if SO2R enabled and assigned
+    if (stationProfile.so2rEnabled && !stationProfile.radio2Name.isEmpty()) {
+        bool found = false;
+        for (const auto& profile : radioProfiles) {
+            if (profile.name == stationProfile.radio2Name) {
+                found = true;
+                if (profile.isValid()) {
+                    if (connectRadio(RADIO_2, profile.config)) {
+                        success = true;
+                    }
+                } else {
+                    LOG_WARN("RadioManager", QString("Radio 2 profile '%1' is invalid")
+                             .arg(stationProfile.radio2Name));
+                }
+                break;
+            }
+        }
+        if (!found) {
+            LOG_WARN("RadioManager", QString("Radio 2 profile '%1' not found")
+                     .arg(stationProfile.radio2Name));
+        }
+    }
 
-    // Stop any pending reconnect and reset counter
-    m_reconnectManager->reset();
+    // Set default active radio based on station profile
+    if (stationProfile.defaultActive == 1 && stationProfile.so2rEnabled) {
+        m_activeRadioIndex = RADIO_2;
+        m_radio = m_radios[RADIO_2];
+        LOG_INFO("RadioManager", "Default active radio set to Radio 2");
+    } else {
+        m_activeRadioIndex = RADIO_1;
+        m_radio = m_radios[RADIO_1];
+        LOG_INFO("RadioManager", "Default active radio set to Radio 1");
+    }
 
-    // TODO: Show radio name + interface type instead of model ID (see TODO at top of file)
-    // Should be: "Connecting to radio: IC-7760 (Icom Direct), Port 192.168.1.100:50001..."
-    emit statusMessage(QString("Connecting to radio: %1, Port %2...")
-                          .arg(activeProfile->name)
-                          .arg(config.port));
+    if (!success) {
+        emit statusMessage("No valid radio profiles configured in station profile");
+    }
 
-    // Force UI update
-    QApplication::processEvents();
-
-    // Connect happens asynchronously in worker thread
-    // connectionStatusChanged signal will indicate success/failure
-    m_radio->connectToRadio(config);
-
-    // IMPORTANT: Only NOW enable auto-reconnect (after connecting to new radio)
-    // This ensures that if the OLD radio's disconnect signal fires late,
-    // it won't trigger a reconnect attempt (because m_lastRadioConfig is now updated)
-    m_radioAutoReconnect = true;
-
-    return true;
+    m_radioAutoReconnect = success;
+    return success;
 }
 
 void RadioManager::disconnectFromRadio()
 {
-    // Disable auto-reconnect when user manually disconnects
     m_radioAutoReconnect = false;
-    m_reconnectManager->reset();
 
-    emit statusMessage("Disconnecting from radio...");
-    m_radio->disconnectFromRadio();
+    // Disconnect all radios
+    for (int i = 0; i < MAX_RADIOS; ++i) {
+        if (m_radioConnected[i]) {
+            disconnectRadio(i);
+        }
+        m_reconnectManagers[i]->reset();
+    }
 
-    // CRITICAL: Wait for disconnect to complete (sends UDP packets to radio)
-    // Without this, if user clicks Connect immediately after Disconnect,
-    // the disconnect packets haven't been sent and radio stays in connected state
-    QApplication::processEvents();  // Process queued disconnect
-    QThread::msleep(100);           // Allow UDP packets to be transmitted
+    emit statusMessage("Disconnected from radio(s)");
     LOG_DEBUG("RadioManager", "Manual disconnect completed");
 }
 
-void RadioManager::onRadioConnected(bool connected)
+// ========== SO2R Multi-Radio API ==========
+
+void RadioManager::setSO2REnabled(bool enabled)
 {
-    LOG_DEBUG("RadioManager", QString("onRadioConnected called with connected = %1")
-        .arg(connected ? "true" : "false"));
+    if (m_so2rEnabled == enabled) return;
 
-    m_radioConnected = connected;
+    m_so2rEnabled = enabled;
+    AppSettings::instance().setSO2REnabled(enabled);
 
-    if (connected) {
-        // Stop reconnect timer on successful connection
-        m_reconnectManager->recordSuccess();
+    LOG_INFO("RadioManager", QString("SO2R mode %1").arg(enabled ? "enabled" : "disabled"));
 
-        // Stop flashing indicator
-        m_radioFlashTimer->stop();
-        m_radioFlashState = false;
-        emit flashStateChanged(false);  // Update to normal color
-
-        // Set TX power meter scale to radio's max power (amplifier may override later)
-        int radioMaxPower = m_radio->maxPowerWatts();
-        emit maxPowerChanged(radioMaxPower);
-
-        // Don't show "waiting for state" - stateUpdated will arrive immediately
-        // Status will be updated when radio model arrives in state update
-    } else {
-        emit statusMessage("Radio disconnected");
-
-        // Start flashing red indicator only if a radio is configured
-        if (AppSettings::instance().hasAnyRadioConfig()) {
-            m_radioFlashTimer->start();
-        }
-
-        // Start auto-reconnect timer if enabled
-        if (m_radioAutoReconnect) {
-            LOG_DEBUG("RadioManager", "Radio disconnected - will attempt reconnect in 10 seconds");
-            emit statusMessage("Radio disconnected - will retry in 10 seconds...");
-            m_reconnectManager->start();
-        }
+    // If disabling SO2R and Radio 2 is connected, disconnect it
+    if (!enabled && m_radioConnected[RADIO_2]) {
+        disconnectRadio(RADIO_2);
     }
 
-    // Emit connection status change
-    emit connectionStatusChanged(connected);
-}
-
-void RadioManager::onRadioStateUpdated(const RadioState& state)
-{
-    // DEBUG: Confirm this slot is being called
-    static int updateCount = 0;
-    updateCount++;
-    double freqKHz = state.frequencyA / 1000.0;
-    LOG_TRACE("RadioManager", QString("onRadioStateUpdated called (count=%1, model=%2, freq=%3 kHz)")
-             .arg(updateCount)
-             .arg(state.radioModel)
-             .arg(freqKHz, 0, 'f', 1));
-
-    // Update status with radio model (always, not just when changed)
-    if (!state.radioModel.isEmpty()) {
-        static QString lastModel;
-        if (state.radioModel != lastModel) {
-            LOG_DEBUG("RadioManager", QString("Radio model from state: %1").arg(state.radioModel));
-            lastModel = state.radioModel;
-            emit radioModelChanged(state.radioModel);
-        }
-        // Always update status bar with radio model (even on reconnects)
-        emit statusMessage(QString("Radio: %1").arg(state.radioModel));
-    }
-
-    // Check for frequency/band changes
-    bool frequencyChanged = (state.frequencyA != m_currentState.frequencyA);
-    bool bandChanged = (state.bandA != m_currentState.bandA);
-
-    // Check for transmit state change (to start/stop amplifier polling)
-    bool wasTransmitting = m_currentState.isTransmitting;
-    bool isTransmitting = state.isTransmitting;
-
-    // Start/stop amplifier polling based on transmit state
-    if (m_amplifier) {
-        if (isTransmitting && !wasTransmitting) {
-            // Entering TX mode - fail closed: assume standby until amplifier confirms operate mode
-            // 1. Reset cached state to standby (safe default)
-            m_amplifierOperateMode = false;
-
-            // 2. Set power meter to radio-only scale (110W for K4)
-            int radioMaxPower = m_radio->maxPowerWatts();
-            emit maxPowerChanged(radioMaxPower);
-            LOG_DEBUG("RadioManager", QString("TX mode: Assumed standby, set power scale to %1W").arg(radioMaxPower));
-
-            // 3. Query amplifier operating status
-            // If ^OS1; response arrives, onAmplifierOperatingStatusChanged() will update to 1800W
-            // If ^OS0; or no response, we stay at radio power (fail closed)
-            m_amplifier->queryNow();  // Send ^OS; query
-            m_amplifier->start();      // Start continuous polling
-        } else if (!isTransmitting && wasTransmitting) {
-            // Leaving TX mode - stop amplifier polling
-            m_amplifier->stop();
-            LOG_DEBUG("RadioManager", "RX mode: Stopped KPA1500 amplifier polling");
-        }
-    }
-
-    // Update cached state (use amplifier power if ATU is inline and transmitting)
-    m_currentState = state;
-    if (m_amplifier && isTransmitting && m_amplifierOperateMode) {
-        // Override radio power with amplifier power when in operate mode
-        m_currentState.powerOutput = m_amplifierForwardPower * 10;  // Convert watts to tenths
-        LOG_DEBUG("RadioManager", QString("Using amplifier power: %1W (ATU inline)").arg(m_amplifierForwardPower));
-    }
-
-    // Emit radio state updated signal
-    emit radioStateUpdated(m_currentState);
-
-    // Emit frequency/band change signals if changed
-    if (frequencyChanged && state.frequencyA > 0) {
-        emit this->frequencyChanged(state.frequencyA);
-    }
-    if (bandChanged && state.bandA != BandType::None) {
-        emit this->bandChanged(state.bandA);
+    // Ensure active radio is Radio 1 when disabling SO2R
+    if (!enabled && m_activeRadioIndex != RADIO_1) {
+        setActiveRadio(RADIO_1);
     }
 }
 
-void RadioManager::onRadioError(const QString& error)
+void RadioManager::setActiveRadio(int radioIndex)
 {
-    emit statusMessage(QString("Radio error: %1").arg(error));
-    emit radioErrorOccurred(error);
-
-    // If auto-reconnect is enabled and we're not connected, restart the reconnect timer
-    // This handles pre-flight failures during reconnect attempts
-    if (m_radioAutoReconnect && !m_radioConnected) {
-        LOG_DEBUG("RadioManager", QString("Radio error during reconnect (attempt %1), will retry in 10 seconds")
-            .arg(m_reconnectManager->attemptCount()));
-        m_reconnectManager->start();
-    }
-}
-
-void RadioManager::onFrequencyChanged(freq_t freq, VFO vfo)
-{
-    // Main window displays VFO A only - ignore VFO B updates
-    if (vfo != VFO::VFO_A) {
+    if (radioIndex < 0 || radioIndex >= MAX_RADIOS) {
+        LOG_WARN("RadioManager", QString("Invalid radio index: %1").arg(radioIndex));
         return;
     }
 
-    // Throttle updates to display refresh rate (60 Hz = 16ms)
-    // Radio may send transceive updates faster than display can refresh
-    // Skipping intermediate updates reduces CPU usage without visible impact
-    static QElapsedTimer throttle;
-    if (throttle.isValid() && throttle.elapsed() < 16) {
-        return;  // Skip update if less than 16ms since last
+    if (m_activeRadioIndex == radioIndex) return;
+
+    int previousActive = m_activeRadioIndex;
+    m_activeRadioIndex = radioIndex;
+
+    // Update legacy pointer
+    m_radio = m_radios[m_activeRadioIndex];
+    m_currentState = m_radioStates[m_activeRadioIndex];
+
+    LOG_INFO("RadioManager", QString("Active radio changed: Radio %1 -> Radio %2")
+             .arg(previousActive + 1).arg(radioIndex + 1));
+
+    // Emit signals for UI update
+    emit activeRadioChanged(radioIndex);
+
+    // Re-emit state for the new active radio
+    if (m_radioConnected[radioIndex]) {
+        emit connectionStatusChanged(true);
+        emit radioStateUpdated(m_radioStates[radioIndex]);
+        emit frequencyChanged(m_radioStates[radioIndex].frequencyA);
+        emit bandChanged(m_radioStates[radioIndex].bandA);
+    } else {
+        emit connectionStatusChanged(false);
     }
-    throttle.start();
 
-    // TIMING: Measure how long RadioManager takes to forward frequency signal
-    static QElapsedTimer fwdTimer;
-    static bool fwdTimerStarted = false;
-    if (!fwdTimerStarted) {
-        fwdTimer.start();
-        fwdTimerStarted = true;
+    // Emit standby frequency for the previous active (now standby) radio
+    if (m_radioConnected[previousActive]) {
+        emit standbyFrequencyChanged(m_radioStates[previousActive].frequencyA);
+        emit standbyBandChanged(m_radioStates[previousActive].bandA);
     }
-    qint64 fwdStart = fwdTimer.nsecsElapsed();
-
-    // Fast path: update cached frequency and emit signal immediately for transceive updates
-    // This bypasses the full state update for instant VFO display updates
-    m_currentState.frequencyA = freq;
-    m_currentState.bandA = frequencyToBand(freq);
-
-    emit this->frequencyChanged(freq);
-    emit this->bandChanged(m_currentState.bandA);
-
-    qint64 fwdEnd = fwdTimer.nsecsElapsed();
-    // Format frequency as MHz with 4 decimal places (e.g., "7.0510 MHz")
-    double freqMhz = freq / 1000000.0;
-    LOG_DEBUG("RadioManager", QString("Frequency forwarded: %1 MHz [forward=%2μs]")
-        .arg(freqMhz, 0, 'f', 4).arg((fwdEnd - fwdStart) / 1000));
 }
 
-void RadioManager::onRetryRequested(int attempt)
+void RadioManager::toggleActiveRadio()
 {
-    if (m_radioAutoReconnect) {
-        emit statusMessage(QString("Reconnecting to radio (attempt %1)...")
-            .arg(attempt));
-        LOG_DEBUG("RadioManager", QString("Auto-reconnect: Attempt %1")
-            .arg(attempt));
-        m_radio->connectToRadio(m_lastRadioConfig);
-        // Note: No attempt limit (maxAttempts=0) - will keep trying until radio comes back or user clicks Disconnect
+    if (!m_so2rEnabled) {
+        LOG_DEBUG("RadioManager", "Toggle ignored - SO2R not enabled");
+        return;
+    }
+
+    // Only toggle if we have at least one connected radio to switch to
+    int otherRadio = getStandbyRadioIndex();
+    if (m_radioConnected[otherRadio]) {
+        setActiveRadio(otherRadio);
+    } else {
+        LOG_DEBUG("RadioManager", QString("Cannot toggle - Radio %1 not connected").arg(otherRadio + 1));
+        emit statusMessage(QString("Radio %1 not connected").arg(otherRadio + 1));
     }
 }
+
+bool RadioManager::connectRadio(int radioIndex, const RadioConfig& config)
+{
+    if (radioIndex < 0 || radioIndex >= MAX_RADIOS) {
+        LOG_ERROR("RadioManager", QString("Invalid radio index: %1").arg(radioIndex));
+        return false;
+    }
+
+    RadioController* radio = m_radios[radioIndex];
+    if (!radio) {
+        LOG_ERROR("RadioManager", QString("Radio %1 controller is null").arg(radioIndex + 1));
+        return false;
+    }
+
+    // If already connected to a different config, disconnect first
+    if (radio->isConnected()) {
+        bool isDifferentRadio = (m_lastRadioConfigs[radioIndex].port != config.port) ||
+                                (m_lastRadioConfigs[radioIndex].hamlibModelId != config.hamlibModelId);
+        if (isDifferentRadio) {
+            LOG_INFO("RadioManager", QString("Radio %1: Disconnecting before switching to new config")
+                     .arg(radioIndex + 1));
+            radio->disconnectFromRadio();
+            QThread::msleep(500);
+        }
+    }
+
+    m_lastRadioConfigs[radioIndex] = config;
+    m_reconnectManagers[radioIndex]->reset();
+
+    emit statusMessage(QString("Connecting Radio %1: %2...")
+                       .arg(radioIndex + 1)
+                       .arg(config.port));
+
+    QApplication::processEvents();
+
+    radio->connectToRadio(config);
+    return true;
+}
+
+void RadioManager::disconnectRadio(int radioIndex)
+{
+    if (radioIndex < 0 || radioIndex >= MAX_RADIOS) return;
+
+    RadioController* radio = m_radios[radioIndex];
+    if (!radio) return;
+
+    m_reconnectManagers[radioIndex]->reset();
+
+    LOG_INFO("RadioManager", QString("Disconnecting Radio %1").arg(radioIndex + 1));
+    radio->disconnectFromRadio();
+
+    QApplication::processEvents();
+    QThread::msleep(100);
+}
+
+bool RadioManager::isRadioConnected(int radioIndex) const
+{
+    if (radioIndex < 0 || radioIndex >= MAX_RADIOS) return false;
+    return m_radioConnected[radioIndex];
+}
+
+RadioState RadioManager::getRadioState(int radioIndex) const
+{
+    if (radioIndex < 0 || radioIndex >= MAX_RADIOS) return RadioState();
+    return m_radioStates[radioIndex];
+}
+
+RadioController* RadioManager::getRadioController(int radioIndex) const
+{
+    if (radioIndex < 0 || radioIndex >= MAX_RADIOS) return nullptr;
+    return m_radios[radioIndex];
+}
+
+int RadioManager::getConnectedRadioCount() const
+{
+    int count = 0;
+    for (int i = 0; i < MAX_RADIOS; ++i) {
+        if (m_radioConnected[i]) ++count;
+    }
+    return count;
+}
+
+// ========== Indexed Slot Trampolines ==========
+
+void RadioManager::onRadioConnected0(bool connected)
+{
+    onRadioConnectedIndexed(RADIO_1, connected);
+}
+
+void RadioManager::onRadioConnected1(bool connected)
+{
+    onRadioConnectedIndexed(RADIO_2, connected);
+}
+
+void RadioManager::onRadioStateUpdated0(const RadioState& state)
+{
+    onRadioStateUpdatedIndexed(RADIO_1, state);
+}
+
+void RadioManager::onRadioStateUpdated1(const RadioState& state)
+{
+    onRadioStateUpdatedIndexed(RADIO_2, state);
+}
+
+void RadioManager::onRadioError0(const QString& error)
+{
+    onRadioErrorIndexed(RADIO_1, error);
+}
+
+void RadioManager::onRadioError1(const QString& error)
+{
+    onRadioErrorIndexed(RADIO_2, error);
+}
+
+void RadioManager::onFrequencyChanged0(freq_t freq, VFO vfo)
+{
+    onFrequencyChangedIndexed(RADIO_1, freq, vfo);
+}
+
+void RadioManager::onFrequencyChanged1(freq_t freq, VFO vfo)
+{
+    onFrequencyChangedIndexed(RADIO_2, freq, vfo);
+}
+
+void RadioManager::onRetryRequested0(int attempt)
+{
+    onRetryRequestedIndexed(RADIO_1, attempt);
+}
+
+void RadioManager::onRetryRequested1(int attempt)
+{
+    onRetryRequestedIndexed(RADIO_2, attempt);
+}
+
+// ========== Indexed Handler Implementations ==========
+
+void RadioManager::onRadioConnectedIndexed(int radioIndex, bool connected)
+{
+    LOG_DEBUG("RadioManager", QString("Radio %1 connected: %2")
+              .arg(radioIndex + 1).arg(connected ? "true" : "false"));
+
+    m_radioConnected[radioIndex] = connected;
+
+    if (connected) {
+        m_reconnectManagers[radioIndex]->recordSuccess();
+
+        // Update max power for active radio
+        if (radioIndex == m_activeRadioIndex) {
+            m_radioFlashTimer->stop();
+            m_radioFlashState = false;
+            emit flashStateChanged(false);
+
+            if (m_radios[radioIndex]) {
+                int radioMaxPower = m_radios[radioIndex]->maxPowerWatts();
+                emit maxPowerChanged(radioMaxPower);
+            }
+        }
+    } else {
+        // Start flashing if active radio disconnected
+        if (radioIndex == m_activeRadioIndex) {
+            if (AppSettings::instance().hasAnyRadioConfig()) {
+                m_radioFlashTimer->start();
+            }
+
+            if (m_radioAutoReconnect) {
+                LOG_DEBUG("RadioManager", QString("Radio %1 disconnected - will retry in 10 seconds")
+                          .arg(radioIndex + 1));
+                emit statusMessage(QString("Radio %1 disconnected - will retry...")
+                                   .arg(radioIndex + 1));
+                m_reconnectManagers[radioIndex]->start();
+            }
+        }
+    }
+
+    // Emit indexed signal for SO2R tracking
+    if (connected) {
+        emit radioConnectedIndexed(radioIndex);
+    } else {
+        emit radioDisconnectedIndexed(radioIndex);
+    }
+
+    // Emit legacy signal for active radio
+    if (radioIndex == m_activeRadioIndex) {
+        emit connectionStatusChanged(connected);
+    }
+}
+
+void RadioManager::onRadioStateUpdatedIndexed(int radioIndex, const RadioState& state)
+{
+    static int updateCounts[MAX_RADIOS] = {0, 0};
+    updateCounts[radioIndex]++;
+
+    double freqKHz = state.frequencyA / 1000.0;
+    LOG_TRACE("RadioManager", QString("Radio %1 state update (count=%2, freq=%3 kHz)")
+              .arg(radioIndex + 1).arg(updateCounts[radioIndex]).arg(freqKHz, 0, 'f', 1));
+
+    // Check for frequency/band changes on this radio
+    bool frequencyChanged = (state.frequencyA != m_radioStates[radioIndex].frequencyA);
+    bool bandChanged = (state.bandA != m_radioStates[radioIndex].bandA);
+
+    // Handle TX state for amplifier (only for active radio)
+    if (radioIndex == m_activeRadioIndex) {
+        bool wasTransmitting = m_radioStates[radioIndex].isTransmitting;
+        bool isTransmitting = state.isTransmitting;
+
+        if (m_amplifier && m_radios[radioIndex]) {
+            if (isTransmitting && !wasTransmitting) {
+                m_amplifierOperateMode = false;
+                int radioMaxPower = m_radios[radioIndex]->maxPowerWatts();
+                emit maxPowerChanged(radioMaxPower);
+                m_amplifier->queryNow();
+                m_amplifier->start();
+            } else if (!isTransmitting && wasTransmitting) {
+                m_amplifier->stop();
+            }
+        }
+    }
+
+    // Update cached state
+    m_radioStates[radioIndex] = state;
+
+    // Apply amplifier power override if applicable
+    if (radioIndex == m_activeRadioIndex && m_amplifier &&
+        state.isTransmitting && m_amplifierOperateMode) {
+        m_radioStates[radioIndex].powerOutput = m_amplifierForwardPower * 10;
+    }
+
+    // Update legacy state if this is the active radio
+    if (radioIndex == m_activeRadioIndex) {
+        m_currentState = m_radioStates[radioIndex];
+    }
+
+    // Emit indexed signal
+    emit radioStateUpdatedIndexed(radioIndex, m_radioStates[radioIndex]);
+
+    // Emit model identification for any radio that reports its model
+    if (!state.radioModel.isEmpty()) {
+        static QString lastModels[2];  // Track model changes per radio
+        if (state.radioModel != lastModels[radioIndex]) {
+            lastModels[radioIndex] = state.radioModel;
+            emit radioModelIdentified(radioIndex, state.radioModel);
+        }
+    }
+
+    // Emit legacy signals for active radio
+    if (radioIndex == m_activeRadioIndex) {
+        if (!state.radioModel.isEmpty()) {
+            static QString lastModel;
+            if (state.radioModel != lastModel) {
+                lastModel = state.radioModel;
+                emit radioModelChanged(state.radioModel);
+            }
+        }
+
+        emit radioStateUpdated(m_radioStates[radioIndex]);
+
+        if (frequencyChanged && state.frequencyA > 0) {
+            emit this->frequencyChanged(state.frequencyA);
+        }
+        if (bandChanged && state.bandA != BandType::None) {
+            emit this->bandChanged(state.bandA);
+        }
+    } else {
+        // This is the standby radio - emit standby signals
+        if (frequencyChanged && state.frequencyA > 0) {
+            emit standbyFrequencyChanged(state.frequencyA);
+        }
+        if (bandChanged && state.bandA != BandType::None) {
+            emit standbyBandChanged(state.bandA);
+        }
+    }
+}
+
+void RadioManager::onRadioErrorIndexed(int radioIndex, const QString& error)
+{
+    emit statusMessage(QString("Radio %1 error: %2").arg(radioIndex + 1).arg(error));
+    emit radioErrorOccurred(error);
+
+    if (m_radioAutoReconnect && !m_radioConnected[radioIndex]) {
+        LOG_DEBUG("RadioManager", QString("Radio %1 error during reconnect, will retry")
+                  .arg(radioIndex + 1));
+        m_reconnectManagers[radioIndex]->start();
+    }
+}
+
+void RadioManager::onFrequencyChangedIndexed(int radioIndex, freq_t freq, VFO vfo)
+{
+    // Only process VFO A updates
+    if (vfo != VFO::VFO_A) return;
+
+    // Throttle updates to 60 Hz
+    static QElapsedTimer throttle[MAX_RADIOS];
+    if (throttle[radioIndex].isValid() && throttle[radioIndex].elapsed() < 16) {
+        return;
+    }
+    throttle[radioIndex].start();
+
+    // Update cached state
+    m_radioStates[radioIndex].frequencyA = freq;
+    m_radioStates[radioIndex].bandA = frequencyToBand(freq);
+
+    if (radioIndex == m_activeRadioIndex) {
+        m_currentState.frequencyA = freq;
+        m_currentState.bandA = m_radioStates[radioIndex].bandA;
+
+        emit this->frequencyChanged(freq);
+        emit this->bandChanged(m_currentState.bandA);
+
+        double freqMhz = freq / 1000000.0;
+        LOG_DEBUG("RadioManager", QString("Radio %1 frequency: %2 MHz")
+                  .arg(radioIndex + 1).arg(freqMhz, 0, 'f', 4));
+    } else {
+        // Standby radio frequency changed
+        emit standbyFrequencyChanged(freq);
+        emit standbyBandChanged(m_radioStates[radioIndex].bandA);
+    }
+}
+
+void RadioManager::onRetryRequestedIndexed(int radioIndex, int attempt)
+{
+    if (m_radioAutoReconnect && m_radios[radioIndex]) {
+        emit statusMessage(QString("Reconnecting Radio %1 (attempt %2)...")
+                           .arg(radioIndex + 1).arg(attempt));
+        LOG_DEBUG("RadioManager", QString("Radio %1 auto-reconnect attempt %2")
+                  .arg(radioIndex + 1).arg(attempt));
+        m_radios[radioIndex]->connectToRadio(m_lastRadioConfigs[radioIndex]);
+    }
+}
+
+// ========== Other Handlers ==========
 
 void RadioManager::onFlashTimeout()
 {
@@ -410,9 +696,9 @@ void RadioManager::onAmplifierPowerChanged(int watts)
     m_amplifierForwardPower = watts;
     LOG_DEBUG("RadioManager", QString("KPA1500 forward power: %1W").arg(watts));
 
-    // If transmitting and ATU is inline, update current state immediately
-    if (m_currentState.isTransmitting && m_amplifierOperateMode) {
-        m_currentState.powerOutput = watts * 10;  // Convert to tenths
+    if (m_radioStates[m_activeRadioIndex].isTransmitting && m_amplifierOperateMode) {
+        m_radioStates[m_activeRadioIndex].powerOutput = watts * 10;
+        m_currentState.powerOutput = watts * 10;
         emit radioStateUpdated(m_currentState);
     }
 }
@@ -420,15 +706,13 @@ void RadioManager::onAmplifierPowerChanged(int watts)
 void RadioManager::onAmplifierOperatingStatusChanged(bool operateMode)
 {
     m_amplifierOperateMode = operateMode;
-    LOG_INFO("RadioManager", QString("KPA1500 operating status: %1").arg(operateMode ? "Operate (100-1800W)" : "Standby (0-110W)"));
+    LOG_INFO("RadioManager", QString("KPA1500 operating status: %1")
+             .arg(operateMode ? "Operate (100-1800W)" : "Standby (0-110W)"));
 
-    // Update TX power meter scale based on operating status
     if (operateMode) {
-        // Amplifier in operate mode: KPA1500 can output up to 1800W
         emit maxPowerChanged(1800);
-    } else {
-        // Amplifier in standby: use radio's max power
-        int radioMaxPower = m_radio->maxPowerWatts();
+    } else if (m_radios[m_activeRadioIndex]) {
+        int radioMaxPower = m_radios[m_activeRadioIndex]->maxPowerWatts();
         emit maxPowerChanged(radioMaxPower);
     }
 }

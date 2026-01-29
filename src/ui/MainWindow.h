@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QShowEvent>
 #include <QLabel>
 #include <QTextEdit>
 #include <QLineEdit>
@@ -104,6 +105,7 @@ signals:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
+    void showEvent(QShowEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     bool eventFilter(QObject* obj, QEvent* event) override;
 
@@ -132,7 +134,8 @@ private slots:
     // Window menu actions
     void onShowDXCluster();
     void onShowBandMap();
-    void onShowRadioControl();
+    void onShowRadioControl();      // Radio 1 Control
+    void onShowRadio2Control();     // Radio 2 Control (SO2R)
     void onShowMultipliers();
     void onShowStatistics();
     void onShowSectionsMap();       // Show ARRL Sections map
@@ -203,6 +206,7 @@ private slots:
     void onFastFrequencyUpdate(freq_t freq);  // Fast transceive update path
     void onRadioError(const QString& error);
     void onRadioModelChanged(const QString& model);
+    void onRadioModelIdentified(int radioIndex, const QString& model);
 
     // Logging actions
     void onLogQSO();
@@ -235,6 +239,7 @@ private:
     void createStatusBar();
     void createCentralWidget();
     QWidget* createBottomPanel();
+    void loadStatisticsWindowData();  // Load/reload QSO data into Statistics window
     void initializeHardwareServices();
     void loadSettings();
     void restoreChildWindows(const WindowGeometry& geometry);
@@ -247,6 +252,7 @@ private:
     void loadUdpBroadcastSettings();
     void loadBackupSettings();
     void updateConnectionStatus(bool connected);
+    void updateRadioStatusLabel();  // Update status bar with connected radio names
     void updateScoreDisplay();
     void recalculateAllPoints();  // Recalculate points for all QSOs in log
     void rebuildMultiplierWindow();  // Rebuild multiplier window from all QSOs
@@ -335,8 +341,9 @@ private:
     QLabel* m_operatorLabel;
 
     // Radio status grid (bottom)
-    QLabel* m_radioFreqBandLabel;  // Shows "15SSB"
-    QLabel* m_radioFreqLabel;      // Shows frequency
+    QLabel* m_radioFreqBandLabel;  // Shows "15SSB" (active radio band/mode)
+    QLabel* m_radioFreqLabel;      // Shows active radio frequency (bright)
+    QLabel* m_standbyFreqLabel;    // Shows standby radio frequency (grayed) - SO2R
     QLabel* m_radioWpmLabel;       // Shows CW speed (WPM)
     QLabel* m_radioDateLabel;      // Shows current date
     QLabel* m_radioTimeLabel;      // Shows current time
@@ -352,6 +359,7 @@ private:
     static constexpr int MAX_RADIO_RECONNECT_ATTEMPTS = 10;
     QTimer* m_radioFlashTimer;      // Timer for flashing red indicator
     bool m_radioFlashState;          // Current flash state (on/off)
+    QString m_radioModels[2];       // Model names for Radio 1 and Radio 2 (SO2R)
 
     // Frequency/mode privilege validation (US only)
     std::unique_ptr<HamRadioPrivileges> m_hamPrivileges;
@@ -365,7 +373,8 @@ private:
     // Window menu actions (for checkmarks)
     QAction* m_bandMapAction;
     QAction* m_dxClusterAction;
-    QAction* m_radioControlAction;
+    QAction* m_radioControlAction;      // Radio 1 Control
+    QAction* m_radio2ControlAction;     // Radio 2 Control (SO2R)
     QAction* m_multipliersAction;
     QAction* m_statisticsAction;
     QAction* m_sectionsMapAction;
@@ -377,7 +386,8 @@ private:
     // Window widgets
     DXClusterWindow* m_dxClusterWindow;
     BandMapWidget* m_bandMapWindow;
-    RadioControlWidget* m_radioControlWindow;
+    RadioControlWidget* m_radioControlWindow;     // Radio 1 Control
+    RadioControlWidget* m_radio2ControlWindow;    // Radio 2 Control (SO2R)
     MultiplierWidget* m_multiplierWindow;
     StatisticsWindow* m_statisticsWindow;
     FunctionKeysWindow* m_functionKeysWindow;
@@ -391,6 +401,7 @@ private:
     // Qt's isVisible() can return false during SIGTERM handling, so we track state ourselves
     bool m_amplifierControlWindowVisible{false};
     bool m_radioControlWindowVisible{false};
+    bool m_radio2ControlWindowVisible{false};
 
     // Time tracking
     QTimer* m_updateTimer;
@@ -491,6 +502,10 @@ private:
     // QSO Search panel (below QSO log)
     QSOSearchPanel* m_searchPanel;
     QSOSearchCriteria m_lastSearchCriteria;  // For refreshing results after edit
+
+    // Geometry restoration tracking
+    bool m_geometryRestored{false};
+    WindowGeometry m_pendingGeometry;  // Geometry to restore on first show
 };
 
 } // namespace TR4QT

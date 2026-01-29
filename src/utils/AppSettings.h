@@ -16,6 +16,21 @@ namespace TR4QT {
 struct UdpDestination;
 
 /**
+ * Station profile - groups radios into a named configuration
+ *
+ * A StationProfile defines which radios are assigned to Radio 1 and Radio 2 slots,
+ * plus SO2R settings. Users can create multiple profiles (e.g., "Contest Station",
+ * "Field Day", "Portable") and quickly switch between them.
+ */
+struct StationProfile {
+    QString name;           ///< Profile name (e.g., "Contest Station", "Field Day")
+    QString radio1Name;     ///< Name of radio assigned to Radio 1 slot (or empty)
+    QString radio2Name;     ///< Name of radio assigned to Radio 2 slot (or empty)
+    int defaultActive{0};   ///< 0 = Radio 1 is default active, 1 = Radio 2
+    bool so2rEnabled{false};///< Enable SO2R (two-radio operation)
+};
+
+/**
  * Application settings wrapper using QSettings
  * Provides persistent storage for radio config, user preferences, etc.
  *
@@ -87,6 +102,26 @@ public:
     // Radio auto-connect
     void setRadioAutoConnect(bool autoConnect);
     bool getRadioAutoConnect() const;
+
+    // SO2R (Single Operator Two Radio) settings
+    void setSO2REnabled(bool enabled);
+    bool isSO2REnabled() const;
+
+    void setSO2RRadioProfile(int slot, const QString& profileName);
+    QString getSO2RRadioProfile(int slot) const;
+
+    // Station profiles (groups of radios for quick switching)
+    void saveStationProfiles(const QList<StationProfile>& profiles);
+    QList<StationProfile> loadStationProfiles() const;
+    void setActiveStationProfile(const QString& profileName);
+    QString getActiveStationProfile() const;
+
+    /**
+     * Get a station profile by name
+     * @param name Profile name
+     * @return StationProfile if found, empty profile with empty name if not found
+     */
+    StationProfile getStationProfile(const QString& name) const;
 
     // Radio status filter (for preferences dropdown)
     void setShowStableRadios(bool show);
@@ -302,6 +337,10 @@ public:
     void setAmplifierControlVisible(bool visible);
     bool getAmplifierControlVisible() const;
 
+    // Statistics window settings
+    void saveStatisticsWindowGeometry(const QByteArray& geometry);
+    QByteArray loadStatisticsWindowGeometry() const;
+
     // DX Cluster settings
     void setDXClusterCallsign(const QString& callsign);
     QString getDXClusterCallsign() const;
@@ -516,6 +555,16 @@ private:
      * in the new profile system. Called automatically on first run.
      */
     void migrateToRadioProfiles();
+
+    /**
+     * @brief Migrate to StationProfile system
+     *
+     * Creates a "Default" StationProfile from existing radio profiles.
+     * If SO2R was enabled with old system, preserves radio assignments.
+     * Otherwise, assigns the active radio profile to Radio 1.
+     * Called automatically on first run after migrateToRadioProfiles().
+     */
+    void migrateToStationProfiles();
 
     /**
      * @brief Migrate plain-text passwords from QSettings to OS-native credential store

@@ -24,6 +24,7 @@ AppSettings::AppSettings()
 {
     migrateLegacyPaths();
     migrateToRadioProfiles();
+    migrateToStationProfiles();
 
     // Verify settings integrity on startup
     if (!verifySettingsIntegrity()) {
@@ -425,6 +426,66 @@ void AppSettings::migrateToRadioProfiles() {
     }
 }
 
+void AppSettings::migrateToStationProfiles() {
+    // Check if StationProfiles already exist (without loading full profiles)
+    // This avoids calling CredentialStore before QApplication is created
+    m_settings.beginGroup("StationProfiles");
+    int stationProfileCount = m_settings.beginReadArray("Profiles");
+    m_settings.endArray();
+    m_settings.endGroup();
+
+    if (stationProfileCount > 0) {
+        return;  // Already migrated
+    }
+
+    // Check if we have RadioProfiles to migrate from (without loading passwords)
+    if (!hasRadioProfiles()) {
+        return;  // Nothing to migrate
+    }
+
+    LOG_INFO("AppSettings", "Migrating to StationProfile system");
+
+    // Create a "Default" station profile
+    StationProfile defaultStation;
+    defaultStation.name = "Default";
+
+    // Check if SO2R was enabled with old system
+    bool legacySO2R = isSO2REnabled();
+    if (legacySO2R) {
+        // Use the old SO2R radio assignments
+        QString radio1Name = getSO2RRadioProfile(0);  // Radio 1
+        QString radio2Name = getSO2RRadioProfile(1);  // Radio 2
+
+        defaultStation.radio1Name = radio1Name;
+        defaultStation.radio2Name = radio2Name;
+        defaultStation.so2rEnabled = true;
+        defaultStation.defaultActive = 0;  // Radio 1 is default
+
+        LOG_INFO("AppSettings", QString("Migrated SO2R config: Radio1='%1', Radio2='%2'")
+                 .arg(radio1Name).arg(radio2Name));
+    } else {
+        // Single-radio mode: assign the active profile to Radio 1
+        QString activeProfileName = getActiveRadioProfile();
+        defaultStation.radio1Name = activeProfileName;
+        defaultStation.radio2Name = "";  // No Radio 2
+        defaultStation.so2rEnabled = false;
+        defaultStation.defaultActive = 0;
+
+        LOG_INFO("AppSettings", QString("Migrated single-radio config: Radio1='%1'")
+                 .arg(activeProfileName));
+    }
+
+    // Save the new station profile
+    QList<StationProfile> stationProfiles;
+    stationProfiles.append(defaultStation);
+    saveStationProfiles(stationProfiles);
+
+    // Set as active
+    setActiveStationProfile("Default");
+
+    LOG_INFO("AppSettings", "StationProfile migration complete");
+}
+
 bool AppSettings::savePasswordSecurely(const QString& storageKey, const QString& username,
                                        const QString& password, const QString& settingsKey) {
     if (password.isEmpty()) {
@@ -593,6 +654,99 @@ void AppSettings::setRadioAutoConnect(bool autoConnect) {
 
 bool AppSettings::getRadioAutoConnect() const {
     return m_settings.value("Radio/autoConnect", true).toBool();  // Default: true
+}
+
+// ===== SO2R (Single Operator Two Radio) Settings =====
+
+void AppSettings::setSO2REnabled(bool enabled) {
+    m_settings.setValue("SO2R/enabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::isSO2REnabled() const {
+    return m_settings.value("SO2R/enabled", false).toBool();  // Default: false (single radio)
+}
+
+void AppSettings::setSO2RRadioProfile(int slot, const QString& profileName) {
+    if (slot < 0 || slot > 1) return;  // Only slots 0 and 1 supported
+    QString key = QString("SO2R/radio%1Profile").arg(slot + 1);  // radio1Profile, radio2Profile
+    m_settings.setValue(key, profileName);
+    m_settings.sync();
+}
+
+QString AppSettings::getSO2RRadioProfile(int slot) const {
+    if (slot < 0 || slot > 1) return QString();
+    QString key = QString("SO2R/radio%1Profile").arg(slot + 1);
+
+    // Default: Radio 1 uses the active profile, Radio 2 is empty
+    if (slot == 0) {
+        return m_settings.value(key, getActiveRadioProfile()).toString();
+    }
+    return m_settings.value(key, QString()).toString();
+}
+
+// ===== Station Profiles (Groups of Radios) =====
+
+void AppSettings::saveStationProfiles(const QList<StationProfile>& profiles) {
+    m_settings.beginGroup("StationProfiles");
+    m_settings.remove("Profiles");  // Clear old entries
+
+    m_settings.beginWriteArray("Profiles");
+    for (int i = 0; i < profiles.size(); ++i) {
+        m_settings.setArrayIndex(i);
+        m_settings.setValue("name", profiles[i].name);
+        m_settings.setValue("radio1Name", profiles[i].radio1Name);
+        m_settings.setValue("radio2Name", profiles[i].radio2Name);
+        m_settings.setValue("defaultActive", profiles[i].defaultActive);
+        m_settings.setValue("so2rEnabled", profiles[i].so2rEnabled);
+    }
+    m_settings.endArray();
+    m_settings.endGroup();
+    m_settings.sync();
+
+    LOG_DEBUG("AppSettings", QString("Saved %1 station profile(s)").arg(profiles.size()));
+}
+
+QList<StationProfile> AppSettings::loadStationProfiles() const {
+    QList<StationProfile> profiles;
+
+    m_settings.beginGroup("StationProfiles");
+    int size = m_settings.beginReadArray("Profiles");
+    for (int i = 0; i < size; ++i) {
+        m_settings.setArrayIndex(i);
+        StationProfile profile;
+        profile.name = m_settings.value("name").toString();
+        profile.radio1Name = m_settings.value("radio1Name").toString();
+        profile.radio2Name = m_settings.value("radio2Name").toString();
+        profile.defaultActive = m_settings.value("defaultActive", 0).toInt();
+        profile.so2rEnabled = m_settings.value("so2rEnabled", false).toBool();
+        profiles.append(profile);
+    }
+    m_settings.endArray();
+    m_settings.endGroup();
+
+    return profiles;
+}
+
+void AppSettings::setActiveStationProfile(const QString& profileName) {
+    m_settings.setValue("StationProfiles/activeProfile", profileName);
+    m_settings.sync();
+    LOG_DEBUG("AppSettings", QString("Set active station profile: %1").arg(profileName));
+}
+
+QString AppSettings::getActiveStationProfile() const {
+    return m_settings.value("StationProfiles/activeProfile", "Default").toString();
+}
+
+StationProfile AppSettings::getStationProfile(const QString& name) const {
+    QList<StationProfile> profiles = loadStationProfiles();
+    for (const StationProfile& profile : profiles) {
+        if (profile.name == name) {
+            return profile;
+        }
+    }
+    // Not found - return empty profile
+    return StationProfile();
 }
 
 void AppSettings::setShowStableRadios(bool show) {
@@ -1328,6 +1482,16 @@ bool AppSettings::getAmplifierControlVisible() const {
     bool value = m_settings.value("AmplifierControlWindow/visible", false).toBool();
     LOG_DEBUG("AppSettings", QString("getAmplifierControlVisible() - reading from QSettings: %1").arg(value));
     return value;
+}
+
+// Statistics window
+void AppSettings::saveStatisticsWindowGeometry(const QByteArray& geometry) {
+    m_settings.setValue("StatisticsWindow/geometry", geometry);
+    m_settings.sync();
+}
+
+QByteArray AppSettings::loadStatisticsWindowGeometry() const {
+    return m_settings.value("StatisticsWindow/geometry").toByteArray();
 }
 
 // DX Cluster settings

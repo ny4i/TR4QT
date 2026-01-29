@@ -35,6 +35,7 @@ QSOLoggingService::LogQSOResult QSOLoggingService::logQSO(const LogQSORequest& r
     loggerInput.operatorCallsign = request.operatorCallsign;
     loggerInput.serialNumber = request.serialNumber;
     loggerInput.operatingMode = request.operatingMode;
+    loggerInput.radioNumber = request.radioNumber;
 
     QSOLogger::Result loggerResult = m_deps.qsoLogger->logQSO(loggerInput, request.existingQSOs);
 

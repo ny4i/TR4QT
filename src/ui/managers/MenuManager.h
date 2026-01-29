@@ -82,6 +82,7 @@ public:
         std::function<void()> onShowBandMap;
         std::function<void()> onShowDXCluster;
         std::function<void()> onShowRadioControl;
+        std::function<void()> onShowRadio2Control;
         std::function<void()> onSendMorse;
         std::function<void()> onEditCWMessages;
         std::function<void()> onShowFunctionKeysRef;
@@ -127,6 +128,7 @@ public:
     QAction* bandMapAction() const { return m_bandMapAction; }
     QAction* dxClusterAction() const { return m_dxClusterAction; }
     QAction* radioControlAction() const { return m_radioControlAction; }
+    QAction* radio2ControlAction() const { return m_radio2ControlAction; }
     QAction* multipliersAction() const { return m_multipliersAction; }
     QAction* statisticsAction() const { return m_statisticsAction; }
     QAction* sectionsMapAction() const { return m_sectionsMapAction; }
@@ -157,6 +159,7 @@ private:
     QAction* m_bandMapAction;
     QAction* m_dxClusterAction;
     QAction* m_radioControlAction;
+    QAction* m_radio2ControlAction;
     QAction* m_multipliersAction;
     QAction* m_statisticsAction;
     QAction* m_sectionsMapAction;

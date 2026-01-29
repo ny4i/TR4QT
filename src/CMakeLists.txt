@@ -199,6 +199,8 @@ set(SOURCES
     ui/dialogs/ADIFImportDialog.cpp
     ui/dialogs/QSOSearchDialog.cpp
     ui/dialogs/GraylineMapDialog.cpp
+    ui/dialogs/SO2RConfigDialog.cpp
+    ui/dialogs/RadioEditDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
     ui/widgets/CivAddressWidget.cpp
@@ -206,7 +208,10 @@ set(SOURCES
     ui/widgets/SMeterWidget.cpp
     ui/widgets/MultiplierWidget.cpp
     ui/widgets/DXClusterWindow.cpp
-    ui/widgets/StatisticsWindow.cpp
+    ui/statistics/StatisticsWindow.cpp
+    ui/statistics/RateCalculator.cpp
+    ui/statistics/RateDisplayWidget.cpp
+    ui/statistics/BandSummaryModel.cpp
     ui/widgets/NeedsDisplayWidget.cpp
     ui/widgets/QSOSearchPanel.cpp
     ui/widgets/SvgPanelWidget.cpp
@@ -313,6 +318,8 @@ set(HEADERS
     ui/dialogs/FunctionKeysWindow.h
     ui/dialogs/ADIFImportDialog.h
     ui/dialogs/QSOSearchDialog.h
+    ui/dialogs/SO2RConfigDialog.h
+    ui/dialogs/RadioEditDialog.h
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
     ui/widgets/CivAddressWidget.h
@@ -320,7 +327,10 @@ set(HEADERS
     ui/widgets/SMeterWidget.h
     ui/widgets/MultiplierWidget.h
     ui/widgets/DXClusterWindow.h
-    ui/widgets/StatisticsWindow.h
+    ui/statistics/StatisticsWindow.h
+    ui/statistics/RateCalculator.h
+    ui/statistics/RateDisplayWidget.h
+    ui/statistics/BandSummaryModel.h
     ui/widgets/NeedsDisplayWidget.h
     ui/widgets/QSOSearchPanel.h
     ui/widgets/SvgPanelWidget.h
@@ -349,8 +359,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.39.88"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.39.88"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.0"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.0"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

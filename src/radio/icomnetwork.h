@@ -211,6 +211,7 @@ private:
     IcomConnectionStats m_stats;
     QDateTime m_lastPingSentTime;
     QTime m_lastCivReceived;
+    QDateTime m_lastCivTimeoutWarning;  // Rate limit watchdog warnings
     quint32 m_packetsSent;
     quint32 m_packetsLost;
 

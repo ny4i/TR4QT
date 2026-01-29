@@ -31,14 +31,14 @@ QMenuBar* MenuManager::createMenuBar(const Config& config) {
     QMenuBar* menuBar = new QMenuBar(m_parent);
 
     createFileMenu(menuBar, config);
-    createRadioMenu(menuBar, config);
     createEditMenu(menuBar, config);
+    createRadioMenu(menuBar, config);
+    createBandMenu(menuBar, config);
     createToolsMenu(menuBar, config);
     createOperatingMenu(menuBar, config);
     createCommandsMenu(menuBar, config);
     createAutomationMenu(menuBar, config);
     createWindowMenu(menuBar, config);
-    createBandMenu(menuBar, config);
     createHelpMenu(menuBar, config);
 
     return menuBar;
@@ -334,9 +334,13 @@ void MenuManager::createWindowMenu(QMenuBar* menuBar, const Config& config) {
     m_dxClusterAction->setCheckable(true);
     connect(m_dxClusterAction, &QAction::triggered, this, config.onShowDXCluster);
 
-    m_radioControlAction = windowMenu->addAction("&Radio Control");
+    m_radioControlAction = windowMenu->addAction("Radio &1 Control");
     m_radioControlAction->setCheckable(true);
     connect(m_radioControlAction, &QAction::triggered, this, config.onShowRadioControl);
+
+    m_radio2ControlAction = windowMenu->addAction("Radio &2 Control");
+    m_radio2ControlAction->setCheckable(true);
+    connect(m_radio2ControlAction, &QAction::triggered, this, config.onShowRadio2Control);
 
     QAction* sendMorseAction = windowMenu->addAction("Send &Morse Code");
     sendMorseAction->setShortcut(QKeySequence("Alt+K"));
