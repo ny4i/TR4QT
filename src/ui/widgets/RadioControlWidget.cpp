@@ -19,6 +19,8 @@
 #include <QSpinBox>
 #include <QPushButton>
 #include <QDialog>
+#include <QCloseEvent>
+#include <QElapsedTimer>
 
 namespace TR4QT {
 
@@ -26,6 +28,7 @@ RadioControlWidget::RadioControlWidget(QWidget* parent)
     : QWidget(parent)
     , m_radioNumber(1)
 {
+    LOG_DEBUG("RadioControlWidget", QString("Constructor called for Radio %1").arg(m_radioNumber));
     setupUI();
     clearDisplay();  // Start with cleared display (radio not connected)
 
@@ -33,6 +36,32 @@ RadioControlWidget::RadioControlWidget(QWidget* parent)
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
             this, &RadioControlWidget::applyTheme);
     applyTheme();  // Apply initial theme
+}
+
+RadioControlWidget::~RadioControlWidget()
+{
+    QElapsedTimer timer;
+    timer.start();
+    LOG_DEBUG("RadioControlWidget", QString("Destructor START for Radio %1").arg(m_radioNumber));
+
+    // Destructor body - nothing special to clean up, but log timing
+    // Qt handles child widget cleanup automatically
+
+    LOG_DEBUG("RadioControlWidget", QString("Destructor END for Radio %1 (took %2ms)")
+              .arg(m_radioNumber).arg(timer.elapsed()));
+}
+
+void RadioControlWidget::closeEvent(QCloseEvent* event)
+{
+    QElapsedTimer timer;
+    timer.start();
+    LOG_DEBUG("RadioControlWidget", QString("closeEvent START for Radio %1").arg(m_radioNumber));
+
+    // Call base class
+    QWidget::closeEvent(event);
+
+    LOG_DEBUG("RadioControlWidget", QString("closeEvent END for Radio %1 (took %2ms)")
+              .arg(m_radioNumber).arg(timer.elapsed()));
 }
 
 void RadioControlWidget::setupUI() {
@@ -322,11 +351,6 @@ void RadioControlWidget::updateRadioState(const RadioState& state) {
     // Update WPM label (only enabled in CW mode)
     bool isCWMode = (state.modeA == ModeType::CW || state.modeA == ModeType::CWR);
     int wpm = state.cwSpeed;  // Display radio's CW speed, not app setting
-    static int lastLoggedWpm = -1;
-    if (wpm != lastLoggedWpm) {
-        LOG_DEBUG("RadioControlWidget", QString("CW speed update: %1 WPM (was %2)").arg(wpm).arg(lastLoggedWpm));
-        lastLoggedWpm = wpm;
-    }
     m_wpmLabel->setText(QString("%1 WPM").arg(wpm));
     m_wpmLabel->setEnabled(isCWMode);  // Gray out when not in CW mode
 
@@ -397,7 +421,37 @@ void RadioControlWidget::clearDisplay() {
 
 void RadioControlWidget::setRadioNumber(int number) {
     m_radioNumber = number;
-    m_titleLabel->setText(QString("Radio %1").arg(number));
+    updateTitleLabel();
+}
+
+void RadioControlWidget::setActive(bool active) {
+    if (m_isActive == active) return;
+    m_isActive = active;
+    updateTitleLabel();
+
+    // Update visual indicator for active radio (TR4W style)
+    // Note: Avoid setStyleSheet on parent widget as it can affect custom-painted children (SMeterWidget)
+    if (active) {
+        // Active radio: cyan title bar, normal frequency text
+        m_titleLabel->setStyleSheet("QLabel { background-color: #00FFFF; color: black; padding: 5px; font-weight: bold; border: 2px solid #00AAAA; }");
+        // VFO frequencies: bright/normal text
+        m_vfoAFreqLabel->setStyleSheet("");
+        m_vfoBFreqLabel->setStyleSheet("");
+    } else {
+        // Inactive radio: normal title, grayed out frequencies
+        m_titleLabel->setStyleSheet("QLabel { background-color: #CCCCCC; color: #666666; padding: 5px; }");
+        // VFO frequencies: grayed out text for inactive radio
+        m_vfoAFreqLabel->setStyleSheet("QLabel { color: #888888; }");
+        m_vfoBFreqLabel->setStyleSheet("QLabel { color: #888888; }");
+    }
+}
+
+void RadioControlWidget::updateTitleLabel() {
+    QString title = QString("Radio %1").arg(m_radioNumber);
+    if (m_isActive) {
+        title += " ★ TX";  // Star and TX indicator for active radio
+    }
+    m_titleLabel->setText(title);
 }
 
 void RadioControlWidget::setMaxPower(int maxPowerWatts) {

@@ -4,6 +4,7 @@
 #include "../core/Types.h"
 #include "../logging/LogMacros.h"
 #include "../utils/PlatformUtils.h"
+#include <QDateTime>
 
 namespace TR4QT {
 
@@ -37,11 +38,17 @@ UdpBroadcastManager::UdpBroadcastManager(QObject* parent)
     : QObject(parent)
     , m_broadcaster(new UdpBroadcaster(this))
     , m_throttleTimer(new QTimer(this))
+    , m_heartbeatTimer(new QTimer(this))
 {
     // Configure throttle timer as single-shot
     m_throttleTimer->setSingleShot(true);
     connect(m_throttleTimer, &QTimer::timeout,
             this, &UdpBroadcastManager::onThrottleTimeout);
+
+    // Configure heartbeat timer (periodic, every 10 seconds)
+    m_heartbeatTimer->setInterval(HEARTBEAT_INTERVAL_MS);
+    connect(m_heartbeatTimer, &QTimer::timeout,
+            this, &UdpBroadcastManager::onHeartbeatTimeout);
 
     // Forward error signals from broadcaster
     connect(m_broadcaster, &UdpBroadcaster::sendError,
@@ -63,6 +70,8 @@ UdpBroadcastManager::UdpBroadcastManager(QObject* parent)
             messageType = "contactinfo";
         }
         emit messageSent(messageType, destinationCount);
+        // Track last send time for heartbeat logic
+        m_lastSendTime = QDateTime::currentMSecsSinceEpoch();
     });
 }
 
@@ -74,10 +83,18 @@ void UdpBroadcastManager::setEnabled(bool enabled)
 {
     m_enabled = enabled;
 
-    // Cancel pending throttled messages if disabled
-    if (!enabled && m_throttleTimer->isActive()) {
+    if (enabled) {
+        // Start heartbeat timer
+        m_heartbeatTimer->start();
+        LOG_DEBUG("UdpBroadcastManager", "UDP broadcasting enabled, heartbeat started");
+    } else {
+        // Cancel pending throttled messages and stop heartbeat
         m_throttleTimer->stop();
-        m_hasPendingRadioState = false;
+        m_heartbeatTimer->stop();
+        for (int i = 0; i < MAX_RADIOS; ++i) {
+            m_hasPendingRadioState[i] = false;
+        }
+        LOG_DEBUG("UdpBroadcastManager", "UDP broadcasting disabled");
     }
 }
 
@@ -109,15 +126,28 @@ void UdpBroadcastManager::setOperatingMode(bool isRunMode)
 void UdpBroadcastManager::onRadioStateChanged(const RadioState& state,
                                               const QString& stationCall)
 {
+    // Legacy single-radio method - forward to indexed version using active radio
+    onRadioStateChangedIndexed(m_activeRadioIndex, state, stationCall);
+}
+
+void UdpBroadcastManager::onRadioStateChangedIndexed(int radioIndex,
+                                                      const RadioState& state,
+                                                      const QString& stationCall)
+{
     // Check if broadcasting is enabled
     if (!m_enabled || !m_radioInfoEnabled) {
         return;
     }
 
-    // Store pending state
-    m_pendingRadioState = state;
+    // Validate radio index
+    if (radioIndex < 0 || radioIndex >= MAX_RADIOS) {
+        return;
+    }
+
+    // Store pending state for this radio
+    m_pendingRadioState[radioIndex] = state;
     m_pendingStationCall = stationCall;
-    m_hasPendingRadioState = true;
+    m_hasPendingRadioState[radioIndex] = true;
 
     // If timer not already running, start it
     if (!m_throttleTimer->isActive()) {
@@ -129,7 +159,7 @@ void UdpBroadcastManager::onRadioStateChanged(const RadioState& state,
 void UdpBroadcastManager::onQSOLogged(const QSO& qso, const QString& stationCall,
                                      const QString& adifContestId, int wa7bnmContestId)
 {
-    LOG_DEBUG("UdpBroadcastManager", QString("onQSOLogged called: enabled=%1 contactInfoEnabled=%2 callsign=%3")
+    LOG_TRACE("UdpBroadcastManager", QString("onQSOLogged called: enabled=%1 contactInfoEnabled=%2 callsign=%3")
               .arg(m_enabled)
               .arg(m_contactInfoEnabled)
               .arg(qso.callsign));
@@ -148,27 +178,67 @@ void UdpBroadcastManager::onQSOLogged(const QSO& qso, const QString& stationCall
 
 void UdpBroadcastManager::onThrottleTimeout()
 {
-    if (!m_hasPendingRadioState) {
+    // Process pending state for each radio (SO2R support)
+    for (int radioIndex = 0; radioIndex < MAX_RADIOS; ++radioIndex) {
+        if (!m_hasPendingRadioState[radioIndex]) {
+            continue;
+        }
+
+        const RadioState& pendingState = m_pendingRadioState[radioIndex];
+
+        // Don't send messages with zero frequency (no data received yet)
+        if (pendingState.frequencyA == 0) {
+            m_hasPendingRadioState[radioIndex] = false;
+            continue;
+        }
+
+        // Check if state has actually changed for this radio
+        if (!hasRadioStateChanged(pendingState, m_lastSentRadioState[radioIndex])) {
+            m_hasPendingRadioState[radioIndex] = false;
+            continue;
+        }
+
+        // Send RadioInfo message for this radio
+        RadioInfo info = createRadioInfo(pendingState, m_pendingStationCall, radioIndex);
+        if (m_broadcaster->sendRadioInfo(info)) {
+            m_lastSentRadioState[radioIndex] = pendingState;
+        }
+
+        m_hasPendingRadioState[radioIndex] = false;
+    }
+}
+
+void UdpBroadcastManager::onHeartbeatTimeout()
+{
+    // Send heartbeat RadioInfo messages if no recent activity
+    if (!m_enabled || !m_radioInfoEnabled) {
         return;
     }
 
-    // Check if state has actually changed
-    if (!hasRadioStateChanged(m_pendingRadioState, m_lastSentRadioState)) {
-        m_hasPendingRadioState = false;
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    qint64 timeSinceLastSend = now - m_lastSendTime;
+
+    // Only send heartbeat if we haven't sent anything recently
+    if (timeSinceLastSend < HEARTBEAT_INTERVAL_MS - 1000) {
+        // Recently sent a message, skip heartbeat
         return;
     }
 
-    // Send RadioInfo message
-    RadioInfo info = createRadioInfo(m_pendingRadioState, m_pendingStationCall);
-    if (m_broadcaster->sendRadioInfo(info)) {
-        m_lastSentRadioState = m_pendingRadioState;
+    // Send current state for each radio with valid frequency data
+    for (int radioIndex = 0; radioIndex < MAX_RADIOS; ++radioIndex) {
+        const RadioState& state = m_lastSentRadioState[radioIndex];
+        // Only send if we have a non-zero frequency (indicates we've received data from this radio)
+        if (state.frequencyA > 0) {
+            LOG_DEBUG("UdpBroadcastManager", QString("Sending heartbeat RadioInfo for Radio %1").arg(radioIndex + 1));
+            RadioInfo info = createRadioInfo(state, m_pendingStationCall, radioIndex);
+            m_broadcaster->sendRadioInfo(info);
+        }
     }
-
-    m_hasPendingRadioState = false;
 }
 
 RadioInfo UdpBroadcastManager::createRadioInfo(const RadioState& state,
-                                               const QString& stationCall)
+                                               const QString& stationCall,
+                                               int radioIndex)
 {
     RadioInfo info;
 
@@ -176,8 +246,8 @@ RadioInfo UdpBroadcastManager::createRadioInfo(const RadioState& state,
     info.app = "TR4QT";
     info.stationName = PlatformUtils::getNetBiosName();
 
-    // Radio identification
-    info.radioNr = 1;  // For now, single radio only (TODO: SO2R support)
+    // Radio identification (1-based for N1MM+ compatibility)
+    info.radioNr = radioIndex + 1;  // SO2R: 1 or 2
     info.radioName = state.radioModel;
 
     // Frequencies (convert Hz to tens of Hz)
@@ -195,15 +265,16 @@ RadioInfo UdpBroadcastManager::createRadioInfo(const RadioState& state,
     info.isRunning = true;  // Assume contest is running if broadcasting
     info.isTransmitting = state.isTransmitting;
     info.isSplit = state.isSplitEnabled;
-    info.isStereo = false;  // Not implemented yet (SO2R)
+    info.isStereo = (m_hasPendingRadioState[0] || m_lastSentRadioState[0].isValid) &&
+                    (m_hasPendingRadioState[1] || m_lastSentRadioState[1].isValid);  // SO2R active
     info.isConnected = state.isValid;
     info.isRunMode = m_isRunMode;  // CQ/Run mode vs S&P mode
 
-    // UI state (mostly unused, set defaults)
+    // UI state - indicate which radio is active/focused (1-based)
     info.focusEntry = 0;
     info.entryWindowHwnd = 0;
-    info.focusRadioNr = 1;
-    info.activeRadioNr = 1;
+    info.focusRadioNr = m_activeRadioIndex + 1;    // Which radio has focus
+    info.activeRadioNr = m_activeRadioIndex + 1;   // Which radio is active
     info.functionKeyCaption = "";
 
     // Antenna/Rotor (not implemented yet)
@@ -262,8 +333,8 @@ ContactInfo UdpBroadcastManager::createContactInfo(const QSO& qso,
     info.isDupe = qso.isDupe;
     info.isMultiplier = qso.isMultiplier;
 
-    // Station info
-    info.radioNr = 1;  // TODO: SO2R support
+    // Station info - use radio number from QSO (SO2R support)
+    info.radioNr = qso.radioNr;
 
     // Operator
     info.operator_ = qso.operatorCall;

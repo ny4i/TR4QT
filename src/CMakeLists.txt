@@ -163,6 +163,8 @@ set(SOURCES
     controllers/CWMessageManager.cpp
     controllers/BandSwitchingManager.cpp
     controllers/KPA1500UdpPoller.cpp
+    controllers/AmplifierController.cpp
+    controllers/RotatorController.cpp
     commands/CommandDispatcher.cpp
     services/QSOPersistenceService.cpp
     services/ExchangeMemoryService.cpp
@@ -299,6 +301,8 @@ set(HEADERS
     controllers/DownloadManager.h
     controllers/CWMessageManager.h
     controllers/BandSwitchingManager.h
+    controllers/AmplifierController.h
+    controllers/RotatorController.h
     models/QSO.h
     models/StationInfo.h
     ui/MainWindow.h
@@ -359,8 +363,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.0"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.16"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.16"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

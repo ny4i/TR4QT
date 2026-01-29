@@ -2,11 +2,11 @@
 
 // Version Information
 // IMPORTANT: Update version numbers here AND in src/core/Constants.h AND src/CMakeLists.txt
-#define VER_FILEVERSION             3,40,0,0
-#define VER_FILEVERSION_STR         "3.40.0.0\0"
+#define VER_FILEVERSION             3,40,16,0
+#define VER_FILEVERSION_STR         "3.40.16.0\0"
 
-#define VER_PRODUCTVERSION          3,40,0,0
-#define VER_PRODUCTVERSION_STR      "3.40.0\0"
+#define VER_PRODUCTVERSION          3,40,16,0
+#define VER_PRODUCTVERSION_STR      "3.40.16\0"
 
 #define VER_COMPANYNAME_STR         "Thomas M. Schaefer, NY4I\0"
 #define VER_FILEDESCRIPTION_STR     "TR4QT - Contest Logging Software\0"

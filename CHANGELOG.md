@@ -7,6 +7,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.40.16] - 2026-01-29
+
+### Fixed
+- **K4 Radio IsConnected False in UDP**: K4Radio never set `m_state.isValid` on connection
+  - Added `m_state.isValid = true` in `onSocketConnected()`
+  - Added `m_state.isValid = false` in `onSocketDisconnected()`
+  - UDP RadioInfo messages now correctly show `IsConnected: True` for K4
+- **Radio 2 Control Window Shutdown Delay**: Window wasn't explicitly closed in `closeEvent()`
+  - Added explicit `m_radio2ControlWindow->close()` call
+  - Now closes as fast as Radio 1 Control window
+
+### Added
+- **Per-Radio CW Message Repeat**: "=" key now repeats last CW message for the active radio
+  - Changed `m_lastCWMessage` from single QString to `QString[2]` array
+  - Added `setActiveRadioIndex()` to track which radio is active
+- **Per-Radio UDP RadioInfo Broadcasting**: Both radios now send UDP RadioInfo messages
+  - Added `onRadioStateChangedIndexed(radioIndex, state, stationCall)` slot
+  - Connected to `radioStateUpdatedIndexed` signal for per-radio updates
+  - `ActiveRadioNr` field correctly reflects currently active radio
+- **UDP RadioInfo Heartbeat**: 10-second heartbeat for radios if no recent message sent
+  - Added `m_heartbeatTimer` with `HEARTBEAT_INTERVAL_MS = 10000`
+  - Sends heartbeat for any radio with valid frequency data
+- **Band Summary Grid SO2R Support**: Click behavior for band selection
+  - Normal click: Changes active radio's band
+  - Shift+click or Right-click: Changes non-active radio's band
+  - Added `bandClickedWithTarget(band, forNonActiveRadio)` signal
+
+### Changed
+- **Radio Protocol Logging to TRACE**: Moved verbose CI-V protocol logging from DEBUG to TRACE
+  - Includes: received/sent bytes, parsed responses, S-meter readings, frequency parsing
+  - Keeps UDP send confirmations at DEBUG level
+  - Reduces log noise during normal operation
+
+## [3.40.10] - 2026-01-29
+
+### Fixed
+- **Station Profile Radio Assignments Lost**: Fixed bug where radio assignments (Radio 1, Radio 2) were silently cleared when interacting with the "My Radios" list
+  - **Root cause**: `refreshRadioAssignCombos()` called `clear()` on combo boxes without blocking signals
+  - `clear()` triggered `currentIndexChanged` → `onRadio1AssignChanged()` → `saveCurrentStationProfile()`
+  - At that moment, combo data was empty, so profile saved with `radio1Name=""`, `radio2Name=""`
+  - **Fix**: Block signals during combo box rebuild to prevent accidental saves
+  - File: `src/ui/dialogs/PreferencesDialog.cpp`
+
+### Changed
+- **Station Profiles Now Use OK/Cancel Pattern**: Refactored to traditional settings dialog UX
+  - Changes to Radio 1, Radio 2, Default Active, SO2R, and Activate are now **pending** until OK is clicked
+  - Click Cancel to discard all Station Profile changes
+  - New/Rename/Delete profile operations are also pending until OK
+  - Added `m_stationProfiles` local cache and `m_pendingActiveProfile` tracking
+  - "Activate" button now shows "(pending)" and explains changes apply on OK
+  - This matches user expectations for settings dialogs where Cancel reverts all changes
+- **RadioEditDialog: Interface-Specific Radio Lists**: Model dropdown now shows only relevant radios
+  - **Icom Direct**: Shows only IC-7760 and IC-9700 (radios with actual implementations)
+  - **K4 Direct**: Shows only Elecraft K4/K4D/K4HD
+  - **Hamlib/Auto**: Shows full Hamlib list with Stable/Beta/Alpha/Untested filters
+  - Hides irrelevant "Show: Stable/Beta/Alpha" checkboxes for direct interfaces
+  - Fixes issue where IC-7760 showed as "Custom Model ID" because Alpha wasn't checked
+  - Automatically selects Network connection when direct interface is chosen
+- **RadioFactory: Single Source of Truth for Implemented Radios**
+  - Added `SupportedRadio` struct and `getImplementedRadios(RadioType)` method
+  - UI queries RadioFactory instead of hardcoding model IDs
+  - When adding new direct radio implementations, only RadioFactory needs updating
+  - Eliminates scattered if/else chains for supported models
+
+## [3.40.9] - 2026-01-29
+
+### Fixed
+- **Windows UI Freezing (Issue #69)**: Moved amplifier and rotator controllers to worker threads
+  - Created `AmplifierController` and `RotatorController` wrappers that manage devices in dedicated worker threads
+  - KPA1500 amplifier's 18 UDP commands every 250ms no longer block the main UI thread
+  - Rotator polling (500ms) no longer causes UI freezing
+  - Follows same pattern as `RadioController` (proven working)
+  - Files: `src/controllers/AmplifierController.cpp`, `src/controllers/RotatorController.cpp`
+
+### Added
+- **Hardware Threading Rule in CLAUDE.md**: Added critical rule that all hardware communication MUST run in worker threads
+  - Pattern documented with examples based on RadioController
+  - Prevents future "UI freezing on Windows" issues
+
+### Changed
+- `AmplifierService` and `RotatorService` now accept controller wrappers instead of direct interfaces
+- Connection methods are now async (result via `connectionStatusChanged` signal)
+- Some rotator service tests temporarily skipped pending mock controller update
+
 ## [3.38.1] - 2026-01-14
 
 ### Added

@@ -66,9 +66,16 @@ public:
 
 signals:
     /**
-     * Emitted when user clicks on a band header to change bands
+     * Emitted when user clicks on a band header to change bands (legacy, active radio)
      */
     void bandClicked(BandType band);
+
+    /**
+     * Emitted when user clicks on a band header with radio target info (SO2R support)
+     * @param band The band to switch to
+     * @param forNonActiveRadio true if Shift+click or Right-click (change non-active radio)
+     */
+    void bandClickedWithTarget(BandType band, bool forNonActiveRadio);
 
 protected:
     bool eventFilter(QObject* obj, QEvent* event) override;

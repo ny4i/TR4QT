@@ -50,12 +50,27 @@ public:
     // Get broadcaster for direct access (e.g., for multicast configuration)
     UdpBroadcaster* broadcaster() { return m_broadcaster; }
 
+    /**
+     * Set active radio index for SO2R (affects focusRadioNr/activeRadioNr in messages)
+     * @param index Active radio index (0 or 1)
+     */
+    void setActiveRadioIndex(int index) { m_activeRadioIndex = (index >= 0 && index < 2) ? index : 0; }
+
 public slots:
     /**
-     * Called from MainWindow when radio state changes
+     * Called from MainWindow when radio state changes (legacy, single radio)
      * Queues state for throttled broadcast
      */
     void onRadioStateChanged(const RadioState& state, const QString& stationCall);
+
+    /**
+     * Called when a specific radio's state changes (SO2R support)
+     * Queues state for throttled broadcast with correct radio number
+     * @param radioIndex Radio index (0 or 1)
+     * @param state New radio state
+     * @param stationCall Station callsign
+     */
+    void onRadioStateChangedIndexed(int radioIndex, const RadioState& state, const QString& stationCall);
 
     /**
      * Called from MainWindow when new QSO is logged
@@ -74,16 +89,22 @@ signals:
 
 private slots:
     void onThrottleTimeout();
+    void onHeartbeatTimeout();
 
 private:
+    static constexpr int MAX_RADIOS = 2;  // SO2R support
+    static constexpr int HEARTBEAT_INTERVAL_MS = 10000;  // 10 second heartbeat
+
     UdpBroadcaster* m_broadcaster;
 
-    // Throttling for RadioInfo messages
+    // Throttling for RadioInfo messages (per-radio for SO2R)
     QTimer* m_throttleTimer;
-    RadioState m_pendingRadioState;
+    QTimer* m_heartbeatTimer;  // Periodic heartbeat (every 10 seconds)
+    RadioState m_pendingRadioState[MAX_RADIOS];
     QString m_pendingStationCall;
-    bool m_hasPendingRadioState{false};
-    RadioState m_lastSentRadioState;
+    bool m_hasPendingRadioState[MAX_RADIOS]{false, false};
+    RadioState m_lastSentRadioState[MAX_RADIOS];
+    qint64 m_lastSendTime{0};  // Track when last message was sent
 
     // Enable/disable flags
     bool m_enabled{false};
@@ -91,13 +112,17 @@ private:
     bool m_contactInfoEnabled{true};
     int m_throttleInterval{500};  // ms
     bool m_isRunMode{false};  // CQ/Run mode (true) vs S&P mode (false)
+    int m_activeRadioIndex{0};  // Active radio for SO2R (0 or 1)
 
     // Helper methods
 
     /**
      * Create RadioInfo message from RadioState
+     * @param state Radio state
+     * @param stationCall Station callsign
+     * @param radioIndex Radio index (0 or 1) for radioNr field
      */
-    RadioInfo createRadioInfo(const RadioState& state, const QString& stationCall);
+    RadioInfo createRadioInfo(const RadioState& state, const QString& stationCall, int radioIndex = 0);
 
     /**
      * Create ContactInfo message from QSO
