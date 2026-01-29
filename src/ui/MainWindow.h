@@ -61,6 +61,12 @@ class NativeMapViewer;
 
 namespace TR4QT {
 
+// Forward declarations for WebServer command API
+struct LogQSOWebRequest;
+struct LogQSOWebResponse;
+struct CommandWebRequest;
+struct CommandWebResponse;
+
 // RescoreStats now defined in DataIntegrityManager.h
 
 class QSOSearchPanel;
@@ -234,6 +240,10 @@ private slots:
 
     // UDP log rebroadcast
     void onRebroadcastLog();          // UDP command: rebroadcast entire log
+
+    // WebServer command API handlers
+    void onLogQSOFromWeb(const LogQSOWebRequest& request, LogQSOWebResponse* response);
+    void onCommandFromWeb(const CommandWebRequest& request, CommandWebResponse* response);
 
 private:
     void setupUI();

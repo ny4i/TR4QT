@@ -288,6 +288,12 @@ MainWindow::MainWindow(QWidget* parent)
         }
     }
 
+    // Connect WebServer command API signals
+    connect(m_webServer, &WebServer::logQSORequested,
+            this, &MainWindow::onLogQSOFromWeb);
+    connect(m_webServer, &WebServer::commandRequested,
+            this, &MainWindow::onCommandFromWeb);
+
     // Install event filter to raise all windows when any window is activated
     qApp->installEventFilter(this);
 
@@ -4437,6 +4443,334 @@ void MainWindow::onToggleWebServer() {
                         "Please check if TR4QT is already running, or try a different port in Preferences.")
                     .arg(addressStr).arg(port));
         }
+    }
+}
+
+// === WebServer Command API handlers ===
+
+void MainWindow::onLogQSOFromWeb(const LogQSOWebRequest& request, LogQSOWebResponse* response) {
+    LOG_DEBUG("MainWindow", QString("Processing log QSO from web: %1").arg(request.callsign));
+
+    // Check for active contest
+    if (!m_loggingService || !m_hasActiveContest) {
+        response->success = false;
+        response->error = "No active contest - open a contest first";
+        LOG_WARN("MainWindow", "Web log QSO rejected: no active contest");
+        return;
+    }
+
+    // Build the logging request using the existing method
+    // Start with callsign and exchange from web request
+    QString callsign = request.callsign;
+    QString exchange = request.exchange;
+
+    // Build the logging service request
+    QSOLoggingService::LogQSORequest loggingRequest;
+
+    // Basic QSO data
+    loggingRequest.callsign = callsign;
+    loggingRequest.exchange = exchange;
+
+    // Use web request values if provided, otherwise use current radio state
+    RadioState radioState = m_radioManager->currentState();
+
+    if (request.frequency > 0) {
+        radioState.frequencyA = request.frequency;
+    }
+    if (request.band != BandType::None) {
+        radioState.bandA = request.band;
+    }
+    if (request.mode != ModeType::None) {
+        radioState.modeA = request.mode;
+    }
+
+    loggingRequest.radioState = radioState;
+    loggingRequest.operatorCallsign = AppSettings::instance().getCurrentOperator();
+    loggingRequest.serialNumber = m_nextSerialNumber;
+    loggingRequest.operatingMode = m_operatingMode;
+    loggingRequest.radioNumber = m_radioManager->getActiveRadioIndex() + 1;
+
+    // Existing QSOs for duplicate/multiplier checking
+    loggingRequest.existingQSOs = m_qsoTableModel->getAllQSOs();
+
+    // Exchange memory settings - don't save from web API (external program manages this)
+    loggingRequest.saveExchangeMemory = false;
+    loggingRequest.autoPopulated = true;  // Treat as auto-populated (no exchange memory save)
+
+    // Context for post-logging actions
+    loggingRequest.stationCallsign = AppSettings::instance().getMyCallsign();
+    loggingRequest.adifContestId = m_activeContest ? m_activeContest->getADIFContestId() : "";
+    loggingRequest.wa7bnmContestId = m_activeContest ? m_activeContest->getWA7BNMContestId() : 0;
+    loggingRequest.contestId = m_activeContest ? m_activeContest->getContestId() : "";
+    loggingRequest.databasePath = m_currentContest.databasePath;
+    loggingRequest.totalQSOCount = m_qsoTableModel->count() + 1;
+    loggingRequest.qsosSinceLastCheck = m_qsosSinceLastIntegrityCheck + 1;
+    loggingRequest.contestDbId = m_currentContestDbId;
+    loggingRequest.memoryQSOCount = m_qsoTableModel->count() + 1;
+
+    // Execute logging workflow
+    QSOLoggingService::LogQSOResult result = m_loggingService->logQSO(loggingRequest);
+
+    // Map result to web response
+    if (!result.success) {
+        response->success = false;
+        response->error = result.errorMessage;
+
+        // Map error field
+        using ErrorField = QSOLoggingService::ErrorField;
+        switch (result.errorField) {
+            case ErrorField::Callsign:
+                response->errorField = "callsign";
+                break;
+            case ErrorField::Exchange:
+                response->errorField = "exchange";
+                break;
+            case ErrorField::Frequency:
+                response->errorField = "frequency";
+                break;
+            case ErrorField::Mode:
+                response->errorField = "mode";
+                break;
+            case ErrorField::Database:
+                response->errorField = "database";
+                break;
+            default:
+                break;
+        }
+
+        LOG_WARN("MainWindow", QString("Web log QSO failed: %1").arg(result.errorMessage));
+        return;
+    }
+
+    // Success - populate response with QSO details
+    response->success = true;
+    response->qsoId = result.qso.id;
+    response->callsign = result.qso.callsign;
+    response->timestamp = result.qso.timestamp;
+    response->frequency = result.qso.frequency;
+    response->band = bandToString(result.qso.band);
+    response->mode = modeToString(result.qso.mode);
+    response->exchangeSent = result.qso.exchangeSent;
+    response->exchangeReceived = result.qso.exchangeReceived;
+    response->points = result.qso.qsoPoints;
+    response->isMultiplier = result.isNewMultiplier;
+    response->isDuplicate = result.isDuplicate;
+    response->serialNumber = result.updatedSerialNumber;
+
+    // Update UI after successful logging (same as onLogQSO)
+    updateUIAfterQSOLogged(result.qso, result);
+
+    LOG_INFO("MainWindow", QString("Web log QSO success: %1 on %2 %3")
+             .arg(result.qso.callsign)
+             .arg(bandToString(result.qso.band))
+             .arg(modeToString(result.qso.mode)));
+}
+
+void MainWindow::onCommandFromWeb(const CommandWebRequest& request, CommandWebResponse* response) {
+    LOG_DEBUG("MainWindow", QString("Processing command from web: %1").arg(request.command));
+
+    response->command = request.command;
+
+    // Helper lambda to resolve radio index from "radio" parameter
+    // Returns: 0 or 1 for valid radio, -1 for error (error message set in response)
+    auto resolveRadioIndex = [this, response](const QVariantMap& params) -> int {
+        QVariant radioParam = params.value("radio");
+
+        // Default to active radio if not specified
+        if (!radioParam.isValid() || radioParam.isNull()) {
+            return m_radioManager ? m_radioManager->getActiveRadioIndex() : 0;
+        }
+
+        QString radioStr = radioParam.toString().toLower();
+
+        if (radioStr == "active" || radioStr.isEmpty()) {
+            return m_radioManager ? m_radioManager->getActiveRadioIndex() : 0;
+        }
+        if (radioStr == "standby") {
+            return m_radioManager ? m_radioManager->getStandbyRadioIndex() : 1;
+        }
+        if (radioStr == "1") {
+            return 0;  // Radio 1 = index 0
+        }
+        if (radioStr == "2") {
+            return 1;  // Radio 2 = index 1
+        }
+
+        // Invalid radio parameter
+        response->success = false;
+        response->error = QString("Invalid radio parameter: %1 (use 'active', 'standby', '1', or '2')").arg(radioParam.toString());
+        return -1;
+    };
+
+    // Dispatch command
+    if (request.command == "send-cw") {
+        // Check for CW support
+        if (!m_cwMessageManager) {
+            response->success = false;
+            response->error = "CW messaging not available";
+            return;
+        }
+
+        // Resolve target radio
+        int radioIndex = resolveRadioIndex(request.params);
+        if (radioIndex < 0) return;  // Error already set
+
+        // Get message or fkey parameter
+        QString message = request.params.value("message").toString();
+        int fkey = request.params.value("fkey").toInt();
+
+        // Get the radio controller for the target radio
+        RadioController* radioController = m_radioManager ? m_radioManager->getRadioController(radioIndex) : nullptr;
+        if (!radioController || !m_radioManager->isRadioConnected(radioIndex)) {
+            response->success = false;
+            response->error = QString("Radio %1 not connected").arg(radioIndex + 1);
+            return;
+        }
+
+        QString radioLabel = (radioIndex == m_radioManager->getActiveRadioIndex()) ? "active" : "standby";
+
+        if (!message.isEmpty()) {
+            // Send direct CW message to specific radio
+            radioController->sendCW(message);
+            response->success = true;
+            response->message = QString("CW message sent to %1 radio: %2").arg(radioLabel).arg(message);
+        } else if (fkey >= 1 && fkey <= 12) {
+            // Send function key message (uses active radio's context for now)
+            handleFunctionKey(fkey, false, false);
+            response->success = true;
+            response->message = QString("Function key F%1 sent").arg(fkey);
+        } else {
+            response->success = false;
+            response->error = "Either 'message' or 'fkey' (1-12) parameter required";
+        }
+    }
+    else if (request.command == "set-frequency") {
+        // Get frequency parameter (in Hz)
+        QVariant freqParam = request.params.value("frequency");
+        if (!freqParam.isValid()) {
+            response->success = false;
+            response->error = "Missing 'frequency' parameter";
+            return;
+        }
+
+        freq_t frequency = static_cast<freq_t>(freqParam.toLongLong());
+        if (frequency < 100000 || frequency > 500000000) {  // 100 kHz to 500 MHz
+            response->success = false;
+            response->error = QString("Invalid frequency: %1 Hz (must be 100000-500000000)").arg(frequency);
+            return;
+        }
+
+        // Resolve target radio
+        int radioIndex = resolveRadioIndex(request.params);
+        if (radioIndex < 0) return;  // Error already set
+
+        // Get the radio controller for the target radio
+        RadioController* radioController = m_radioManager ? m_radioManager->getRadioController(radioIndex) : nullptr;
+        if (!radioController || !m_radioManager->isRadioConnected(radioIndex)) {
+            response->success = false;
+            response->error = QString("Radio %1 not connected").arg(radioIndex + 1);
+            return;
+        }
+
+        radioController->setFrequency(frequency);
+        QString radioLabel = (radioIndex == m_radioManager->getActiveRadioIndex()) ? "active" : "standby";
+        double freqMHz = frequency / 1000000.0;
+        response->success = true;
+        response->message = QString("Frequency set to %1 MHz on %2 radio").arg(freqMHz, 0, 'f', 3).arg(radioLabel);
+    }
+    else if (request.command == "set-band") {
+        QString bandStr = request.params.value("band").toString().toUpper();
+        if (bandStr.isEmpty()) {
+            response->success = false;
+            response->error = "Missing 'band' parameter";
+            return;
+        }
+
+        BandType band = stringToBand(bandStr);
+        if (band == BandType::None) {
+            response->success = false;
+            response->error = QString("Invalid band: %1").arg(bandStr);
+            return;
+        }
+
+        // Resolve target radio
+        int radioIndex = resolveRadioIndex(request.params);
+        if (radioIndex < 0) return;  // Error already set
+
+        // Get the radio controller for the target radio
+        RadioController* radioController = m_radioManager ? m_radioManager->getRadioController(radioIndex) : nullptr;
+        if (!radioController || !m_radioManager->isRadioConnected(radioIndex)) {
+            response->success = false;
+            response->error = QString("Radio %1 not connected").arg(radioIndex + 1);
+            return;
+        }
+
+        radioController->setBand(band);
+        QString radioLabel = (radioIndex == m_radioManager->getActiveRadioIndex()) ? "active" : "standby";
+        response->success = true;
+        response->message = QString("Band changed to %1 on %2 radio").arg(bandStr).arg(radioLabel);
+    }
+    else if (request.command == "set-mode") {
+        QString modeStr = request.params.value("mode").toString().toUpper();
+        if (modeStr.isEmpty()) {
+            response->success = false;
+            response->error = "Missing 'mode' parameter";
+            return;
+        }
+
+        ModeType mode = stringToMode(modeStr);
+        if (mode == ModeType::None) {
+            response->success = false;
+            response->error = QString("Invalid mode: %1").arg(modeStr);
+            return;
+        }
+
+        // Resolve target radio
+        int radioIndex = resolveRadioIndex(request.params);
+        if (radioIndex < 0) return;  // Error already set
+
+        // Get the radio controller for the target radio
+        RadioController* radioController = m_radioManager ? m_radioManager->getRadioController(radioIndex) : nullptr;
+        if (!radioController || !m_radioManager->isRadioConnected(radioIndex)) {
+            response->success = false;
+            response->error = QString("Radio %1 not connected").arg(radioIndex + 1);
+            return;
+        }
+
+        radioController->setMode(mode);
+        QString radioLabel = (radioIndex == m_radioManager->getActiveRadioIndex()) ? "active" : "standby";
+        response->success = true;
+        response->message = QString("Mode changed to %1 on %2 radio").arg(modeStr).arg(radioLabel);
+    }
+    else if (request.command == "toggle-run-mode") {
+        // Toggle between CQ and S&P modes
+        if (m_operatingMode == OperatingMode::CQ) {
+            onSPMode();
+            response->success = true;
+            response->message = "Switched to S&P mode";
+        } else {
+            onCQMode();
+            response->success = true;
+            response->message = "Switched to CQ mode";
+        }
+    }
+    else if (request.command == "clear-entry") {
+        // Clear callsign and exchange fields
+        onClearEntry();
+        response->success = true;
+        response->message = "Entry fields cleared";
+    }
+    else {
+        response->success = false;
+        response->error = QString("Unknown command: %1").arg(request.command);
+    }
+
+    if (response->success) {
+        LOG_INFO("MainWindow", QString("Web command success: %1 - %2")
+                 .arg(request.command).arg(response->message));
+    } else {
+        LOG_WARN("MainWindow", QString("Web command failed: %1 - %2")
+                 .arg(request.command).arg(response->error));
     }
 }
 

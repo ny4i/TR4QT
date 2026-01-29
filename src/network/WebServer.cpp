@@ -1,5 +1,5 @@
 #include "WebServer.h"
-#include "../ui/models/QSOTableModel.h"
+#include "WebServerContext.h"  // For contest API structs
 #include "../radio/RadioController.h"
 #include "../utils/AppSettings.h"
 #include "../logging/LogMacros.h"
@@ -14,12 +14,12 @@
 
 namespace TR4QT {
 
-WebServer::WebServer(QSOTableModel* qsoModel,
+WebServer::WebServer(IQSODataSource* qsoDataSource,
                      RadioController* radioController,
                      QObject* parent)
     : QObject(parent)
     , m_server(new QHttpServer(this))
-    , m_qsoModel(qsoModel)
+    , m_qsoDataSource(qsoDataSource)
     , m_radioController(radioController)
 {
     // Setup HTTP routes
@@ -82,6 +82,51 @@ WebServer::WebServer(QSOTableModel* qsoModel,
 
     m_server->route("/apple-touch-icon.png", [this]() {
         return handleAppleTouchIcon();
+    });
+
+    // === Command API endpoints (POST) ===
+
+    // POST /api/log-qso - Log a QSO with acknowledgment
+    m_server->route("/api/log-qso", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& request) {
+            return handlePostLogQSO(request);
+        });
+
+    // POST /api/command - Execute a command (CW, band change, etc.)
+    m_server->route("/api/command", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& request) {
+            return handlePostCommand(request);
+        });
+
+    // GET /api/commands - Self-documentation of available commands
+    m_server->route("/api/commands", [this]() {
+        return handleGetCommands();
+    });
+
+    // === Contest API endpoints (for headless server) ===
+
+    // POST /api/contest/create - Create a new contest
+    m_server->route("/api/contest/create", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& request) {
+            return handlePostContestCreate(request);
+        });
+
+    // POST /api/contest/open - Open an existing contest
+    m_server->route("/api/contest/open", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& request) {
+            return handlePostContestOpen(request);
+        });
+
+    // POST /api/contest/close - Close the active contest
+    m_server->route("/api/contest/close", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& request) {
+            Q_UNUSED(request);
+            return handlePostContestClose(request);
+        });
+
+    // GET /api/contest/status - Get current contest status
+    m_server->route("/api/contest/status", [this]() {
+        return handleGetContestStatus();
     });
 }
 
@@ -177,12 +222,12 @@ QHttpServerResponse WebServer::handleApiStatus() {
     QString currentOperator = settings.getCurrentOperator();
 
     // Calculate score from QSO model
-    int qsoCount = m_qsoModel->count();
+    int qsoCount = m_qsoDataSource->qsoCount();
     int totalPoints = 0;
     int totalMults = 0;
 
     for (int row = 0; row < qsoCount; ++row) {
-        QSO qso = m_qsoModel->getQSO(row);
+        QSO qso = m_qsoDataSource->qsoAt(row);
         totalPoints += qso.qsoPoints;
         if (qso.isMultiplier) {
             totalMults++;
@@ -206,11 +251,11 @@ QHttpServerResponse WebServer::handleApiQsos() {
     QJsonArray qsos;
 
     // Pull recent QSOs from model (last 10)
-    int qsoCount = m_qsoModel->count();
+    int qsoCount = m_qsoDataSource->qsoCount();
     int startIdx = qMax(0, qsoCount - MAX_RECENT_QSOS);
 
     for (int row = startIdx; row < qsoCount; ++row) {
-        QSO qso = m_qsoModel->getQSO(row);
+        QSO qso = m_qsoDataSource->qsoAt(row);
         qsos.append(qsoToJson(qso));
     }
 
@@ -233,12 +278,12 @@ QHttpServerResponse WebServer::handleApiRadio() {
 
 QHttpServerResponse WebServer::handleApiScore() {
     // Calculate score from QSO model
-    int qsoCount = m_qsoModel->count();
+    int qsoCount = m_qsoDataSource->qsoCount();
     int totalPoints = 0;
     int totalMults = 0;
 
     for (int row = 0; row < qsoCount; ++row) {
-        QSO qso = m_qsoModel->getQSO(row);
+        QSO qso = m_qsoDataSource->qsoAt(row);
         totalPoints += qso.qsoPoints;
         if (qso.isMultiplier) {
             totalMults++;
@@ -260,9 +305,9 @@ QHttpServerResponse WebServer::handleApiWorkedSections() {
     // Build map of sections → QSO count
     QMap<QString, int> sectionCounts;
 
-    int qsoCount = m_qsoModel->count();
+    int qsoCount = m_qsoDataSource->qsoCount();
     for (int row = 0; row < qsoCount; ++row) {
-        QSO qso = m_qsoModel->getQSO(row);
+        QSO qso = m_qsoDataSource->qsoAt(row);
         QString section = qso.arrlSection.trimmed().toUpper();
 
         if (!section.isEmpty()) {
@@ -293,9 +338,9 @@ QHttpServerResponse WebServer::handleApiWorkedStates() {
     // Build map of states → QSO count
     QMap<QString, int> stateCounts;
 
-    int qsoCount = m_qsoModel->count();
+    int qsoCount = m_qsoDataSource->qsoCount();
     for (int row = 0; row < qsoCount; ++row) {
-        QSO qso = m_qsoModel->getQSO(row);
+        QSO qso = m_qsoDataSource->qsoAt(row);
         QString state = qso.state.trimmed().toUpper();
 
         if (!state.isEmpty()) {
@@ -864,7 +909,7 @@ QString WebServer::generateDashboardHtml() {
     QString modeStr = modeToString(radioState.modeA);
 
     // Pull QSO count from model (thread-safe)
-    int qsoCount = m_qsoModel->count();
+    int qsoCount = m_qsoDataSource->qsoCount();
 
     // Calculate scores and band data from QSOs
     int totalQSOPoints = 0;
@@ -879,7 +924,7 @@ QString WebServer::generateDashboardHtml() {
 
     // Iterate through all QSOs to calculate scores
     for (int row = 0; row < qsoCount; ++row) {
-        QSO qso = m_qsoModel->getQSO(row);
+        QSO qso = m_qsoDataSource->qsoAt(row);
         if (qso.band == BandType::None) continue;
 
         // Count per band
@@ -913,7 +958,7 @@ QString WebServer::generateDashboardHtml() {
     QString qsoListHtml;
     int startIdx = qMax(0, qsoCount - MAX_RECENT_QSOS);
     for (int row = startIdx; row < qsoCount; ++row) {
-        QSO qso = m_qsoModel->getQSO(row);
+        QSO qso = m_qsoDataSource->qsoAt(row);
         QString timeStr = qso.timestamp.toString("HH:mm:ss");
         QString bandQso = bandToString(qso.band);
         QString freqQso = qso.frequency > 0
@@ -1577,6 +1622,459 @@ QString WebServer::generateStatesMapHtml() {
     html.replace("totalSections", "totalStates");
 
     return html;
+}
+
+// === Command API handlers (POST endpoints) ===
+
+QHttpServerResponse WebServer::jsonError(int statusCode, const QString& message,
+                                          const QString& field) {
+    QJsonObject json;
+    json["success"] = false;
+    json["error"] = message;
+    if (!field.isEmpty()) {
+        json["field"] = field;
+    }
+
+    QJsonDocument doc(json);
+    return QHttpServerResponse("application/json", doc.toJson(),
+                               static_cast<QHttpServerResponse::StatusCode>(statusCode));
+}
+
+QHttpServerResponse WebServer::jsonSuccess(const QJsonObject& data) {
+    QJsonObject json = data;
+    json["success"] = true;
+
+    QJsonDocument doc(json);
+    return QHttpServerResponse("application/json", doc.toJson());
+}
+
+QHttpServerResponse WebServer::handlePostLogQSO(const QHttpServerRequest& request) {
+    LOG_DEBUG("WebServer", "Received POST /api/log-qso");
+
+    // Parse JSON body
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(request.body(), &parseError);
+
+    if (parseError.error != QJsonParseError::NoError) {
+        LOG_WARN("WebServer", QString("Invalid JSON in log-qso request: %1")
+                 .arg(parseError.errorString()));
+        return jsonError(400, QString("Invalid JSON: %1").arg(parseError.errorString()));
+    }
+
+    if (!doc.isObject()) {
+        return jsonError(400, "Request body must be a JSON object");
+    }
+
+    QJsonObject json = doc.object();
+
+    // Validate required fields
+    if (!json.contains("callsign") || json["callsign"].toString().trimmed().isEmpty()) {
+        return jsonError(400, "Missing required field: callsign", "callsign");
+    }
+
+    // Build request struct
+    LogQSOWebRequest req;
+    req.callsign = json["callsign"].toString().trimmed().toUpper();
+    req.exchange = json.value("exchange").toString().trimmed().toUpper();
+
+    // Optional fields
+    if (json.contains("frequency")) {
+        req.frequency = static_cast<freq_t>(json["frequency"].toInteger());
+    }
+
+    if (json.contains("band")) {
+        QString bandStr = json["band"].toString().toUpper();
+        req.band = stringToBand(bandStr);
+        if (req.band == BandType::None && !bandStr.isEmpty()) {
+            return jsonError(400, QString("Invalid band: %1").arg(bandStr), "band");
+        }
+    }
+
+    if (json.contains("mode")) {
+        QString modeStr = json["mode"].toString().toUpper();
+        req.mode = stringToMode(modeStr);
+        if (req.mode == ModeType::None && !modeStr.isEmpty()) {
+            return jsonError(400, QString("Invalid mode: %1").arg(modeStr), "mode");
+        }
+    }
+
+    LOG_INFO("WebServer", QString("Log QSO request: %1 exchange=%2")
+             .arg(req.callsign).arg(req.exchange));
+
+    // Emit signal for MainWindow to handle (synchronous - same thread)
+    LogQSOWebResponse response;
+    emit logQSORequested(req, &response);
+
+    // Build JSON response
+    if (!response.success) {
+        int statusCode = 400;  // Bad request by default
+
+        // Map specific errors to HTTP status codes
+        if (response.error.contains("No active contest", Qt::CaseInsensitive)) {
+            statusCode = 503;  // Service unavailable
+        } else if (response.isDuplicate) {
+            statusCode = 409;  // Conflict (duplicate)
+        }
+
+        return jsonError(statusCode, response.error, response.errorField);
+    }
+
+    // Build success response with QSO details
+    QJsonObject qsoJson;
+    qsoJson["id"] = response.qsoId;
+    qsoJson["callsign"] = response.callsign;
+    qsoJson["timestamp"] = response.timestamp.toString(Qt::ISODate);
+    qsoJson["frequency"] = static_cast<qint64>(response.frequency);
+    qsoJson["band"] = response.band;
+    qsoJson["mode"] = response.mode;
+    qsoJson["exchangeSent"] = response.exchangeSent;
+    qsoJson["exchangeReceived"] = response.exchangeReceived;
+    qsoJson["points"] = response.points;
+    qsoJson["isMultiplier"] = response.isMultiplier;
+    qsoJson["isDuplicate"] = response.isDuplicate;
+
+    QJsonObject result;
+    result["qso"] = qsoJson;
+    result["serialNumber"] = response.serialNumber;
+
+    LOG_INFO("WebServer", QString("QSO logged via API: %1 (id=%2)")
+             .arg(response.callsign).arg(response.qsoId));
+
+    return jsonSuccess(result);
+}
+
+QHttpServerResponse WebServer::handlePostCommand(const QHttpServerRequest& request) {
+    LOG_DEBUG("WebServer", "Received POST /api/command");
+
+    // Parse JSON body
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(request.body(), &parseError);
+
+    if (parseError.error != QJsonParseError::NoError) {
+        LOG_WARN("WebServer", QString("Invalid JSON in command request: %1")
+                 .arg(parseError.errorString()));
+        return jsonError(400, QString("Invalid JSON: %1").arg(parseError.errorString()));
+    }
+
+    if (!doc.isObject()) {
+        return jsonError(400, "Request body must be a JSON object");
+    }
+
+    QJsonObject json = doc.object();
+
+    // Validate required fields
+    if (!json.contains("command") || json["command"].toString().trimmed().isEmpty()) {
+        return jsonError(400, "Missing required field: command", "command");
+    }
+
+    // Build request struct
+    CommandWebRequest req;
+    req.command = json["command"].toString().trimmed().toLower();
+
+    // Parse params object if present
+    if (json.contains("params") && json["params"].isObject()) {
+        QJsonObject paramsObj = json["params"].toObject();
+        for (auto it = paramsObj.begin(); it != paramsObj.end(); ++it) {
+            req.params[it.key()] = it.value().toVariant();
+        }
+    }
+
+    LOG_INFO("WebServer", QString("Command request: %1").arg(req.command));
+
+    // Emit signal for MainWindow to handle (synchronous - same thread)
+    CommandWebResponse response;
+    emit commandRequested(req, &response);
+
+    // Build JSON response
+    if (!response.success) {
+        return jsonError(400, response.error);
+    }
+
+    QJsonObject result;
+    result["command"] = response.command;
+    result["message"] = response.message;
+
+    LOG_INFO("WebServer", QString("Command executed: %1 - %2")
+             .arg(response.command).arg(response.message));
+
+    return jsonSuccess(result);
+}
+
+QHttpServerResponse WebServer::handleGetCommands() {
+    LOG_DEBUG("WebServer", "Received GET /api/commands");
+
+    QJsonArray commands;
+
+    // Helper to add radio parameter to a params array
+    auto addRadioParam = [](QJsonArray& params) {
+        QJsonObject param;
+        param["name"] = "radio";
+        param["type"] = "string";
+        param["description"] = "Target radio: 'active' (default), 'standby', '1', or '2'";
+        param["required"] = false;
+        params.append(param);
+    };
+
+    // send-cw command
+    {
+        QJsonObject cmd;
+        cmd["command"] = "send-cw";
+        cmd["description"] = "Send a CW message to specified radio";
+        QJsonArray params;
+        {
+            QJsonObject param;
+            param["name"] = "message";
+            param["type"] = "string";
+            param["description"] = "CW message text to send";
+            param["required"] = false;
+            params.append(param);
+        }
+        {
+            QJsonObject param;
+            param["name"] = "fkey";
+            param["type"] = "integer";
+            param["description"] = "Function key number (1-12) to send";
+            param["required"] = false;
+            params.append(param);
+        }
+        addRadioParam(params);
+        cmd["params"] = params;
+        cmd["notes"] = "Either 'message' or 'fkey' must be provided, not both";
+        commands.append(cmd);
+    }
+
+    // set-frequency command
+    {
+        QJsonObject cmd;
+        cmd["command"] = "set-frequency";
+        cmd["description"] = "Set the operating frequency";
+        QJsonArray params;
+        {
+            QJsonObject param;
+            param["name"] = "frequency";
+            param["type"] = "integer";
+            param["description"] = "Frequency in Hz (e.g., 14025000 for 14.025 MHz)";
+            param["required"] = true;
+            params.append(param);
+        }
+        addRadioParam(params);
+        cmd["params"] = params;
+        commands.append(cmd);
+    }
+
+    // set-band command
+    {
+        QJsonObject cmd;
+        cmd["command"] = "set-band";
+        cmd["description"] = "Change the operating band";
+        QJsonArray params;
+        {
+            QJsonObject param;
+            param["name"] = "band";
+            param["type"] = "string";
+            param["description"] = "Band name (160M, 80M, 40M, 20M, 15M, 10M, 6M, 2M, etc.)";
+            param["required"] = true;
+            params.append(param);
+        }
+        addRadioParam(params);
+        cmd["params"] = params;
+        commands.append(cmd);
+    }
+
+    // set-mode command
+    {
+        QJsonObject cmd;
+        cmd["command"] = "set-mode";
+        cmd["description"] = "Change the operating mode";
+        QJsonArray params;
+        {
+            QJsonObject param;
+            param["name"] = "mode";
+            param["type"] = "string";
+            param["description"] = "Mode name (CW, USB, LSB, FM, AM, RTTY, FT8, etc.)";
+            param["required"] = true;
+            params.append(param);
+        }
+        addRadioParam(params);
+        cmd["params"] = params;
+        commands.append(cmd);
+    }
+
+    // toggle-run-mode command
+    {
+        QJsonObject cmd;
+        cmd["command"] = "toggle-run-mode";
+        cmd["description"] = "Toggle between CQ (Run) and S&P (Search & Pounce) modes";
+        cmd["params"] = QJsonArray();
+        commands.append(cmd);
+    }
+
+    // clear-entry command
+    {
+        QJsonObject cmd;
+        cmd["command"] = "clear-entry";
+        cmd["description"] = "Clear the callsign and exchange entry fields";
+        cmd["params"] = QJsonArray();
+        commands.append(cmd);
+    }
+
+    QJsonObject result;
+    result["commands"] = commands;
+    result["version"] = APP_VERSION;
+    result["apiVersion"] = "1.0";
+
+    return jsonSuccess(result);
+}
+
+// === Contest API handlers ===
+
+QHttpServerResponse WebServer::handlePostContestCreate(const QHttpServerRequest& request) {
+    LOG_DEBUG("WebServer", "Received POST /api/contest/create");
+
+    // Parse JSON body
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(request.body(), &parseError);
+
+    if (parseError.error != QJsonParseError::NoError) {
+        LOG_WARN("WebServer", QString("Invalid JSON in contest/create request: %1")
+                 .arg(parseError.errorString()));
+        return jsonError(400, QString("Invalid JSON: %1").arg(parseError.errorString()));
+    }
+
+    if (!doc.isObject()) {
+        return jsonError(400, "Request body must be a JSON object");
+    }
+
+    QJsonObject json = doc.object();
+
+    // Validate required fields
+    if (!json.contains("contestType") || json["contestType"].toString().trimmed().isEmpty()) {
+        return jsonError(400, "Missing required field: contestType", "contestType");
+    }
+
+    // Build request struct
+    CreateContestRequest req;
+    req.contestType = json["contestType"].toString().trimmed().toUpper();
+    req.callsign = json.value("callsign").toString().trimmed().toUpper();
+    req.exchangeSent = json.value("exchangeSent").toString().trimmed();
+    req.mode = json.value("mode").toString().trimmed().toUpper();
+    req.category = json.value("category").toString().trimmed().toUpper();
+    req.powerClass = json.value("powerClass").toString().trimmed().toUpper();
+    req.operatorName = json.value("operatorName").toString().trimmed();
+
+    LOG_INFO("WebServer", QString("Create contest request: type=%1 callsign=%2")
+             .arg(req.contestType).arg(req.callsign));
+
+    // Emit signal for handler (WebServerContext or MainWindow)
+    CreateContestResponse response;
+    emit createContestRequested(req, &response);
+
+    // Build JSON response
+    if (!response.success) {
+        return jsonError(500, response.error);
+    }
+
+    QJsonObject result;
+    result["contestDbId"] = response.contestDbId;
+    result["serialNumber"] = response.serialNumber;
+    result["contestName"] = response.contestName;
+    result["databasePath"] = response.databasePath;
+
+    LOG_INFO("WebServer", QString("Contest created: %1 (dbId=%2)")
+             .arg(response.contestName).arg(response.contestDbId));
+
+    return jsonSuccess(result);
+}
+
+QHttpServerResponse WebServer::handlePostContestOpen(const QHttpServerRequest& request) {
+    LOG_DEBUG("WebServer", "Received POST /api/contest/open");
+
+    // Parse JSON body
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(request.body(), &parseError);
+
+    if (parseError.error != QJsonParseError::NoError) {
+        LOG_WARN("WebServer", QString("Invalid JSON in contest/open request: %1")
+                 .arg(parseError.errorString()));
+        return jsonError(400, QString("Invalid JSON: %1").arg(parseError.errorString()));
+    }
+
+    if (!doc.isObject()) {
+        return jsonError(400, "Request body must be a JSON object");
+    }
+
+    QJsonObject json = doc.object();
+
+    // Validate required fields
+    if (!json.contains("databasePath") || json["databasePath"].toString().trimmed().isEmpty()) {
+        return jsonError(400, "Missing required field: databasePath", "databasePath");
+    }
+
+    // Build request struct
+    OpenContestRequest req;
+    req.databasePath = json["databasePath"].toString().trimmed();
+
+    LOG_INFO("WebServer", QString("Open contest request: path=%1").arg(req.databasePath));
+
+    // Emit signal for handler
+    OpenContestResponse response;
+    emit openContestRequested(req, &response);
+
+    // Build JSON response
+    if (!response.success) {
+        return jsonError(500, response.error);
+    }
+
+    QJsonObject result;
+    result["contestDbId"] = response.contestDbId;
+    result["contestName"] = response.contestName;
+    result["contestType"] = response.contestType;
+    result["qsoCount"] = response.qsoCount;
+    result["serialNumber"] = response.serialNumber;
+
+    LOG_INFO("WebServer", QString("Contest opened: %1 (%2 QSOs)")
+             .arg(response.contestName).arg(response.qsoCount));
+
+    return jsonSuccess(result);
+}
+
+QHttpServerResponse WebServer::handlePostContestClose(const QHttpServerRequest& request) {
+    Q_UNUSED(request);
+    LOG_DEBUG("WebServer", "Received POST /api/contest/close");
+
+    // Emit signal for handler
+    emit closeContestRequested();
+
+    QJsonObject result;
+    result["message"] = "Contest closed";
+
+    LOG_INFO("WebServer", "Contest closed via API");
+
+    return jsonSuccess(result);
+}
+
+QHttpServerResponse WebServer::handleGetContestStatus() {
+    LOG_DEBUG("WebServer", "Received GET /api/contest/status");
+
+    // Emit signal for handler to populate response
+    ContestStatusResponse response;
+    emit contestStatusRequested(&response);
+
+    QJsonObject result;
+    result["active"] = response.active;
+
+    if (response.active) {
+        result["contestId"] = response.contestId;
+        result["contestName"] = response.contestName;
+        result["contestType"] = response.contestType;
+        result["qsoCount"] = response.qsoCount;
+        result["serialNumber"] = response.serialNumber;
+        result["totalPoints"] = response.totalPoints;
+        result["totalMultipliers"] = response.totalMultipliers;
+        result["score"] = response.totalPoints * response.totalMultipliers;
+    }
+
+    return jsonSuccess(result);
 }
 
 } // namespace TR4QT

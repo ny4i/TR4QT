@@ -6,7 +6,7 @@
 #include "../core/Types.h"
 #include "../models/QSO.h"
 #include "../contests/ContestBase.h"
-#include "../ui/dialogs/ContestChooserDialog.h"
+#include "../models/ContestInfo.h"  // ContestInfo struct (no UI dependency)
 
 namespace TR4QT {
 

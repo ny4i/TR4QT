@@ -105,6 +105,7 @@ set(SOURCES
     network/UdpBroadcaster.cpp
     network/UdpBroadcastManager.cpp
     network/WebServer.cpp
+    network/WebServerContext.cpp
     data/Database.cpp
     data/GlobalDatabase.cpp
     data/QSORepository.cpp
@@ -259,6 +260,7 @@ set(HEADERS
     network/UdpBroadcaster.h
     network/UdpBroadcastManager.h
     network/WebServer.h
+    network/WebServerContext.h
     data/Database.h
     data/GlobalDatabase.h
     data/QSORepository.h
@@ -443,3 +445,104 @@ if(APPLE AND NOT DEFINED ENV{CI})
         VERBATIM
     )
 endif()
+
+# ============================================================================
+# TR4QT Headless Server (tr4qt_server)
+# ============================================================================
+# A headless binary that exposes the WebServer API without MainWindow.
+# Validates architecture modularity and enables automated testing.
+
+# Server sources - headless components only (no UI)
+set(SERVER_SOURCES
+    server/main_server.cpp
+    # Utils (no UI dependencies)
+    utils/AppSettings.cpp
+    utils/ArrlSectionHelper.cpp
+    utils/CallsignValidator.cpp
+    utils/CountryFile.cpp
+    utils/CredentialStore.cpp
+    utils/GeographicUtils.cpp
+    utils/PathManager.cpp
+    utils/PlatformUtils.cpp
+    # Network
+    network/WebServer.cpp
+    network/WebServerContext.cpp
+    network/UdpBroadcaster.cpp
+    network/UdpBroadcastManager.cpp
+    network/RadioInfo.cpp
+    network/ContactInfo.cpp
+    # Data layer
+    data/Database.cpp
+    data/GlobalDatabase.cpp
+    data/DXCCRepository.cpp
+    data/QSORepository.cpp
+    data/ContestRepository.cpp
+    data/ExchangeMemoryRepository.cpp
+    data/BackupManager.cpp
+    # Exchanges
+    exchanges/InitialExchangeManager.cpp
+    exchanges/SmartExchangeParser.cpp
+    # Contests (all contest types for full compatibility)
+    contests/ContestRegistry.cpp
+    contests/ContestMetadata.cpp
+    contests/QSOPartyContestBase.cpp
+    contests/CQWWContest.cpp
+    contests/CQWWBase.cpp
+    contests/CQWWCWContest.cpp
+    contests/CQWWSSBContest.cpp
+    contests/CQWPXContest.cpp
+    contests/CQWPXBase.cpp
+    contests/CQWPXCWContest.cpp
+    contests/CQWPXSSBContest.cpp
+    contests/ARRLDXContest.cpp
+    contests/ARRLDXBase.cpp
+    contests/ARRLDXCWContest.cpp
+    contests/ARRLDXPhoneContest.cpp
+    contests/ARRLRTTYRoundupContest.cpp
+    contests/ARRLSweepstakesContest.cpp
+    contests/ARRLSSBase.cpp
+    contests/ARRLSSCWContest.cpp
+    contests/ARRLSSSSBContest.cpp
+    contests/NAQPBase.cpp
+    contests/NAQPCWContest.cpp
+    contests/NAQPSSBContest.cpp
+    contests/NAQPRTTYContest.cpp
+    contests/WinterFieldDayContest.cpp
+    contests/ARRLFieldDayContest.cpp
+    contests/FloridaQSOPartyContest.cpp
+    contests/GeneralLoggingContest.cpp
+    contests/IARUHFContest.cpp
+    # Controllers (headless-safe)
+    controllers/QSOLogger.cpp
+    controllers/ContestManager.cpp
+    controllers/DataIntegrityManager.cpp
+    # Note: RadioManager excluded - uses DialogHelper (QtWidgets)
+    # Services (headless-safe)
+    services/QSOPersistenceService.cpp
+    services/ExchangeMemoryService.cpp
+    services/QSOLoggingCoordinator.cpp
+    services/QSOLoggingService.cpp
+)
+
+# Create headless server executable
+add_executable(tr4qt_server ${SERVER_SOURCES})
+
+# Server links to core library and Qt (no Widgets!)
+target_link_libraries(tr4qt_server PRIVATE
+    tr4qt_core  # Radio, logging, types
+    Qt6::Core
+    Qt6::Sql
+    Qt6::Network
+    Qt6::HttpServer
+    Qt6::SerialPort
+    ${HAMLIB_LIBRARIES}
+    qt6keychain  # Secure credential storage
+)
+
+# Server include directories
+target_include_directories(tr4qt_server PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${HAMLIB_INCLUDE_DIRS}
+    ${qtkeychain_SOURCE_DIR}
+    ${qtkeychain_BINARY_DIR}
+)
