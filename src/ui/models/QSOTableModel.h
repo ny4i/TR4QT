@@ -6,6 +6,7 @@
 #include <QRecursiveMutex>
 #include "../../models/QSO.h"
 #include "../../contests/ContestBase.h"
+#include "../../interfaces/IQSODataSource.h"
 
 namespace TR4QT {
 
@@ -35,7 +36,7 @@ namespace TR4QT {
  *   tableView->setModel(model);
  *   model->addQSO(qso);  // Add new QSO to display
  */
-class QSOTableModel : public QAbstractTableModel {
+class QSOTableModel : public QAbstractTableModel, public IQSODataSource {
     Q_OBJECT
 
 public:
@@ -86,6 +87,11 @@ public:
 
     // Get total count (thread-safe)
     int count() const;
+
+    // IQSODataSource interface implementation
+    int qsoCount() const override { return count(); }
+    QSO qsoAt(int index) const override { return getQSO(index); }
+    QList<QSO> allQSOs() const override { return getAllQSOs(); }
 
     // Contest-dependent exchange fields and display
     void setTableColumns(const QList<TableColumn>& columns);
