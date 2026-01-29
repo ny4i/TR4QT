@@ -119,10 +119,12 @@ void K4Radio::onSocketConnected()
     // Query initial state
     queryInitialState();
 
+    // Mark state as valid now that we're connected
     // Emit initial state immediately so UI knows radio model
     // Responses to queryInitialState() will update with actual radio state
     {
         QMutexLocker locker(&m_stateMutex);
+        m_state.isValid = true;  // Radio is connected
         emit stateUpdated(m_state);
     }
 
@@ -134,6 +136,10 @@ void K4Radio::onSocketConnected()
 void K4Radio::onSocketDisconnected()
 {
     LOG_INFO("K4Radio", "Disconnected from K4");
+    {
+        QMutexLocker locker(&m_stateMutex);
+        m_state.isValid = false;  // Radio is disconnected
+    }
     emit connectionStatusChanged(false);
 }
 

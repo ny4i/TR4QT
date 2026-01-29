@@ -29,7 +29,7 @@ class RadioControlWidget : public QWidget {
 
 public:
     explicit RadioControlWidget(QWidget* parent = nullptr);
-    ~RadioControlWidget() override = default;
+    ~RadioControlWidget() override;
 
     /**
      * Update display from radio state
@@ -45,6 +45,11 @@ public:
      * Set radio number (1 or 2 for multi-radio setups)
      */
     void setRadioNumber(int number);
+
+    /**
+     * Set active state (shows visual indicator for TX focus)
+     */
+    void setActive(bool active);
 
     /**
      * Set maximum TX power for power meter scale
@@ -91,11 +96,13 @@ private slots:
     void onWpmContextMenu(const QPoint& pos);
 
 protected:
+    void closeEvent(QCloseEvent* event) override;
     bool eventFilter(QObject* obj, QEvent* event) override;
 
 private:
     void setupUI();
     void applyTheme();
+    void updateTitleLabel();
     void updateRitWidgetStyle();
     void updateXitWidgetStyle();
 
@@ -125,6 +132,7 @@ private:
     QPushButton* m_splitButton; // SPLIT remains a button
 
     int m_radioNumber;
+    bool m_isActive{false};  // Active radio indicator for SO2R
     RadioState m_currentState;
     RadioController* m_radioController{nullptr};  // Reference to radio controller (for mode menu)
 };

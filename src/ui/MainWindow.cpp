@@ -85,6 +85,7 @@
 #include <QTextEdit>
 #include <QtConcurrent/QtConcurrent>
 #include <QThread>
+#include <QElapsedTimer>
 #include <QTimeZone>
 #include <QDesktopServices>
 #include <QUrl>
@@ -329,11 +330,39 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_radioManager, &RadioManager::frequencyChanged,
             this, &MainWindow::onFastFrequencyUpdate);
 
+    // SO2R indexed state updates - update the correct Radio Control window and UDP broadcast
+    connect(m_radioManager, &RadioManager::radioStateUpdatedIndexed,
+            this, [this](int radioIndex, const RadioState& state) {
+                if (radioIndex == 0 && m_radioControlWindow) {
+                    m_radioControlWindow->updateRadioState(state);
+                } else if (radioIndex == 1 && m_radio2ControlWindow) {
+                    m_radio2ControlWindow->updateRadioState(state);
+                }
+                // Send UDP broadcast for this radio's state change
+                QString stationCall = AppSettings::instance().getMyCallsign();
+                m_udpBroadcastManager->onRadioStateChangedIndexed(radioIndex, state, stationCall);
+            });
+
     // SO2R signals - update UI when active radio changes or standby frequency changes
     connect(m_radioManager, &RadioManager::activeRadioChanged,
             this, [this](int radioIndex) {
                 LOG_INFO("MainWindow", QString("Active radio changed to Radio %1").arg(radioIndex + 1));
                 updateRadioStatusGrid();
+                // Update Radio Control windows to show which is active
+                if (m_radioControlWindow) {
+                    m_radioControlWindow->setActive(radioIndex == 0);
+                }
+                if (m_radio2ControlWindow) {
+                    m_radio2ControlWindow->setActive(radioIndex == 1);
+                }
+                // Update CW message manager for per-radio message repeat
+                if (m_cwMessageManager) {
+                    m_cwMessageManager->setActiveRadioIndex(radioIndex);
+                }
+                // Update UDP broadcast manager for correct focusRadioNr/activeRadioNr
+                if (m_udpBroadcastManager) {
+                    m_udpBroadcastManager->setActiveRadioIndex(radioIndex);
+                }
                 // Re-emit signals for external listeners (band map, etc.)
                 RadioState state = m_radioManager->currentState();
                 emit currentFrequencyChanged(state.frequencyA);
@@ -596,8 +625,26 @@ void MainWindow::createCentralWidget() {
     // Disable band selection buttons until radio connects
     // (will be enabled in onRadioConnectionChanged when radio connects)
     m_bandSummaryGrid->setBandSelectionEnabled(false);
-    connect(m_bandSummaryGrid, &BandSummaryGrid::bandClicked,
-            this, &MainWindow::onBandClicked);
+    // Band click with SO2R support: left-click=active radio, Shift+click or right-click=non-active radio
+    connect(m_bandSummaryGrid, &BandSummaryGrid::bandClickedWithTarget,
+            this, [this](BandType band, bool forNonActiveRadio) {
+                int targetRadioIndex = forNonActiveRadio
+                    ? m_radioManager->getStandbyRadioIndex()
+                    : m_radioManager->getActiveRadioIndex();
+
+                RadioController* targetRadio = m_radioManager->getRadioController(targetRadioIndex);
+                if (targetRadio && targetRadio->isConnected()) {
+                    LOG_INFO("MainWindow", QString("Band click: %1 -> Radio %2 (nonActive=%3)")
+                             .arg(bandToString(band)).arg(targetRadioIndex + 1).arg(forNonActiveRadio));
+                    targetRadio->setBand(band);
+                } else if (!forNonActiveRadio) {
+                    // Fallback to manual band selection for active radio if not connected
+                    onBandClicked(band);
+                } else {
+                    LOG_DEBUG("MainWindow", QString("Band click ignored: Radio %1 not connected")
+                              .arg(targetRadioIndex + 1));
+                }
+            });
     topLayout->addWidget(m_bandSummaryGrid, 3);  // Stretch factor 3
 
     // Right: Vertical layout for needs display and station info
@@ -819,7 +866,7 @@ QWidget* MainWindow::createBottomPanel() {
     // --- Frequency stack (SO2R: standby on top grayed, active below bright) ---
     QWidget* freqStackWidget = new QWidget(radioStatusWidget);
     QVBoxLayout* freqStackLayout = new QVBoxLayout(freqStackWidget);
-    freqStackLayout->setSpacing(0);
+    freqStackLayout->setSpacing(2);  // Small gap between standby and active frequencies
     freqStackLayout->setContentsMargins(0, 0, 0, 0);
 
     // Standby frequency (hidden when not in SO2R mode)
@@ -1058,6 +1105,7 @@ void MainWindow::initializeHardwareServices() {
     AppSettings& settings = AppSettings::instance();
 
     // Initialize amplifier service if enabled
+    // Issue #69: AmplifierController runs the device in a worker thread to prevent UI freezing
     if (settings.getAmplifierEnabled()) {
         int modelId = settings.getAmplifierModel();
         QString connectionType = settings.getAmplifierConnectionType();
@@ -1072,38 +1120,31 @@ void MainWindow::initializeHardwareServices() {
         config.pollIntervalMs = settings.getAmplifierPollInterval();
 
         // Determine amplifier type
-        AmplifierFactory::AmplifierType type;
+        int amplifierType;
         const int AMP_MODEL_ELECRAFT_KPA1500 = 1201;
         if (connectionType == "direct" && modelId == AMP_MODEL_ELECRAFT_KPA1500) {
-            type = AmplifierFactory::AmplifierType::KPA1500_DIRECT;
+            amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::KPA1500_DIRECT);
         } else {
-            type = AmplifierFactory::AmplifierType::HAMLIB;
+            amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::HAMLIB);
         }
 
-        // Create amplifier controller
-        IAmplifierController* amplifierController = AmplifierFactory::createAmplifier(type, config, this);
+        // Create amplifier controller (manages device in worker thread)
+        m_amplifierController = new AmplifierController(this);
 
-        if (amplifierController) {
-            // Create amplifier service
-            m_amplifierService = new AmplifierService(amplifierController, this);
+        // Create amplifier service (business logic layer)
+        m_amplifierService = new AmplifierService(m_amplifierController, this);
 
-            // Auto-connect if enabled
-            if (settings.getAmplifierAutoConnect()) {
-                bool connected = m_amplifierService->connectToAmplifier(config);
-                if (connected) {
-                    LOG_INFO("MainWindow", "Amplifier auto-connected successfully");
-                } else {
-                    LOG_WARN("MainWindow", "Amplifier auto-connect failed");
-                }
-            }
-
-            LOG_DEBUG("MainWindow", "Amplifier service initialized");
-        } else {
-            LOG_ERROR("MainWindow", "Failed to create amplifier controller");
+        // Auto-connect if enabled (async - result via connectionStatusChanged signal)
+        if (settings.getAmplifierAutoConnect()) {
+            m_amplifierService->connectToAmplifier(amplifierType, config);
+            LOG_INFO("MainWindow", "Amplifier auto-connect initiated (async)");
         }
+
+        LOG_DEBUG("MainWindow", "Amplifier controller and service initialized (worker thread)");
     }
 
     // Initialize rotator service if enabled
+    // Issue #69: RotatorController runs the device in a worker thread to prevent UI freezing
     if (settings.getRotatorEnabled()) {
         int modelId = settings.getRotatorModel();
         QString connectionType = settings.getRotatorConnectionType();
@@ -1119,37 +1160,29 @@ void MainWindow::initializeHardwareServices() {
         }
 
         // Determine rotator type
-        RotatorFactory::RotatorType type;
+        int rotatorType;
         const int ROT_MODEL_PSTROTATOR = 9999;
         if (connectionType == "direct" && modelId == ROT_MODEL_PSTROTATOR) {
-            type = RotatorFactory::RotatorType::PSTROTATOR;
+            rotatorType = static_cast<int>(RotatorFactory::RotatorType::PSTROTATOR);
             config.rotatorType = 0;  // PSTRotator
         } else {
-            type = RotatorFactory::RotatorType::HAMLIB;
+            rotatorType = static_cast<int>(RotatorFactory::RotatorType::HAMLIB);
             config.rotatorType = modelId;  // Hamlib model ID
         }
 
-        // Create rotator controller
-        IRotatorController* rotatorController = RotatorFactory::createRotator(type, config, this);
+        // Create rotator controller (manages device in worker thread)
+        m_rotatorController = new RotatorController(this);
 
-        if (rotatorController) {
-            // Create rotator service
-            m_rotatorService = new RotatorService(rotatorController, this);
+        // Create rotator service (business logic layer)
+        m_rotatorService = new RotatorService(m_rotatorController, this);
 
-            // Auto-connect if enabled
-            if (settings.getRotatorAutoConnect()) {
-                bool connected = rotatorController->connect(config);
-                if (connected) {
-                    LOG_INFO("MainWindow", "Rotator auto-connected successfully");
-                } else {
-                    LOG_WARN("MainWindow", "Rotator auto-connect failed");
-                }
-            }
-
-            LOG_DEBUG("MainWindow", "Rotator service initialized");
-        } else {
-            LOG_ERROR("MainWindow", "Failed to create rotator controller");
+        // Auto-connect if enabled (async - result via connectionStatusChanged signal)
+        if (settings.getRotatorAutoConnect()) {
+            m_rotatorService->connectToRotator(rotatorType, config);
+            LOG_INFO("MainWindow", "Rotator auto-connect initiated (async)");
         }
+
+        LOG_DEBUG("MainWindow", "Rotator controller and service initialized (worker thread)");
     }
 }
 
@@ -1236,6 +1269,16 @@ void MainWindow::restoreChildWindows(const WindowGeometry& geometry) {
         }
     } else {
         LOG_DEBUG("MainWindow", "NOT restoring Radio Control window (was hidden on exit)");
+    }
+
+    if (geometry.radio2ControlVisible) {
+        LOG_DEBUG("MainWindow", "Restoring Radio 2 Control window (was visible on exit)");
+        onShowRadio2Control();
+        if (m_radio2ControlWindow && !geometry.radio2ControlGeometry.isEmpty()) {
+            m_radio2ControlWindow->restoreGeometry(geometry.radio2ControlGeometry);
+        }
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring Radio 2 Control window (was hidden on exit)");
     }
 
     if (geometry.multipliersVisible) {
@@ -1330,6 +1373,11 @@ void MainWindow::saveSettings() {
     }
     // Use tracked visibility (Qt's isVisible() can return false during SIGTERM shutdown)
     geometry.radioControlVisible = m_radioControlWindowVisible;
+    if (m_radio2ControlWindow) {
+        geometry.radio2ControlGeometry = m_radio2ControlWindow->saveGeometry();
+    }
+    // Use tracked visibility (Qt's isVisible() can return false during SIGTERM shutdown)
+    geometry.radio2ControlVisible = m_radio2ControlWindowVisible;
     if (m_multiplierWindow) {
         geometry.multipliersGeometry = m_multiplierWindow->saveGeometry();
         geometry.multipliersVisible = m_multiplierWindow->isVisible();
@@ -1359,10 +1407,11 @@ void MainWindow::saveSettings() {
     LOG_DEBUG("MainWindow", QString("Amplifier window tracked visibility: %1").arg(m_amplifierControlWindowVisible));
 
     // Debug logging for window visibility
-    LOG_DEBUG("MainWindow", QString("Saving window visibility - DXCluster:%1 BandMap:%2 RadioCtrl:%3 Mult:%4 Stats:%5 Sections:%6 States:%7 Grayline:%8 AmpCtrl:%9")
+    LOG_DEBUG("MainWindow", QString("Saving window visibility - DXCluster:%1 BandMap:%2 RadioCtrl:%3 Radio2Ctrl:%4 Mult:%5 Stats:%6 Sections:%7 States:%8 Grayline:%9 AmpCtrl:%10")
         .arg(geometry.dxClusterVisible)
         .arg(geometry.bandMapVisible)
         .arg(geometry.radioControlVisible)
+        .arg(geometry.radio2ControlVisible)
         .arg(geometry.multipliersVisible)
         .arg(geometry.statisticsVisible)
         .arg(geometry.sectionsMapVisible)
@@ -1395,35 +1444,58 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     }
 
     // Close all child windows
+    LOG_DEBUG("MainWindow", "Closing child windows...");
+    QElapsedTimer closeTimer;
+    closeTimer.start();
+
     if (m_dxClusterWindow) {
+        LOG_DEBUG("MainWindow", "Closing DX Cluster window...");
         m_dxClusterWindow->close();
+        LOG_DEBUG("MainWindow", QString("DX Cluster window closed (%1ms)").arg(closeTimer.restart()));
     }
     if (m_bandMapWindow) {
+        LOG_DEBUG("MainWindow", "Closing Band Map window...");
         m_bandMapWindow->close();
+        LOG_DEBUG("MainWindow", QString("Band Map window closed (%1ms)").arg(closeTimer.restart()));
     }
     if (m_radioControlWindow) {
+        LOG_DEBUG("MainWindow", "Closing Radio 1 Control window...");
         m_radioControlWindow->close();
+        LOG_DEBUG("MainWindow", QString("Radio 1 Control window closed (%1ms)").arg(closeTimer.restart()));
+    }
+    if (m_radio2ControlWindow) {
+        LOG_DEBUG("MainWindow", "Closing Radio 2 Control window...");
+        m_radio2ControlWindow->close();
+        LOG_DEBUG("MainWindow", QString("Radio 2 Control window closed (%1ms)").arg(closeTimer.restart()));
     }
     if (m_multiplierWindow) {
+        LOG_DEBUG("MainWindow", "Closing Multiplier window...");
         m_multiplierWindow->close();
+        LOG_DEBUG("MainWindow", QString("Multiplier window closed (%1ms)").arg(closeTimer.restart()));
     }
     if (m_statisticsWindow) {
+        LOG_DEBUG("MainWindow", "Closing Statistics window...");
         m_statisticsWindow->rateCalculator()->stopAutoUpdate();
         m_statisticsWindow->close();
+        LOG_DEBUG("MainWindow", QString("Statistics window closed (%1ms)").arg(closeTimer.restart()));
     }
 
-    // Disconnect radio before closing and wait for completion
+    // Disconnect radios before closing and wait for completion
     // CRITICAL: Must allow disconnect packets to be sent before app exits
     // Without this, Icom network radios stay in "connected" state and refuse reconnection
-    if (m_radioConnected) {
-        m_radio->disconnectFromRadio();
+    LOG_DEBUG("MainWindow", "Disconnecting radios...");
+    closeTimer.restart();
+
+    // Use RadioManager to disconnect all radios (SO2R support)
+    if (m_radioManager) {
+        m_radioManager->disconnectFromRadio();  // This disconnects all radios
 
         // Give disconnect time to complete (sends CI-V close + control disconnect packets)
         // RadioController destructor will ensure full cleanup, but we need event loop
         // to process the queued disconnect operation before QApplication::quit()
         QApplication::processEvents();  // Process queued disconnect
         QThread::msleep(100);           // Allow UDP packets to be sent
-        LOG_DEBUG("MainWindow", "Radio disconnect completed before exit");
+        LOG_DEBUG("MainWindow", QString("Radio disconnect completed (%1ms)").arg(closeTimer.elapsed()));
     }
 
     event->accept();
@@ -1942,37 +2014,13 @@ void MainWindow::onRadioConnected(bool connected) {
 }
 
 void MainWindow::onFastFrequencyUpdate(freq_t freq) {
-    // TIMING: Measure MainWindow's frequency display update latency
-    static QElapsedTimer uiTimer;
-    static bool uiTimerStarted = false;
-    if (!uiTimerStarted) {
-        uiTimer.start();
-        uiTimerStarted = true;
-    }
-    qint64 uiStart = uiTimer.nsecsElapsed();
-
-    // Fast path: Update only frequency display for instant transceive updates
-    // Skip all the heavy processing (UDP broadcast, privilege checks, AUTO S&P, etc.)
+    // Fast path: Update cached state and delegate to single display update function
+    // This ensures consistent formatting regardless of update source
     m_currentState.frequencyA = freq;
     m_currentState.bandA = frequencyToBand(freq);
 
-    // Update VFO display immediately (3 decimal places for compact radio grid)
-    // Use floor() instead of rounding to show actual band position
-    // Example: 28.318644 displays as 28.318 (not 28.319)
-    double freqMHz = freq / 1000000.0;
-    double truncated = std::floor(freqMHz * 1000.0) / 1000.0;  // Truncate to 3 decimals
-    m_radioFreqLabel->setText(QString("%1 MHz").arg(truncated, 0, 'f', 3));
-
-    // Update band/mode label
-    if (m_currentState.bandA != BandType::None) {
-        QString bandStr = bandToString(m_currentState.bandA);
-        QString modeStr = modeToString(m_currentState.modeA);
-        m_radioFreqBandLabel->setText(QString("%1 %2").arg(bandStr).arg(modeStr));
-    }
-
-    qint64 uiEnd = uiTimer.nsecsElapsed();
-    LOG_DEBUG("MainWindow", QString("VFO display updated: %1 MHz [ui=%2μs]")
-        .arg(freqMHz, 0, 'f', 3).arg((uiEnd - uiStart) / 1000));
+    // Single source of truth for display updates
+    updateRadioStatusGrid();
 }
 
 void MainWindow::onRadioStateUpdated(const RadioState& state) {
@@ -2025,10 +2073,8 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
     // Update radio status grid with new state
     updateRadioStatusGrid();
 
-    // Update radio control window if it exists
-    if (m_radioControlWindow) {
-        m_radioControlWindow->updateRadioState(state);
-    }
+    // Note: Radio Control windows are updated via radioStateUpdatedIndexed signal
+    // to ensure each window gets the correct radio's state (not the active radio's state)
 
     // Emit signals for frequency/band changes
     if (frequencyChanged) {
@@ -3216,7 +3262,7 @@ void MainWindow::updateRadioStatusGrid() {
 
     // Update date/time (UTC - contest logging standard)
     QDateTime now = QDateTime::currentDateTimeUtc();
-    QString dateStr = now.toString("ddd dd-MMM-yyyy");
+    QString dateStr = now.toString("dd-MMM-yy");  // Compact format like TR4W (e.g., "29-Jan-26")
     QString timeStr = now.toString("hh:mm:ss");
     m_radioDateLabel->setText(dateStr);
     m_radioTimeLabel->setText(timeStr);
@@ -3335,7 +3381,9 @@ void MainWindow::applyTheme() {
         .arg(theme.color(ColorRole::TextDisplayBackground).name())
         .arg(theme.color(ColorRole::BorderColor).name());
 
+    // Style both frequency labels consistently (standby will be grayed via setEnabled)
     m_radioFreqLabel->setStyleSheet(freqLabelStyle);
+    m_standbyFreqLabel->setStyleSheet(freqLabelStyle);
 }
 
 void MainWindow::loadUdpBroadcastSettings() {
@@ -3905,6 +3953,7 @@ void MainWindow::onShowRadioControl() {
             : QString("Radio 1: %1").arg(m_radioModels[0]);
         m_radioControlWindow->setWindowTitle(title);
         m_radioControlWindow->setRadioNumber(1);
+        m_radioControlWindow->setActive(m_radioManager->getActiveRadioIndex() == 0);  // Set initial active state
         m_radioControlWindow->setWindowFlags(Qt::Window);
         m_radioControlWindow->setAttribute(Qt::WA_DeleteOnClose, false);
 
@@ -4002,6 +4051,7 @@ void MainWindow::onShowRadio2Control() {
             : QString("Radio 2: %1").arg(m_radioModels[1]);
         m_radio2ControlWindow->setWindowTitle(title);
         m_radio2ControlWindow->setRadioNumber(2);
+        m_radio2ControlWindow->setActive(m_radioManager->getActiveRadioIndex() == 1);  // Set initial active state
         m_radio2ControlWindow->setWindowFlags(Qt::Window);
         m_radio2ControlWindow->setAttribute(Qt::WA_DeleteOnClose, false);
 
@@ -4693,11 +4743,14 @@ void MainWindow::onDXSpotReceived(const QString& callsign,
 }
 
 void MainWindow::onBandClicked(BandType band) {
-    if (m_radioConnected) {
-        // Radio connected: Send band change to radio
-        LOG_DEBUG("MainWindow", QString("Band clicked: %1 Sending setBand command")
-            .arg(bandToString(band)));
-        m_radio->setBand(band);
+    // Get the active radio via RadioManager
+    RadioController* activeRadio = m_radioManager->getRadioController(m_radioManager->getActiveRadioIndex());
+
+    if (activeRadio && activeRadio->isConnected()) {
+        // Radio connected: Send band change to active radio
+        LOG_DEBUG("MainWindow", QString("Band clicked: %1 Sending setBand command to Radio %2")
+            .arg(bandToString(band)).arg(m_radioManager->getActiveRadioIndex() + 1));
+        activeRadio->setBand(band);
     } else {
         // Radio not connected: Manual band selection
         if (!m_bandSwitchingManager) {

@@ -108,7 +108,15 @@ private:
     QString getKeyName(int fKey, bool ctrlPressed, bool altPressed) const;
 
     Config m_config;
-    QString m_lastCWMessage;  // Track last message sent (for = key repeat)
+    QString m_lastCWMessage[2];  // Track last message sent per radio (for = key repeat)
+    int m_activeRadioIndex{0};   // Which radio is active (0 or 1)
+
+public:
+    /**
+     * Set active radio index for per-radio message tracking
+     * @param index Radio index (0 or 1)
+     */
+    void setActiveRadioIndex(int index) { m_activeRadioIndex = (index >= 0 && index < 2) ? index : 0; }
 };
 
 } // namespace TR4QT

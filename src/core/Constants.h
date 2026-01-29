@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.8";  // Fix shutdown hang - properly close Statistics window and stop timers
+constexpr const char* APP_VERSION = "3.40.16";  // SO2R: Fix static variable sharing, compact date format, freq label styling
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -85,8 +85,8 @@ CWMessageManager::Result CWMessageManager::sendCWMessage(const QString& messageT
     m_config.radio->setCWSpeed(wpm);
     m_config.radio->sendCW(cwText);
 
-    // Save for repeat (= key)
-    m_lastCWMessage = cwText;
+    // Save for repeat (= key) - per radio
+    m_lastCWMessage[m_activeRadioIndex] = cwText;
 
     // Success
     result.success = true;
@@ -100,17 +100,18 @@ CWMessageManager::Result CWMessageManager::sendCWMessage(const QString& messageT
 }
 
 QString CWMessageManager::getLastCWMessage() const {
-    return m_lastCWMessage;
+    return m_lastCWMessage[m_activeRadioIndex];
 }
 
 CWMessageManager::Result CWMessageManager::repeatLastCWMessage(const Input& input) {
     Result result;
 
-    // Check if there's a message to repeat
-    if (m_lastCWMessage.isEmpty()) {
+    // Check if there's a message to repeat for this radio
+    const QString& lastMsg = m_lastCWMessage[m_activeRadioIndex];
+    if (lastMsg.isEmpty()) {
         result.success = false;
-        result.statusMessage = "No CW message to repeat";
-        LOG_INFO("CWMessageManager", "= key pressed but no previous CW message");
+        result.statusMessage = QString("No CW message to repeat for Radio %1").arg(m_activeRadioIndex + 1);
+        LOG_INFO("CWMessageManager", QString("= key pressed but no previous CW message for Radio %1").arg(m_activeRadioIndex + 1));
         return result;
     }
 
@@ -124,14 +125,14 @@ CWMessageManager::Result CWMessageManager::repeatLastCWMessage(const Input& inpu
     // Send the last message (no template substitution needed, already substituted)
     int wpm = AppSettings::instance().getMorseWPM();
     m_config.radio->setCWSpeed(wpm);
-    m_config.radio->sendCW(m_lastCWMessage);
+    m_config.radio->sendCW(lastMsg);
 
     // Success
     result.success = true;
-    result.cwTextSent = m_lastCWMessage;
-    result.statusMessage = QString("Repeating CW: %1").arg(m_lastCWMessage);
+    result.cwTextSent = lastMsg;
+    result.statusMessage = QString("Repeating CW: %1").arg(lastMsg);
 
-    LOG_INFO("CWMessageManager", QString("Repeated CW: %1").arg(m_lastCWMessage));
+    LOG_INFO("CWMessageManager", QString("Repeated CW (Radio %1): %2").arg(m_activeRadioIndex + 1).arg(lastMsg));
 
     return result;
 }

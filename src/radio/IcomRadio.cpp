@@ -216,7 +216,7 @@ bool IcomRadio::setCWSpeed(int wpm)
     data.append(static_cast<char>(bcdHigh));
     data.append(static_cast<char>(bcdLow));
 
-    LOG_DEBUG("IcomRadio", QString("setCWSpeed: wpm=%1 -> value=%2 -> BCD 0x%3 0x%4")
+    LOG_TRACE("IcomRadio", QString("setCWSpeed: wpm=%1 -> value=%2 -> BCD 0x%3 0x%4")
         .arg(wpm).arg(value)
         .arg(bcdHigh, 2, 16, QChar('0'))
         .arg(bcdLow, 2, 16, QChar('0')));
@@ -524,7 +524,7 @@ void IcomRadio::onCivDataReceived(const QByteArray& data)
     }
     qint64 timestamp = timer.nsecsElapsed();
 
-    LOG_DEBUG("IcomRadio", QString("Received CI-V data: %1 bytes [T=%2ns]").arg(data.size()).arg(timestamp));
+    LOG_TRACE("IcomRadio", QString("Received CI-V data: %1 bytes [T=%2ns]").arg(data.size()).arg(timestamp));
     parseCivResponse(data);
 }
 
@@ -551,7 +551,7 @@ void IcomRadio::onCivSocketReady()
         initCmd.append(static_cast<char>(0x00));  // Sub-command
         initCmd.append(static_cast<char>(0xFD));
 
-        LOG_DEBUG("IcomRadio", QString("Sending transceiver ID query: %1").arg(QString(initCmd.toHex(' '))));
+        LOG_TRACE("IcomRadio", QString("Sending transceiver ID query: %1").arg(QString(initCmd.toHex(' '))));
         m_network->sendCivCommand(initCmd);
 
         // NOTE: We do NOT send a transceive ON command here!
@@ -586,7 +586,7 @@ void IcomRadio::pollRadio()
         return;
     }
 
-    LOG_DEBUG("IcomRadio", QString("pollRadio: Sending CI-V commands (address=0x%1)")
+    LOG_TRACE("IcomRadio", QString("pollRadio: Sending CI-V commands (address=0x%1)")
         .arg(m_civAddress, 2, 16, QChar('0')));
 
     // Request frequency VFO A (command 0x03)
@@ -684,7 +684,7 @@ bool IcomRadio::sendCommand(quint8 command, const QByteArray& data)
     }
 
     QByteArray cmd = buildCivCommand(command, data);
-    LOG_DEBUG("IcomRadio", QString("Sending CI-V command 0x%1 to address 0x%2 (%3 bytes)")
+    LOG_TRACE("IcomRadio", QString("Sending CI-V command 0x%1 to address 0x%2 (%3 bytes)")
         .arg(command, 2, 16, QChar('0'))
         .arg(m_civAddress, 2, 16, QChar('0'))
         .arg(cmd.size()));
@@ -758,13 +758,13 @@ ModeType IcomRadio::icomToMode(quint8 icomMode)
 void IcomRadio::parseCivResponse(const QByteArray& data)
 {
     if (data.length() < 6) {
-        LOG_DEBUG("IcomRadio", QString("parseCivResponse: packet too short (%1 bytes)").arg(data.length()));
+        LOG_TRACE("IcomRadio", QString("parseCivResponse: packet too short (%1 bytes)").arg(data.length()));
         return;
     }
 
     // Check for valid CI-V preamble: FE FE
     if (data[0] != (char)0xFE || data[1] != (char)0xFE) {
-        LOG_DEBUG("IcomRadio", QString("parseCivResponse: invalid preamble (got %1 %2)")
+        LOG_TRACE("IcomRadio", QString("parseCivResponse: invalid preamble (got %1 %2)")
             .arg((quint8)data[0], 2, 16, QChar('0'))
             .arg((quint8)data[1], 2, 16, QChar('0')));
         return;
@@ -787,12 +787,12 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
 
     if (destAddr != CONTROLLER_ADDR && destAddr != CONTROLLER_ADDR_ALT && destAddr != BROADCAST_ADDR) {
         // Packet not for us - likely a command echo or for other equipment
-        LOG_DEBUG("IcomRadio", QString("parseCivResponse: ignoring packet (dest=0x%1, not for controller/broadcast)")
+        LOG_TRACE("IcomRadio", QString("parseCivResponse: ignoring packet (dest=0x%1, not for controller/broadcast)")
             .arg(destAddr, 2, 16, QChar('0')));
         return;
     }
 
-    LOG_DEBUG("IcomRadio", QString("parseCivResponse: dest=0x%1 src=0x%2 cmd=0x%3 dataLen=%4")
+    LOG_TRACE("IcomRadio", QString("parseCivResponse: dest=0x%1 src=0x%2 cmd=0x%3 dataLen=%4")
         .arg(destAddr, 2, 16, QChar('0'))
         .arg(srcAddr, 2, 16, QChar('0'))
         .arg(cmd, 2, 16, QChar('0'))
@@ -819,14 +819,14 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
             if (responseData.length() >= 1) {
                 QMutexLocker lock(&m_stateMutex);
                 m_state.isSplitEnabled = (responseData[0] == 0x01);
-                LOG_DEBUG("IcomRadio", QString("Split status: %1").arg(m_state.isSplitEnabled ? "ON" : "OFF"));
+                LOG_TRACE("IcomRadio", QString("Split status: %1").arg(m_state.isSplitEnabled ? "ON" : "OFF"));
             }
             break;
 
         case 0x21:  // RIT/XIT status and offset responses
             if (responseData.length() >= 1) {
                 quint8 subCmd = (quint8)responseData[0];
-                LOG_DEBUG("IcomRadio", QString("0x21 response: subCmd=0x%1 len=%2 data=%3")
+                LOG_TRACE("IcomRadio", QString("0x21 response: subCmd=0x%1 len=%2 data=%3")
                     .arg(subCmd, 2, 16, QChar('0'))
                     .arg(responseData.length())
                     .arg(QString(responseData.toHex(' '))));
@@ -840,7 +840,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
                         bool enabled = (responseData[1] == 0x01);
                         QMutexLocker lock(&m_stateMutex);
                         m_state.isRitEnabled = enabled;
-                        LOG_DEBUG("IcomRadio", QString("RIT status: %1").arg(enabled ? "ON" : "OFF"));
+                        LOG_TRACE("IcomRadio", QString("RIT status: %1").arg(enabled ? "ON" : "OFF"));
                         emit ritChanged(m_state.ritOffsetA, VFO::VFO_A);
                     } else if (responseData.length() >= 5) {
                         // Check if byte 1 looks like on/off (0x00 or 0x01) vs BCD
@@ -857,7 +857,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
                             QMutexLocker lock(&m_stateMutex);
                             m_state.isRitEnabled = enabled;
                             m_state.ritOffsetA = offset;
-                            LOG_DEBUG("IcomRadio", QString("RIT: %1, offset: %2 Hz")
+                            LOG_TRACE("IcomRadio", QString("RIT: %1, offset: %2 Hz")
                                 .arg(enabled ? "ON" : "OFF").arg(offset));
                             emit ritChanged(offset, VFO::VFO_A);
                         } else {
@@ -870,7 +870,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
                             if (responseData[4] != 0x00) offset = -offset;
                             QMutexLocker lock(&m_stateMutex);
                             m_state.ritOffsetA = offset;
-                            LOG_DEBUG("IcomRadio", QString("RIT offset: %1 Hz (no on/off in response)").arg(offset));
+                            LOG_TRACE("IcomRadio", QString("RIT offset: %1 Hz (no on/off in response)").arg(offset));
                         }
                     }
                 } else if (subCmd == 0x02) {
@@ -880,7 +880,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
                         bool enabled = (responseData[1] == 0x01);
                         QMutexLocker lock(&m_stateMutex);
                         m_state.isXitEnabled = enabled;
-                        LOG_DEBUG("IcomRadio", QString("XIT status: %1").arg(enabled ? "ON" : "OFF"));
+                        LOG_TRACE("IcomRadio", QString("XIT status: %1").arg(enabled ? "ON" : "OFF"));
                         emit xitChanged(m_state.xitOffsetA, VFO::VFO_A);
                     } else if (responseData.length() >= 5) {
                         quint8 byte1 = (quint8)responseData[1];
@@ -896,7 +896,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
                             QMutexLocker lock(&m_stateMutex);
                             m_state.isXitEnabled = enabled;
                             m_state.xitOffsetA = offset;
-                            LOG_DEBUG("IcomRadio", QString("XIT: %1, offset: %2 Hz")
+                            LOG_TRACE("IcomRadio", QString("XIT: %1, offset: %2 Hz")
                                 .arg(enabled ? "ON" : "OFF").arg(offset));
                             emit xitChanged(offset, VFO::VFO_A);
                         } else {
@@ -909,7 +909,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
                             if (responseData[4] != 0x00) offset = -offset;
                             QMutexLocker lock(&m_stateMutex);
                             m_state.xitOffsetA = offset;
-                            LOG_DEBUG("IcomRadio", QString("XIT offset: %1 Hz (no on/off in response)").arg(offset));
+                            LOG_TRACE("IcomRadio", QString("XIT offset: %1 Hz (no on/off in response)").arg(offset));
                         }
                     }
                 } else if (subCmd == 0x00 && responseData.length() >= 4) {
@@ -937,13 +937,13 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
                     // IC-7760 shares offset for both RIT and XIT (like K4)
                     m_state.ritOffsetA = offset;
                     m_state.xitOffsetA = offset;
-                    LOG_DEBUG("IcomRadio", QString("Shared RIT/XIT offset: %1 Hz (BCD 0x%2 0x%3, sign=%4)")
+                    LOG_TRACE("IcomRadio", QString("Shared RIT/XIT offset: %1 Hz (BCD 0x%2 0x%3, sign=%4)")
                         .arg(offset)
                         .arg(bcdHigh, 2, 16, QChar('0'))
                         .arg(bcdLow, 2, 16, QChar('0'))
                         .arg(sign));
                 } else {
-                    LOG_DEBUG("IcomRadio", QString("0x21 unknown subCmd=0x%1 len=%2").arg(subCmd, 2, 16, QChar('0')).arg(responseData.length()));
+                    LOG_TRACE("IcomRadio", QString("0x21 unknown subCmd=0x%1 len=%2").arg(subCmd, 2, 16, QChar('0')).arg(responseData.length()));
                 }
             }
             break;
@@ -951,7 +951,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
         case 0x14:  // Various levels including CW speed
             if (responseData.length() >= 2) {
                 quint8 subCmd = (quint8)responseData[0];
-                LOG_DEBUG("IcomRadio", QString("0x14 response: subCmd=0x%1 len=%2 data=%3")
+                LOG_TRACE("IcomRadio", QString("0x14 response: subCmd=0x%1 len=%2 data=%3")
                     .arg(subCmd, 2, 16, QChar('0'))
                     .arg(responseData.length())
                     .arg(QString(responseData.toHex(' '))));
@@ -976,7 +976,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
 
                     QMutexLocker lock(&m_stateMutex);
                     m_state.cwSpeed = wpm;
-                    LOG_DEBUG("IcomRadio", QString("CW speed: %1 WPM (BCD 0x%2 0x%3 = value %4)")
+                    LOG_TRACE("IcomRadio", QString("CW speed: %1 WPM (BCD 0x%2 0x%3 = value %4)")
                         .arg(wpm)
                         .arg(bcdHigh, 2, 16, QChar('0'))
                         .arg(bcdLow, 2, 16, QChar('0'))
@@ -1004,7 +1004,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
 
                     QMutexLocker lock(&m_stateMutex);
                     m_state.signalStrength = sMeterValue;
-                    LOG_DEBUG("IcomRadio", QString("S-meter: raw=%1 (BCD 0x%2 0x%3)")
+                    LOG_TRACE("IcomRadio", QString("S-meter: raw=%1 (BCD 0x%2 0x%3)")
                         .arg(sMeterValue)
                         .arg(bcdHigh, 2, 16, QChar('0'))
                         .arg(bcdLow, 2, 16, QChar('0')));
@@ -1028,7 +1028,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
 
                     QMutexLocker lock(&m_stateMutex);
                     m_state.powerOutput = watts * 10;  // Store as tenths of watts
-                    LOG_DEBUG("IcomRadio", QString("Power meter: %1W (%2% of %3W max) (BCD 0x%4 0x%5)")
+                    LOG_TRACE("IcomRadio", QString("Power meter: %1W (%2% of %3W max) (BCD 0x%4 0x%5)")
                         .arg(watts)
                         .arg((percentage * 100) / 255)
                         .arg(maxPowerWatts())
@@ -1049,7 +1049,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
             break;
 
         case 0xFB:  // OK response (command acknowledged)
-            LOG_DEBUG("IcomRadio", "Command acknowledged (OK)");
+            LOG_TRACE("IcomRadio", "Command acknowledged (OK)");
             break;
 
         case 0xFA:  // NG response (command failed)
@@ -1058,7 +1058,7 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
 
         default:
             // Unknown or unhandled response
-            LOG_DEBUG("IcomRadio", QString("parseCivResponse: unhandled command 0x%1 (ignoring %2 bytes)")
+            LOG_TRACE("IcomRadio", QString("parseCivResponse: unhandled command 0x%1 (ignoring %2 bytes)")
                 .arg(cmd, 2, 16, QChar('0'))
                 .arg(responseData.length()));
             break;
@@ -1084,7 +1084,7 @@ void IcomRadio::parseFrequencyResponse(const QByteArray& data, VFO vfo)
         if (data.length() == 6) {
             quint8 subCmd = (quint8)data[0];
             bcdData = data.mid(1, 5);
-            LOG_DEBUG("IcomRadio", QString("VFO B frequency response: subCmd=0x%1 (format: %2 with sub-command)")
+            LOG_TRACE("IcomRadio", QString("VFO B frequency response: subCmd=0x%1 (format: %2 with sub-command)")
                 .arg(subCmd, 2, 16, QChar('0'))
                 .arg(modelName()));
         } else {
@@ -1123,14 +1123,15 @@ void IcomRadio::parseFrequencyResponse(const QByteArray& data, VFO vfo)
     emit frequencyChanged(freq, vfo);
 
     qint64 parseEnd = parseTimer.nsecsElapsed();
-    LOG_DEBUG("IcomRadio", QString("Frequency parsed and emitted: %1 Hz [parse=%2μs]")
+    LOG_TRACE("IcomRadio", QString("Frequency parsed and emitted: %1 Hz [parse=%2μs]")
         .arg(freq).arg((parseEnd - parseStart) / 1000));
 }
 
 void IcomRadio::parseModeResponse(const QByteArray& data, VFO vfo)
 {
     // VFO B format varies by model:
-    // - IC-7760: 3 bytes = 1 byte sub-cmd + mode + filter
+    // - IC-7760: 3-4 bytes = 1 byte sub-cmd + mode + filter [+ data_mode]
+    //   The data_mode byte (0x00=normal, 0x01=data) may or may not be present
     // - IC-9700: 2 bytes (mode + filter, standard format)
     // VFO A response: Always 2 bytes (mode + filter)
 
@@ -1138,15 +1139,20 @@ void IcomRadio::parseModeResponse(const QByteArray& data, VFO vfo)
 
     if (vfo == VFO::VFO_B && vfoBUsesSubCommand()) {
         // Model uses sub-command byte for VFO B (e.g., IC-7760)
-        if (data.length() == 3) {
+        // Accept 3 bytes (sub-cmd + mode + filter) or 4 bytes (+ data_mode)
+        if (data.length() >= 3 && data.length() <= 4) {
             quint8 subCmd = (quint8)data[0];
             modeData = (quint8)data[1];
-            LOG_DEBUG("IcomRadio", QString("VFO B mode response: subCmd=0x%1 mode=0x%2 (format: %3 with sub-command)")
+            quint8 filter = (quint8)data[2];
+            quint8 dataMode = (data.length() == 4) ? (quint8)data[3] : 0;
+            LOG_TRACE("IcomRadio", QString("VFO B mode response: subCmd=0x%1 mode=0x%2 filter=0x%3 dataMode=0x%4 (%5)")
                 .arg(subCmd, 2, 16, QChar('0'))
                 .arg(modeData, 2, 16, QChar('0'))
+                .arg(filter, 2, 16, QChar('0'))
+                .arg(dataMode, 2, 16, QChar('0'))
                 .arg(modelName()));
         } else {
-            LOG_WARN("IcomRadio", QString("Expected 3-byte VFO B response for %1, got %2 bytes").arg(modelName()).arg(data.length()));
+            LOG_WARN("IcomRadio", QString("Expected 3-4 byte VFO B response for %1, got %2 bytes").arg(modelName()).arg(data.length()));
             return;
         }
     } else if (data.length() >= 1) {
@@ -1195,7 +1201,7 @@ void IcomRadio::parseScopeData(const QByteArray& data)
     //   Byte 11+: Filter and scope data
 
     if (data.length() < 11) {
-        LOG_DEBUG("IcomRadio", QString("parseScopeData: packet too short (%1 bytes, need 11+)")
+        LOG_TRACE("IcomRadio", QString("parseScopeData: packet too short (%1 bytes, need 11+)")
             .arg(data.length()));
         return;
     }
@@ -1207,7 +1213,7 @@ void IcomRadio::parseScopeData(const QByteArray& data)
     // Extract mode (byte 10)
     ModeType mode = icomToMode((quint8)data[10]);
 
-    LOG_DEBUG("IcomRadio", QString("parseScopeData: freq=%1 Hz, mode=%2")
+    LOG_TRACE("IcomRadio", QString("parseScopeData: freq=%1 Hz, mode=%2")
         .arg(freq)
         .arg(modeToString(mode)));
 

@@ -49,6 +49,8 @@
 #include "../controllers/RadioManager.h"
 #include "../controllers/BandSwitchingManager.h"
 #include "../controllers/CWMessageManager.h"
+#include "../controllers/AmplifierController.h"
+#include "../controllers/RotatorController.h"
 #include "controllers/PlaceholderActions.h"
 
 class QMenuBar;
@@ -458,9 +460,13 @@ private:
     BandSwitchingManager* m_bandSwitchingManager;        // Qt parent-managed
     std::unique_ptr<CWMessageManager> m_cwMessageManager;  // No Qt parent, owned
 
-    // Hardware control services
-    AmplifierService* m_amplifierService;
-    RotatorService* m_rotatorService;
+    // Hardware controllers (run devices in worker threads to prevent UI freezing - Issue #69)
+    AmplifierController* m_amplifierController{nullptr};
+    RotatorController* m_rotatorController{nullptr};
+
+    // Hardware control services (business logic layer)
+    AmplifierService* m_amplifierService{nullptr};
+    RotatorService* m_rotatorService{nullptr};
 
     // Maintenance service (log clearing, backups)
     MaintenanceService* m_maintenanceService;

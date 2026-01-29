@@ -181,17 +181,35 @@ bool BandSummaryGrid::eventFilter(QObject* obj, QEvent* event) {
                   .arg(obj->objectName())
                   .arg(static_cast<int>(mouseEvent->button()))
                   .arg(m_bandHeaders.size()));
-        if (mouseEvent->button() == Qt::LeftButton) {
-            // Check if clicked object is one of our band headers
-            for (auto it = m_bandHeaders.begin(); it != m_bandHeaders.end(); ++it) {
-                if (it.value() == obj) {
-                    LOG_DEBUG("BandSummaryGrid", QString("eventFilter - Emitting bandClicked for %1").arg(bandToString(it.key())));
-                    emit bandClicked(it.key());
-                    return true;
+
+        // Check if clicked object is one of our band headers
+        for (auto it = m_bandHeaders.begin(); it != m_bandHeaders.end(); ++it) {
+            if (it.value() == obj) {
+                BandType band = it.key();
+
+                // Determine target radio:
+                // - Left-click: active radio
+                // - Shift+Left-click OR Right-click: non-active radio (SO2R)
+                bool forNonActiveRadio = false;
+                if (mouseEvent->button() == Qt::LeftButton) {
+                    forNonActiveRadio = (mouseEvent->modifiers() & Qt::ShiftModifier);
+                } else if (mouseEvent->button() == Qt::RightButton) {
+                    forNonActiveRadio = true;
+                } else {
+                    // Ignore other buttons
+                    return QWidget::eventFilter(obj, event);
                 }
+
+                LOG_DEBUG("BandSummaryGrid", QString("eventFilter - Emitting bandClicked for %1 (nonActive=%2)")
+                          .arg(bandToString(band)).arg(forNonActiveRadio));
+
+                // Emit both signals for compatibility
+                emit bandClicked(band);
+                emit bandClickedWithTarget(band, forNonActiveRadio);
+                return true;
             }
-            LOG_DEBUG("BandSummaryGrid", "eventFilter - Object not in bandHeaders map");
         }
+        LOG_DEBUG("BandSummaryGrid", "eventFilter - Object not in bandHeaders map");
     }
     return QWidget::eventFilter(obj, event);
 }
