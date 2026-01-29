@@ -58,14 +58,14 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
             dxcc_entity, dxcc_prefix, dxcc_entity_code, cq_zone, itu_zone, continent, state, county, arrl_section, grid_square, iota_reference, contest_class,
             qso_points, is_dupe, is_multiplier, multipliers, is_run_qso,
             serial_number, serial_number_received, precedence, sweepstakes_check, power, operator_name, itu_zone_exchange,
-            operator_call, notes
+            operator_call, notes, radio_nr
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?, ?,
-            ?, ?
+            ?, ?, ?
         )
     )";
 
@@ -107,7 +107,8 @@ bool QSORepository::saveQSO(QSO& qso, int contestId) {
         qso.operatorName.isEmpty() ? QVariant() : qso.operatorName,
         qso.ituZoneExchange.isEmpty() ? QVariant() : qso.ituZoneExchange,
         qso.operatorCall,
-        qso.notes
+        qso.notes,
+        qso.radioNr
     };
 
     QSqlQuery query = db.execute(sql, values);
@@ -172,7 +173,7 @@ bool QSORepository::updateQSO(const QSO& qso) {
             dxcc_entity = ?, dxcc_prefix = ?, dxcc_entity_code = ?, cq_zone = ?, itu_zone = ?, continent = ?, state = ?, county = ?, arrl_section = ?, grid_square = ?, iota_reference = ?, contest_class = ?,
             qso_points = ?, is_dupe = ?, is_multiplier = ?, multipliers = ?, is_run_qso = ?,
             serial_number = ?, serial_number_received = ?, precedence = ?, sweepstakes_check = ?, power = ?, operator_name = ?, itu_zone_exchange = ?,
-            operator_call = ?, notes = ?
+            operator_call = ?, notes = ?, radio_nr = ?
         WHERE id = ?
     )";
 
@@ -213,6 +214,7 @@ bool QSORepository::updateQSO(const QSO& qso) {
         qso.ituZoneExchange.isEmpty() ? QVariant() : qso.ituZoneExchange,
         qso.operatorCall,
         qso.notes,
+        qso.radioNr,
         qso.id
     };
 
@@ -785,6 +787,8 @@ QSO QSORepository::qsoFromQuery(const QSqlQuery& query) const {
     qso.operatorCall = query.value("operator_call").toString();
     qso.deleted = query.value("deleted").toBool();
     qso.notes = query.value("notes").toString();
+    qso.radioNr = query.value("radio_nr").toInt();
+    if (qso.radioNr < 1) qso.radioNr = 1;  // Default to radio 1 for old records
 
     return qso;
 }

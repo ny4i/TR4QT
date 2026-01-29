@@ -48,6 +48,7 @@ public:
         QString operatorCallsign;       // Operator callsign (can be empty)
         int serialNumber;               // Current serial number (for contests using serials)
         OperatingMode operatingMode;    // CQ vs S&P mode
+        int radioNumber = 1;            // Which radio logged this QSO (1 or 2 for SO2R)
     };
 
     // Result returned from logQSO()

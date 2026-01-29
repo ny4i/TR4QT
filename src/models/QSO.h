@@ -78,6 +78,7 @@ struct QSO {
     bool isRunQSO{false};       // Run vs S&P indicator (N1MM compatibility)
     bool deleted{false};        // Soft delete flag
     QString notes;              // Optional notes
+    int radioNr{1};             // Which radio logged this QSO (1 or 2 for SO2R)
 
     /**
      * Normalize callsign (uppercase, trim whitespace)

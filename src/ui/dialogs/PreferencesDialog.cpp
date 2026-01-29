@@ -1,4 +1,5 @@
 #include "PreferencesDialog.h"
+#include "RadioEditDialog.h"
 #include "../../utils/AppSettings.h"
 #include "../../utils/ThemeManager.h"
 #include "../../utils/DXClusterListDownloader.h"
@@ -43,15 +44,8 @@
 
 namespace TR4QT {
 
-// K4 default rigctld port (Elecraft K4 specific)
-// K3/K4 radios typically use port 9200 for hamlib control
-static constexpr int K4_DEFAULT_RIGCTLD_PORT = 9200;
-
 PreferencesDialog::PreferencesDialog(QWidget* parent)
     : QDialog(parent)
-    , m_k4Discovery(new K4Discovery(this))
-    , m_icomDiscovery(new IcomDiscovery(this))
-    , m_portRefreshTimer(new QTimer(this))
 {
     LOG_DEBUG("PreferencesDialog", "*** PreferencesDialog constructor called ***");
     LOG_DEBUG("PreferencesDialog", "*** Setting window title ***");
@@ -63,18 +57,6 @@ PreferencesDialog::PreferencesDialog(QWidget* parent)
     LOG_DEBUG("PreferencesDialog", "*** loadSettings completed, resizing ***");
     resize(UIDefaults::PREFERENCES_WIDTH, UIDefaults::PREFERENCES_HEIGHT);  // Wider for sidebar layout
     LOG_DEBUG("PreferencesDialog", QString("*** PreferencesDialog fully initialized with window title: %1").arg(windowTitle()));
-
-    // Connect K4 Discovery signals
-    connect(m_k4Discovery, &K4Discovery::radioFound, this, &PreferencesDialog::onK4RadioFound);
-    connect(m_k4Discovery, &K4Discovery::discoveryFinished, this, &PreferencesDialog::onK4DiscoveryFinished);
-
-    // Connect Icom Discovery signals
-    connect(m_icomDiscovery, &IcomDiscovery::radioFound, this, &PreferencesDialog::onIcomRadioFound);
-    connect(m_icomDiscovery, &IcomDiscovery::discoveryFinished, this, &PreferencesDialog::onIcomDiscoveryFinished);
-
-    // Setup serial port refresh timer (5 second interval)
-    m_portRefreshTimer->setInterval(5000);
-    connect(m_portRefreshTimer, &QTimer::timeout, this, &PreferencesDialog::refreshSerialPorts);
 }
 
 void PreferencesDialog::setupUI() {
@@ -273,315 +255,157 @@ QWidget* PreferencesDialog::createRadioSettingsWidget() {
     QWidget* radioWidget = new QWidget();
     QVBoxLayout* layout = new QVBoxLayout(radioWidget);
 
-    // Radio Profile Management Section
-    QGroupBox* profileGroup = new QGroupBox("Radio Profiles", this);
-    QVBoxLayout* profileVLayout = new QVBoxLayout(profileGroup);
+    // ===== My Radios Section =====
+    // A simple list of all defined radios with add/edit/remove buttons
+    QGroupBox* radiosGroup = new QGroupBox("My Radios", this);
+    QVBoxLayout* radiosLayout = new QVBoxLayout(radiosGroup);
 
-    // Profile selector combo box
-    m_profileSelectorCombo = new QComboBox(this);
-    m_profileSelectorCombo->setMinimumWidth(300);
-    connect(m_profileSelectorCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &PreferencesDialog::onProfileSelected);
+    // Radio list widget showing name and connection summary
+    m_radioListWidget = new QListWidget(this);
+    m_radioListWidget->setMinimumHeight(120);
+    m_radioListWidget->setMaximumHeight(180);
+    m_radioListWidget->setAlternatingRowColors(true);
+    m_radioListWidget->setToolTip("Double-click a radio to edit its configuration");
+    connect(m_radioListWidget, &QListWidget::itemDoubleClicked,
+            this, &PreferencesDialog::onRadioDoubleClicked);
+    radiosLayout->addWidget(m_radioListWidget);
 
-    // Profile management buttons
-    QHBoxLayout* profileButtonLayout = new QHBoxLayout();
-    m_newProfileButton = new QPushButton("New Profile", this);
-    m_editProfileButton = new QPushButton("Edit Name/Notes", this);
-    m_deleteProfileButton = new QPushButton("Delete", this);
-    m_setActiveButton = new QPushButton("Set as Active", this);
+    // Add/Remove/Edit buttons
+    QHBoxLayout* radioButtonsLayout = new QHBoxLayout();
+    m_addRadioButton = new QPushButton("+", this);
+    m_addRadioButton->setMaximumWidth(40);
+    m_addRadioButton->setToolTip("Add a new radio");
+    connect(m_addRadioButton, &QPushButton::clicked, this, &PreferencesDialog::onAddRadio);
 
-    m_newProfileButton->setMaximumWidth(120);
-    m_editProfileButton->setMaximumWidth(140);
-    m_deleteProfileButton->setMaximumWidth(80);
-    m_setActiveButton->setMaximumWidth(120);
+    m_removeRadioButton = new QPushButton("-", this);
+    m_removeRadioButton->setMaximumWidth(40);
+    m_removeRadioButton->setToolTip("Remove selected radio");
+    connect(m_removeRadioButton, &QPushButton::clicked, this, &PreferencesDialog::onRemoveRadio);
 
-    connect(m_newProfileButton, &QPushButton::clicked, this, &PreferencesDialog::onNewProfile);
-    connect(m_editProfileButton, &QPushButton::clicked, this, &PreferencesDialog::onEditProfile);
-    connect(m_deleteProfileButton, &QPushButton::clicked, this, &PreferencesDialog::onDeleteProfile);
-    connect(m_setActiveButton, &QPushButton::clicked, this, &PreferencesDialog::onSetActiveProfile);
+    m_editRadioButton = new QPushButton("Edit...", this);
+    m_editRadioButton->setMaximumWidth(80);
+    m_editRadioButton->setToolTip("Edit selected radio's configuration");
+    connect(m_editRadioButton, &QPushButton::clicked, this, &PreferencesDialog::onEditRadio);
 
-    profileButtonLayout->addWidget(m_newProfileButton);
-    profileButtonLayout->addWidget(m_editProfileButton);
-    profileButtonLayout->addWidget(m_deleteProfileButton);
-    profileButtonLayout->addWidget(m_setActiveButton);
-    profileButtonLayout->addStretch();
+    radioButtonsLayout->addWidget(m_addRadioButton);
+    radioButtonsLayout->addWidget(m_removeRadioButton);
+    radioButtonsLayout->addWidget(m_editRadioButton);
+    radioButtonsLayout->addStretch();
 
-    // Active profile label
-    m_activeProfileLabel = new QLabel("<i>Currently active: Default</i>", this);
-    m_activeProfileLabel->setStyleSheet("color: #666;");
+    radiosLayout->addLayout(radioButtonsLayout);
+    layout->addWidget(radiosGroup);
 
-    // Add widgets to profile group
-    QFormLayout* profileLayout = new QFormLayout();
-    profileLayout->addRow("Select Profile:", m_profileSelectorCombo);
-    profileVLayout->addLayout(profileLayout);
-    profileVLayout->addLayout(profileButtonLayout);
-    profileVLayout->addWidget(m_activeProfileLabel);
-
-    layout->addWidget(profileGroup);
-
-    // Horizontal separator line
+    // Horizontal separator
     QFrame* separator = new QFrame(this);
     separator->setFrameShape(QFrame::HLine);
     separator->setFrameShadow(QFrame::Sunken);
     layout->addWidget(separator);
 
-    // Radio model selection
-    QGroupBox* modelGroup = new QGroupBox("Radio Model", this);
-    QFormLayout* modelLayout = new QFormLayout(modelGroup);
+    // ===== Station Profiles Section =====
+    // Station profiles assign radios to Radio 1 and Radio 2 slots
+    QGroupBox* profilesGroup = new QGroupBox("Station Profiles", this);
+    QVBoxLayout* profilesLayout = new QVBoxLayout(profilesGroup);
 
-    m_radioModelCombo = new QComboBox(this);
-    m_radioModelCombo->setEditable(true);  // Make searchable
-    m_radioModelCombo->setInsertPolicy(QComboBox::NoInsert);  // Don't add typed text as new items
+    // Profile selector row
+    QHBoxLayout* profileSelectorLayout = new QHBoxLayout();
+    QLabel* profileLabel = new QLabel("Profile:", this);
+    m_stationProfileCombo = new QComboBox(this);
+    m_stationProfileCombo->setMinimumWidth(200);
+    connect(m_stationProfileCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onStationProfileChanged);
 
-    // Populate radio list will be called after checkboxes are created
-    // (so filtering works correctly)
+    m_newStationProfileButton = new QPushButton("New", this);
+    m_newStationProfileButton->setMaximumWidth(60);
+    connect(m_newStationProfileButton, &QPushButton::clicked, this, &PreferencesDialog::onNewStationProfile);
 
-    m_customModelEdit = new QLineEdit(this);
-    m_customModelEdit->setPlaceholderText("Enter hamlib model ID (e.g., 2046)");
-    m_customModelEdit->setVisible(false);
+    m_renameStationProfileButton = new QPushButton("Rename", this);
+    m_renameStationProfileButton->setMaximumWidth(70);
+    connect(m_renameStationProfileButton, &QPushButton::clicked, this, &PreferencesDialog::onRenameStationProfile);
 
-    modelLayout->addRow("Model:", m_radioModelCombo);
-    modelLayout->addRow("Custom Model ID:", m_customModelEdit);
+    m_deleteStationProfileButton = new QPushButton("Delete", this);
+    m_deleteStationProfileButton->setMaximumWidth(60);
+    connect(m_deleteStationProfileButton, &QPushButton::clicked, this, &PreferencesDialog::onDeleteStationProfile);
 
-    // Radio status filter checkboxes (in same group)
-    m_showStableRadiosCheck = new QCheckBox("Stable", this);
-    m_showBetaRadiosCheck = new QCheckBox("Beta", this);
-    m_showAlphaRadiosCheck = new QCheckBox("Alpha", this);
-    m_showUntestedRadiosCheck = new QCheckBox("Untested", this);
+    profileSelectorLayout->addWidget(profileLabel);
+    profileSelectorLayout->addWidget(m_stationProfileCombo, 1);
+    profileSelectorLayout->addWidget(m_newStationProfileButton);
+    profileSelectorLayout->addWidget(m_renameStationProfileButton);
+    profileSelectorLayout->addWidget(m_deleteStationProfileButton);
+    profilesLayout->addLayout(profileSelectorLayout);
 
-    // Explicitly set visibility and size policy for Windows compatibility
-    m_showStableRadiosCheck->setVisible(true);
-    m_showBetaRadiosCheck->setVisible(true);
-    m_showAlphaRadiosCheck->setVisible(true);
-    m_showUntestedRadiosCheck->setVisible(true);
+    // Radio 1 / Radio 2 assignment
+    QFormLayout* assignmentLayout = new QFormLayout();
 
-    // Ensure minimum size for Windows rendering
-    m_showStableRadiosCheck->setMinimumWidth(80);
-    m_showBetaRadiosCheck->setMinimumWidth(60);
-    m_showAlphaRadiosCheck->setMinimumWidth(70);
-    m_showUntestedRadiosCheck->setMinimumWidth(90);
+    // Radio 1 row with default active radio button
+    QHBoxLayout* radio1Layout = new QHBoxLayout();
+    m_radio1AssignCombo = new QComboBox(this);
+    m_radio1AssignCombo->setMinimumWidth(200);
+    connect(m_radio1AssignCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onRadio1AssignChanged);
 
-    // Default to only Stable checked
-    m_showStableRadiosCheck->setChecked(true);
-    m_showBetaRadiosCheck->setChecked(false);
-    m_showAlphaRadiosCheck->setChecked(false);
-    m_showUntestedRadiosCheck->setChecked(false);
+    m_radio1DefaultButton = new QRadioButton("Default Active", this);
+    m_radio1DefaultButton->setChecked(true);
+    connect(m_radio1DefaultButton, &QRadioButton::toggled, this, &PreferencesDialog::onDefaultActiveChanged);
 
-    connect(m_showStableRadiosCheck, &QCheckBox::stateChanged,
-            this, &PreferencesDialog::onRadioStatusFilterChanged);
-    connect(m_showBetaRadiosCheck, &QCheckBox::stateChanged,
-            this, &PreferencesDialog::onRadioStatusFilterChanged);
-    connect(m_showAlphaRadiosCheck, &QCheckBox::stateChanged,
-            this, &PreferencesDialog::onRadioStatusFilterChanged);
-    connect(m_showUntestedRadiosCheck, &QCheckBox::stateChanged,
-            this, &PreferencesDialog::onRadioStatusFilterChanged);
+    radio1Layout->addWidget(m_radio1AssignCombo, 1);
+    radio1Layout->addWidget(m_radio1DefaultButton);
+    assignmentLayout->addRow("Radio 1:", radio1Layout);
 
-    QHBoxLayout* filterLayout = new QHBoxLayout();
-    filterLayout->addWidget(new QLabel("Show Status:", this));
-    filterLayout->addWidget(m_showStableRadiosCheck);
-    filterLayout->addWidget(m_showBetaRadiosCheck);
-    filterLayout->addWidget(m_showAlphaRadiosCheck);
-    filterLayout->addWidget(m_showUntestedRadiosCheck);
-    filterLayout->addStretch();
-    filterLayout->setAlignment(Qt::AlignLeft);
+    // Radio 2 row with default active radio button
+    QHBoxLayout* radio2Layout = new QHBoxLayout();
+    m_radio2AssignCombo = new QComboBox(this);
+    m_radio2AssignCombo->setMinimumWidth(200);
+    connect(m_radio2AssignCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onRadio2AssignChanged);
 
-    modelLayout->addRow("", filterLayout);
+    m_radio2DefaultButton = new QRadioButton("Default Active", this);
+    connect(m_radio2DefaultButton, &QRadioButton::toggled, this, &PreferencesDialog::onDefaultActiveChanged);
 
-    layout->addWidget(modelGroup);
+    radio2Layout->addWidget(m_radio2AssignCombo, 1);
+    radio2Layout->addWidget(m_radio2DefaultButton);
+    assignmentLayout->addRow("Radio 2:", radio2Layout);
 
-    // Radio Interface Type (RadioFactory selection)
-    QGroupBox* interfaceGroup = new QGroupBox("Radio Interface", this);
-    QFormLayout* interfaceLayout = new QFormLayout(interfaceGroup);
+    profilesLayout->addLayout(assignmentLayout);
 
-    m_radioTypeCombo = new QComboBox(this);
-    m_radioTypeCombo->addItem("Auto (Recommended)", -1);           // -1 = Auto
-    m_radioTypeCombo->addItem("Hamlib (Universal)", 0);            // 0 = HAMLIB
-    m_radioTypeCombo->addItem("K4 Direct (K4 only, 5-10x faster)", 1);  // 1 = K4_DIRECT
-    m_radioTypeCombo->addItem("Icom Direct (Icom network radios)", 2);  // 2 = ICOM_DIRECT
-    m_radioTypeCombo->setCurrentIndex(0);  // Default to Auto
+    // SO2R enabled checkbox
+    m_so2rEnabledCheck = new QCheckBox("Enable SO2R (two-radio operation)", this);
+    m_so2rEnabledCheck->setToolTip("When enabled, both Radio 1 and Radio 2 connect simultaneously.\n"
+                                    "Use Alt+R to toggle which radio is active for logging.");
+    connect(m_so2rEnabledCheck, &QCheckBox::toggled, this, &PreferencesDialog::onSO2REnabledChanged);
+    profilesLayout->addWidget(m_so2rEnabledCheck);
 
-    // Tooltip explaining the options
-    m_radioTypeCombo->setToolTip(
-        "Auto: Automatically selects the best interface for your radio (K4 Direct for K4, Icom Direct for supported Icom, Hamlib for others)\n"
-        "Hamlib: Universal compatibility, works with all radios\n"
-        "K4 Direct: Direct TCP control for Elecraft K4 (5-10x faster than Hamlib, requires K4/K4D/K4HD)\n"
-        "Icom Direct: Native Icom network protocol (IC-905, IC-9700, IC-7610, IC-7600, IC-7300MK2, IC-705, IC-R8600, IC-7850, IC-7851, IC-7760)"
-    );
+    // Active profile display and activation
+    QHBoxLayout* activateLayout = new QHBoxLayout();
+    m_activeProfileLabel = new QLabel("Active Profile: <none>", this);
+    m_activeProfileLabel->setStyleSheet("font-weight: bold;");
+    activateLayout->addWidget(m_activeProfileLabel);
+    activateLayout->addStretch();
 
-    interfaceLayout->addRow("Type:", m_radioTypeCombo);
+    m_activateButton = new QPushButton("Activate", this);
+    m_activateButton->setToolTip("Set this profile as active and connect radios");
+    connect(m_activateButton, &QPushButton::clicked, this, &PreferencesDialog::onActivateProfile);
+    activateLayout->addWidget(m_activateButton);
 
-    // Connect to update default port when radio type changes
-    connect(m_radioTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &PreferencesDialog::onRadioTypeChanged);
+    profilesLayout->addLayout(activateLayout);
 
-    // Add explanatory label
-    QLabel* infoLabel = new QLabel(
-        "<small><i>K4 Direct provides 5-10x faster radio control for Elecraft K4 radios.<br>"
-        "For all other radios, Hamlib is used automatically.</i></small>",
-        this
-    );
-    infoLabel->setWordWrap(true);
-    infoLabel->setStyleSheet("color: #666;");
-    interfaceLayout->addRow("", infoLabel);
+    layout->addWidget(profilesGroup);
 
-    layout->addWidget(interfaceGroup);
-
-    // Connection type
-    QGroupBox* connectionGroup = new QGroupBox("Connection Type", this);
-    QVBoxLayout* connectionLayout = new QVBoxLayout(connectionGroup);
-
-    m_serialRadio = new QRadioButton("Serial Port", this);
-    m_networkRadio = new QRadioButton("Network (TCP)", this);
-    m_serialRadio->setChecked(true);
-
-    connect(m_serialRadio, &QRadioButton::toggled,
-            this, &PreferencesDialog::onConnectionTypeChanged);
-
-    connectionLayout->addWidget(m_serialRadio);
-    connectionLayout->addWidget(m_networkRadio);
-    layout->addWidget(connectionGroup);
-
-    // Serial port settings
-    m_serialGroup = new QGroupBox("Serial Port Settings", this);
-    QFormLayout* serialLayout = new QFormLayout(m_serialGroup);
-
-    // Serial port dropdown with detected ports
-    QHBoxLayout* portLayout = new QHBoxLayout();
-    m_serialPortCombo = new QComboBox(this);
-    m_serialPortCombo->setToolTip("Select a detected serial port, or type a custom port name below");
-    m_serialPortCombo->setMinimumWidth(200);
-    portLayout->addWidget(m_serialPortCombo, 1);
-
-    m_refreshPortsButton = new QPushButton("Refresh", this);
-    m_refreshPortsButton->setToolTip("Rescan for serial ports");
-    m_refreshPortsButton->setMaximumWidth(80);
-    connect(m_refreshPortsButton, &QPushButton::clicked, this, &PreferencesDialog::refreshSerialPorts);
-    portLayout->addWidget(m_refreshPortsButton);
-
-    serialLayout->addRow("Port:", portLayout);
-
-    // Manual entry fallback
-    m_serialPortEdit = new QLineEdit(this);
-    m_serialPortEdit->setPlaceholderText("Manual entry (e.g., COM10 or /dev/ttyUSB0)");
-    m_serialPortEdit->setToolTip("Type a port name manually if not in dropdown");
-    serialLayout->addRow("Or manual:", m_serialPortEdit);
-
-    m_baudRateCombo = new QComboBox(this);
-    m_baudRateCombo->addItems({"4800", "9600", "19200", "38400", "57600", "115200"});
-    m_baudRateCombo->setCurrentText("38400");
-
-    m_dataBitsCombo = new QComboBox(this);
-    m_dataBitsCombo->addItems({"5", "6", "7", "8"});
-    m_dataBitsCombo->setCurrentText("8");
-    m_dataBitsCombo->setToolTip("Number of data bits (default: 8)\nLeave at default unless radio requires specific setting");
-
-    m_stopBitsCombo = new QComboBox(this);
-    m_stopBitsCombo->addItems({"1", "2"});
-    m_stopBitsCombo->setCurrentText("1");
-    m_stopBitsCombo->setToolTip("Number of stop bits (default: 1)\nLeave at default unless radio requires specific setting");
-
-    m_parityCombo = new QComboBox(this);
-    m_parityCombo->addItems({"None", "Odd", "Even"});
-    m_parityCombo->setCurrentIndex(0);  // None
-    m_parityCombo->setToolTip("Parity checking (default: None)\nLeave at default unless radio requires specific setting");
-
-    serialLayout->addRow("Baud Rate:", m_baudRateCombo);
-    serialLayout->addRow("Data Bits:", m_dataBitsCombo);
-    serialLayout->addRow("Stop Bits:", m_stopBitsCombo);
-    serialLayout->addRow("Parity:", m_parityCombo);
-    layout->addWidget(m_serialGroup);
-
-    // Initial population of serial ports
-    refreshSerialPorts();
-
-    // Network settings
-    m_networkGroup = new QGroupBox("Network Settings", this);
-    QFormLayout* networkLayout = new QFormLayout(m_networkGroup);
-
-    m_ipAddressEdit = new QLineEdit(this);
-    m_ipAddressEdit->setPlaceholderText("192.168.1.100");
-
-    m_portSpin = new QSpinBox(this);
-    m_portSpin->setRange(1, 65535);
-    m_portSpin->setValue(4532);  // Default rigctld port
-
-    networkLayout->addRow("IP Address:", m_ipAddressEdit);
-    networkLayout->addRow("Port:", m_portSpin);
-
-    // Icom network credentials (only used for Icom Direct)
-    m_icomUsernameEdit = new QLineEdit(this);
-    m_icomUsernameEdit->setPlaceholderText("Username (optional, usually blank)");
-    m_icomUsernameEdit->setToolTip("Icom network username (can be left blank for most radios)");
-
-    m_icomPasswordEdit = new QLineEdit(this);
-    m_icomPasswordEdit->setPlaceholderText("Password (optional, usually blank)");
-    m_icomPasswordEdit->setEchoMode(QLineEdit::Password);
-    m_icomPasswordEdit->setToolTip("Icom network password (can be left blank for most radios)");
-
-    m_icomClientNameEdit = new QLineEdit(this);
-    m_icomClientNameEdit->setText("TR4QT");
-    m_icomClientNameEdit->setToolTip("Client identifier for Icom network protocol");
-
-    networkLayout->addRow("Icom Username:", m_icomUsernameEdit);
-    networkLayout->addRow("Icom Password:", m_icomPasswordEdit);
-    networkLayout->addRow("Icom Client Name:", m_icomClientNameEdit);
-
-    // Find Network Radios button (text changes based on selected radio type)
-    m_findK4Button = new QPushButton("Find Radios on Network", this);
-    m_findK4Button->setToolTip("Broadcast UDP discovery message to find radios on the network");
-    connect(m_findK4Button, &QPushButton::clicked, this, &PreferencesDialog::onFindNetworkRadios);
-    networkLayout->addRow("", m_findK4Button);
-
-    layout->addWidget(m_networkGroup);
-    m_networkGroup->setVisible(false);
-
-    // Advanced radio settings
-    QGroupBox* advancedGroup = new QGroupBox("Advanced Settings", this);
-    QFormLayout* advancedLayout = new QFormLayout(advancedGroup);
-
-    // CI-V Address selection (for Icom radios)
-    m_civAddressWidget = new CivAddressWidget(this);
-
-    m_pollIntervalSpin = new QSpinBox(this);
-    m_pollIntervalSpin->setRange(100, 5000);
-    m_pollIntervalSpin->setValue(5000);
-    m_pollIntervalSpin->setSingleStep(500);
-    m_pollIntervalSpin->setSuffix(" ms");
-    m_pollIntervalSpin->setToolTip("Polling fallback interval (CI-V Transceive provides instant updates)");
-
-    advancedLayout->addRow("CI-V Address:", m_civAddressWidget);
-    advancedLayout->addRow("Poll Interval:", m_pollIntervalSpin);
+    // ===== General Radio Settings =====
+    QGroupBox* generalGroup = new QGroupBox("General Settings", this);
+    QFormLayout* generalLayout = new QFormLayout(generalGroup);
 
     m_autoConnectCheck = new QCheckBox("Auto-connect on startup", this);
     m_autoConnectCheck->setChecked(true);
-    m_autoConnectCheck->setToolTip("Automatically connect to radio when application starts");
-    advancedLayout->addRow("", m_autoConnectCheck);
+    m_autoConnectCheck->setToolTip("Automatically connect to radios when application starts");
+    generalLayout->addRow("", m_autoConnectCheck);
 
-    layout->addWidget(advancedGroup);
-
-    // Test connection button and status label
-    QHBoxLayout* testLayout = new QHBoxLayout();
-    m_testConnectionButton = new QPushButton("Test Connection", this);
-    connect(m_testConnectionButton, &QPushButton::clicked, this, &PreferencesDialog::onTestRadioConnection);
-    testLayout->addWidget(m_testConnectionButton);
-
-    m_connectionStatusLabel = new QLabel(this);
-    m_connectionStatusLabel->setStyleSheet("color: #666; font-style: italic;");
-    m_connectionStatusLabel->hide();  // Hidden by default
-    testLayout->addWidget(m_connectionStatusLabel);
-
-    testLayout->addStretch();
-    layout->addLayout(testLayout);
+    layout->addWidget(generalGroup);
 
     layout->addStretch();
 
-    // Now that all widgets are created, populate radio list with filtering
-    populateRadioList();
-
-    // Connect signals and unblock
-    connect(m_radioModelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &PreferencesDialog::onRadioModelChanged);
-    m_radioModelCombo->blockSignals(false);
+    // Load radio profiles into the list
+    refreshRadioList();
+    refreshStationProfileCombo();
 
     return radioWidget;
 }
@@ -1756,58 +1580,22 @@ void PreferencesDialog::loadSettings() {
     m_licenseClassCombo->setCurrentText(settings.getLicenseClass());
     // Operator will be added to AppSettings
 
-    // Radio status filter checkboxes - MUST be loaded BEFORE radio model selection
-    // so that the radio list is properly filtered when we try to find the saved model
-    m_showStableRadiosCheck->setChecked(settings.getShowStableRadios());
-    m_showBetaRadiosCheck->setChecked(settings.getShowBetaRadios());
-    m_showAlphaRadiosCheck->setChecked(settings.getShowAlphaRadios());
-    m_showUntestedRadiosCheck->setChecked(settings.getShowUntestedRadios());
+    // ===== Radio Tab =====
 
-    // Repopulate radio list with correct filter settings BEFORE loading saved model
-    populateRadioList();
-
-    // Radio tab - Load profiles
-    // Migration happens automatically in AppSettings constructor
+    // Load radio profiles (individual radio definitions)
     m_radioProfiles = settings.loadRadioProfiles();
-    QString activeProfile = settings.getActiveRadioProfile();
 
-    // Populate profile combo box
-    m_profileSelectorCombo->clear();
-    for (const auto& profile : m_radioProfiles) {
-        m_profileSelectorCombo->addItem(profile.displayString(), profile.name);
-    }
+    // Populate the radio list and assignment combos
+    refreshRadioList();
+    refreshRadioAssignCombos();
+    refreshStationProfileCombo();
 
-    // Select active profile
-    int activeIndex = -1;
-    for (int i = 0; i < m_radioProfiles.size(); ++i) {
-        if (m_radioProfiles[i].name == activeProfile) {
-            activeIndex = i;
-            break;
-        }
-    }
+    // Load the current station profile into UI
+    QString activeStationProfile = settings.getActiveStationProfile();
+    loadStationProfileIntoUI(activeStationProfile);
 
-    if (activeIndex >= 0) {
-        m_profileSelectorCombo->setCurrentIndex(activeIndex);
-        loadProfileIntoUI(activeProfile);
-    } else if (!m_radioProfiles.isEmpty()) {
-        // Active profile not found - default to first
-        m_profileSelectorCombo->setCurrentIndex(0);
-        loadProfileIntoUI(m_radioProfiles[0].name);
-        settings.setActiveRadioProfile(m_radioProfiles[0].name);
-    }
-
-    // Update active profile label
-    m_activeProfileLabel->setText(QString("<i>Currently active: %1</i>").arg(activeProfile));
-
-    // Update button states
-    m_setActiveButton->setEnabled(false);  // Active profile already set
-    m_deleteProfileButton->setEnabled(m_radioProfiles.size() > 1);
-
+    // Auto-connect checkbox
     m_autoConnectCheck->setChecked(settings.getRadioAutoConnect());
-    m_morseWpmSpin->setValue(settings.getMorseWPM());
-    m_morseWpmIncrementSpin->setValue(settings.getMorseWPMIncrement());
-    m_cutNumbersEnabledCheck->setChecked(settings.getCutNumbersEnabled());
-    m_serialNumberWidthSpin->setValue(settings.getSerialNumberWidth());
 
     // Amplifier settings (enhanced)
     m_amplifierEnabledCheck->setChecked(settings.getAmplifierEnabled());
@@ -1855,10 +1643,6 @@ void PreferencesDialog::loadSettings() {
 
     // Trigger connection type changed to show/hide appropriate widgets
     onRotatorConnectionTypeChanged(rotConnIndex);
-
-    // Note: Radio status filter checkboxes loaded earlier (before radio model selection)
-
-    onConnectionTypeChanged();
 
     // DX Cluster tab
     m_dxClusterCallsignEdit->setText(settings.getDXClusterCallsign());
@@ -1979,26 +1763,16 @@ void PreferencesDialog::saveSettings() {
     settings.setMyCounty(m_countyEdit->text());
     settings.setLicenseClass(m_licenseClassCombo->currentText());
 
-    // Radio tab - Save profiles
-    // Update currently selected profile with UI values
-    int selectedIndex = m_profileSelectorCombo->currentIndex();
-    if (selectedIndex >= 0 && selectedIndex < m_radioProfiles.size()) {
-        m_radioProfiles[selectedIndex].config = buildRadioConfigFromUI();
-    }
+    // ===== Radio Tab =====
 
-    // Save all profiles
+    // Save radio profiles (individual radio definitions)
     settings.saveRadioProfiles(m_radioProfiles);
-    settings.setRadioAutoConnect(m_autoConnectCheck->isChecked());
-    settings.setMorseWPM(m_morseWpmSpin->value());
-    settings.setMorseWPMIncrement(m_morseWpmIncrementSpin->value());
-    settings.setCutNumbersEnabled(m_cutNumbersEnabledCheck->isChecked());
-    settings.setSerialNumberWidth(m_serialNumberWidthSpin->value());
 
-    // Radio status filter checkboxes
-    settings.setShowStableRadios(m_showStableRadiosCheck->isChecked());
-    settings.setShowBetaRadios(m_showBetaRadiosCheck->isChecked());
-    settings.setShowAlphaRadios(m_showAlphaRadiosCheck->isChecked());
-    settings.setShowUntestedRadios(m_showUntestedRadiosCheck->isChecked());
+    // Save current station profile (assignments are saved incrementally)
+    saveCurrentStationProfile();
+
+    // Save general radio settings
+    settings.setRadioAutoConnect(m_autoConnectCheck->isChecked());
 
     // Amplifier settings (enhanced)
     settings.setAmplifierEnabled(m_amplifierEnabledCheck->isChecked());
@@ -2149,360 +1923,378 @@ void PreferencesDialog::selectCategory(const QString& categoryName) {
 }
 
 void PreferencesDialog::setRadioConnected(bool connected) {
-    if (connected) {
-        m_testConnectionButton->setEnabled(false);
-        m_testConnectionButton->setToolTip("Cannot test - radio is already connected");
-        m_connectionStatusLabel->setText("(Radio is connected - disconnect to test)");
-        m_connectionStatusLabel->show();
-    } else {
-        m_testConnectionButton->setEnabled(true);
-        m_testConnectionButton->setToolTip("Test connection to the configured radio");
-        m_connectionStatusLabel->hide();
-    }
+    // Radio connection status is now managed per-radio in RadioEditDialog
+    // This function is kept for API compatibility but is a no-op
+    Q_UNUSED(connected);
 }
 
 void PreferencesDialog::onApply() {
     saveSettings();
 }
 
-void PreferencesDialog::onConnectionTypeChanged() {
-    bool isSerial = m_serialRadio->isChecked();
-    m_serialGroup->setVisible(isSerial);
-    m_networkGroup->setVisible(!isSerial);
+void PreferencesDialog::onSO2REnabledChanged(bool enabled) {
+    // Enable/disable Radio 2 selection based on SO2R checkbox
+    m_radio2AssignCombo->setEnabled(enabled);
+    m_radio2DefaultButton->setEnabled(enabled);
 
-    // Manage port refresh timer based on connection type
-    if (isSerial && isVisible()) {
-        m_portRefreshTimer->start();
-    } else {
-        m_portRefreshTimer->stop();
-    }
+    LOG_DEBUG("PreferencesDialog", QString("SO2R enabled changed to: %1").arg(enabled));
 }
 
-void PreferencesDialog::onRadioModelChanged(int index) {
-    int modelId = m_radioModelCombo->currentData().toInt();
+// ===== My Radios Management Slots =====
 
-    // Show custom model ID field if "Custom" is selected
-    m_customModelEdit->setVisible(modelId == -1);
+void PreferencesDialog::onAddRadio() {
+    RadioEditDialog dialog(this);
+    if (dialog.exec() == QDialog::Accepted) {
+        RadioProfile newProfile;
+        newProfile.name = dialog.getRadioName();
+        newProfile.config = dialog.getRadioProfile().config;
+        newProfile.lastUsed = QDateTime::currentDateTime();
 
-    // Auto-configure CI-V address for known Icom radios
-    m_civAddressWidget->autoConfigureForRadio(modelId);
-}
-
-void PreferencesDialog::onRadioTypeChanged(int index) {
-    int radioType = m_radioTypeCombo->currentData().toInt();
-
-    // Set default port based on radio type
-    // Only change port for fresh selections - not when loading saved settings
-    // (signal blocker in loadSettings prevents this from running during load)
-    if (radioType == 2) {  // ICOM_DIRECT
-        m_portSpin->setValue(50001);  // Icom default network port
-        m_findK4Button->setText("Find Icom Radios on Network");
-        m_findK4Button->setToolTip("Broadcast UDP discovery to find Icom radios on the network");
-    } else if (radioType == 1) {  // K4_DIRECT
-        m_portSpin->setValue(9200);   // K4 default TCP port
-        m_findK4Button->setText("Find K4 Radios on Network");
-        m_findK4Button->setToolTip("Broadcast UDP discovery to find Elecraft K4 radios on the network");
-    } else {
-        m_portSpin->setValue(4532);   // rigctld default for Hamlib
-        m_findK4Button->setText("Find Radios on Network");
-        m_findK4Button->setToolTip("Broadcast UDP discovery to find radios on the network");
-    }
-}
-
-void PreferencesDialog::onTestRadioConnection() {
-    // Build RadioConfig from current dialog settings
-    RadioConfig config;
-
-    int modelId = m_radioModelCombo->currentData().toInt();
-    if (modelId == -1) {
-        config.hamlibModelId = m_customModelEdit->text().toInt();
-    } else {
-        config.hamlibModelId = modelId;
-    }
-
-    if (config.hamlibModelId == 0) {
-        DialogHelper::warning(this, "Invalid Configuration",
-                           "Please select a radio model.");
-        return;
-    }
-
-    if (m_serialRadio->isChecked()) {
-        // Prefer dropdown selection, fall back to manual entry
-        QString selectedPort = m_serialPortCombo->currentData().toString();
-        if (selectedPort.isEmpty() || !m_serialPortCombo->isEnabled()) {
-            selectedPort = m_serialPortEdit->text().trimmed();
-        }
-        config.port = selectedPort;
-        config.baudRate = m_baudRateCombo->currentText().toInt();
-        config.dataBits = m_dataBitsCombo->currentText().toInt();
-        config.stopBits = m_stopBitsCombo->currentText().toInt();
-        config.parity = m_parityCombo->currentIndex();
-    } else {
-        config.port = QString("%1:%2")
-                          .arg(m_ipAddressEdit->text())
-                          .arg(m_portSpin->value());
-        config.baudRate = 0;
-        config.dataBits = 8;  // Defaults for network (not used)
-        config.stopBits = 1;
-        config.parity = 0;
-    }
-
-    if (config.port.isEmpty()) {
-        DialogHelper::warning(this, "Invalid Configuration",
-                           "Please specify a port or IP address.");
-        return;
-    }
-
-    // Get CI-V address from widget
-    config.civAddress = m_civAddressWidget->getCivAddress();
-
-    config.pollInterval = m_pollIntervalSpin->value();
-
-    // Create temporary HamlibRadio instance for testing
-    HamlibRadio testRadio;
-
-    // Try to connect
-    LOG_DEBUG("PreferencesDialog", QString("Testing connection to model %1 on %2")
-        .arg(config.hamlibModelId).arg(config.port));
-
-    bool connected = testRadio.connect(config);
-
-    if (!connected) {
-        DialogHelper::critical(this, "Connection Failed",
-                            QString("Failed to connect to radio.\n\n"
-                                    "Model ID: %1\n"
-                                    "Port: %2\n"
-                                    "Baud: %3\n"
-                                    "CI-V: %4\n\n"
-                                    "Check your settings and ensure the radio is powered on and connected.")
-                                .arg(config.hamlibModelId)
-                                .arg(config.port)
-                                .arg(config.baudRate)
-                                .arg(config.civAddress == 0 ? "0 (auto)" : QString("0x%1").arg(config.civAddress, 2, 16, QChar('0'))));
-        return;
-    }
-
-    // Connection successful - query radio info
-    QString model = testRadio.getRadioModel();
-    QString version = testRadio.getRadioVersion();
-    freq_t freq = testRadio.getFrequency(VFO::VFO_A);
-    ModeType mode = testRadio.getMode(VFO::VFO_A);
-    bool supportsCW = testRadio.supportsCWSending();
-
-    // Disconnect
-    testRadio.disconnect();
-
-    // Show success message
-    DialogHelper::information(this, "Connection Successful",
-                           QString("Successfully connected to radio!\n\n"
-                                   "Model: %1\n"
-                                   "Firmware: %2\n"
-                                   "Frequency: %3 kHz\n"
-                                   "Mode: %4\n"
-                                   "CW Support: %5")
-                               .arg(model)
-                               .arg(version.isEmpty() ? "Unknown" : version)
-                               .arg(freq / 1000.0, 0, 'f', 3)
-                               .arg(modeToString(mode))
-                               .arg(supportsCW ? "Yes" : "No"));
-}
-
-// Radio profile management slots
-void PreferencesDialog::onProfileSelected(int index) {
-    if (index < 0 || index >= m_radioProfiles.size()) {
-        return;
-    }
-
-    // Load selected profile into UI fields
-    const RadioProfile& profile = m_radioProfiles[index];
-    loadProfileIntoUI(profile.name);
-
-    // Update button states
-    QString activeProfile = AppSettings::instance().getActiveRadioProfile();
-    m_setActiveButton->setEnabled(profile.name != activeProfile);
-    m_deleteProfileButton->setEnabled(m_radioProfiles.size() > 1);
-}
-
-void PreferencesDialog::onNewProfile() {
-    // Prompt for profile name
-    bool ok;
-    QString name = QInputDialog::getText(this, "New Radio Profile",
-                                        "Profile name:",
-                                        QLineEdit::Normal,
-                                        "", &ok);
-    if (!ok || name.trimmed().isEmpty()) {
-        return;
-    }
-
-    name = name.trimmed();
-
-    // Check for duplicate name
-    for (const auto& profile : m_radioProfiles) {
-        if (profile.name == name) {
-            DialogHelper::warning(this, "Duplicate Name",
-                               QString("A profile named '%1' already exists.\n"
-                                       "Please choose a different name.").arg(name));
-            return;
-        }
-    }
-
-    // Create new profile with current UI settings
-    RadioProfile newProfile;
-    newProfile.name = name;
-    newProfile.config = buildRadioConfigFromUI();
-    newProfile.lastUsed = QDateTime::currentDateTime();
-    newProfile.notes = "";
-
-    // Add to list
-    m_radioProfiles.append(newProfile);
-
-    // Update combo box
-    m_profileSelectorCombo->addItem(newProfile.displayString(), newProfile.name);
-
-    // Select the new profile
-    m_profileSelectorCombo->setCurrentIndex(m_radioProfiles.size() - 1);
-
-    LOG_INFO("PreferencesDialog", QString("Created new radio profile: %1").arg(name));
-}
-
-void PreferencesDialog::onEditProfile() {
-    int index = m_profileSelectorCombo->currentIndex();
-    if (index < 0 || index >= m_radioProfiles.size()) {
-        return;
-    }
-
-    RadioProfile& profile = m_radioProfiles[index];
-
-    // Show dialog to edit name and notes
-    QDialog dialog(this);
-    dialog.setWindowTitle("Edit Profile");
-    QVBoxLayout* layout = new QVBoxLayout(&dialog);
-
-    QFormLayout* formLayout = new QFormLayout();
-    QLineEdit* nameEdit = new QLineEdit(profile.name, &dialog);
-    QTextEdit* notesEdit = new QTextEdit(profile.notes, &dialog);
-    notesEdit->setMaximumHeight(100);
-
-    formLayout->addRow("Name:", nameEdit);
-    formLayout->addRow("Notes:", notesEdit);
-    layout->addLayout(formLayout);
-
-    QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons);
-
-    if (dialog.exec() != QDialog::Accepted) {
-        return;
-    }
-
-    QString newName = nameEdit->text().trimmed();
-    if (newName.isEmpty()) {
-        DialogHelper::warning(this, "Invalid Name", "Profile name cannot be empty.");
-        return;
-    }
-
-    // Check for duplicate name (if changed)
-    if (newName != profile.name) {
-        for (const auto& p : m_radioProfiles) {
-            if (p.name == newName && p.name != profile.name) {
+        // Check for duplicate name
+        for (const RadioProfile& existing : m_radioProfiles) {
+            if (existing.name == newProfile.name) {
                 DialogHelper::warning(this, "Duplicate Name",
-                                   QString("A profile named '%1' already exists.").arg(newName));
+                    QString("A radio named '%1' already exists. Please use a different name.").arg(newProfile.name));
                 return;
             }
         }
+
+        m_radioProfiles.append(newProfile);
+        refreshRadioList();
+        refreshRadioAssignCombos();
+        LOG_INFO("PreferencesDialog", QString("Added new radio: %1").arg(newProfile.name));
     }
-
-    // Update profile
-    QString oldName = profile.name;
-    profile.name = newName;
-    profile.notes = notesEdit->toPlainText();
-
-    // Update combo box
-    m_profileSelectorCombo->setItemText(index, profile.displayString());
-    m_profileSelectorCombo->setItemData(index, profile.name);
-
-    // If this was the active profile, update active profile name
-    QString activeProfile = AppSettings::instance().getActiveRadioProfile();
-    if (activeProfile == oldName) {
-        AppSettings::instance().setActiveRadioProfile(newName);
-        m_activeProfileLabel->setText(QString("<i>Currently active: %1</i>").arg(newName));
-    }
-
-    LOG_INFO("PreferencesDialog", QString("Edited profile: %1 -> %2").arg(oldName).arg(newName));
 }
 
-void PreferencesDialog::onDeleteProfile() {
-    int index = m_profileSelectorCombo->currentIndex();
-    if (index < 0 || index >= m_radioProfiles.size()) {
+void PreferencesDialog::onEditRadio() {
+    int currentRow = m_radioListWidget->currentRow();
+    if (currentRow < 0 || currentRow >= m_radioProfiles.size()) {
+        DialogHelper::warning(this, "No Selection", "Please select a radio to edit.");
         return;
     }
 
-    const RadioProfile& profile = m_radioProfiles[index];
+    RadioProfile& profile = m_radioProfiles[currentRow];
+    RadioEditDialog dialog(profile, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        QString oldName = profile.name;
+        profile = dialog.getRadioProfile();
 
-    // Cannot delete if it's the only profile
-    if (m_radioProfiles.size() == 1) {
+        // Update any station profiles that reference this radio
+        if (oldName != profile.name) {
+            QList<StationProfile> stationProfiles = AppSettings::instance().loadStationProfiles();
+            for (StationProfile& sp : stationProfiles) {
+                if (sp.radio1Name == oldName) sp.radio1Name = profile.name;
+                if (sp.radio2Name == oldName) sp.radio2Name = profile.name;
+            }
+            AppSettings::instance().saveStationProfiles(stationProfiles);
+        }
+
+        refreshRadioList();
+        refreshRadioAssignCombos();
+        LOG_INFO("PreferencesDialog", QString("Updated radio: %1").arg(profile.name));
+    }
+}
+
+void PreferencesDialog::onRemoveRadio() {
+    int currentRow = m_radioListWidget->currentRow();
+    if (currentRow < 0 || currentRow >= m_radioProfiles.size()) {
+        DialogHelper::warning(this, "No Selection", "Please select a radio to remove.");
+        return;
+    }
+
+    const RadioProfile& profile = m_radioProfiles[currentRow];
+    QMessageBox::StandardButton reply = DialogHelper::question(
+        this, "Confirm Delete",
+        QString("Are you sure you want to delete radio '%1'?\n\n"
+                "This will also remove it from any station profiles that use it.")
+            .arg(profile.name));
+
+    if (reply == QMessageBox::Yes) {
+        QString removedName = profile.name;
+
+        // Remove from radio profiles list
+        m_radioProfiles.removeAt(currentRow);
+
+        // Clear from any station profiles
+        QList<StationProfile> stationProfiles = AppSettings::instance().loadStationProfiles();
+        for (StationProfile& sp : stationProfiles) {
+            if (sp.radio1Name == removedName) sp.radio1Name.clear();
+            if (sp.radio2Name == removedName) sp.radio2Name.clear();
+        }
+        AppSettings::instance().saveStationProfiles(stationProfiles);
+
+        refreshRadioList();
+        refreshRadioAssignCombos();
+        LOG_INFO("PreferencesDialog", QString("Removed radio: %1").arg(removedName));
+    }
+}
+
+void PreferencesDialog::onRadioDoubleClicked(QListWidgetItem* item) {
+    Q_UNUSED(item);
+    onEditRadio();
+}
+
+// ===== Station Profile Management Slots =====
+
+void PreferencesDialog::onStationProfileChanged(int index) {
+    if (index < 0) return;
+    QString profileName = m_stationProfileCombo->currentText();
+    loadStationProfileIntoUI(profileName);
+}
+
+void PreferencesDialog::onNewStationProfile() {
+    bool ok;
+    QString name = QInputDialog::getText(this, "New Station Profile",
+                                          "Profile name:", QLineEdit::Normal, "", &ok);
+    if (ok && !name.isEmpty()) {
+        // Check for duplicate
+        QList<StationProfile> profiles = AppSettings::instance().loadStationProfiles();
+        for (const StationProfile& existing : profiles) {
+            if (existing.name == name) {
+                DialogHelper::warning(this, "Duplicate Name",
+                    QString("A profile named '%1' already exists.").arg(name));
+                return;
+            }
+        }
+
+        StationProfile newProfile;
+        newProfile.name = name;
+        newProfile.defaultActive = 0;
+        newProfile.so2rEnabled = false;
+
+        profiles.append(newProfile);
+        AppSettings::instance().saveStationProfiles(profiles);
+        refreshStationProfileCombo();
+        m_stationProfileCombo->setCurrentText(name);
+        LOG_INFO("PreferencesDialog", QString("Created new station profile: %1").arg(name));
+    }
+}
+
+void PreferencesDialog::onRenameStationProfile() {
+    QString currentName = m_stationProfileCombo->currentText();
+    if (currentName.isEmpty()) return;
+
+    bool ok;
+    QString newName = QInputDialog::getText(this, "Rename Station Profile",
+                                             "New name:", QLineEdit::Normal, currentName, &ok);
+    if (ok && !newName.isEmpty() && newName != currentName) {
+        QList<StationProfile> profiles = AppSettings::instance().loadStationProfiles();
+        for (StationProfile& p : profiles) {
+            if (p.name == currentName) {
+                p.name = newName;
+                break;
+            }
+        }
+        AppSettings::instance().saveStationProfiles(profiles);
+
+        // Update active profile name if it was renamed
+        if (AppSettings::instance().getActiveStationProfile() == currentName) {
+            AppSettings::instance().setActiveStationProfile(newName);
+        }
+
+        refreshStationProfileCombo();
+        m_stationProfileCombo->setCurrentText(newName);
+        LOG_INFO("PreferencesDialog", QString("Renamed station profile: %1 -> %2").arg(currentName, newName));
+    }
+}
+
+void PreferencesDialog::onDeleteStationProfile() {
+    QString name = m_stationProfileCombo->currentText();
+    if (name.isEmpty()) return;
+
+    QList<StationProfile> profiles = AppSettings::instance().loadStationProfiles();
+    if (profiles.size() <= 1) {
         DialogHelper::warning(this, "Cannot Delete",
-                           "Cannot delete the only remaining profile.\n"
-                           "Create a new profile first.");
+            "Cannot delete the last station profile. Create a new one first.");
         return;
     }
 
-    // Cannot delete the active profile
-    QString activeProfile = AppSettings::instance().getActiveRadioProfile();
-    if (profile.name == activeProfile) {
-        DialogHelper::warning(this, "Cannot Delete Active Profile",
-                           QString("Cannot delete the currently active profile '%1'.\n"
-                                   "Set a different profile as active first.").arg(profile.name));
-        return;
+    QMessageBox::StandardButton reply = DialogHelper::question(
+        this, "Confirm Delete",
+        QString("Are you sure you want to delete profile '%1'?").arg(name));
+
+    if (reply == QMessageBox::Yes) {
+        for (int i = 0; i < profiles.size(); ++i) {
+            if (profiles[i].name == name) {
+                profiles.removeAt(i);
+                break;
+            }
+        }
+        AppSettings::instance().saveStationProfiles(profiles);
+
+        // If active profile was deleted, switch to first available
+        if (AppSettings::instance().getActiveStationProfile() == name && !profiles.isEmpty()) {
+            AppSettings::instance().setActiveStationProfile(profiles.first().name);
+        }
+
+        refreshStationProfileCombo();
+        LOG_INFO("PreferencesDialog", QString("Deleted station profile: %1").arg(name));
     }
-
-    // Confirm deletion
-    QMessageBox::StandardButton reply = DialogHelper::question(this, "Confirm Delete",
-        QString("Delete profile '%1'?\n\n"
-                "This action cannot be undone.").arg(profile.name));
-
-    if (reply != QMessageBox::Yes) {
-        return;
-    }
-
-    // Remove from list
-    QString deletedName = profile.name;
-    m_radioProfiles.removeAt(index);
-    m_profileSelectorCombo->removeItem(index);
-
-    // Select first remaining profile
-    if (!m_radioProfiles.isEmpty()) {
-        m_profileSelectorCombo->setCurrentIndex(0);
-    }
-
-    LOG_INFO("PreferencesDialog", QString("Deleted profile: %1").arg(deletedName));
 }
 
-void PreferencesDialog::onSetActiveProfile() {
-    int index = m_profileSelectorCombo->currentIndex();
-    if (index < 0 || index >= m_radioProfiles.size()) {
-        return;
+void PreferencesDialog::onRadio1AssignChanged(int index) {
+    Q_UNUSED(index);
+    saveCurrentStationProfile();
+}
+
+void PreferencesDialog::onRadio2AssignChanged(int index) {
+    Q_UNUSED(index);
+    saveCurrentStationProfile();
+}
+
+void PreferencesDialog::onDefaultActiveChanged() {
+    saveCurrentStationProfile();
+}
+
+void PreferencesDialog::onActivateProfile() {
+    QString profileName = m_stationProfileCombo->currentText();
+    if (profileName.isEmpty()) return;
+
+    saveCurrentStationProfile();
+    AppSettings::instance().setActiveStationProfile(profileName);
+    m_activeProfileLabel->setText(QString("Active Profile: %1").arg(profileName));
+    LOG_INFO("PreferencesDialog", QString("Activated station profile: %1").arg(profileName));
+
+    DialogHelper::information(this, "Profile Activated",
+        QString("Station profile '%1' is now active.\n\n"
+                "The radios will connect when you close Preferences.").arg(profileName));
+}
+
+// ===== Helper Methods =====
+
+void PreferencesDialog::refreshRadioList() {
+    m_radioListWidget->clear();
+
+    for (const RadioProfile& profile : m_radioProfiles) {
+        // Create a summary string showing connection info
+        QString summary = profile.name;
+        if (!profile.config.port.isEmpty()) {
+            // Abbreviate long port names
+            QString portInfo = profile.config.port;
+            if (portInfo.length() > 25) {
+                portInfo = "..." + portInfo.right(22);
+            }
+            summary += QString("  [%1]").arg(portInfo);
+        }
+
+        QListWidgetItem* item = new QListWidgetItem(summary);
+        item->setData(Qt::UserRole, profile.name);  // Store name for lookup
+        m_radioListWidget->addItem(item);
+    }
+}
+
+void PreferencesDialog::refreshRadioAssignCombos() {
+    // Remember current selections
+    QString radio1Selection = m_radio1AssignCombo->currentData().toString();
+    QString radio2Selection = m_radio2AssignCombo->currentData().toString();
+
+    // Clear and rebuild
+    m_radio1AssignCombo->clear();
+    m_radio2AssignCombo->clear();
+
+    // Add "(None)" option
+    m_radio1AssignCombo->addItem("(None)", "");
+    m_radio2AssignCombo->addItem("(None)", "");
+
+    // Add all defined radios
+    for (const RadioProfile& profile : m_radioProfiles) {
+        m_radio1AssignCombo->addItem(profile.name, profile.name);
+        m_radio2AssignCombo->addItem(profile.name, profile.name);
     }
 
-    RadioProfile& profile = m_radioProfiles[index];
+    // Restore selections if possible
+    int radio1Index = m_radio1AssignCombo->findData(radio1Selection);
+    if (radio1Index >= 0) m_radio1AssignCombo->setCurrentIndex(radio1Index);
 
-    // IMPORTANT: Update the profile with current UI settings before setting as active
-    // This ensures any changes made in the UI are saved to the profile
-    profile.config = buildRadioConfigFromUI();
+    int radio2Index = m_radio2AssignCombo->findData(radio2Selection);
+    if (radio2Index >= 0) m_radio2AssignCombo->setCurrentIndex(radio2Index);
+}
 
-    // Save all profiles (including the updated one)
-    AppSettings& settings = AppSettings::instance();
-    settings.saveRadioProfiles(m_radioProfiles);
+void PreferencesDialog::refreshStationProfileCombo() {
+    m_stationProfileCombo->clear();
 
-    // Update active profile in settings
-    settings.setActiveRadioProfile(profile.name);
+    QList<StationProfile> profiles = AppSettings::instance().loadStationProfiles();
 
-    // Update label and button
-    m_activeProfileLabel->setText(QString("<i>Currently active: %1</i>").arg(profile.name));
-    m_setActiveButton->setEnabled(false);
+    // If no profiles exist, create a default one
+    if (profiles.isEmpty()) {
+        StationProfile defaultProfile;
+        defaultProfile.name = "Default";
+        defaultProfile.defaultActive = 0;
+        defaultProfile.so2rEnabled = false;
+        profiles.append(defaultProfile);
+        AppSettings::instance().saveStationProfiles(profiles);
+    }
 
-    LOG_INFO("PreferencesDialog", QString("Set active profile: %1").arg(profile.name));
+    for (const StationProfile& profile : profiles) {
+        m_stationProfileCombo->addItem(profile.name);
+    }
+
+    // Select the active profile
+    QString activeProfile = AppSettings::instance().getActiveStationProfile();
+    int activeIndex = m_stationProfileCombo->findText(activeProfile);
+    if (activeIndex >= 0) {
+        m_stationProfileCombo->setCurrentIndex(activeIndex);
+    }
+
+    m_activeProfileLabel->setText(QString("Active Profile: %1").arg(activeProfile));
+}
+
+void PreferencesDialog::loadStationProfileIntoUI(const QString& profileName) {
+    StationProfile profile = AppSettings::instance().getStationProfile(profileName);
+    if (profile.name.isEmpty()) return;
+
+    // Block signals while loading to avoid triggering saves
+    m_radio1AssignCombo->blockSignals(true);
+    m_radio2AssignCombo->blockSignals(true);
+    m_radio1DefaultButton->blockSignals(true);
+    m_radio2DefaultButton->blockSignals(true);
+    m_so2rEnabledCheck->blockSignals(true);
+
+    // Set Radio 1 assignment
+    int radio1Index = m_radio1AssignCombo->findData(profile.radio1Name);
+    m_radio1AssignCombo->setCurrentIndex(radio1Index >= 0 ? radio1Index : 0);
+
+    // Set Radio 2 assignment
+    int radio2Index = m_radio2AssignCombo->findData(profile.radio2Name);
+    m_radio2AssignCombo->setCurrentIndex(radio2Index >= 0 ? radio2Index : 0);
+
+    // Set default active
+    if (profile.defaultActive == 0) {
+        m_radio1DefaultButton->setChecked(true);
+    } else {
+        m_radio2DefaultButton->setChecked(true);
+    }
+
+    // Set SO2R enabled
+    m_so2rEnabledCheck->setChecked(profile.so2rEnabled);
+
+    // Update Radio 2 enabled state
+    m_radio2AssignCombo->setEnabled(profile.so2rEnabled);
+    m_radio2DefaultButton->setEnabled(profile.so2rEnabled);
+
+    // Unblock signals
+    m_radio1AssignCombo->blockSignals(false);
+    m_radio2AssignCombo->blockSignals(false);
+    m_radio1DefaultButton->blockSignals(false);
+    m_radio2DefaultButton->blockSignals(false);
+    m_so2rEnabledCheck->blockSignals(false);
+}
+
+void PreferencesDialog::saveCurrentStationProfile() {
+    QString profileName = m_stationProfileCombo->currentText();
+    if (profileName.isEmpty()) return;
+
+    QList<StationProfile> profiles = AppSettings::instance().loadStationProfiles();
+    for (StationProfile& p : profiles) {
+        if (p.name == profileName) {
+            p.radio1Name = m_radio1AssignCombo->currentData().toString();
+            p.radio2Name = m_radio2AssignCombo->currentData().toString();
+            p.defaultActive = m_radio2DefaultButton->isChecked() ? 1 : 0;
+            p.so2rEnabled = m_so2rEnabledCheck->isChecked();
+            break;
+        }
+    }
+    AppSettings::instance().saveStationProfiles(profiles);
 }
 
 // Amplifier slots
@@ -2662,127 +2454,6 @@ void PreferencesDialog::onTestRotatorConnection() {
     // For now, just show a placeholder message
     DialogHelper::information(this, "Not Implemented",
                            "Rotator connection testing will be implemented in a future update.");
-}
-
-// Helper methods
-void PreferencesDialog::loadProfileIntoUI(const QString& profileName) {
-    // Find profile by name
-    RadioProfile* profile = nullptr;
-    for (auto& p : m_radioProfiles) {
-        if (p.name == profileName) {
-            profile = &p;
-            break;
-        }
-    }
-
-    if (!profile) {
-        LOG_WARN("PreferencesDialog", QString("Profile not found: %1").arg(profileName));
-        return;
-    }
-
-    const RadioConfig& config = profile->config;
-
-    // Block signals to prevent triggering change handlers
-    QSignalBlocker blockerModel(m_radioModelCombo);
-    QSignalBlocker blockerType(m_radioTypeCombo);
-    QSignalBlocker blockerSerial(m_serialRadio);
-    QSignalBlocker blockerPort(m_serialPortCombo);
-    QSignalBlocker blockerBaud(m_baudRateCombo);
-    QSignalBlocker blockerIP(m_ipAddressEdit);
-    QSignalBlocker blockerPortSpin(m_portSpin);
-
-    // Set radio model
-    int modelIndex = m_radioModelCombo->findData(config.hamlibModelId);
-    if (modelIndex >= 0) {
-        m_radioModelCombo->setCurrentIndex(modelIndex);
-    }
-
-    // Set radio interface type
-    int typeIndex = m_radioTypeCombo->findData(config.radioType);
-    if (typeIndex >= 0) {
-        m_radioTypeCombo->setCurrentIndex(typeIndex);
-    }
-
-    // Set connection type and port settings
-    if (config.port.contains(":")) {
-        // Network connection
-        m_networkRadio->setChecked(true);
-        QStringList parts = config.port.split(":");
-        if (parts.size() == 2) {
-            m_ipAddressEdit->setText(parts[0]);
-            m_portSpin->setValue(parts[1].toInt());
-        }
-    } else {
-        // Serial connection
-        m_serialRadio->setChecked(true);
-        int portIndex = m_serialPortCombo->findData(config.port);
-        if (portIndex >= 0) {
-            m_serialPortCombo->setCurrentIndex(portIndex);
-        } else {
-            m_serialPortEdit->setText(config.port);
-        }
-        m_baudRateCombo->setCurrentText(QString::number(config.baudRate));
-        m_dataBitsCombo->setCurrentText(QString::number(config.dataBits));
-        m_stopBitsCombo->setCurrentText(QString::number(config.stopBits));
-        m_parityCombo->setCurrentIndex(config.parity);
-    }
-
-    // Set other fields
-    m_civAddressWidget->setCivAddress(config.civAddress);
-    m_pollIntervalSpin->setValue(config.pollInterval);
-    m_icomUsernameEdit->setText(config.icomUsername);
-    m_icomPasswordEdit->setText(config.icomPassword);
-    m_icomClientNameEdit->setText(config.icomClientName);
-
-    // Trigger UI updates
-    onConnectionTypeChanged();
-}
-
-RadioConfig PreferencesDialog::buildRadioConfigFromUI() const {
-    RadioConfig config;
-
-    // Radio model
-    int modelId = m_radioModelCombo->currentData().toInt();
-    if (modelId == -1) {
-        config.hamlibModelId = m_customModelEdit->text().toInt();
-    } else {
-        config.hamlibModelId = modelId;
-    }
-
-    // Radio type
-    config.radioType = m_radioTypeCombo->currentData().toInt();
-
-    // Connection settings
-    if (m_serialRadio->isChecked()) {
-        // Serial
-        QString selectedPort = m_serialPortCombo->currentData().toString();
-        if (selectedPort.isEmpty() || !m_serialPortCombo->isEnabled()) {
-            selectedPort = m_serialPortEdit->text().trimmed();
-        }
-        config.port = selectedPort;
-        config.baudRate = m_baudRateCombo->currentText().toInt();
-        config.dataBits = m_dataBitsCombo->currentText().toInt();
-        config.stopBits = m_stopBitsCombo->currentText().toInt();
-        config.parity = m_parityCombo->currentIndex();
-    } else {
-        // Network
-        config.port = QString("%1:%2")
-                          .arg(m_ipAddressEdit->text())
-                          .arg(m_portSpin->value());
-        config.baudRate = 0;
-        config.dataBits = 8;
-        config.stopBits = 1;
-        config.parity = 0;
-    }
-
-    // Other fields
-    config.civAddress = m_civAddressWidget->getCivAddress();
-    config.pollInterval = m_pollIntervalSpin->value();
-    config.icomUsername = m_icomUsernameEdit->text();
-    config.icomPassword = m_icomPasswordEdit->text();
-    config.icomClientName = m_icomClientNameEdit->text();
-
-    return config;
 }
 
 void PreferencesDialog::onUdpAddDestination() {
@@ -3381,93 +3052,6 @@ void PreferencesDialog::onDXClusterServerChanged(const QString& text) {
     m_dxClusterServerCombo->lineEdit()->setStyleSheet("");
 }
 
-void PreferencesDialog::populateRadioList() {
-    // Save current selection
-    int currentModelId = m_radioModelCombo->currentData().toInt();
-
-    // Block signals while repopulating
-    m_radioModelCombo->blockSignals(true);
-    m_radioModelCombo->clear();
-
-    // Add default item
-    m_radioModelCombo->addItem("Select a radio...", 0);
-
-    // Get all radios from hamlib
-    QList<RadioModelInfo> allRadios = RadioEnumerator::getAvailableRadios();
-
-    // Filter based on status checkboxes
-    QList<RadioModelInfo> filteredRadios;
-    RadioModelInfo k4Radio;
-    bool k4Found = false;
-
-    for (const RadioModelInfo& radio : allRadios) {
-        bool include = false;
-
-        if (radio.status == "Stable" && m_showStableRadiosCheck->isChecked()) {
-            include = true;
-        } else if (radio.status == "Beta" && m_showBetaRadiosCheck->isChecked()) {
-            include = true;
-        } else if (radio.status == "Alpha" && m_showAlphaRadiosCheck->isChecked()) {
-            include = true;
-        } else if (radio.status == "Untested" && m_showUntestedRadiosCheck->isChecked()) {
-            include = true;
-        }
-
-        if (include) {
-            // Check if this is the Elecraft K4
-            if (radio.manufacturer == "Elecraft" && radio.modelName == "K4") {
-                k4Radio = radio;
-                k4Found = true;
-            } else {
-                filteredRadios.append(radio);
-            }
-        }
-    }
-
-    // Add K4 first if found (user preference)
-    int addedCount = 0;
-    if (k4Found) {
-        QString displayText = k4Radio.displayName();
-        if (k4Radio.status != "Stable") {
-            displayText += QString(" (%1)").arg(k4Radio.status);
-        }
-        m_radioModelCombo->addItem(displayText, k4Radio.modelId);
-        addedCount++;
-    }
-
-    // Add all other radios
-    for (const RadioModelInfo& radio : filteredRadios) {
-        // Display format: "Manufacturer Model (Status)"
-        // Only show status if not Stable to reduce clutter
-        QString displayText = radio.displayName();
-        if (radio.status != "Stable") {
-            displayText += QString(" (%1)").arg(radio.status);
-        }
-        m_radioModelCombo->addItem(displayText, radio.modelId);
-        addedCount++;
-    }
-
-    m_radioModelCombo->addItem("Custom (enter model ID below)...", -1);
-
-    // Set up auto-completion
-    QCompleter* completer = new QCompleter(this);
-    completer->setModel(m_radioModelCombo->model());
-    completer->setCompletionMode(QCompleter::PopupCompletion);
-    completer->setCaseSensitivity(Qt::CaseInsensitive);
-    completer->setFilterMode(Qt::MatchContains);
-    m_radioModelCombo->setCompleter(completer);
-
-    // Restore selection if possible
-    int index = m_radioModelCombo->findData(currentModelId);
-    if (index >= 0) {
-        m_radioModelCombo->setCurrentIndex(index);
-    }
-
-    m_radioModelCombo->blockSignals(false);
-
-    LOG_DEBUG("PreferencesDialog", QString("Radio list filtered: %1 radios shown (out of %2 total)").arg(addedCount).arg(allRadios.size()));
-}
-
 void PreferencesDialog::populateAmplifierList() {
     // Block signals while populating
     m_amplifierModelCombo->blockSignals(true);
@@ -3529,297 +3113,17 @@ void PreferencesDialog::populateRotatorList() {
     m_rotatorModelCombo->blockSignals(false);
 }
 
-void PreferencesDialog::onRadioStatusFilterChanged() {
-    // Repopulate radio list with new filter settings
-    populateRadioList();
-}
-
-void PreferencesDialog::onFindK4Radios() {
-    LOG_INFO("PreferencesDialog", "Starting K4 radio discovery...");
-
-    // Clear previous results
-    m_foundK4Radios.clear();
-
-    // Disable button during discovery
-    m_findK4Button->setEnabled(false);
-    m_findK4Button->setText("Searching...");
-
-    // Start discovery
-    m_k4Discovery->startDiscovery();
-}
-
-void PreferencesDialog::onK4RadioFound(const K4RadioInfo& radio) {
-    LOG_INFO("PreferencesDialog", QString("K4 radio found: %1 at %2")
-        .arg(radio.serialNumber)
-        .arg(radio.ipAddress));
-
-    m_foundK4Radios.append(radio);
-}
-
-void PreferencesDialog::onK4DiscoveryFinished(int count) {
-    LOG_INFO("PreferencesDialog", QString("K4 discovery finished - found %1 radio(s)").arg(count));
-
-    // Re-enable button
-    m_findK4Button->setEnabled(true);
-    m_findK4Button->setText("Find K4 Radios on Network");
-
-    // Display results
-    if (count == 0) {
-        DialogHelper::information(this, "K4 Discovery",
-            "No K4 radios found on the network.\n\n"
-            "Make sure:\n"
-            "• Your K4 is powered on\n"
-            "• Your K4 is connected to the same network\n"
-            "• Your computer's firewall allows UDP port 9100");
-    } else {
-        QString message = QString("Found %1 K4 radio%2:\n\n")
-            .arg(count)
-            .arg(count == 1 ? "" : "s");
-
-        for (const K4RadioInfo& radio : m_foundK4Radios) {
-            message += QString("• Serial Number: %1\n")
-                .arg(radio.serialNumber);
-            message += QString("  IP Address: %1\n")
-                .arg(radio.ipAddress);
-            message += QString("  Hostname: %1\n\n")
-                .arg(radio.hostname());
-        }
-
-        // If network connection is selected, offer to use discovered IP
-        if (m_networkRadio->isChecked()) {
-            if (count == 1) {
-                // Single K4 found - ask if they want to use it
-                message += QString("Use IP address %1?").arg(m_foundK4Radios.first().ipAddress);
-
-                QMessageBox::StandardButton reply = DialogHelper::question(
-                    this,
-                    "K4 Discovery",
-                    message,
-                    QMessageBox::Yes | QMessageBox::No
-                );
-
-                if (reply == QMessageBox::Yes) {
-                    m_ipAddressEdit->setText(m_foundK4Radios.first().ipAddress);
-                    m_portSpin->setValue(K4_DEFAULT_RIGCTLD_PORT);  // K4 uses port 9200
-                }
-            } else {
-                // Multiple K4s found - let user select which one
-                QStringList radioOptions;
-                for (const K4RadioInfo& radio : m_foundK4Radios) {
-                    // K4/0 (K4 Zero) uses "K4Z" prefix, regular K4 uses "K4"
-                    QString prefix = (radio.rigType.toLower() == "k4z") ? "K4Z" : "K4";
-                    radioOptions << QString("%1 SN%2 - %3")
-                        .arg(prefix)
-                        .arg(radio.serialNumber.rightJustified(5, '0'))
-                        .arg(radio.ipAddress);
-                }
-
-                bool ok;
-                QString selection = QInputDialog::getItem(
-                    this,
-                    "Select K4 Radio",
-                    message + "\nSelect a K4 radio to use:",
-                    radioOptions,
-                    0,      // default to first item
-                    false,  // not editable
-                    &ok
-                );
-
-                if (ok && !selection.isEmpty()) {
-                    // Find the selected radio and populate IP
-                    int index = radioOptions.indexOf(selection);
-                    if (index >= 0 && index < m_foundK4Radios.count()) {
-                        m_ipAddressEdit->setText(m_foundK4Radios[index].ipAddress);
-                        m_portSpin->setValue(K4_DEFAULT_RIGCTLD_PORT);  // K4 uses port 9200
-                    }
-                }
-            }
-        } else {
-            DialogHelper::information(this, "K4 Discovery", message);
-        }
-    }
-}
-
-void PreferencesDialog::refreshSerialPorts() {
-    // Remember current selection
-    QString currentPort = m_serialPortCombo->currentData().toString();
-    if (currentPort.isEmpty() && m_serialPortCombo->currentIndex() >= 0) {
-        currentPort = m_serialPortCombo->currentText();
-    }
-
-    // Clear and repopulate
-    m_serialPortCombo->clear();
-
-    QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
-
-    if (ports.isEmpty()) {
-        m_serialPortCombo->addItem("(No serial ports detected)", "");
-        m_serialPortCombo->setEnabled(false);
-    } else {
-        m_serialPortCombo->setEnabled(true);
-
-        for (const QSerialPortInfo& port : ports) {
-            QString displayName = port.portName();
-            if (!port.description().isEmpty()) {
-                displayName += QString(" (%1)").arg(port.description());
-            }
-            m_serialPortCombo->addItem(displayName, port.portName());
-        }
-
-        // Try to restore previous selection
-        if (!currentPort.isEmpty()) {
-            int index = m_serialPortCombo->findData(currentPort);
-            if (index >= 0) {
-                m_serialPortCombo->setCurrentIndex(index);
-            }
-        }
-    }
-
-    LOG_DEBUG("PreferencesDialog", QString("Refreshed serial ports: %1 found").arg(ports.count()));
-}
-
 void PreferencesDialog::showEvent(QShowEvent* event) {
     QDialog::showEvent(event);
 
-    // Refresh ports when dialog becomes visible
-    refreshSerialPorts();
-
-    // Start auto-refresh timer if serial mode is selected
-    if (m_serialRadio && m_serialRadio->isChecked()) {
-        m_portRefreshTimer->start();
-    }
+    // Refresh radio list when dialog becomes visible
+    refreshRadioList();
+    refreshRadioAssignCombos();
+    refreshStationProfileCombo();
 }
 
 void PreferencesDialog::hideEvent(QHideEvent* event) {
-    // Stop auto-refresh timer when dialog is hidden
-    m_portRefreshTimer->stop();
-
     QDialog::hideEvent(event);
-}
-
-void PreferencesDialog::onFindNetworkRadios() {
-    // Dispatcher - calls K4 or Icom discovery based on selected radio type
-    int radioType = m_radioTypeCombo->currentData().toInt();
-
-    if (radioType == 2) {  // ICOM_DIRECT
-        onFindIcomRadios();
-    } else if (radioType == 1) {  // K4_DIRECT
-        onFindK4Radios();
-    } else {
-        // Auto or Hamlib - show info message
-        DialogHelper::information(this, "Network Discovery",
-            "Network discovery is only available for:\n\n"
-            "• K4 Direct (Elecraft K4 radios)\n"
-            "• Icom Direct (Icom network radios)\n\n"
-            "Please select one of these radio types to use discovery.");
-    }
-}
-
-void PreferencesDialog::onFindIcomRadios() {
-    LOG_INFO("PreferencesDialog", "Starting Icom radio discovery...");
-
-    // Clear previous results
-    m_foundIcomRadios.clear();
-
-    // Disable button during discovery
-    m_findK4Button->setEnabled(false);
-    m_findK4Button->setText("Searching...");
-
-    // Start discovery
-    m_icomDiscovery->startDiscovery();
-}
-
-void PreferencesDialog::onIcomRadioFound(const IcomRadioDiscoveryInfo& radio) {
-    LOG_INFO("PreferencesDialog", QString("Icom radio found: %1 (ID: 0x%2) on %3")
-        .arg(radio.ipAddress)
-        .arg(radio.radioId, 8, 16, QChar('0'))
-        .arg(radio.networkInterface));
-
-    m_foundIcomRadios.append(radio);
-}
-
-void PreferencesDialog::onIcomDiscoveryFinished(int count) {
-    LOG_INFO("PreferencesDialog", QString("Icom discovery finished - found %1 radio(s)").arg(count));
-
-    // Re-enable button
-    m_findK4Button->setEnabled(true);
-    m_findK4Button->setText("Find Icom Radios on Network");
-
-    // Display results
-    if (count == 0) {
-        DialogHelper::information(this, "Icom Discovery",
-            "No Icom radios found on the network.\n\n"
-            "Make sure:\n"
-            "• Your Icom radio is powered on\n"
-            "• The radio is connected to the same network\n"
-            "• Your computer's firewall allows UDP port 50001\n"
-            "• Your radio model supports network operation\n"
-            "  (IC-705, IC-7100, IC-7300MK2, IC-7610, IC-7700, IC-7760,\n"
-            "   IC-7800, IC-7850, IC-7851, IC-905, IC-9700, IC-R8600)");
-    } else {
-        QString message = QString("Found %1 Icom radio%2:\n\n")
-            .arg(count)
-            .arg(count == 1 ? "" : "s");
-
-        for (const IcomRadioDiscoveryInfo& radio : m_foundIcomRadios) {
-            message += QString("• IP Address: %1\n")
-                .arg(radio.ipAddress);
-            message += QString("  Radio ID: 0x%1\n")
-                .arg(radio.radioId, 8, 16, QChar('0'));
-            message += QString("  Interface: %1\n\n")
-                .arg(radio.networkInterface);
-        }
-
-        // If network connection is selected, offer to use discovered IP
-        if (m_networkRadio->isChecked()) {
-            if (count == 1) {
-                // Single Icom found - ask if they want to use it
-                message += QString("Use IP address %1?").arg(m_foundIcomRadios.first().ipAddress);
-
-                QMessageBox::StandardButton reply = DialogHelper::question(
-                    this,
-                    "Icom Discovery",
-                    message,
-                    QMessageBox::Yes | QMessageBox::No
-                );
-
-                if (reply == QMessageBox::Yes) {
-                    m_ipAddressEdit->setText(m_foundIcomRadios.first().ipAddress);
-                    m_portSpin->setValue(50001);  // Icom uses port 50001
-                }
-            } else {
-                // Multiple Icom radios found - let user select which one
-                QStringList radioOptions;
-                for (const IcomRadioDiscoveryInfo& radio : m_foundIcomRadios) {
-                    radioOptions << QString("%1 (ID: 0x%2)")
-                        .arg(radio.ipAddress)
-                        .arg(radio.radioId, 8, 16, QChar('0'));
-                }
-
-                bool ok;
-                QString selection = QInputDialog::getItem(
-                    this,
-                    "Select Icom Radio",
-                    message + "\nSelect an Icom radio to use:",
-                    radioOptions,
-                    0,      // default to first item
-                    false,  // not editable
-                    &ok
-                );
-
-                if (ok && !selection.isEmpty()) {
-                    // Find the selected radio and populate IP
-                    int index = radioOptions.indexOf(selection);
-                    if (index >= 0 && index < m_foundIcomRadios.count()) {
-                        m_ipAddressEdit->setText(m_foundIcomRadios[index].ipAddress);
-                        m_portSpin->setValue(50001);  // Icom uses port 50001
-                    }
-                }
-            }
-        } else {
-            DialogHelper::information(this, "Icom Discovery", message);
-        }
-    }
 }
 
 } // namespace TR4QT

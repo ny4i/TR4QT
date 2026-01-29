@@ -805,6 +805,24 @@ bool Database::migrateSchema() {
         LOG_INFO("Database", "assisted column added (ASSISTED, NON-ASSISTED)");
     }
 
+    // Migration 10: Add radio_nr column to qsos table for SO2R support (v3.40.0)
+    query.exec("PRAGMA table_info(qsos)");
+    bool hasRadioNr = false;
+    while (query.next()) {
+        QString columnName = query.value(1).toString();
+        if (columnName == "radio_nr") hasRadioNr = true;
+    }
+
+    if (!hasRadioNr) {
+        LOG_INFO("Database", "Migrating schema: Adding radio_nr column to qsos table");
+        if (!query.exec("ALTER TABLE qsos ADD COLUMN radio_nr INTEGER DEFAULT 1")) {
+            m_lastError = QString("Failed to add radio_nr column: %1").arg(query.lastError().text());
+            LOG_ERROR("Database", m_lastError);
+            return false;
+        }
+        LOG_INFO("Database", "radio_nr column added (for SO2R support)");
+    }
+
     // Set application ID if not already set (for databases created before versioning)
     uint32_t currentAppId = getApplicationId();
     if (currentAppId == 0) {

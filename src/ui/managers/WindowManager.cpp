@@ -3,7 +3,7 @@
 #include "../widgets/BandMapWidget.h"
 #include "../widgets/RadioControlWidget.h"
 #include "../widgets/MultiplierWidget.h"
-#include "../widgets/StatisticsWindow.h"
+#include "../statistics/StatisticsWindow.h"
 #include "../NativeMapViewer.h"
 #include "../dialogs/GraylineMapDialog.h"
 #include <QTimer>

@@ -10,11 +10,12 @@
 #include "dialogs/FunctionKeysWindow.h"
 #include "dialogs/GraylineMapDialog.h"
 #include "dialogs/QSOSearchDialog.h"
+#include "dialogs/SO2RConfigDialog.h"
 #include "widgets/DXClusterWindow.h"
 #include "widgets/BandMapWidget.h"
 #include "widgets/RadioControlWidget.h"
 #include "widgets/MultiplierWidget.h"
-#include "widgets/StatisticsWindow.h"
+#include "statistics/StatisticsWindow.h"
 #include "windows/AmplifierControlWindow.h"
 #include "widgets/QSOSearchPanel.h"
 #include "NativeMapViewer.h"
@@ -111,6 +112,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_dxClusterWindow(nullptr)
     , m_bandMapWindow(nullptr)
     , m_radioControlWindow(nullptr)
+    , m_radio2ControlWindow(nullptr)
     , m_multiplierWindow(nullptr)
     , m_statisticsWindow(nullptr)
     , m_functionKeysWindow(nullptr)
@@ -233,7 +235,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_inputHandler, &InputHandlerService::focusCallsign,
             m_callsignEntry, qOverload<>(&QLineEdit::setFocus));
     connect(m_inputHandler, &InputHandlerService::statusMessage,
-            this, [this](const QString& msg) { m_statusLabel->setText(msg); });
+            this, &MainWindow::setStatusMessage);
     LOG_DEBUG("MainWindow", "InputHandlerService created and connected");
 
     loadSettings();
@@ -307,8 +309,10 @@ MainWindow::MainWindow(QWidget* parent)
             this, &MainWindow::onRadioError);
     connect(m_radioManager, &RadioManager::radioModelChanged,
             this, &MainWindow::onRadioModelChanged);
+    connect(m_radioManager, &RadioManager::radioModelIdentified,
+            this, &MainWindow::onRadioModelIdentified);
     connect(m_radioManager, &RadioManager::statusMessage,
-            this, [this](const QString& message) { m_statusLabel->setText(message); });
+            this, &MainWindow::setStatusMessage);
     connect(m_radioManager, &RadioManager::flashStateChanged,
             this, [this](bool flashState) {
                 m_radioFlashState = flashState;
@@ -324,6 +328,22 @@ MainWindow::MainWindow(QWidget* parent)
     // Fast frequency update from transceive mode (bypasses slow radioStateUpdated)
     connect(m_radioManager, &RadioManager::frequencyChanged,
             this, &MainWindow::onFastFrequencyUpdate);
+
+    // SO2R signals - update UI when active radio changes or standby frequency changes
+    connect(m_radioManager, &RadioManager::activeRadioChanged,
+            this, [this](int radioIndex) {
+                LOG_INFO("MainWindow", QString("Active radio changed to Radio %1").arg(radioIndex + 1));
+                updateRadioStatusGrid();
+                // Re-emit signals for external listeners (band map, etc.)
+                RadioState state = m_radioManager->currentState();
+                emit currentFrequencyChanged(state.frequencyA);
+                emit currentBandChanged(state.bandA);
+            });
+    connect(m_radioManager, &RadioManager::standbyFrequencyChanged,
+            this, [this](freq_t /* frequency */) {
+                // Update the standby frequency display in the radio status grid
+                updateRadioStatusGrid();
+            });
 
     // NOTE: Radio reconnection and flash timers are now handled by RadioManager
     // These local timers and variables (m_radioReconnectTimer, m_radioFlashTimer, etc.)
@@ -354,16 +374,16 @@ MainWindow::MainWindow(QWidget* parent)
         if (config.hamlibModelId > 0 && autoConnectEnabled) {
             // Auto-connect enabled - connect now
             LOG_INFO("MainWindow", "Auto-connecting to radio...");
-            m_statusLabel->setText("Auto-connecting to radio...");
+            setStatusMessage("Auto-connecting to radio...");
             QTimer::singleShot(500, this, &MainWindow::onRadioConnect);  // Slight delay to let UI initialize
         } else if (config.hamlibModelId > 0) {
-            m_statusLabel->setText("Found saved radio configuration. Use Radio → Connect to connect.");
+            setStatusMessage("Found saved radio configuration. Use Radio → Connect to connect.");
         } else {
-            m_statusLabel->setText("No valid radio model selected. Use Radio → Configure.");
+            setStatusMessage("No valid radio model selected. Use Radio → Configure.");
         }
     } else {
         LOG_DEBUG("MainWindow", "No radio config found");
-        m_statusLabel->setText("No radio configuration found. Use Radio → Configure.");
+        setStatusMessage("No radio configuration found. Use Radio → Configure.");
     }
 
     // Check if grid square is configured (needed for azimuth/distance calculations)
@@ -392,7 +412,7 @@ MainWindow::MainWindow(QWidget* parent)
     // Check auto-send status and show message if disabled
     QTimer::singleShot(UITiming::QUICK_DELAY_MS, this, [this]() {
         if (!AppSettings::instance().getCWAutoSendEnabled()) {
-            m_statusLabel->setText("⚠ CW Auto-Send is OFF - Enable in Radio menu");
+            setStatusMessage("⚠ CW Auto-Send is OFF - Enable in Radio menu");
             m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
                 .arg(ThemeManager::instance().colorName(ColorRole::WarningText)));
             LOG_INFO("MainWindow", "Auto-Send is disabled at startup");
@@ -511,6 +531,7 @@ void MainWindow::createMenuBar() {
     config.onShowBandMap = [this]() { onShowBandMap(); };
     config.onShowDXCluster = [this]() { onShowDXCluster(); };
     config.onShowRadioControl = [this]() { onShowRadioControl(); };
+    config.onShowRadio2Control = [this]() { onShowRadio2Control(); };
     config.onSendMorse = [this]() { onSendMorse(); };
     config.onEditCWMessages = [this]() { onEditCWMessages(); };
     config.onShowFunctionKeysRef = [this]() { onShowFunctionKeysRef(); };
@@ -549,6 +570,7 @@ void MainWindow::createMenuBar() {
     m_bandMapAction = m_menuManager->bandMapAction();
     m_dxClusterAction = m_menuManager->dxClusterAction();
     m_radioControlAction = m_menuManager->radioControlAction();
+    m_radio2ControlAction = m_menuManager->radio2ControlAction();
     m_multipliersAction = m_menuManager->multipliersAction();
     m_statisticsAction = m_menuManager->statisticsAction();
     m_sectionsMapAction = m_menuManager->sectionsMapAction();
@@ -775,72 +797,82 @@ QWidget* MainWindow::createBottomPanel() {
     bottomLayout->setContentsMargins(10, 4, 10, 4);
 
     // LEFT: Radio status (frequency, band/mode, time) in container widget
+    // === Radio Status Widget (TR4W-style layout) ===
+    // Layout: [Band/Mode Box] [Freq Stack] [WPM] [Date/Time Stack]
     QWidget* radioStatusWidget = new QWidget(this);
-    radioStatusWidget->setAutoFillBackground(true);  // Prevent transparent/blank rendering
+    radioStatusWidget->setAutoFillBackground(true);
     QHBoxLayout* radioLayout = new QHBoxLayout(radioStatusWidget);
-    radioLayout->setSpacing(15);
-    radioLayout->setContentsMargins(10, 5, 10, 5);
+    radioLayout->setSpacing(10);
+    radioLayout->setContentsMargins(5, 2, 5, 2);
 
     QFont labelFont = FontManager::instance().monospaceFont(11);
     labelFont.setBold(true);
+    QFont freqFont = FontManager::instance().monospaceFont(10);
 
-    // Band/Mode label (e.g., "15SSB")
+    // --- Band/Mode box (e.g., "15M USB") with border ---
     m_radioFreqBandLabel = new QLabel("--", radioStatusWidget);
     m_radioFreqBandLabel->setFont(labelFont);
-    m_radioFreqBandLabel->setMinimumWidth(UIDefaults::RADIO_FREQ_BAND_LABEL_WIDTH);
     m_radioFreqBandLabel->setAlignment(Qt::AlignCenter);
+    m_radioFreqBandLabel->setMinimumWidth(UIDefaults::RADIO_FREQ_BAND_LABEL_WIDTH);
+    m_radioFreqBandLabel->setStyleSheet("QLabel { border: 1px solid gray; padding: 2px 5px; }");
 
-    // Frequency label
-    QFont freqFont = FontManager::instance().monospaceFont(10);
-    m_radioFreqLabel = new QLabel("0.000 MHz", radioStatusWidget);
+    // --- Frequency stack (SO2R: standby on top grayed, active below bright) ---
+    QWidget* freqStackWidget = new QWidget(radioStatusWidget);
+    QVBoxLayout* freqStackLayout = new QVBoxLayout(freqStackWidget);
+    freqStackLayout->setSpacing(0);
+    freqStackLayout->setContentsMargins(0, 0, 0, 0);
+
+    // Standby frequency (hidden when not in SO2R mode)
+    m_standbyFreqLabel = new QLabel("", freqStackWidget);
+    m_standbyFreqLabel->setFont(freqFont);
+    m_standbyFreqLabel->setAlignment(Qt::AlignLeft);
+    m_standbyFreqLabel->setMinimumWidth(UIDefaults::RADIO_FREQ_LABEL_WIDTH);
+    m_standbyFreqLabel->setVisible(false);  // Hidden by default
+
+    // Active frequency
+    m_radioFreqLabel = new QLabel("0.000", freqStackWidget);
     m_radioFreqLabel->setFont(freqFont);
+    m_radioFreqLabel->setAlignment(Qt::AlignLeft);
     m_radioFreqLabel->setMinimumWidth(UIDefaults::RADIO_FREQ_LABEL_WIDTH);
-    m_radioFreqLabel->setAlignment(Qt::AlignCenter);
 
-    // Vertical layout for band/mode and frequency
-    QVBoxLayout* freqLayout = new QVBoxLayout();
-    freqLayout->setSpacing(2);
-    freqLayout->addWidget(m_radioFreqBandLabel);
-    freqLayout->addWidget(m_radioFreqLabel);
+    freqStackLayout->addWidget(m_standbyFreqLabel);
+    freqStackLayout->addWidget(m_radioFreqLabel);
 
-    // WPM label for CW speed
+    // --- WPM label ---
     m_radioWpmLabel = new QLabel("-- WPM", radioStatusWidget);
     m_radioWpmLabel->setFont(labelFont);
     m_radioWpmLabel->setAlignment(Qt::AlignCenter);
     m_radioWpmLabel->setMinimumWidth(UIDefaults::RADIO_WPM_LABEL_WIDTH);
-    m_radioWpmLabel->setEnabled(false);  // Grayed out by default
+    m_radioWpmLabel->setEnabled(false);
 
-    // Date/Time labels - stacked vertically to save width
+    // --- Date/Time stack ---
+    QWidget* dateTimeWidget = new QWidget(radioStatusWidget);
+    QVBoxLayout* dateTimeLayout = new QVBoxLayout(dateTimeWidget);
+    dateTimeLayout->setSpacing(0);
+    dateTimeLayout->setContentsMargins(0, 0, 0, 0);
+
     QFont dateTimeFont = FontManager::instance().monospaceFont(labelFont.pointSize());
 
-    m_radioDateLabel = new QLabel("", radioStatusWidget);
+    m_radioDateLabel = new QLabel("", dateTimeWidget);
     m_radioDateLabel->setFont(dateTimeFont);
     m_radioDateLabel->setAlignment(Qt::AlignCenter);
-    m_radioDateLabel->setMinimumWidth(UIDefaults::RADIO_DATE_LABEL_WIDTH);  // Narrower than single label
 
-    m_radioTimeLabel = new QLabel("", radioStatusWidget);
+    m_radioTimeLabel = new QLabel("", dateTimeWidget);
     m_radioTimeLabel->setFont(dateTimeFont);
     m_radioTimeLabel->setAlignment(Qt::AlignCenter);
-    m_radioTimeLabel->setMinimumWidth(UIDefaults::RADIO_TIME_LABEL_WIDTH);
 
-    // Vertical layout for date and time
-    QVBoxLayout* dateTimeLayout = new QVBoxLayout();
-    dateTimeLayout->setSpacing(2);
     dateTimeLayout->addWidget(m_radioDateLabel);
     dateTimeLayout->addWidget(m_radioTimeLabel);
 
-    radioLayout->addLayout(freqLayout);
+    // Add to horizontal layout
+    radioLayout->addWidget(m_radioFreqBandLabel);
+    radioLayout->addWidget(freqStackWidget);
     radioLayout->addWidget(m_radioWpmLabel);
-    radioLayout->addLayout(dateTimeLayout);
+    radioLayout->addWidget(dateTimeWidget);
 
-    // Calculate minimum width for radio status widget based on child components
-    int radioStatusMinWidth = m_radioFreqLabel->minimumWidth() +  // 100px
-                              m_radioWpmLabel->minimumWidth() +   // 80px
-                              m_radioDateLabel->minimumWidth() +  // 120px
-                              radioLayout->spacing() * 2 +        // Spacing between 3 items
-                              radioLayout->contentsMargins().left() +
-                              radioLayout->contentsMargins().right();
-    radioStatusWidget->setMinimumWidth(radioStatusMinWidth);
+    // Set fixed width to prevent layout shifts
+    const int RADIO_STATUS_MIN_WIDTH = 320;
+    radioStatusWidget->setMinimumWidth(RADIO_STATUS_MIN_WIDTH);
 
     bottomLayout->addWidget(radioStatusWidget);
 
@@ -935,16 +967,21 @@ QWidget* MainWindow::createBottomPanel() {
 
     // Time and rate
     QHBoxLayout* timeRow = new QHBoxLayout();
+    timeRow->setSpacing(10);  // Explicit spacing between labels
     m_timeLabel = new QLabel("00:00:00", this);
     m_timeLabel->setFont(monoFont);
     m_timeLabel->setMinimumWidth(UIDefaults::TIME_LABEL_MIN_WIDTH);  // Fixed width to prevent layout shifts
     m_timeLabel->setAlignment(Qt::AlignLeft);
     m_thisHrLabel = new QLabel("This Hr = 0", this);
     m_thisHrLabel->setFont(monoFont);
+    m_thisHrLabel->setMinimumWidth(UIDefaults::THIS_HR_LABEL_MIN_WIDTH);
     m_rateLabel = new QLabel("Rate = 0", this);
     m_rateLabel->setFont(monoFont);
+    m_rateLabel->setMinimumWidth(UIDefaults::RATE_LABEL_MIN_WIDTH);
     timeRow->addWidget(m_timeLabel);
+    timeRow->addSpacing(5);  // Extra space before "This Hr"
     timeRow->addWidget(m_thisHrLabel);
+    timeRow->addSpacing(5);  // Extra space before "Rate"
     timeRow->addWidget(m_rateLabel);
     timeRow->addStretch();
 
@@ -1001,7 +1038,10 @@ void MainWindow::createStatusBar() {
     setStatusBar(status);
 
     m_statusLabel = new QLabel("Ready", this);
-    status->addWidget(m_statusLabel);
+    // Allow status label to shrink and elide text to prevent overlap with permanent widgets
+    m_statusLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    m_statusLabel->setMinimumWidth(100);
+    status->addWidget(m_statusLabel, 1);  // stretch factor 1 to take available space
 
     // Operating mode indicator (CQ vs S&P)
     m_operatingModeLabel = new QLabel("CQ", this);
@@ -1118,20 +1158,13 @@ void MainWindow::loadSettings() {
         return;
     }
 
-    // Load and restore window geometry
-    WindowGeometry geometry = m_settingsManager->loadWindowGeometry();
+    // Load window geometry (but defer restoration until showEvent)
+    m_pendingGeometry = m_settingsManager->loadWindowGeometry();
 
-    if (!geometry.mainWindowGeometry.isNull()) {
-        restoreGeometry(geometry.mainWindowGeometry);
-    }
-    if (!geometry.mainWindowState.isNull()) {
-        restoreState(geometry.mainWindowState);
-    }
-
-    // Restore operator
-    if (!geometry.currentOperator.isEmpty()) {
+    // Restore operator immediately (doesn't need deferral)
+    if (!m_pendingGeometry.currentOperator.isEmpty()) {
         if (m_operatorLabel) {
-            m_operatorLabel->setText(geometry.currentOperator);
+            m_operatorLabel->setText(m_pendingGeometry.currentOperator);
         }
     }
 
@@ -1143,12 +1176,32 @@ void MainWindow::loadSettings() {
             this, &MainWindow::applyTheme);
     applyTheme();
 
-    // Defer child window restoration until event loop is running
-    // Qt forum advice: restoreGeometry works better after show() and event loop start
-    // Using QTimer::singleShot(0, ...) defers execution to after event loop starts
-    QTimer::singleShot(0, this, [this, geometry]() {
-        restoreChildWindows(geometry);
-    });
+    // Geometry restoration is now handled in showEvent()
+}
+
+void MainWindow::showEvent(QShowEvent* event) {
+    QMainWindow::showEvent(event);
+
+    // Only restore geometry once, on first show
+    if (!m_geometryRestored) {
+        m_geometryRestored = true;
+
+        // Use a short delay to ensure the window is fully laid out
+        // This fires after the event loop processes the show event
+        const int GEOMETRY_RESTORE_DELAY_MS = 50;
+        QTimer::singleShot(GEOMETRY_RESTORE_DELAY_MS, this, [this]() {
+            // Restore main window geometry first
+            if (!m_pendingGeometry.mainWindowGeometry.isNull()) {
+                LOG_DEBUG("MainWindow", "Restoring main window geometry (from showEvent)");
+                restoreGeometry(m_pendingGeometry.mainWindowGeometry);
+            }
+            if (!m_pendingGeometry.mainWindowState.isNull()) {
+                restoreState(m_pendingGeometry.mainWindowState);
+            }
+            // Then restore child windows
+            restoreChildWindows(m_pendingGeometry);
+        });
+    }
 }
 
 void MainWindow::restoreChildWindows(const WindowGeometry& geometry) {
@@ -1354,6 +1407,10 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     if (m_multiplierWindow) {
         m_multiplierWindow->close();
     }
+    if (m_statisticsWindow) {
+        m_statisticsWindow->rateCalculator()->stopAutoUpdate();
+        m_statisticsWindow->close();
+    }
 
     // Disconnect radio before closing and wait for completion
     // CRITICAL: Must allow disconnect packets to be sent before app exits
@@ -1381,7 +1438,7 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         // Only allow CW speed change in CW mode with radio connected
         bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
         if (!isCWMode || !m_radioConnected) {
-            m_statusLabel->setText("CW speed adjust requires CW mode and radio connection");
+            setStatusMessage("CW speed adjust requires CW mode and radio connection");
             event->accept();
             return;
         }
@@ -1394,7 +1451,7 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         // Send to radio - display will update when radio responds via stateUpdated
         m_radio->setCWSpeed(newWpm);
 
-        m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
+        setStatusMessage(QString("CW Speed: %1 WPM").arg(newWpm));
         LOG_DEBUG("MainWindow", QString("WPM increased to %1 (PgUp)").arg(newWpm));
         event->accept();
         return;
@@ -1405,7 +1462,7 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         // Only allow CW speed change in CW mode with radio connected
         bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
         if (!isCWMode || !m_radioConnected) {
-            m_statusLabel->setText("CW speed adjust requires CW mode and radio connection");
+            setStatusMessage("CW speed adjust requires CW mode and radio connection");
             event->accept();
             return;
         }
@@ -1418,7 +1475,7 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         // Send to radio - display will update when radio responds via stateUpdated
         m_radio->setCWSpeed(newWpm);
 
-        m_statusLabel->setText(QString("CW Speed: %1 WPM").arg(newWpm));
+        setStatusMessage(QString("CW Speed: %1 WPM").arg(newWpm));
         LOG_DEBUG("MainWindow", QString("WPM decreased to %1 (PgDn)").arg(newWpm));
         event->accept();
         return;
@@ -1428,7 +1485,7 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Escape) {
         if (m_radioConnected) {
             m_radio->stopCW();
-            m_statusLabel->setText("CW transmission aborted");
+            setStatusMessage("CW transmission aborted");
             LOG_DEBUG("MainWindow", "CW transmission aborted via ESC key");
         }
         event->accept();
@@ -1537,7 +1594,15 @@ void MainWindow::raiseAllWindows(QWidget* activatedWindow) {
 void MainWindow::setStatusMessage(const QString& message) {
     // Log all status messages for debugging
     LOG_WARN("MainWindow", QString("Status: %1").arg(message));
-    m_statusLabel->setText(message);
+
+    // Truncate long messages to prevent overlap with permanent status widgets
+    const int MAX_STATUS_LENGTH = 80;  // Approximate character limit
+    QString displayMessage = message;
+    if (message.length() > MAX_STATUS_LENGTH) {
+        displayMessage = message.left(MAX_STATUS_LENGTH - 3) + "...";
+    }
+    m_statusLabel->setText(displayMessage);
+    m_statusLabel->setToolTip(message);  // Full message in tooltip
 }
 
 void MainWindow::onRadioConfigure() {
@@ -1547,7 +1612,7 @@ void MainWindow::onRadioConfigure() {
     dialog.setRadioConnected(m_radioConnected);
 
     if (dialog.exec() == QDialog::Accepted) {
-        m_statusLabel->setText("Radio configuration saved");
+        setStatusMessage("Radio configuration saved");
 
         // If currently connected, ask to reconnect
         if (m_radioConnected) {
@@ -1649,9 +1714,9 @@ void MainWindow::onNewOpenContest() {
 
         // Update status
         if (contestInfo.isExisting) {
-            m_statusLabel->setText(QString("Resumed contest: %1").arg(contestInfo.contestName));
+            setStatusMessage(QString("Resumed contest: %1").arg(contestInfo.contestName));
         } else {
-            m_statusLabel->setText(QString("Created new contest: %1").arg(contestInfo.contestName));
+            setStatusMessage(QString("Created new contest: %1").arg(contestInfo.contestName));
         }
 
         // Set focus to callsign entry for immediate logging
@@ -1687,7 +1752,7 @@ void MainWindow::onPreferences() {
             });
 
     if (dialog.exec() == QDialog::Accepted) {
-        m_statusLabel->setText("Preferences saved");
+        setStatusMessage("Preferences saved");
 
         // Apply font size changes immediately
         applyFontSettings();
@@ -1765,7 +1830,7 @@ void MainWindow::onImportADIF() {
 
     // Update status label
     if (!result.statusMessage.isEmpty()) {
-        m_statusLabel->setText(result.statusMessage);
+        setStatusMessage(result.statusMessage);
     }
 }
 
@@ -1780,7 +1845,7 @@ void MainWindow::onExportADIF() {
 
     // Update status label
     if (!result.statusMessage.isEmpty()) {
-        m_statusLabel->setText(result.statusMessage);
+        setStatusMessage(result.statusMessage);
     }
 }
 
@@ -1795,7 +1860,7 @@ void MainWindow::onExportCabrillo() {
 
     // Update status label
     if (!result.statusMessage.isEmpty()) {
-        m_statusLabel->setText(result.statusMessage);
+        setStatusMessage(result.statusMessage);
     }
 }
 
@@ -1836,11 +1901,16 @@ void MainWindow::onClearLog() {
             updateScoreDisplay();
             updateTimeDisplay();
 
+            // Clear statistics window
+            if (m_statisticsWindow) {
+                m_statisticsWindow->clearStats();
+            }
+
             if (result.backupCreated) {
-                m_statusLabel->setText(QString("Backup created: %1 - Log cleared")
+                setStatusMessage(QString("Backup created: %1 - Log cleared")
                     .arg(QFileInfo(result.backupPath).fileName()));
             } else {
-                m_statusLabel->setText("Log cleared");
+                setStatusMessage("Log cleared");
             }
             break;
     }
@@ -1925,7 +1995,7 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
         );
         if (!warning.isEmpty()) {
             // Display privilege warning in status bar with orange color
-            m_statusLabel->setText(QString("⚠ %1").arg(warning));
+            setStatusMessage(QString("⚠ %1").arg(warning));
             m_statusLabel->setStyleSheet("color: orange; font-weight: bold;");
             // Only log once per unique warning to avoid flooding
             if (warning != lastPrivilegeWarning) {
@@ -1976,11 +2046,49 @@ void MainWindow::onRadioError(const QString& error) {
 
 void MainWindow::onRadioModelChanged(const QString& model) {
     LOG_DEBUG("MainWindow", QString("MainWindow::onRadioModelChanged: %1").arg(model));
+    // Legacy signal - the model will be updated via onRadioModelIdentified with radio index
+    Q_UNUSED(model);
+}
+
+void MainWindow::onRadioModelIdentified(int radioIndex, const QString& model) {
+    LOG_DEBUG("MainWindow", QString("MainWindow::onRadioModelIdentified: Radio %1 = %2")
+              .arg(radioIndex + 1).arg(model));
+
+    if (radioIndex >= 0 && radioIndex < 2) {
+        m_radioModels[radioIndex] = model;
+    }
+
+    // Update the radio status label with current connected radios
     if (m_radioConnected) {
-        m_radioStatusLabel->setText(QString("Radio: %1").arg(model));
+        updateRadioStatusLabel();
+    }
+
+    // Update Radio Control window title if it exists
+    if (radioIndex == 0 && m_radioControlWindow) {
+        m_radioControlWindow->setWindowTitle(QString("Radio 1: %1").arg(model));
+    } else if (radioIndex == 1 && m_radio2ControlWindow) {
+        m_radio2ControlWindow->setWindowTitle(QString("Radio 2: %1").arg(model));
     }
 }
 
+void MainWindow::updateRadioStatusLabel() {
+    // Build status string showing connected radios
+    QStringList radioInfo;
+
+    if (!m_radioModels[0].isEmpty()) {
+        radioInfo << QString("R1: %1").arg(m_radioModels[0]);
+    }
+    if (!m_radioModels[1].isEmpty()) {
+        radioInfo << QString("R2: %1").arg(m_radioModels[1]);
+    }
+
+    if (radioInfo.isEmpty()) {
+        m_radioStatusLabel->setText("Radio: Connected");
+    } else {
+        m_radioStatusLabel->setText(radioInfo.join(", "));
+    }
+    m_radioStatusLabel->setStyleSheet("color: green; font-weight: bold;");
+}
 
 void MainWindow::updateConnectionStatus(bool connected) {
     m_connectAction->setEnabled(!connected);
@@ -1988,10 +2096,18 @@ void MainWindow::updateConnectionStatus(bool connected) {
 
     if (connected) {
         // DO NOT call m_radio->getRadioModel() here - that's a cross-thread blocking call!
-        // Radio model will be updated via onRadioModelChanged() signal
-        m_radioStatusLabel->setText("Radio: Connected");
+        // Radio models will be updated via onRadioModelIdentified() signal
+        // For now show generic connected, will be updated when model is identified
+        if (m_radioModels[0].isEmpty() && m_radioModels[1].isEmpty()) {
+            m_radioStatusLabel->setText("Radio: Connecting...");
+        } else {
+            updateRadioStatusLabel();
+        }
         m_radioStatusLabel->setStyleSheet("color: green; font-weight: bold;");
     } else {
+        // Clear stored models on disconnect
+        m_radioModels[0].clear();
+        m_radioModels[1].clear();
         m_radioStatusLabel->setText("Radio: Not Connected");
         m_radioStatusLabel->setStyleSheet("color: red; font-weight: bold;");
     }
@@ -2010,7 +2126,7 @@ void MainWindow::onLogQSO() {
 
     // Step 2: Verify service is initialized
     if (!m_loggingService) {
-        m_statusLabel->setText("Error: No active contest - open a contest first");
+        setStatusMessage("Error: No active contest - open a contest first");
         QApplication::beep();
         return;
     }
@@ -2046,13 +2162,13 @@ bool MainWindow::handleLogQSOCommand(const QString& callsign) {
             if (!newOperator.isEmpty()) {
                 settings.setCurrentOperator(newOperator);
                 m_operatorLabel->setText(newOperator);
-                m_statusLabel->setText(QString("Operator changed to: %1").arg(newOperator));
+                setStatusMessage(QString("Operator changed to: %1").arg(newOperator));
                 LOG_INFO("MainWindow", QString("Operator changed to: %1").arg(newOperator));
             } else {
-                m_statusLabel->setText("Operator change cancelled (empty callsign)");
+                setStatusMessage("Operator change cancelled (empty callsign)");
             }
         } else {
-            m_statusLabel->setText("Operator change cancelled");
+            setStatusMessage("Operator change cancelled");
         }
         onClearEntry();
         return true;
@@ -2079,10 +2195,11 @@ QSOLoggingService::LogQSORequest MainWindow::buildLogQSORequest(const QString& c
     // Basic QSO data
     request.callsign = callsign;
     request.exchange = exchange;
-    request.radioState = m_currentState;
+    request.radioState = m_radioManager->currentState();  // Use active radio's state
     request.operatorCallsign = AppSettings::instance().getCurrentOperator();
     request.serialNumber = m_nextSerialNumber;
     request.operatingMode = m_operatingMode;
+    request.radioNumber = m_radioManager->getActiveRadioIndex() + 1;  // 1-based radio number for SO2R
 
     // Existing QSOs for duplicate/multiplier checking
     request.existingQSOs = m_qsoTableModel->getAllQSOs();
@@ -2106,7 +2223,7 @@ QSOLoggingService::LogQSORequest MainWindow::buildLogQSORequest(const QString& c
 }
 
 void MainWindow::handleLogQSOValidationError(const QSOLoggingService::LogQSOResult& result) {
-    m_statusLabel->setText(result.errorMessage);
+    setStatusMessage(result.errorMessage);
     m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
         .arg(ThemeManager::instance().colorName(ColorRole::ValidationErrorBorder)));
     QApplication::beep();
@@ -2192,8 +2309,17 @@ void MainWindow::updateUIAfterQSOLogged(const QSO& qso, const QSOLoggingService:
         statusMsg += " | " + result.postLoggingActions.join(", ");
     }
 
-    m_statusLabel->setText(statusMsg);
+    setStatusMessage(statusMsg);
     m_statusLabel->setStyleSheet("");
+
+    // Update statistics window with new QSO
+    if (m_statisticsWindow) {
+        QString operatorCall = qso.operatorCall.isEmpty() ?
+            AppSettings::instance().getCurrentOperator() : qso.operatorCall;
+        QString stationId = m_radioManager->isSO2REnabled() ?
+            QString("RADIO%1").arg(m_radioManager->getActiveRadioIndex() + 1) : "RADIO1";
+        m_statisticsWindow->addQso(qso.timestamp, qso.band, qso.mode, operatorCall, stationId);
+    }
 
     // Update integrity check counter
     m_qsosSinceLastIntegrityCheck = result.postLoggingActions.contains("Integrity check passed") ||
@@ -2385,7 +2511,7 @@ void MainWindow::onCallsignEnterPressed() {
     FrequencyInputResult freqResult = freqService.parseFrequencyInput(callsign, m_currentState.bandA);
 
     if (!freqResult.errorMessage.isEmpty()) {
-        m_statusLabel->setText("Error: " + freqResult.errorMessage);
+        setStatusMessage("Error: " + freqResult.errorMessage);
         onClearEntry();
         return;
     }
@@ -2394,10 +2520,10 @@ void MainWindow::onCallsignEnterPressed() {
         // Set radio frequency
         if (m_radio && m_radioConnected) {
             m_radio->setFrequency(freqResult.frequencyHz);
-            m_statusLabel->setText(freqResult.statusMessage);
+            setStatusMessage(freqResult.statusMessage);
             LOG_INFO("MainWindow", QString("Frequency changed via numeric entry: %1").arg(freqResult.statusMessage));
         } else {
-            m_statusLabel->setText("Error: Radio not connected");
+            setStatusMessage("Error: Radio not connected");
         }
 
         // Clear entry and return (don't process as callsign)
@@ -2429,12 +2555,12 @@ void MainWindow::onCallsignEnterPressed() {
 
     if (isDupe) {
         // Show warning in status bar (allows logging to proceed)
-        m_statusLabel->setText("⚠ " + dupeInfo);
+        setStatusMessage("⚠ " + dupeInfo);
         m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
             .arg(ThemeManager::instance().colorName(ColorRole::WarningText)));
     } else {
         // Clear warning for non-duplicates
-        m_statusLabel->setText("Ready");
+        setStatusMessage("Ready");
         m_statusLabel->setStyleSheet("");  // Reset style
     }
 
@@ -2470,7 +2596,7 @@ void MainWindow::onClearEntry() {
     m_initialExchangePopulated = false;
 
     // Reset status
-    m_statusLabel->setText("Ready");
+    setStatusMessage("Ready");
     m_statusLabel->setStyleSheet("");
 }
 
@@ -2580,7 +2706,14 @@ void MainWindow::updateScoreDisplay() {
     m_bandSummaryGrid->setFinalScore(result.finalScore);
 
     // Update status bar
-    m_statusLabel->setText(QString("%1 QSOs, %2 Points").arg(result.totalQSOs).arg(result.finalScore));
+    setStatusMessage(QString("%1 QSOs, %2 Points").arg(result.totalQSOs).arg(result.finalScore));
+
+    // Update Statistics window with scoring totals
+    // (Per-band-mode points come from QSO data via RateCalculator)
+    if (m_statisticsWindow) {
+        m_statisticsWindow->updateScoringData(
+            result.totalMultipliers, result.totalQSOPoints, result.finalScore);
+    }
 }
 
 void MainWindow::recalculateAllPoints() {
@@ -2619,7 +2752,7 @@ void MainWindow::recalculateAllPoints() {
     updateScoreDisplay();
 
     // Show result to user
-    m_statusLabel->setText(QString("Recalculated points for %1 QSOs").arg(stats.qsosUpdated));
+    setStatusMessage(QString("Recalculated points for %1 QSOs").arg(stats.qsosUpdated));
 }
 
 void MainWindow::rebuildMultiplierWindow() {
@@ -2765,7 +2898,7 @@ void MainWindow::onRescoreContest() {
         return;
     }
 
-    m_statusLabel->setText("Rescoring contest...");
+    setStatusMessage("Rescoring contest...");
     QApplication::processEvents();
 
     // Rescore contest (recalculate points, mults, dupes)
@@ -2783,7 +2916,7 @@ void MainWindow::onRescoreContest() {
 
     DialogHelper::information(this, "Rescore Complete", resultsMessage);
 
-    m_statusLabel->setText(QString("Rescore complete: %1 QSOs updated, %2 mults marked, %3 dupes found")
+    setStatusMessage(QString("Rescore complete: %1 QSOs updated, %2 mults marked, %3 dupes found")
         .arg(stats.qsosUpdated).arg(stats.multsMarked).arg(stats.dupesFound));
 }
 
@@ -2831,19 +2964,19 @@ void MainWindow::onEditContestSettings() {
     LOG_INFO("MainWindow", QString("Updating contest exchange from \"%1\" to \"%2\"")
         .arg(currentExchange).arg(newExchange));
 
-    m_statusLabel->setText("Updating contest exchange...");
+    setStatusMessage("Updating contest exchange...");
     QApplication::processEvents();
 
     ContestService::UpdateExchangeResult result = m_contestService->updateContestExchange(newExchange);
 
     if (!result.success) {
         DialogHelper::critical(this, "Error", result.errorMessage);
-        m_statusLabel->setText("Failed to update contest exchange");
+        setStatusMessage("Failed to update contest exchange");
         return;
     }
 
     // Update status label
-    m_statusLabel->setText(result.statusMessage);
+    setStatusMessage(result.statusMessage);
 
     // Ask if user wants to rescore (to recalculate points and multipliers)
     if (result.qsosUpdated > 0) {
@@ -2873,7 +3006,7 @@ void MainWindow::onFullIntegrityCheck() {
         return;
     }
 
-    m_statusLabel->setText("Running full integrity check...");
+    setStatusMessage("Running full integrity check...");
     QApplication::processEvents();  // Update UI
 
     // Delegate to DataIntegrityManager (no SQL in UI!)
@@ -2900,29 +3033,29 @@ void MainWindow::onFullIntegrityCheck() {
     dialog->exec();
     delete dialog;
 
-    m_statusLabel->setText("Integrity check complete");
+    setStatusMessage("Integrity check complete");
 }
 
 // UDP command: Rebroadcast entire log
 void MainWindow::onRebroadcastLog() {
     if (!m_hasActiveContest || !m_qsoTableModel) {
-        m_statusLabel->setText("Error: No active contest to rebroadcast");
+        setStatusMessage("Error: No active contest to rebroadcast");
         return;
     }
 
     if (!m_udpBroadcastManager->isEnabled()) {
-        m_statusLabel->setText("Error: UDP broadcasting is disabled");
+        setStatusMessage("Error: UDP broadcasting is disabled");
         return;
     }
 
     int totalQSOs = m_qsoTableModel->count();
     if (totalQSOs == 0) {
-        m_statusLabel->setText("No QSOs to rebroadcast");
+        setStatusMessage("No QSOs to rebroadcast");
         return;
     }
 
     LOG_INFO("MainWindow", QString("Starting UDP rebroadcast of %1 QSOs").arg(totalQSOs));
-    m_statusLabel->setText(QString("Starting UDP rebroadcast of %1 QSOs...").arg(totalQSOs));
+    setStatusMessage(QString("Starting UDP rebroadcast of %1 QSOs...").arg(totalQSOs));
 
     // THREAD SAFETY: Get copy of all QSOs BEFORE entering thread
     // This prevents race conditions if main thread modifies model during rebroadcast
@@ -2944,17 +3077,17 @@ void MainWindow::onRebroadcastLog() {
             // Progress updates at 25%, 50%, 75%
             if (sent == quarter) {
                 QMetaObject::invokeMethod(this, [this, sent, totalQSOs]() {
-                    m_statusLabel->setText(QString("UDP rebroadcast: %1/%2 (25%)")
+                    setStatusMessage(QString("UDP rebroadcast: %1/%2 (25%)")
                         .arg(sent).arg(totalQSOs));
                 }, Qt::QueuedConnection);
             } else if (sent == quarter * 2) {
                 QMetaObject::invokeMethod(this, [this, sent, totalQSOs]() {
-                    m_statusLabel->setText(QString("UDP rebroadcast: %1/%2 (50%)")
+                    setStatusMessage(QString("UDP rebroadcast: %1/%2 (50%)")
                         .arg(sent).arg(totalQSOs));
                 }, Qt::QueuedConnection);
             } else if (sent == quarter * 3) {
                 QMetaObject::invokeMethod(this, [this, sent, totalQSOs]() {
-                    m_statusLabel->setText(QString("UDP rebroadcast: %1/%2 (75%)")
+                    setStatusMessage(QString("UDP rebroadcast: %1/%2 (75%)")
                         .arg(sent).arg(totalQSOs));
                 }, Qt::QueuedConnection);
             }
@@ -2967,7 +3100,7 @@ void MainWindow::onRebroadcastLog() {
 
         // Final status
         QMetaObject::invokeMethod(this, [this, totalQSOs]() {
-            m_statusLabel->setText(QString("UDP rebroadcast complete: %1 QSOs sent").arg(totalQSOs));
+            setStatusMessage(QString("UDP rebroadcast complete: %1 QSOs sent").arg(totalQSOs));
             LOG_INFO("MainWindow", QString("UDP rebroadcast complete: %1 QSOs sent").arg(totalQSOs));
         }, Qt::QueuedConnection);
     });
@@ -3011,36 +3144,75 @@ void MainWindow::updateTimeDisplay() {
 }
 
 void MainWindow::updateRadioStatusGrid() {
-    // Update band/mode (e.g., "20m SSB") and frequency
-    // Display frequency and mode even when band is unknown (e.g., outside amateur bands)
-    if (m_currentState.frequencyA > 0) {
-        // Show band+mode if band is known (e.g., "20m SSB"), otherwise just mode (e.g., "SSB")
-        if (m_currentState.bandA != BandType::None) {
-            QString bandStr = bandToString(m_currentState.bandA);  // ADIF format: "20m", "70cm", etc.
-            QString modeStr = modeToString(m_currentState.modeA);
+    // Helper lambda to format frequency in kHz (e.g., "7011.00" or "3524.90")
+    auto formatFreqKHz = [](freq_t freq) -> QString {
+        if (freq == 0) return "0.00";
+        double freqKHz = freq / 1000.0;
+        return QString::number(freqKHz, 'f', 2);
+    };
+
+    // Check if SO2R mode is enabled
+    bool so2rEnabled = m_radioManager->isSO2REnabled();
+    bool hasTwoRadios = m_radioManager->getConnectedRadioCount() > 1;
+
+    // Show standby frequency label when SO2R is enabled (even if only 1 radio connected)
+    m_standbyFreqLabel->setVisible(so2rEnabled);
+
+    // Get active radio state (m_currentState is already the active radio's state)
+    RadioState activeState = m_radioManager->currentState();
+
+    // Update band/mode label for active radio (e.g., "20m SSB" or "40CW")
+    if (activeState.frequencyA > 0) {
+        if (activeState.bandA != BandType::None) {
+            QString bandStr = bandToString(activeState.bandA);  // ADIF format: "20m", "70cm", etc.
+            QString modeStr = modeToString(activeState.modeA);
             m_radioFreqBandLabel->setText(QString("%1 %2").arg(bandStr).arg(modeStr));
         } else {
-            // Unknown band (e.g., outside amateur bands) - just show mode
-            QString modeStr = modeToString(m_currentState.modeA);
+            QString modeStr = modeToString(activeState.modeA);
             m_radioFreqBandLabel->setText(modeStr);
         }
-
-        // Update frequency (in MHz with 3 decimal places for compact radio grid)
-        // Use floor() instead of rounding to show actual band position
-        double freqMHz = m_currentState.frequencyA / 1000000.0;
-        double truncated = std::floor(freqMHz * 1000.0) / 1000.0;  // Truncate to 3 decimals
-        m_radioFreqLabel->setText(QString("%1 MHz").arg(truncated, 0, 'f', 3));
     } else {
         m_radioFreqBandLabel->setText("--");
-        m_radioFreqLabel->setText("0.000 MHz");
+    }
+
+    // Update SO2R frequency displays
+    if (so2rEnabled) {
+        // Get standby radio state
+        int standbyIndex = m_radioManager->getStandbyRadioIndex();
+        RadioState standbyState = m_radioManager->getRadioState(standbyIndex);
+
+        // Standby frequency (grayed out) - show in kHz like TR4W
+        if (hasTwoRadios && standbyState.frequencyA > 0) {
+            m_standbyFreqLabel->setText(formatFreqKHz(standbyState.frequencyA));
+        } else {
+            m_standbyFreqLabel->setText("--");
+        }
+        m_standbyFreqLabel->setEnabled(false);  // Grayed out appearance
+
+        // Active frequency (bright) - show in kHz like TR4W
+        if (activeState.frequencyA > 0) {
+            m_radioFreqLabel->setText(formatFreqKHz(activeState.frequencyA));
+        } else {
+            m_radioFreqLabel->setText("0.00");
+        }
+        m_radioFreqLabel->setEnabled(true);  // Bright appearance
+    } else {
+        // Single radio mode - show frequency in MHz format
+        if (activeState.frequencyA > 0) {
+            double freqMHz = activeState.frequencyA / 1000000.0;
+            double truncated = std::floor(freqMHz * 1000.0) / 1000.0;
+            m_radioFreqLabel->setText(QString("%1 MHz").arg(truncated, 0, 'f', 3));
+        } else {
+            m_radioFreqLabel->setText("0.000 MHz");
+        }
     }
 
     // Update WPM label (only enabled in CW mode AND when auto-send is enabled)
-    bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
-    bool autoSendEnabled = m_autoSendCWAction->isChecked();  // Check actual action state, not settings
-    int wpm = m_currentState.cwSpeed;  // Display radio's actual CW speed, not app setting
+    bool isCWMode = (activeState.modeA == ModeType::CW || activeState.modeA == ModeType::CWR);
+    bool autoSendEnabled = m_autoSendCWAction->isChecked();
+    int wpm = activeState.cwSpeed;
     m_radioWpmLabel->setText(QString("%1 WPM").arg(wpm));
-    m_radioWpmLabel->setEnabled(isCWMode && autoSendEnabled);  // Gray out when not in CW mode or auto-send disabled
+    m_radioWpmLabel->setEnabled(isCWMode && autoSendEnabled);
 
     // Update date/time (UTC - contest logging standard)
     QDateTime now = QDateTime::currentDateTimeUtc();
@@ -3066,6 +3238,9 @@ void MainWindow::updateWindowMenuCheckmarks() {
     }
     if (m_radioControlAction) {
         m_radioControlAction->setChecked(m_radioControlWindow && m_radioControlWindow->isVisible());
+    }
+    if (m_radio2ControlAction) {
+        m_radio2ControlAction->setChecked(m_radio2ControlWindow && m_radio2ControlWindow->isVisible());
     }
     if (m_multipliersAction) {
         m_multipliersAction->setChecked(m_multiplierWindow && m_multiplierWindow->isVisible());
@@ -3257,7 +3432,7 @@ void MainWindow::reopenLastContest() {
     activateContest(contestInfo);
 
     LOG_DEBUG("MainWindow", QString("Reopened last contest: %1").arg(contestInfo.contestName));
-    m_statusLabel->setText(QString("Reopened: %1").arg(contestInfo.contestName));
+    setStatusMessage(QString("Reopened: %1").arg(contestInfo.contestName));
 
     // Set focus to callsign entry for immediate logging
     m_callsignEntry->setFocus();
@@ -3306,6 +3481,28 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         m_qsoTableModel->addQSO(qso);
     }
     LOG_DEBUG("MainWindow", QString("Loaded %1 existing QSOs").arg(result.loadedQSOs.size()));
+
+    // Load history into Statistics window
+    if (m_statisticsWindow) {
+        m_statisticsWindow->clearStats();
+        m_statisticsWindow->setContestStartTime(contestInfo.startDate);
+
+        // Convert QSOs to rate calculator records
+        QVector<RateCalculator::QsoRecord> records;
+        records.reserve(result.loadedQSOs.size());
+        for (const QSO& qso : result.loadedQSOs) {
+            RateCalculator::QsoRecord record;
+            record.timestamp = qso.timestamp;
+            record.band = qso.band;
+            record.mode = qso.mode;
+            record.operatorCall = qso.operatorCall.isEmpty() ?
+                AppSettings::instance().getCurrentOperator() : qso.operatorCall;
+            record.stationId = "RADIO1";  // Historical QSOs don't have station ID
+            records.append(record);
+        }
+        m_statisticsWindow->loadHistory(records);
+        LOG_DEBUG("MainWindow", QString("Loaded %1 QSOs into Statistics window").arg(records.size()));
+    }
 
     updateScoreDisplay();
 
@@ -3702,7 +3899,12 @@ void MainWindow::onShowBandMap() {
 void MainWindow::onShowRadioControl() {
     if (!m_radioControlWindow) {
         m_radioControlWindow = new RadioControlWidget();
-        m_radioControlWindow->setWindowTitle("Radio Control");
+        // Set window title with radio model name if known
+        QString title = m_radioModels[0].isEmpty()
+            ? "Radio 1 Control"
+            : QString("Radio 1: %1").arg(m_radioModels[0]);
+        m_radioControlWindow->setWindowTitle(title);
+        m_radioControlWindow->setRadioNumber(1);
         m_radioControlWindow->setWindowFlags(Qt::Window);
         m_radioControlWindow->setAttribute(Qt::WA_DeleteOnClose, false);
 
@@ -3785,6 +3987,87 @@ void MainWindow::onShowRadioControl() {
     }
 }
 
+void MainWindow::onShowRadio2Control() {
+    // Only available when SO2R is enabled
+    if (!m_radioManager->isSO2REnabled()) {
+        setStatusMessage("SO2R not enabled - configure in Preferences → Hardware → Radio");
+        return;
+    }
+
+    if (!m_radio2ControlWindow) {
+        m_radio2ControlWindow = new RadioControlWidget();
+        // Set window title with radio model name if known
+        QString title = m_radioModels[1].isEmpty()
+            ? "Radio 2 Control"
+            : QString("Radio 2: %1").arg(m_radioModels[1]);
+        m_radio2ControlWindow->setWindowTitle(title);
+        m_radio2ControlWindow->setRadioNumber(2);
+        m_radio2ControlWindow->setWindowFlags(Qt::Window);
+        m_radio2ControlWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Get Radio 2 controller from RadioManager
+        RadioController* radio2 = m_radioManager->getRadioController(1);  // 0-indexed
+        m_radio2ControlWindow->setRadioController(radio2);
+
+        // Set max power from radio if connected
+        if (radio2 && radio2->isConnected()) {
+            m_radio2ControlWindow->setMaxPower(radio2->maxPowerWatts());
+        }
+
+        // Connect mode change requests
+        connect(m_radio2ControlWindow, &RadioControlWidget::modeChangeRequested,
+                this, [this, radio2](ModeType mode) {
+                    LOG_INFO("MainWindow", QString("Mode change requested from Radio 2 control: %1").arg(static_cast<int>(mode)));
+                    if (radio2) radio2->setMode(mode, VFO::VFO_A);
+                });
+
+        // Connect CW speed change requests
+        connect(m_radio2ControlWindow, &RadioControlWidget::cwSpeedChangeRequested,
+                this, [this, radio2](int wpm) {
+                    LOG_INFO("MainWindow", QString("CW speed change requested from Radio 2 control: %1 WPM").arg(wpm));
+                    if (radio2) radio2->setCWSpeed(wpm);
+                });
+
+        // Connect RIT/XIT/SPLIT toggle requests
+        connect(m_radio2ControlWindow, &RadioControlWidget::ritToggled,
+                this, [this, radio2](bool enabled) {
+                    LOG_INFO("MainWindow", QString("Radio 2 RIT toggle requested: %1").arg(enabled ? "ON" : "OFF"));
+                    if (radio2) radio2->enableRIT(enabled, VFO::VFO_A);
+                });
+
+        connect(m_radio2ControlWindow, &RadioControlWidget::xitToggled,
+                this, [this, radio2](bool enabled) {
+                    LOG_INFO("MainWindow", QString("Radio 2 XIT toggle requested: %1").arg(enabled ? "ON" : "OFF"));
+                    if (radio2) radio2->enableXIT(enabled, VFO::VFO_A);
+                });
+
+        connect(m_radio2ControlWindow, &RadioControlWidget::splitToggled,
+                this, [this, radio2](bool enabled) {
+                    LOG_INFO("MainWindow", QString("Radio 2 SPLIT toggle requested: %1").arg(enabled ? "ON" : "OFF"));
+                    if (radio2) radio2->setSplit(enabled, VFO::VFO_B);
+                });
+
+        // Connect close/hide event
+        connect(m_radio2ControlWindow, &QWidget::destroyed, this, [this]() {
+            m_radio2ControlWindowVisible = false;
+        });
+
+        // Install event filter to catch show/hide events
+        m_radio2ControlWindow->installEventFilter(this);
+
+        // Update with current Radio 2 state
+        RadioState radio2State = m_radioManager->getRadioState(1);  // 0-indexed
+        if (m_radioManager->isRadioConnected(1)) {
+            m_radio2ControlWindow->updateRadioState(radio2State);
+        }
+    }
+    m_radio2ControlWindow->show();
+    m_radio2ControlWindow->raise();
+    m_radio2ControlWindow->activateWindow();
+    m_radio2ControlWindowVisible = true;
+    updateWindowMenuCheckmarks();
+}
+
 void MainWindow::onShowMultipliers() {
     if (!m_multiplierWindow) {
         m_multiplierWindow = new MultiplierWidget();
@@ -3805,10 +4088,50 @@ void MainWindow::onShowStatistics() {
         m_statisticsWindow->setWindowFlags(Qt::Window);
         m_statisticsWindow->setAttribute(Qt::WA_DeleteOnClose, false);
     }
+
+    // Always reload contest data when showing the window to ensure fresh data
+    loadStatisticsWindowData();
+
     m_statisticsWindow->show();
     m_statisticsWindow->raise();
     m_statisticsWindow->activateWindow();
     updateWindowMenuCheckmarks();
+}
+
+void MainWindow::loadStatisticsWindowData() {
+    if (!m_statisticsWindow) return;
+
+    m_statisticsWindow->clearStats();
+
+    if (!m_hasActiveContest || !m_qsoTableModel) {
+        return;  // No contest, leave stats empty
+    }
+
+    m_statisticsWindow->setContestStartTime(m_currentContest.startDate);
+
+    // Load all QSOs from the table model
+    QVector<RateCalculator::QsoRecord> records;
+    int qsoCount = m_qsoTableModel->count();
+    records.reserve(qsoCount);
+
+    for (int i = 0; i < qsoCount; ++i) {
+        QSO qso = m_qsoTableModel->getQSO(i);
+        RateCalculator::QsoRecord record;
+        record.timestamp = qso.timestamp;
+        record.band = qso.band;
+        record.mode = qso.mode;
+        record.operatorCall = qso.operatorCall.isEmpty() ?
+            AppSettings::instance().getCurrentOperator() : qso.operatorCall;
+        record.stationId = "RADIO1";
+        record.qsoPoints = qso.qsoPoints;  // Points already calculated when QSO was logged
+        record.isDupe = qso.isDupe;
+        records.append(record);
+    }
+    m_statisticsWindow->loadHistory(records);
+    LOG_DEBUG("MainWindow", QString("Loaded %1 QSOs into Statistics window").arg(records.size()));
+
+    // Also update scoring data - this populates Mults, Points, Score columns
+    updateScoreDisplay();
 }
 
 void MainWindow::onShowSectionsMap() {
@@ -3972,7 +4295,7 @@ void MainWindow::handleFunctionKey(int fKey, bool ctrlPressed, bool altPressed) 
 
     // Update status and last CW message
     if (!result.statusMessage.isEmpty()) {
-        m_statusLabel->setText(result.statusMessage);
+        setStatusMessage(result.statusMessage);
     }
     if (result.success && !result.cwTextSent.isEmpty()) {
         m_lastCWMessage = result.cwTextSent;
@@ -3997,7 +4320,7 @@ void MainWindow::sendCWMessage(const QString& messageTemplate) {
 
     // Update status and last CW message
     if (!result.statusMessage.isEmpty()) {
-        m_statusLabel->setText(result.statusMessage);
+        setStatusMessage(result.statusMessage);
     }
     if (result.success && !result.cwTextSent.isEmpty()) {
         m_lastCWMessage = result.cwTextSent;
@@ -4032,7 +4355,7 @@ void MainWindow::onToggleWebServer() {
         // Stop the server
         m_webServer->stop();
         m_webServerAction->setText("Start Web Server");
-        m_statusLabel->setText("Web server stopped");
+        setStatusMessage("Web server stopped");
         LOG_INFO("MainWindow", "Web server stopped by user");
     } else {
         // Start the server with settings
@@ -4044,7 +4367,7 @@ void MainWindow::onToggleWebServer() {
         if (m_webServer->start(port, address)) {
             m_webServerAction->setText("Stop Web Server");
             QString url = m_webServer->url();
-            m_statusLabel->setText(QString("Web server started: %1").arg(url));
+            setStatusMessage(QString("Web server started: %1").arg(url));
             LOG_INFO("MainWindow", QString("Web server started: %1").arg(url));
 
             // Show info dialog with URL
@@ -4055,7 +4378,7 @@ void MainWindow::onToggleWebServer() {
                     .arg(url));
         } else {
             // Manual start failed - show error dialog
-            m_statusLabel->setText("Failed to start web server");
+            setStatusMessage("Failed to start web server");
             LOG_ERROR("MainWindow", QString("Failed to start web server on %1:%2").arg(addressStr).arg(port));
 
             DialogHelper::warning(this, "Web Server Start Failed",
@@ -4161,20 +4484,19 @@ void MainWindow::onCTYUpdateAvailable(int currentVersion, int latestVersion, con
     // Store latest version for saving after download
     m_latestCTYVersion = latestVersion;
 
-    // Show clickable status bar message
-    QString message = QString("CTY.DAT update available: CTY-%1. Click Tools → Download CTY.DAT or press Alt+O to update.")
+    // Show persistent status bar message (showMessage overlays and persists)
+    // Keep it short to avoid overlap with permanent widgets on right side
+    QString message = QString("⚠ CTY-%1 available (Alt+O)")
         .arg(latestVersion);
 
+    // Use showMessage for persistent notification that won't be overwritten
     statusBar()->showMessage(message);
-
-    // Keep the message visible indefinitely (until user downloads or manually clears)
-    // Don't use timeout - we want this to stay visible
 }
 
 void MainWindow::onCTYDownloadCompleted(bool success) {
     if (success) {
-        // Clear the "update available" status bar message now that update is applied
-        statusBar()->clearMessage();
+        // Clear the "update available" status message now that update is applied
+        setStatusMessage("CTY.DAT updated successfully");
         LOG_DEBUG("MainWindow", "CTY download completed - cleared status bar notification");
     }
 }
@@ -4185,10 +4507,10 @@ void MainWindow::onDownloadCTY(bool headless) {
     CTYDownloadResult result = m_downloadManager->downloadCTY(headless);
 
     if (result.success) {
-        m_statusLabel->setText(result.statusMessage);
+        setStatusMessage(result.statusMessage);
         LOG_INFO("MainWindow", result.statusMessage);
     } else {
-        m_statusLabel->setText(QString("CTY download failed: %1").arg(result.errorMessage));
+        setStatusMessage(QString("CTY download failed: %1").arg(result.errorMessage));
         LOG_ERROR("MainWindow", QString("CTY download failed: %1").arg(result.errorMessage));
     }
     // Note: Status bar cleared via onCTYDownloadCompleted() signal from DownloadManager
@@ -4200,10 +4522,10 @@ void MainWindow::onDownloadLOTW(bool headless) {
     LOTWDownloadResult result = m_downloadManager->downloadLOTW(headless);
     
     if (result.success) {
-        m_statusLabel->setText(result.statusMessage);
+        setStatusMessage(result.statusMessage);
         LOG_INFO("MainWindow", result.statusMessage);
     } else {
-        m_statusLabel->setText(QString("LOTW download failed: %1").arg(result.errorMessage));
+        setStatusMessage(QString("LOTW download failed: %1").arg(result.errorMessage));
         LOG_ERROR("MainWindow", QString("LOTW download failed: %1").arg(result.errorMessage));
     }
 }
@@ -4217,10 +4539,10 @@ void MainWindow::onDownloadSCP(bool headless) {
         // Reload SCP matcher with new data (unique_ptr handles cleanup)
         m_scpMatcher = std::make_unique<SCPMatcher>();
 
-        m_statusLabel->setText(result.statusMessage);
+        setStatusMessage(result.statusMessage);
         LOG_INFO("MainWindow", result.statusMessage);
     } else {
-        m_statusLabel->setText(QString("SCP download failed: %1").arg(result.errorMessage));
+        setStatusMessage(QString("SCP download failed: %1").arg(result.errorMessage));
         LOG_ERROR("MainWindow", QString("SCP download failed: %1").arg(result.errorMessage));
     }
 }
@@ -4260,7 +4582,7 @@ void MainWindow::executeSearch() {
 
     QSOSearchCriteria criteria = dialog.getCriteria();
     if (!criteria.hasAnyCriteria()) {
-        m_statusLabel->setText("Search cancelled: no criteria specified");
+        setStatusMessage("Search cancelled: no criteria specified");
         return;
     }
 
@@ -4293,7 +4615,7 @@ void MainWindow::refreshSearchResults() {
 
     m_searchPanel->syncAppearance(m_qsoTableView);
     m_searchPanel->setResults(results);
-    m_statusLabel->setText(
+    setStatusMessage(
         QString("Search: %1 QSO%2 found")
             .arg(results.size())
             .arg(results.size() != 1 ? "s" : ""));
@@ -4324,13 +4646,35 @@ void MainWindow::onToggleAutosend() {
     PlaceholderActions::showNotImplemented(PlaceholderActions::Action::ToggleAutosend, this);
 }
 
-// Band menu placeholder implementations
+// Band menu - SO2R implementations
 void MainWindow::onToggleRigs() {
-    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::ToggleRigs, this);
+    if (!m_radioManager->isSO2REnabled()) {
+        setStatusMessage("SO2R not enabled - configure in Edit SO2R (Alt+E)");
+        return;
+    }
+
+    m_radioManager->toggleActiveRadio();
 }
 
 void MainWindow::onEditSO2R() {
-    PlaceholderActions::showNotImplemented(PlaceholderActions::Action::EditSO2R, this);
+    SO2RConfigDialog dialog(this);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        // Update RadioManager with new SO2R state
+        m_radioManager->setSO2REnabled(dialog.isSO2REnabled());
+
+        // If SO2R was just enabled and we're already connected, need to reconnect
+        // to pick up the second radio
+        if (dialog.isSO2REnabled() && m_radioManager->isConnected()) {
+            setStatusMessage("SO2R enabled - reconnect to activate second radio");
+        }
+
+        // Update UI to reflect SO2R state (show/hide standby frequency)
+        updateRadioStatusGrid();
+
+        LOG_INFO("MainWindow", QString("SO2R configuration updated: enabled=%1")
+                 .arg(dialog.isSO2REnabled()));
+    }
 }
 
 void MainWindow::onDXSpotReceived(const QString& callsign,
@@ -4376,7 +4720,7 @@ void MainWindow::onBandClicked(BandType band) {
         emit currentBandChanged(band);
 
         // Update status
-        m_statusLabel->setText(QString("Band: %1 (manual)").arg(bandToString(band)));
+        setStatusMessage(QString("Band: %1 (manual)").arg(bandToString(band)));
     }
 }
 

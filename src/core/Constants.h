@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.39.88";  // Fix CI builds: qtkeychain MinGW patch, macOS test linking
+constexpr const char* APP_VERSION = "3.40.8";  // Fix shutdown hang - properly close Statistics window and stop timers
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
@@ -151,8 +151,10 @@ namespace UIDefaults {
     constexpr int ENTRY_WIDGET_MIN_WIDTH = 350;
     constexpr int SCP_MATCHES_LABEL_WIDTH = 120;
     constexpr int TIME_LABEL_MIN_WIDTH = 70;
-    constexpr int STATS_WIDGET_MIN_WIDTH = 200;
-    constexpr int STATS_WIDGET_MAX_WIDTH = 300;
+    constexpr int THIS_HR_LABEL_MIN_WIDTH = 110;   // "This Hr = 999" needs space
+    constexpr int RATE_LABEL_MIN_WIDTH = 100;      // "Rate = 999" needs space
+    constexpr int STATS_WIDGET_MIN_WIDTH = 220;
+    constexpr int STATS_WIDGET_MAX_WIDTH = 350;    // Increased to prevent label overlap
     constexpr int NEEDS_DISPLAY_MIN_WIDTH = 200;
 
     // Search dialog

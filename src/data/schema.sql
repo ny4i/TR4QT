@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS qsos (
     operator_call TEXT,                 -- Operator who made this QSO
     deleted BOOLEAN DEFAULT 0,          -- Soft delete
     notes TEXT,                         -- Optional notes
+    radio_nr INTEGER DEFAULT 1,         -- Which radio logged this QSO (1 or 2 for SO2R)
 
     FOREIGN KEY (contest_id) REFERENCES contests(id) ON DELETE CASCADE
 );

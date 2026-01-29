@@ -4,10 +4,10 @@
 
 set -e  # Exit on error
 
-# Code signing identity - set to your Developer ID or "-" for ad-hoc signing
+# Code signing identity - defaults to Tom's Developer ID certificate
+# Override with: SIGNING_IDENTITY="-" ./scripts/macos-bundle.sh (for ad-hoc)
 # Find your identity with: security find-identity -v -p codesigning
-# Example: "Developer ID Application: Your Name (TEAMID)"
-SIGNING_IDENTITY="${SIGNING_IDENTITY:--}"
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-Developer ID Application: Thomas Schaefer (N3397MADHZ)}"
 
 APP_BUNDLE="./build/src/tr4qt.app"
 FRAMEWORKS="$APP_BUNDLE/Contents/Frameworks"

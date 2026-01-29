@@ -66,8 +66,8 @@ private:
     /// Sentinel value for empty usernames
     static constexpr const char* DEFAULT_USER_SENTINEL = "__default__";
 
-    /// Timeout for keychain operations (ms)
-    static constexpr int KEYCHAIN_TIMEOUT_MS = 10000;
+    /// Timeout for keychain operations (ms) - 30s to allow time for password dialog
+    static constexpr int KEYCHAIN_TIMEOUT_MS = 30000;
 };
 
 /// Well-known storage key constants for credential storage.

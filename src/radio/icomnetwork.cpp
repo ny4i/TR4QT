@@ -823,7 +823,13 @@ void IcomNetwork::watchdogTimeout()
     if (!m_streamOpened) return;
 
     if (m_lastCivReceived.msecsTo(QTime::currentTime()) > 2000) {
-        qWarning() << "No CI-V data received for 2s, requesting restart";
+        // Rate-limit warning to once every 10 seconds to avoid log spam
+        QDateTime now = QDateTime::currentDateTime();
+        if (!m_lastCivTimeoutWarning.isValid() ||
+            m_lastCivTimeoutWarning.msecsTo(now) > 10000) {
+            qWarning() << "No CI-V data received for 2s, requesting restart";
+            m_lastCivTimeoutWarning = now;
+        }
         if (m_civStartTimer) {
             m_civStartTimer->start(100);
         }
