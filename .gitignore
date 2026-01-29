@@ -3,6 +3,14 @@ build/
 cmake-build-*/
 *.user
 *.autosave
+compile_commands.json
+
+# Binary (macOS/Linux)
+tr4qt
+
+# Accidental directories from CLI typos
+--build
+--target
 
 # Qt generated files
 *.pro.user*
@@ -27,6 +35,17 @@ qrc_*.cpp
 
 # Mac specific
 .DS_Store
+
+# Certificates and signing requests
+*.cer
+*.certSigningRequest
+
+# Backup and temporary files
+*.bak
+*.bak2
+*.backup
+*_backup
+*.tmp
 
 # Local data
 *.db
