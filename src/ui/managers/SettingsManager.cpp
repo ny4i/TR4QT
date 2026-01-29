@@ -56,6 +56,10 @@ WindowGeometry SettingsManager::loadWindowGeometry() const {
     geometry.radioControlVisible = settings.getRadioControlVisible();
     geometry.radioControlGeometry = settings.loadRadioControlGeometry();
 
+    // Radio 2 Control window (SO2R)
+    geometry.radio2ControlVisible = settings.getRadio2ControlVisible();
+    geometry.radio2ControlGeometry = settings.loadRadio2ControlGeometry();
+
     // Multipliers window
     geometry.multipliersVisible = settings.getMultipliersVisible();
     geometry.multipliersGeometry = settings.loadMultipliersGeometry();
@@ -103,6 +107,10 @@ void SettingsManager::saveWindowGeometry(const WindowGeometry& geometry) {
     // Radio Control window
     settings.saveRadioControlGeometry(geometry.radioControlGeometry);
     settings.setRadioControlVisible(geometry.radioControlVisible);
+
+    // Radio 2 Control window (SO2R)
+    settings.saveRadio2ControlGeometry(geometry.radio2ControlGeometry);
+    settings.setRadio2ControlVisible(geometry.radio2ControlVisible);
 
     // Multipliers window
     settings.saveMultipliersGeometry(geometry.multipliersGeometry);

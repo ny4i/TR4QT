@@ -3,8 +3,17 @@
 
 #include "RadioInterface.h"
 #include <QObject>
+#include <QList>
 
 namespace TR4QT {
+
+/**
+ * @brief Information about a supported radio model
+ */
+struct SupportedRadio {
+    int hamlibModelId;    // Hamlib model ID (e.g., 3092 for IC-7760)
+    QString displayName;  // Human-readable name (e.g., "Icom IC-7760")
+};
 
 /**
  * @brief Factory for creating radio interface instances
@@ -81,6 +90,19 @@ public:
      * Used for "Auto" selection in UI.
      */
     static RadioType recommendedTypeForModel(int hamlibModelId);
+
+    /**
+     * @brief Get list of radios with actual implementations for a RadioType
+     * @param type Radio type (K4_DIRECT, ICOM_DIRECT, etc.)
+     * @return List of SupportedRadio structs with modelId and displayName
+     *
+     * This returns ONLY radios with working direct implementations,
+     * not the full list of radios that could theoretically work.
+     * Used by UI to populate model dropdown for direct interfaces.
+     *
+     * For HAMLIB type, returns empty list (use Hamlib's own enumeration).
+     */
+    static QList<SupportedRadio> getImplementedRadios(RadioType type);
 };
 
 } // namespace TR4QT

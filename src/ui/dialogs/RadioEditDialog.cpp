@@ -279,6 +279,37 @@ void RadioEditDialog::populateRadioList()
     m_radioModelCombo->blockSignals(true);
     m_radioModelCombo->clear();
 
+    int radioType = m_radioTypeCombo->currentData().toInt();
+
+    // For direct interfaces, show only radios with actual implementations
+    // Query RadioFactory instead of hardcoding - single source of truth
+    RadioFactory::RadioType factoryType = RadioFactory::RadioType::HAMLIB;
+    if (radioType == 1) {
+        factoryType = RadioFactory::RadioType::K4_DIRECT;
+    } else if (radioType == 2) {
+        factoryType = RadioFactory::RadioType::ICOM_DIRECT;
+    }
+
+    if (radioType == 1 || radioType == 2) {  // K4 Direct or Icom Direct
+        QList<SupportedRadio> implementedRadios = RadioFactory::getImplementedRadios(factoryType);
+        for (const SupportedRadio& radio : implementedRadios) {
+            m_radioModelCombo->addItem(radio.displayName, radio.hamlibModelId);
+        }
+        // Hide the status filter checkboxes - not relevant for direct interfaces
+        m_showStableRadiosCheck->setVisible(false);
+        m_showBetaRadiosCheck->setVisible(false);
+        m_showAlphaRadiosCheck->setVisible(false);
+        m_showUntestedRadiosCheck->setVisible(false);
+        m_radioModelCombo->blockSignals(false);
+        return;
+    }
+
+    // For Hamlib or Auto, show the full Hamlib list with status filters
+    m_showStableRadiosCheck->setVisible(true);
+    m_showBetaRadiosCheck->setVisible(true);
+    m_showAlphaRadiosCheck->setVisible(true);
+    m_showUntestedRadiosCheck->setVisible(true);
+
     bool showStable = m_showStableRadiosCheck->isChecked();
     bool showBeta = m_showBetaRadiosCheck->isChecked();
     bool showAlpha = m_showAlphaRadiosCheck->isChecked();
@@ -352,21 +383,27 @@ void RadioEditDialog::loadProfileIntoUI(const RadioProfile& profile)
 
     const RadioConfig& config = profile.config;
 
-    // Find and select radio model
+    // Set radio type/interface FIRST so the model list is correctly populated
+    // (Icom Direct shows only supported radios, not the full Hamlib list)
+    int typeIndex = m_radioTypeCombo->findData(config.radioType);
+    if (typeIndex >= 0) {
+        m_radioTypeCombo->setCurrentIndex(typeIndex);
+        // This triggers onRadioTypeChanged which calls populateRadioList()
+    }
+
+    // Now find and select radio model (in the correctly filtered list)
     int modelIndex = m_radioModelCombo->findData(config.hamlibModelId);
     if (modelIndex >= 0) {
         m_radioModelCombo->setCurrentIndex(modelIndex);
     } else if (config.hamlibModelId > 0) {
-        // Custom model
-        m_radioModelCombo->setCurrentIndex(m_radioModelCombo->count() - 1);
-        m_customModelEdit->setText(QString::number(config.hamlibModelId));
-        m_customModelEdit->setVisible(true);
-    }
-
-    // Radio type
-    int typeIndex = m_radioTypeCombo->findData(config.radioType);
-    if (typeIndex >= 0) {
-        m_radioTypeCombo->setCurrentIndex(typeIndex);
+        // Model not in current list - check if it's a custom model for Hamlib
+        // For direct interfaces, the model should always be in the list
+        int radioType = m_radioTypeCombo->currentData().toInt();
+        if (radioType == 0 || radioType == -1) {  // Hamlib or Auto
+            m_radioModelCombo->setCurrentIndex(m_radioModelCombo->count() - 1);
+            m_customModelEdit->setText(QString::number(config.hamlibModelId));
+            m_customModelEdit->setVisible(true);
+        }
     }
 
     // Connection type and settings
@@ -507,10 +544,28 @@ void RadioEditDialog::onRadioTypeChanged(int index)
     // Update default port based on radio type
     if (radioType == 1) {  // K4 Direct
         m_portSpin->setValue(9200);
+        m_networkRadio->setChecked(true);  // K4 Direct is always network
+        onConnectionTypeChanged();
     } else if (radioType == 2) {  // Icom Direct
         m_portSpin->setValue(50001);
+        m_networkRadio->setChecked(true);  // Icom Direct is always network
+        onConnectionTypeChanged();
     } else {
         m_portSpin->setValue(4532);  // Default rigctld
+    }
+
+    // Repopulate radio list based on interface type
+    // This filters to show only radios supported by the selected interface
+    int currentModelId = m_radioModelCombo->currentData().toInt();
+    populateRadioList();
+
+    // Try to restore selection
+    int newIndex = m_radioModelCombo->findData(currentModelId);
+    if (newIndex >= 0) {
+        m_radioModelCombo->setCurrentIndex(newIndex);
+    } else if (m_radioModelCombo->count() > 0) {
+        // If old model not in new list, select first item
+        m_radioModelCombo->setCurrentIndex(0);
     }
 }
 

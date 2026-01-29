@@ -169,4 +169,37 @@ RadioFactory::RadioType RadioFactory::recommendedTypeForModel(int hamlibModelId)
     return RadioType::HAMLIB;
 }
 
+QList<SupportedRadio> RadioFactory::getImplementedRadios(RadioType type)
+{
+    QList<SupportedRadio> radios;
+
+    switch (type) {
+        case RadioType::K4_DIRECT:
+            // K4Radio class supports all K4 variants
+            radios.append({RIG_MODEL_K4, "Elecraft K4 / K4D / K4HD"});
+            break;
+
+        case RadioType::ICOM_DIRECT:
+            // Only include radios with actual class implementations
+            // IC7760Radio and IC9700Radio are the currently implemented classes
+            radios.append({3092, "Icom IC-7760"});
+            radios.append({3081, "Icom IC-9700"});
+            // Future implementations would be added here:
+            // radios.append({3078, "Icom IC-7610"});
+            // radios.append({3087, "Icom IC-705"});
+            // etc.
+            break;
+
+        case RadioType::HAMLIB:
+            // Hamlib supports all radios - use Hamlib's enumeration instead
+            // Return empty list; caller should use rig_list_foreach()
+            break;
+
+        default:
+            break;
+    }
+
+    return radios;
+}
+
 } // namespace TR4QT

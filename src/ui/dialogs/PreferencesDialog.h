@@ -169,6 +169,10 @@ private:
 
     // ===== Station Profiles Section =====
     // Station profiles assign radios to Radio 1 and Radio 2 slots
+    // Uses traditional OK/Cancel pattern - changes stored locally until OK is clicked
+    QList<StationProfile> m_stationProfiles;  // Local cache (saved on OK, discarded on Cancel)
+    QString m_pendingActiveProfile;            // Profile to activate on OK (empty = no change)
+    QString m_currentEditingProfile;           // Tracks which profile is currently shown in UI
     QComboBox* m_stationProfileCombo;     // Select station profile
     QPushButton* m_newStationProfileButton;
     QPushButton* m_renameStationProfileButton;

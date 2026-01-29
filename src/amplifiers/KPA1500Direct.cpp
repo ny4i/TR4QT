@@ -5,7 +5,6 @@
 #include <QTimer>
 #include <QtMath>
 #include <QCoreApplication>
-#include <QDateTime>
 
 namespace TR4QT {
 
@@ -247,19 +246,22 @@ void KPA1500Direct::doPollCycle()
     if (!m_socket || !m_connected)
         return;
 
-    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
-
     for (const QString &cmdStr : m_pollCommands) {
         // DS command has longer interval to reduce load on amplifier
         if (cmdStr == "^DS;") {
-            qint64 elapsed = currentTime - m_lastDsSendTime;
-            if (elapsed < DS_POLL_INTERVAL_MS) {
+            // Use QElapsedTimer for proper elapsed time measurement
+            // Timer is invalid until first start(), so first call always proceeds
+            if (m_dsSendTimer.isValid() && m_dsSendTimer.elapsed() < DS_POLL_INTERVAL_MS) {
                 LOG_TRACE("KPA1500Direct", QString("Skipping DS: %1ms elapsed (need %2ms)")
-                    .arg(elapsed).arg(DS_POLL_INTERVAL_MS));
+                    .arg(m_dsSendTimer.elapsed()).arg(DS_POLL_INTERVAL_MS));
                 continue;  // Skip DS this cycle
             }
-            LOG_TRACE("KPA1500Direct", QString("Sending DS: %1ms since last").arg(elapsed));
-            m_lastDsSendTime = currentTime;
+            if (m_dsSendTimer.isValid()) {
+                LOG_TRACE("KPA1500Direct", QString("Sending DS: %1ms since last").arg(m_dsSendTimer.elapsed()));
+            } else {
+                LOG_TRACE("KPA1500Direct", "Sending DS: first poll");
+            }
+            m_dsSendTimer.start();  // Restart timer
         }
 
         QByteArray cmd = cmdStr.toUtf8();

@@ -70,6 +70,78 @@ If you encounter an "automatic" tool that doesn't work reliably:
 
 ## ⚠️ CRITICAL REMINDERS
 
+### 🔌 HARDWARE MUST Run in Worker Threads
+
+**CRITICAL**: ALL hardware communication (radios, amplifiers, rotators, keyers, etc.) MUST run in a dedicated worker thread. The main UI thread MUST NEVER block on external hardware I/O.
+
+**Why this matters**:
+- Hardware I/O is unpredictable (timeouts, slow responses, network latency)
+- Blocking the main thread freezes the entire UI
+- Windows is especially sensitive to main thread blocking (shows "Not Responding")
+- Network I/O (TCP/UDP) can stall for seconds on packet loss
+
+**The Pattern** (see `RadioController` as reference):
+```cpp
+// ✅ CORRECT: Controller wraps device in worker thread
+class HardwareController : public QObject {
+    Q_OBJECT
+public:
+    explicit HardwareController(QObject* parent = nullptr);
+    ~HardwareController() override;
+
+public slots:
+    void connectDevice(const Config& config);
+    void disconnectDevice();
+
+signals:
+    void connectionStatusChanged(bool connected);
+    void stateUpdated(const DeviceState& state);
+
+private:
+    QThread m_workerThread;           // Worker thread owned by controller
+    IDeviceInterface* m_device;       // Device lives in worker thread
+};
+
+// In constructor:
+m_device->moveToThread(&m_workerThread);
+m_workerThread.start();
+
+// In destructor:
+m_workerThread.quit();
+m_workerThread.wait();
+```
+
+**Wrong Pattern**:
+```cpp
+// ❌ WRONG: Device created on main thread
+void MainWindow::connectAmplifier() {
+    m_amplifier = AmplifierFactory::create(config, this);  // Lives on UI thread!
+    // All polling timers and I/O block the UI
+}
+```
+
+**Correct Pattern**:
+```cpp
+// ✅ CORRECT: Controller manages worker thread
+void MainWindow::connectAmplifier() {
+    m_amplifierController = new AmplifierController(this);  // Controller on main thread
+    m_amplifierController->connectDevice(config);           // Device on worker thread
+    // All I/O happens on worker thread, signals update UI
+}
+```
+
+**Checklist for new hardware support**:
+1. Create a `*Controller` class that wraps the device interface
+2. Controller owns a `QThread m_workerThread`
+3. Device is moved to worker thread via `moveToThread()`
+4. All I/O happens on worker thread
+5. Communicate via signals/slots (Qt handles cross-thread automatically)
+6. Clean up thread in destructor: `quit()` then `wait()`
+
+**Real bug (Issue #69)**: KPA1500 amplifier ran 18 UDP commands every 250ms on main thread → Windows UI froze with "Not Responding". Fixed by moving to worker thread.
+
+**This applies to ALL projects with hardware I/O.**
+
 ### 🚨 ARCHITECTURE: MainWindow Extraction In Progress
 
 **MainWindow limits** (special case - main UI entry point has higher limits):

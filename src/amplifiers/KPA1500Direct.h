@@ -4,6 +4,7 @@
 #include "IAmplifierController.h"
 #include <QHostAddress>
 #include <QHash>
+#include <QElapsedTimer>
 #include <functional>
 
 class QUdpSocket;
@@ -135,7 +136,7 @@ private:
 
     // DS command has longer interval to reduce load (500ms minimum)
     static constexpr int DS_POLL_INTERVAL_MS = 500;
-    qint64 m_lastDsSendTime{0};  // Timestamp of last ^DS; send
+    QElapsedTimer m_dsSendTimer;  // Timer for DS command throttling (invalid until first send)
 
     // Network objects
     QUdpSocket* m_socket{nullptr};

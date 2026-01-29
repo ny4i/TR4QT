@@ -3,7 +3,7 @@
 
 namespace TR4QT {
 
-AmplifierService::AmplifierService(IAmplifierController* controller, QObject* parent)
+AmplifierService::AmplifierService(AmplifierController* controller, QObject* parent)
     : QObject(parent)
     , m_amplifier(controller)
 {
@@ -12,22 +12,23 @@ AmplifierService::AmplifierService(IAmplifierController* controller, QObject* pa
         return;
     }
 
-    // Connect amplifier signals to service slots
-    connect(m_amplifier, &IAmplifierController::connectionStatusChanged,
+    // Connect amplifier controller signals to service slots
+    // AmplifierController runs the actual device in a worker thread to prevent UI freezing (Issue #69)
+    connect(m_amplifier, &AmplifierController::connectionStatusChanged,
             this, &AmplifierService::onAmplifierConnected);
-    connect(m_amplifier, &IAmplifierController::stateUpdated,
+    connect(m_amplifier, &AmplifierController::stateUpdated,
             this, &AmplifierService::onStateUpdated);
-    connect(m_amplifier, &IAmplifierController::forwardPowerChanged,
+    connect(m_amplifier, &AmplifierController::forwardPowerChanged,
             this, &AmplifierService::onForwardPowerChanged);
-    connect(m_amplifier, &IAmplifierController::swrChanged,
+    connect(m_amplifier, &AmplifierController::swrChanged,
             this, &AmplifierService::onSwrChanged);
-    connect(m_amplifier, &IAmplifierController::faultDetected,
+    connect(m_amplifier, &AmplifierController::faultDetected,
             this, &AmplifierService::onFaultDetected);
-    connect(m_amplifier, &IAmplifierController::operatingStatusChanged,
+    connect(m_amplifier, &AmplifierController::operatingStatusChanged,
             this, &AmplifierService::onOperatingStatusChanged);
-    connect(m_amplifier, &IAmplifierController::temperatureChanged,
+    connect(m_amplifier, &AmplifierController::temperatureChanged,
             this, &AmplifierService::onTemperatureChanged);
-    connect(m_amplifier, &IAmplifierController::errorOccurred,
+    connect(m_amplifier, &AmplifierController::errorOccurred,
             this, &AmplifierService::onAmplifierError);
 
     // Get initial state if connected
@@ -46,29 +47,26 @@ AmplifierState AmplifierService::currentState() const {
     return m_currentState;
 }
 
-bool AmplifierService::connectToAmplifier(const AmplifierConfig& config) {
+void AmplifierService::connectToAmplifier(int amplifierType, const AmplifierConfig& config) {
     if (!m_amplifier) {
         LOG_ERROR("AmplifierService", "Cannot connect: null amplifier controller");
-        return false;
+        emit errorOccurred("Cannot connect: null amplifier controller");
+        return;
     }
 
-    LOG_INFO("AmplifierService", QString("Connecting to amplifier at %1").arg(config.port));
-    bool success = m_amplifier->connect(config);
+    LOG_INFO("AmplifierService", QString("Connecting to amplifier at %1 (async)").arg(config.port));
 
-    if (success) {
-        emit statusMessage(QString("Connected to amplifier at %1").arg(config.port));
-    } else {
-        emit errorOccurred(QString("Failed to connect to amplifier at %1").arg(config.port));
-    }
+    // Connection is async - success/failure will be reported via connectionStatusChanged signal
+    m_amplifier->connectToAmplifier(amplifierType, config);
 
-    return success;
+    emit statusMessage(QString("Connecting to amplifier at %1...").arg(config.port));
 }
 
 void AmplifierService::disconnectFromAmplifier() {
     if (!m_amplifier) return;
 
     LOG_INFO("AmplifierService", "Disconnecting from amplifier");
-    m_amplifier->disconnect();
+    m_amplifier->disconnectFromAmplifier();
     m_currentState = AmplifierState{};  // Reset state
     emit statusMessage("Disconnected from amplifier");
 }
@@ -87,7 +85,7 @@ void AmplifierService::sendCommand(const QString& command) {
 
     LOG_TRACE("AmplifierService", QString("Sending command: %1").arg(command));
 
-    // Send command through the interface (works for both KPA1500Direct and Hamlib)
+    // Send command through the controller (runs in worker thread)
     // The controller implementation handles logging and feedback
     m_amplifier->sendRawCommand(command);
 }

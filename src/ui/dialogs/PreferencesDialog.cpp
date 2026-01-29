@@ -1585,6 +1585,19 @@ void PreferencesDialog::loadSettings() {
     // Load radio profiles (individual radio definitions)
     m_radioProfiles = settings.loadRadioProfiles();
 
+    // Load station profiles into local cache (OK/Cancel pattern)
+    m_stationProfiles = settings.loadStationProfiles();
+    m_pendingActiveProfile.clear();  // No pending activation yet
+
+    // If no profiles exist, create a default one in local cache
+    if (m_stationProfiles.isEmpty()) {
+        StationProfile defaultProfile;
+        defaultProfile.name = "Default";
+        defaultProfile.defaultActive = 0;
+        defaultProfile.so2rEnabled = false;
+        m_stationProfiles.append(defaultProfile);
+    }
+
     // Populate the radio list and assignment combos
     refreshRadioList();
     refreshRadioAssignCombos();
@@ -1768,8 +1781,16 @@ void PreferencesDialog::saveSettings() {
     // Save radio profiles (individual radio definitions)
     settings.saveRadioProfiles(m_radioProfiles);
 
-    // Save current station profile (assignments are saved incrementally)
+    // Save station profiles from local cache (OK/Cancel pattern)
+    // First, capture current UI state into the selected profile
     saveCurrentStationProfile();
+    // Then save all profiles to persistent storage
+    settings.saveStationProfiles(m_stationProfiles);
+
+    // Apply pending active profile if user clicked "Activate"
+    if (!m_pendingActiveProfile.isEmpty()) {
+        settings.setActiveStationProfile(m_pendingActiveProfile);
+    }
 
     // Save general radio settings
     settings.setRadioAutoConnect(m_autoConnectCheck->isChecked());
@@ -1937,6 +1958,9 @@ void PreferencesDialog::onSO2REnabledChanged(bool enabled) {
     m_radio2AssignCombo->setEnabled(enabled);
     m_radio2DefaultButton->setEnabled(enabled);
 
+    // Auto-save the station profile (consistent with other fields)
+    saveCurrentStationProfile();
+
     LOG_DEBUG("PreferencesDialog", QString("SO2R enabled changed to: %1").arg(enabled));
 }
 
@@ -2038,18 +2062,39 @@ void PreferencesDialog::onRadioDoubleClicked(QListWidgetItem* item) {
 
 void PreferencesDialog::onStationProfileChanged(int index) {
     if (index < 0) return;
+
+    // Save current profile's UI state to local cache before switching
+    // Note: We use m_currentEditingProfile because the combo box already
+    // shows the NEW profile name by the time this slot is called
+    if (!m_currentEditingProfile.isEmpty()) {
+        // Temporarily restore old name to save to correct profile
+        QString newProfileName = m_stationProfileCombo->currentText();
+        for (StationProfile& p : m_stationProfiles) {
+            if (p.name == m_currentEditingProfile) {
+                p.radio1Name = m_radio1AssignCombo->currentData().toString();
+                p.radio2Name = m_radio2AssignCombo->currentData().toString();
+                p.defaultActive = m_radio2DefaultButton->isChecked() ? 1 : 0;
+                p.so2rEnabled = m_so2rEnabledCheck->isChecked();
+                break;
+            }
+        }
+    }
+
     QString profileName = m_stationProfileCombo->currentText();
     loadStationProfileIntoUI(profileName);
+    m_currentEditingProfile = profileName;  // Track which profile is now being edited
 }
 
 void PreferencesDialog::onNewStationProfile() {
+    // Save current profile's UI state to local cache before creating new
+    saveCurrentStationProfile();
+
     bool ok;
     QString name = QInputDialog::getText(this, "New Station Profile",
                                           "Profile name:", QLineEdit::Normal, "", &ok);
     if (ok && !name.isEmpty()) {
-        // Check for duplicate
-        QList<StationProfile> profiles = AppSettings::instance().loadStationProfiles();
-        for (const StationProfile& existing : profiles) {
+        // Check for duplicate in local cache
+        for (const StationProfile& existing : m_stationProfiles) {
             if (existing.name == name) {
                 DialogHelper::warning(this, "Duplicate Name",
                     QString("A profile named '%1' already exists.").arg(name));
@@ -2062,11 +2107,11 @@ void PreferencesDialog::onNewStationProfile() {
         newProfile.defaultActive = 0;
         newProfile.so2rEnabled = false;
 
-        profiles.append(newProfile);
-        AppSettings::instance().saveStationProfiles(profiles);
+        // Add to local cache (saved to AppSettings on OK)
+        m_stationProfiles.append(newProfile);
         refreshStationProfileCombo();
         m_stationProfileCombo->setCurrentText(name);
-        LOG_INFO("PreferencesDialog", QString("Created new station profile: %1").arg(name));
+        LOG_INFO("PreferencesDialog", QString("Created new station profile (pending): %1").arg(name));
     }
 }
 
@@ -2078,23 +2123,31 @@ void PreferencesDialog::onRenameStationProfile() {
     QString newName = QInputDialog::getText(this, "Rename Station Profile",
                                              "New name:", QLineEdit::Normal, currentName, &ok);
     if (ok && !newName.isEmpty() && newName != currentName) {
-        QList<StationProfile> profiles = AppSettings::instance().loadStationProfiles();
-        for (StationProfile& p : profiles) {
+        // Check for duplicate
+        for (const StationProfile& existing : m_stationProfiles) {
+            if (existing.name == newName) {
+                DialogHelper::warning(this, "Duplicate Name",
+                    QString("A profile named '%1' already exists.").arg(newName));
+                return;
+            }
+        }
+
+        // Update in local cache
+        for (StationProfile& p : m_stationProfiles) {
             if (p.name == currentName) {
                 p.name = newName;
                 break;
             }
         }
-        AppSettings::instance().saveStationProfiles(profiles);
 
-        // Update active profile name if it was renamed
-        if (AppSettings::instance().getActiveStationProfile() == currentName) {
-            AppSettings::instance().setActiveStationProfile(newName);
+        // Update pending active profile name if it was renamed
+        if (m_pendingActiveProfile == currentName) {
+            m_pendingActiveProfile = newName;
         }
 
         refreshStationProfileCombo();
         m_stationProfileCombo->setCurrentText(newName);
-        LOG_INFO("PreferencesDialog", QString("Renamed station profile: %1 -> %2").arg(currentName, newName));
+        LOG_INFO("PreferencesDialog", QString("Renamed station profile (pending): %1 -> %2").arg(currentName, newName));
     }
 }
 
@@ -2102,8 +2155,7 @@ void PreferencesDialog::onDeleteStationProfile() {
     QString name = m_stationProfileCombo->currentText();
     if (name.isEmpty()) return;
 
-    QList<StationProfile> profiles = AppSettings::instance().loadStationProfiles();
-    if (profiles.size() <= 1) {
+    if (m_stationProfiles.size() <= 1) {
         DialogHelper::warning(this, "Cannot Delete",
             "Cannot delete the last station profile. Create a new one first.");
         return;
@@ -2111,24 +2163,25 @@ void PreferencesDialog::onDeleteStationProfile() {
 
     QMessageBox::StandardButton reply = DialogHelper::question(
         this, "Confirm Delete",
-        QString("Are you sure you want to delete profile '%1'?").arg(name));
+        QString("Are you sure you want to delete profile '%1'?\n\n"
+                "This change will be applied when you click OK.").arg(name));
 
     if (reply == QMessageBox::Yes) {
-        for (int i = 0; i < profiles.size(); ++i) {
-            if (profiles[i].name == name) {
-                profiles.removeAt(i);
+        // Remove from local cache
+        for (int i = 0; i < m_stationProfiles.size(); ++i) {
+            if (m_stationProfiles[i].name == name) {
+                m_stationProfiles.removeAt(i);
                 break;
             }
         }
-        AppSettings::instance().saveStationProfiles(profiles);
 
-        // If active profile was deleted, switch to first available
-        if (AppSettings::instance().getActiveStationProfile() == name && !profiles.isEmpty()) {
-            AppSettings::instance().setActiveStationProfile(profiles.first().name);
+        // Clear pending activation if deleted profile was pending
+        if (m_pendingActiveProfile == name) {
+            m_pendingActiveProfile.clear();
         }
 
         refreshStationProfileCombo();
-        LOG_INFO("PreferencesDialog", QString("Deleted station profile: %1").arg(name));
+        LOG_INFO("PreferencesDialog", QString("Deleted station profile (pending): %1").arg(name));
     }
 }
 
@@ -2150,14 +2203,19 @@ void PreferencesDialog::onActivateProfile() {
     QString profileName = m_stationProfileCombo->currentText();
     if (profileName.isEmpty()) return;
 
+    // Save current UI state to local cache first
     saveCurrentStationProfile();
-    AppSettings::instance().setActiveStationProfile(profileName);
-    m_activeProfileLabel->setText(QString("Active Profile: %1").arg(profileName));
-    LOG_INFO("PreferencesDialog", QString("Activated station profile: %1").arg(profileName));
 
-    DialogHelper::information(this, "Profile Activated",
-        QString("Station profile '%1' is now active.\n\n"
-                "The radios will connect when you close Preferences.").arg(profileName));
+    // Mark this profile as pending activation (applied on OK)
+    m_pendingActiveProfile = profileName;
+
+    // Update label to show pending state
+    m_activeProfileLabel->setText(QString("Active Profile: %1 (pending)").arg(profileName));
+    LOG_INFO("PreferencesDialog", QString("Marked station profile for activation: %1").arg(profileName));
+
+    DialogHelper::information(this, "Profile Will Be Activated",
+        QString("Station profile '%1' will become active when you click OK.\n\n"
+                "Click Cancel to discard this change.").arg(profileName));
 }
 
 // ===== Helper Methods =====
@@ -2188,6 +2246,12 @@ void PreferencesDialog::refreshRadioAssignCombos() {
     QString radio1Selection = m_radio1AssignCombo->currentData().toString();
     QString radio2Selection = m_radio2AssignCombo->currentData().toString();
 
+    // Block signals during rebuild to prevent accidental save with empty values
+    // Bug fix: clear() triggers currentIndexChanged which calls saveCurrentStationProfile()
+    // with empty combo data, permanently losing the user's radio assignments
+    m_radio1AssignCombo->blockSignals(true);
+    m_radio2AssignCombo->blockSignals(true);
+
     // Clear and rebuild
     m_radio1AssignCombo->clear();
     m_radio2AssignCombo->clear();
@@ -2208,39 +2272,42 @@ void PreferencesDialog::refreshRadioAssignCombos() {
 
     int radio2Index = m_radio2AssignCombo->findData(radio2Selection);
     if (radio2Index >= 0) m_radio2AssignCombo->setCurrentIndex(radio2Index);
+
+    // Unblock signals after rebuild complete
+    m_radio1AssignCombo->blockSignals(false);
+    m_radio2AssignCombo->blockSignals(false);
 }
 
 void PreferencesDialog::refreshStationProfileCombo() {
     m_stationProfileCombo->clear();
 
-    QList<StationProfile> profiles = AppSettings::instance().loadStationProfiles();
-
-    // If no profiles exist, create a default one
-    if (profiles.isEmpty()) {
-        StationProfile defaultProfile;
-        defaultProfile.name = "Default";
-        defaultProfile.defaultActive = 0;
-        defaultProfile.so2rEnabled = false;
-        profiles.append(defaultProfile);
-        AppSettings::instance().saveStationProfiles(profiles);
-    }
-
-    for (const StationProfile& profile : profiles) {
+    // Use local cache (OK/Cancel pattern)
+    for (const StationProfile& profile : m_stationProfiles) {
         m_stationProfileCombo->addItem(profile.name);
     }
 
-    // Select the active profile
-    QString activeProfile = AppSettings::instance().getActiveStationProfile();
+    // Select the active profile (or pending if user clicked Activate)
+    QString activeProfile = m_pendingActiveProfile.isEmpty()
+        ? AppSettings::instance().getActiveStationProfile()
+        : m_pendingActiveProfile;
     int activeIndex = m_stationProfileCombo->findText(activeProfile);
     if (activeIndex >= 0) {
         m_stationProfileCombo->setCurrentIndex(activeIndex);
     }
 
-    m_activeProfileLabel->setText(QString("Active Profile: %1").arg(activeProfile));
+    m_activeProfileLabel->setText(QString("Active Profile: %1").arg(
+        AppSettings::instance().getActiveStationProfile()));
 }
 
 void PreferencesDialog::loadStationProfileIntoUI(const QString& profileName) {
-    StationProfile profile = AppSettings::instance().getStationProfile(profileName);
+    // Find profile in local cache (OK/Cancel pattern)
+    StationProfile profile;
+    for (const StationProfile& p : m_stationProfiles) {
+        if (p.name == profileName) {
+            profile = p;
+            break;
+        }
+    }
     if (profile.name.isEmpty()) return;
 
     // Block signals while loading to avoid triggering saves
@@ -2278,14 +2345,18 @@ void PreferencesDialog::loadStationProfileIntoUI(const QString& profileName) {
     m_radio1DefaultButton->blockSignals(false);
     m_radio2DefaultButton->blockSignals(false);
     m_so2rEnabledCheck->blockSignals(false);
+
+    // Track which profile is currently being edited
+    m_currentEditingProfile = profileName;
 }
 
 void PreferencesDialog::saveCurrentStationProfile() {
+    // Save current UI state to local cache (OK/Cancel pattern)
+    // Actual persistence happens in saveSettings() when user clicks OK
     QString profileName = m_stationProfileCombo->currentText();
     if (profileName.isEmpty()) return;
 
-    QList<StationProfile> profiles = AppSettings::instance().loadStationProfiles();
-    for (StationProfile& p : profiles) {
+    for (StationProfile& p : m_stationProfiles) {
         if (p.name == profileName) {
             p.radio1Name = m_radio1AssignCombo->currentData().toString();
             p.radio2Name = m_radio2AssignCombo->currentData().toString();
@@ -2294,7 +2365,6 @@ void PreferencesDialog::saveCurrentStationProfile() {
             break;
         }
     }
-    AppSettings::instance().saveStationProfiles(profiles);
 }
 
 // Amplifier slots
