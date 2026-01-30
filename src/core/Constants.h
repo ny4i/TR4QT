@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.27";  // Add GPL-3.0 license header to all source files
+constexpr const char* APP_VERSION = "3.40.28";  // SO2R: Radio 1 freq always on top, Radio 2 always on bottom
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
