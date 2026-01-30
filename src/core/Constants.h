@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.33";  // Fix ARRL DX Cabrillo export (use configured exchange)
+constexpr const char* APP_VERSION = "3.40.34";  // Add CW cut number support (NN=99, 5TT=500, etc.)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

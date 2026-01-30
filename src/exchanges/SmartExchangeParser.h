@@ -108,7 +108,11 @@ public:
     static bool looksLikePower(const QString& token);
 
     // Power normalization - converts K/KW to watts (e.g., "1K" -> "1000", "1.5KW" -> "1500")
+    // Also expands CW cut numbers (e.g., "NN" -> "99", "5NN" -> "599")
     static QString normalizePower(const QString& token);
+
+    // Expand CW cut numbers to digits: T=0, A=1, U=2, V=3, E=5, B=7, D=8, N=9
+    static QString expandCutNumbers(const QString& token);
 
     // CQ Zone detection (for CQ WW, IARU - range 1-40)
     static bool looksLikeCQZone(const QString& token);
