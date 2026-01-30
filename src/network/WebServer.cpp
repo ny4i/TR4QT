@@ -134,6 +134,16 @@ WebServer::WebServer(IQSODataSource* qsoDataSource,
     m_server->route("/api/export/adif", [this]() {
         return handleGetExportAdif();
     });
+
+    // GET /api/export/cabrillo - Export all QSOs to Cabrillo format
+    m_server->route("/api/export/cabrillo", [this]() {
+        return handleGetExportCabrillo();
+    });
+
+    // GET /api/contest/score - Get detailed score with band breakdown
+    m_server->route("/api/contest/score", [this]() {
+        return handleGetContestScore();
+    });
 }
 
 WebServer::~WebServer() {
@@ -2107,6 +2117,55 @@ QHttpServerResponse WebServer::handleGetExportAdif() {
     // Return as text/plain with .adi suggested filename
     QHttpServerResponse response("text/plain", adifContent.toUtf8());
     return response;
+}
+
+QHttpServerResponse WebServer::handleGetExportCabrillo() {
+    LOG_DEBUG("WebServer", "Received GET /api/export/cabrillo");
+
+    // Emit signal for handler to generate Cabrillo
+    QString cabrilloContent;
+    emit cabrilloExportRequested(&cabrilloContent);
+
+    if (cabrilloContent.isEmpty()) {
+        return jsonError(400, "No active contest or no QSOs to export");
+    }
+
+    // Return as text/plain
+    return QHttpServerResponse("text/plain", cabrilloContent.toUtf8());
+}
+
+QHttpServerResponse WebServer::handleGetContestScore() {
+    LOG_DEBUG("WebServer", "Received GET /api/contest/score");
+
+    // Emit signal for handler to populate response
+    ScoreResponse response;
+    emit contestScoreRequested(&response);
+
+    QJsonObject result;
+    result["active"] = response.active;
+
+    if (response.active) {
+        result["contestName"] = response.contestName;
+        result["totalQsos"] = response.totalQsos;
+        result["totalPoints"] = response.totalPoints;
+        result["totalMultipliers"] = response.totalMultipliers;
+        result["score"] = response.score;
+
+        // Band breakdown array
+        QJsonArray breakdown;
+        for (const BandBreakdown& entry : response.bandBreakdown) {
+            QJsonObject bandObj;
+            bandObj["band"] = entry.band;
+            bandObj["mode"] = entry.mode;
+            bandObj["qsos"] = entry.qsos;
+            bandObj["points"] = entry.points;
+            bandObj["multipliers"] = entry.multipliers;
+            breakdown.append(bandObj);
+        }
+        result["bandBreakdown"] = breakdown;
+    }
+
+    return jsonSuccess(result);
 }
 
 } // namespace TR4QT

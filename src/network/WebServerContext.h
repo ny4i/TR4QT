@@ -113,6 +113,30 @@ struct ContestStatusResponse {
 };
 
 /**
+ * Band breakdown entry for score response
+ */
+struct BandBreakdown {
+    QString band;           // "160M", "80M", etc.
+    QString mode;           // "CW", "SSB", "RTTY"
+    int qsos = 0;
+    int points = 0;
+    int multipliers = 0;
+};
+
+/**
+ * Response structure for GET /api/contest/score
+ */
+struct ScoreResponse {
+    bool active = false;
+    QString contestName;
+    int totalQsos = 0;
+    int totalPoints = 0;
+    int totalMultipliers = 0;
+    int score = 0;          // totalPoints * totalMultipliers (or contest-specific)
+    QList<BandBreakdown> bandBreakdown;
+};
+
+/**
  * WebServerContext - Headless context for web API handling
  *
  * Owns contest state and services, handles all web API requests
@@ -168,6 +192,18 @@ public:
      * @return Status response with contest info
      */
     ContestStatusResponse getContestStatus() const;
+
+    /**
+     * Get detailed score with band breakdown
+     * @return Score response with per-band statistics
+     */
+    ScoreResponse getScore() const;
+
+    /**
+     * Generate Cabrillo export
+     * @return Cabrillo-formatted text, or empty string if no contest
+     */
+    QString generateCabrillo() const;
 
     // === State Accessors ===
 

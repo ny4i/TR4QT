@@ -169,6 +169,18 @@ int main(int argc, char *argv[])
             *resp = context.getContestStatus();
         });
 
+    // Contest API - get score with band breakdown
+    QObject::connect(&server, &WebServer::contestScoreRequested,
+        [&context](ScoreResponse* resp) {
+            *resp = context.getScore();
+        });
+
+    // Export API - Cabrillo
+    QObject::connect(&server, &WebServer::cabrilloExportRequested,
+        [&context](QString* content) {
+            *content = context.generateCabrillo();
+        });
+
     // Connect context signals for logging
     QObject::connect(&context, &WebServerContext::contestActivated,
         [](const QString& name) {

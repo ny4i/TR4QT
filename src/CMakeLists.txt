@@ -467,6 +467,7 @@ set(SERVER_SOURCES
     utils/PathManager.cpp
     utils/PlatformUtils.cpp
     utils/ADIFExporter.cpp
+    utils/CabrilloExporter.cpp
     # Network
     network/WebServer.cpp
     network/WebServerContext.cpp
