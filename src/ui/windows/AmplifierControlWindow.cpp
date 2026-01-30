@@ -617,9 +617,11 @@ void AmplifierControlWindow::resizeEvent(QResizeEvent* event) {
 
     // Only resize if height doesn't match (with small tolerance to prevent loops)
     const int HEIGHT_TOLERANCE = 2;
-    if (qAbs(event->size().height() - expectedHeight) > HEIGHT_TOLERANCE) {
-        // Resize window to match aspect ratio (height follows width)
+    if (!m_isResizing && qAbs(event->size().height() - expectedHeight) > HEIGHT_TOLERANCE) {
+        // Guard against infinite recursion: set flag before calling resize()
+        m_isResizing = true;
         resize(newWidth, expectedHeight);
+        m_isResizing = false;
         return;  // Will trigger another resizeEvent with correct size
     }
 

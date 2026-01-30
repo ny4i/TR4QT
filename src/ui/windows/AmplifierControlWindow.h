@@ -141,6 +141,7 @@ private:
     AmplifierState m_currentState;
     QString m_pressedButton;  // Currently pressed button (for visual feedback)
     bool m_connected{false};
+    bool m_isResizing{false};  // Guard flag to prevent infinite resizeEvent loop
 
     // Services
     AmplifierService* m_service;
