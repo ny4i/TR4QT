@@ -69,6 +69,12 @@ QList<TableColumn> ARRLDXBase::getTableColumns() const {
 
 QString ARRLDXBase::formatSentExchange(int serialNumber, const QString& rst) const {
     Q_UNUSED(serialNumber);
+    // Use configured exchange if set (e.g., "599 PA" from database/API)
+    // This avoids using stale AppSettings values
+    if (!m_exchangeSent.isEmpty()) {
+        return m_exchangeSent;
+    }
+    // Fallback to template for GUI operation
     return rst + " {STATE}";
 }
 
