@@ -1732,8 +1732,24 @@ QHttpServerResponse WebServer::handlePostLogQSO(const QHttpServerRequest& reques
         }
     }
 
-    LOG_INFO("WebServer", QString("Log QSO request: %1 exchange=%2")
-             .arg(req.callsign).arg(req.exchange));
+    // Parse timestamp (ISO 8601 format: "2025-03-29T17:23:00Z")
+    // If not provided or invalid, QDateTime will be invalid and logging service uses current UTC
+    if (json.contains("datetime")) {
+        QString dtStr = json["datetime"].toString();
+        req.timestamp = QDateTime::fromString(dtStr, Qt::ISODate);
+        if (!req.timestamp.isValid() && !dtStr.isEmpty()) {
+            return jsonError(400, QString("Invalid datetime format: %1 (expected ISO 8601)").arg(dtStr), "datetime");
+        }
+        // Ensure timestamp is in UTC
+        if (req.timestamp.isValid()) {
+            req.timestamp.setTimeSpec(Qt::UTC);
+        }
+    }
+
+    LOG_INFO("WebServer", QString("Log QSO request: %1 exchange=%2%3")
+             .arg(req.callsign)
+             .arg(req.exchange)
+             .arg(req.timestamp.isValid() ? QString(" at %1").arg(req.timestamp.toString(Qt::ISODate)) : ""));
 
     // Emit signal for MainWindow to handle (synchronous - same thread)
     LogQSOWebResponse response;

@@ -180,7 +180,8 @@ bool QSOLogger::validateBandMode(const RadioState& radioState, QString& errorMsg
 
 void QSOLogger::populateQSOFromInput(QSO& qso, const Input& input)
 {
-    qso.timestamp = QDateTime::currentDateTimeUtc();
+    // Use provided timestamp if valid, otherwise use current UTC
+    qso.timestamp = input.timestamp.isValid() ? input.timestamp : QDateTime::currentDateTimeUtc();
     qso.callsign = input.callsign;
     qso.operatorCall = input.operatorCallsign;
 

@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.29";  // Add Cabrillo round-trip test script
+constexpr const char* APP_VERSION = "3.40.30";  // Add datetime parameter to log-qso API
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

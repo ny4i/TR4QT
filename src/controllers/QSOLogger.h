@@ -67,6 +67,7 @@ public:
         int serialNumber;               // Current serial number (for contests using serials)
         OperatingMode operatingMode;    // CQ vs S&P mode
         int radioNumber = 1;            // Which radio logged this QSO (1 or 2 for SO2R)
+        QDateTime timestamp;            // QSO timestamp (invalid = use current UTC)
     };
 
     // Result returned from logQSO()
