@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.28";  // SO2R: Radio 1 freq always on top, Radio 2 always on bottom
+constexpr const char* APP_VERSION = "3.40.29";  // Add Cabrillo round-trip test script
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
