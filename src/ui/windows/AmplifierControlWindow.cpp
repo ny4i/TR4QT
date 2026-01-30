@@ -619,10 +619,16 @@ void AmplifierControlWindow::resizeEvent(QResizeEvent* event) {
     const int HEIGHT_TOLERANCE = 2;
     if (!m_isResizing && qAbs(event->size().height() - expectedHeight) > HEIGHT_TOLERANCE) {
         // Guard against infinite recursion: set flag before calling resize()
+        // Don't reset flag here - let the next resizeEvent (triggered by resize()) reset it
         m_isResizing = true;
         resize(newWidth, expectedHeight);
-        m_isResizing = false;
         return;  // Will trigger another resizeEvent with correct size
+    }
+
+    // If we reach here with m_isResizing=true, we're in the recursive resizeEvent
+    // after our resize() call above, so reset the flag and proceed with repositioning
+    if (m_isResizing) {
+        m_isResizing = false;
     }
 
     repositionOverlays();
