@@ -610,6 +610,10 @@ double AmplifierControlWindow::swrToMeterProportion(float swr) const {
 void AmplifierControlWindow::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
 
+    // TEMPORARY: Aspect ratio enforcement disabled to debug flickering issue
+    // TODO: Implement more robust aspect ratio enforcement that won't cause event loops
+
+    /*
     // Enforce SVG aspect ratio: adjust height based on width
     // This ensures the window always perfectly fits the panel with no whitespace
     int newWidth = event->size().width();
@@ -630,6 +634,7 @@ void AmplifierControlWindow::resizeEvent(QResizeEvent* event) {
     if (m_isResizing) {
         m_isResizing = false;
     }
+    */
 
     repositionOverlays();
     repositionLcdLabel();
