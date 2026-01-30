@@ -6,8 +6,8 @@ Tests the headless server API by:
 1. Creating a new CQ WW SSB contest
 2. Logging 10 QSOs across multiple bands
 3. Verifying score and band breakdown
-4. Exporting to ADIF and verifying fields
-5. Exporting to Cabrillo and verifying format
+4. Exporting to ADIF, saving to /tmp, reading back and verifying
+5. Exporting to Cabrillo, saving to /tmp, reading back and verifying
 
 Usage:
     # Start the server first:
@@ -22,6 +22,7 @@ Usage:
 
 import argparse
 import json
+import os
 import requests
 import sys
 import re
@@ -53,6 +54,9 @@ EXPECTED_BAND_COUNTS = {
     "80M": 2,
     "15M": 2,
 }
+
+# Export directory
+EXPORT_DIR = "/tmp"
 
 
 def create_contest(base_url: str) -> dict:
@@ -108,10 +112,11 @@ def log_all_qsos(base_url: str) -> list:
 
         if result.get("success"):
             band = result.get("band", qso["band"])
+            mode = result.get("mode", "?")
             pts = result.get("points", 0)
             mult = result.get("isMultiplier", False)
             mult_str = "MULT" if mult else ""
-            print(f"   [{i:2d}] {qso['callsign']:8s} {band:4s} - OK (pts={pts}) {mult_str}")
+            print(f"   [{i:2d}] {qso['callsign']:8s} {band:4s} {mode:3s} - OK (pts={pts}) {mult_str}")
         else:
             print(f"   [{i:2d}] {qso['callsign']:8s} - FAILED: {result.get('error')}")
 
@@ -166,8 +171,8 @@ def check_score(base_url: str) -> dict:
     return result
 
 
-def export_adif(base_url: str) -> str:
-    """Export QSOs to ADIF format and verify fields."""
+def export_and_save_adif(base_url: str) -> tuple[str, str]:
+    """Export QSOs to ADIF, save to /tmp, return (filepath, content)."""
     url = f"{base_url}/api/export/adif"
 
     print(f"\n4. Exporting to ADIF...")
@@ -178,62 +183,91 @@ def export_adif(base_url: str) -> str:
 
     if not result.get("success"):
         print(f"   ERROR: {result.get('error', 'Unknown error')}")
-        return ""
+        return "", ""
 
-    filename = result.get("filename", "unknown.adi")
-    adif_content = result.get("content", "")
+    filename = result.get("filename", "export.adi")
+    content = result.get("content", "")
+    filepath = os.path.join(EXPORT_DIR, filename)
 
-    # Count QSOs in ADIF (by counting <EOR> tags)
+    # Save to file
+    with open(filepath, "w") as f:
+        f.write(content)
+
+    print(f"   Saved to: {filepath}")
+    print(f"   Size: {len(content)} bytes")
+
+    return filepath, content
+
+
+def validate_adif_from_file(filepath: str) -> bool:
+    """Read ADIF file from disk and validate contents."""
+    print(f"\n   Validating ADIF from file: {filepath}")
+
+    if not os.path.exists(filepath):
+        print(f"   ERROR: File not found")
+        return False
+
+    with open(filepath, "r") as f:
+        adif_content = f.read()
+
+    # Count QSOs
     qso_count = adif_content.count("<EOR>")
-    print(f"   Filename: {filename}")
-    print(f"   Received {qso_count} QSO records")
+    print(f"   Found {qso_count} QSO records in file")
 
-    # Verify each callsign is present
-    print(f"\n   Verifying ADIF fields...")
-    all_found = True
+    if qso_count != len(TEST_QSOS):
+        print(f"   ERROR: Expected {len(TEST_QSOS)} QSOs, found {qso_count}")
+        return False
+
+    # Verify each callsign and key fields
+    all_valid = True
     for qso in TEST_QSOS:
         callsign = qso["callsign"]
         zone = qso["zone"]
-
-        # Check callsign present
-        if callsign not in adif_content:
-            print(f"   [MISSING] Callsign {callsign} not found")
-            all_found = False
-            continue
+        band = qso["band"].lower()  # ADIF uses lowercase bands
 
         # Extract the QSO record for this callsign
-        # Look for pattern: <CALL:n>callsign ... <EOR>
         pattern = f"<CALL:\\d+>{callsign}.*?<EOR>"
         match = re.search(pattern, adif_content, re.IGNORECASE | re.DOTALL)
+
         if not match:
-            print(f"   [ERROR] Could not parse QSO record for {callsign}")
+            print(f"   [FAIL] {callsign}: not found in file")
+            all_valid = False
             continue
 
         record = match.group(0)
-
-        # Verify key fields
         errors = []
 
-        # Check RST_RCVD (should be 59)
-        if "<RST_RCVD" not in record:
-            errors.append("missing RST_RCVD")
-        elif ">59<" not in record and ">59 " not in record and "59<" not in adif_content:
-            pass  # May be formatted differently
+        # Check MODE is SSB (not CW)
+        if "<MODE:3>SSB" not in record and "<MODE:2>PH" not in record:
+            if "<MODE:2>CW" in record:
+                errors.append("wrong mode (CW instead of SSB)")
+            else:
+                errors.append("missing MODE")
 
-        # Check CQZ (zone)
-        if f"<CQZ" not in record:
+        # Check BAND
+        band_pattern = f"<BAND:\\d+>{band}"
+        if not re.search(band_pattern, record, re.IGNORECASE):
+            errors.append(f"wrong band (expected {band})")
+
+        # Check CQZ
+        if "<CQZ:" not in record:
             errors.append("missing CQZ")
 
+        # Check RST_RCVD
+        if "<RST_RCVD:" not in record:
+            errors.append("missing RST_RCVD")
+
         if errors:
-            print(f"   [WARN] {callsign}: {', '.join(errors)}")
+            print(f"   [FAIL] {callsign}: {', '.join(errors)}")
+            all_valid = False
         else:
-            print(f"   [OK] {callsign} - all fields present")
+            print(f"   [OK] {callsign}: all fields valid")
 
-    return adif_content
+    return all_valid
 
 
-def export_cabrillo(base_url: str) -> str:
-    """Export QSOs to Cabrillo format and verify."""
+def export_and_save_cabrillo(base_url: str) -> tuple[str, str]:
+    """Export QSOs to Cabrillo, save to /tmp, return (filepath, content)."""
     url = f"{base_url}/api/export/cabrillo"
 
     print(f"\n5. Exporting to Cabrillo...")
@@ -244,48 +278,98 @@ def export_cabrillo(base_url: str) -> str:
 
     if not result.get("success"):
         print(f"   ERROR: {result.get('error', 'Unknown error')}")
-        return ""
+        return "", ""
 
-    filename = result.get("filename", "unknown.cbr")
-    cabrillo = result.get("content", "")
+    filename = result.get("filename", "export.cbr")
+    content = result.get("content", "")
+    filepath = os.path.join(EXPORT_DIR, filename)
 
-    # Count QSO lines
-    qso_lines = [line for line in cabrillo.split('\n') if line.startswith('QSO:')]
-    print(f"   Filename: {filename}")
-    print(f"   Received {len(qso_lines)} QSO records")
+    # Save to file
+    with open(filepath, "w") as f:
+        f.write(content)
 
-    # Verify header
-    print(f"\n   Verifying Cabrillo header...")
-    required_headers = ["START-OF-LOG:", "CONTEST:", "CALLSIGN:", "CATEGORY-OPERATOR:"]
-    for header in required_headers:
-        if header in cabrillo:
-            # Extract value
-            for line in cabrillo.split('\n'):
-                if line.startswith(header):
+    print(f"   Saved to: {filepath}")
+    print(f"   Size: {len(content)} bytes")
+
+    return filepath, content
+
+
+def validate_cabrillo_from_file(filepath: str) -> bool:
+    """Read Cabrillo file from disk and validate contents."""
+    print(f"\n   Validating Cabrillo from file: {filepath}")
+
+    if not os.path.exists(filepath):
+        print(f"   ERROR: File not found")
+        return False
+
+    with open(filepath, "r") as f:
+        cabrillo = f.read()
+
+    lines = cabrillo.split('\n')
+    qso_lines = [line for line in lines if line.startswith('QSO:')]
+    print(f"   Found {len(qso_lines)} QSO lines in file")
+
+    if len(qso_lines) != len(TEST_QSOS):
+        print(f"   ERROR: Expected {len(TEST_QSOS)} QSOs, found {len(qso_lines)}")
+        return False
+
+    # Verify header fields
+    all_valid = True
+    required_headers = {
+        "START-OF-LOG:": None,
+        "CONTEST:": "CQ-WW-SSB",
+        "CALLSIGN:": "K1TEST",
+        "CATEGORY-MODE:": "SSB",
+        "CATEGORY-OPERATOR:": "SINGLE-OP",
+        "CATEGORY-POWER:": "HIGH",
+    }
+
+    print(f"\n   Checking headers...")
+    for header, expected_value in required_headers.items():
+        found = False
+        for line in lines:
+            if line.startswith(header):
+                found = True
+                if expected_value:
+                    actual_value = line.split(header, 1)[1].strip()
+                    if actual_value != expected_value:
+                        print(f"   [FAIL] {header} expected '{expected_value}', got '{actual_value}'")
+                        all_valid = False
+                    else:
+                        print(f"   [OK] {line.strip()}")
+                else:
                     print(f"   [OK] {line.strip()}")
-                    break
-        else:
-            print(f"   [MISSING] {header}")
+                break
+        if not found:
+            print(f"   [FAIL] Missing header: {header}")
+            all_valid = False
 
-    # Verify QSO lines
-    print(f"\n   Verifying QSO lines...")
-    for qso in TEST_QSOS[:3]:  # Check first 3
+    # Verify QSO lines have correct mode (PH for SSB)
+    print(f"\n   Checking QSO lines...")
+    for qso in TEST_QSOS:
         callsign = qso["callsign"]
         found = False
         for line in qso_lines:
             if callsign in line:
                 found = True
-                # Basic format check: QSO: freq mode date time mycall rst exch theircall rst exch
+                # Check mode is PH (phone), not CW
                 parts = line.split()
-                if len(parts) >= 9:
-                    print(f"   [OK] {callsign}: {line[:70]}...")
+                if len(parts) >= 3:
+                    mode = parts[2]  # QSO: freq mode ...
+                    if mode != "PH":
+                        print(f"   [FAIL] {callsign}: wrong mode '{mode}' (expected 'PH')")
+                        all_valid = False
+                    else:
+                        print(f"   [OK] {callsign}: mode=PH, line valid")
                 else:
-                    print(f"   [WARN] {callsign}: malformed line")
+                    print(f"   [FAIL] {callsign}: malformed QSO line")
+                    all_valid = False
                 break
         if not found:
-            print(f"   [MISSING] {callsign} not in Cabrillo")
+            print(f"   [FAIL] {callsign}: not found in Cabrillo")
+            all_valid = False
 
-    return cabrillo
+    return all_valid
 
 
 def close_contest(base_url: str) -> dict:
@@ -318,6 +402,7 @@ def main():
     print("TR4QT Headless Server API Test - Multi-Band CQ WW SSB")
     print("=" * 70)
     print(f"Server: {base_url}")
+    print(f"Export directory: {EXPORT_DIR}")
 
     # Check server is running
     try:
@@ -343,11 +428,13 @@ def main():
         # 3. Check score and band breakdown
         score_result = check_score(base_url)
 
-        # 4. Export to ADIF and verify
-        adif_content = export_adif(base_url)
+        # 4. Export ADIF, save to file, read back and validate
+        adif_filepath, adif_content = export_and_save_adif(base_url)
+        adif_valid = validate_adif_from_file(adif_filepath) if adif_filepath else False
 
-        # 5. Export to Cabrillo and verify
-        cabrillo_content = export_cabrillo(base_url)
+        # 5. Export Cabrillo, save to file, read back and validate
+        cabrillo_filepath, cabrillo_content = export_and_save_cabrillo(base_url)
+        cabrillo_valid = validate_cabrillo_from_file(cabrillo_filepath) if cabrillo_filepath else False
 
         # 6. Close contest
         close_contest(base_url)
@@ -387,22 +474,28 @@ def main():
         else:
             print(f"[FAIL] Band breakdown incorrect")
 
-        # Test 4: ADIF export
-        if adif_content and adif_content.count("<EOR>") == len(TEST_QSOS):
-            print(f"[PASS] ADIF export: {adif_content.count('<EOR>')} QSOs")
+        # Test 4: ADIF export and validation
+        if adif_valid:
+            print(f"[PASS] ADIF export: saved and validated from {adif_filepath}")
             tests_passed += 1
         else:
-            print(f"[FAIL] ADIF export incomplete")
+            print(f"[FAIL] ADIF export/validation failed")
 
-        # Test 5: Cabrillo export
-        if cabrillo_content and "QSO:" in cabrillo_content:
-            qso_count = cabrillo_content.count("QSO:")
-            print(f"[PASS] Cabrillo export: {qso_count} QSOs")
+        # Test 5: Cabrillo export and validation
+        if cabrillo_valid:
+            print(f"[PASS] Cabrillo export: saved and validated from {cabrillo_filepath}")
             tests_passed += 1
         else:
-            print(f"[FAIL] Cabrillo export failed")
+            print(f"[FAIL] Cabrillo export/validation failed")
 
         print(f"\nTests passed: {tests_passed}/{tests_total}")
+
+        # Show export file locations
+        print(f"\nExport files:")
+        if adif_filepath:
+            print(f"  ADIF:     {adif_filepath}")
+        if cabrillo_filepath:
+            print(f"  Cabrillo: {cabrillo_filepath}")
 
         if tests_passed == tests_total:
             print("\nAll tests PASSED!")

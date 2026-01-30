@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.25";  // Export endpoints return JSON with filename
+constexpr const char* APP_VERSION = "3.40.26";  // Headless server defaults mode from contest type
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
