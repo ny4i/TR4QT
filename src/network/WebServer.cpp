@@ -311,24 +311,20 @@ QHttpServerResponse WebServer::handleApiRadio() {
 }
 
 QHttpServerResponse WebServer::handleApiScore() {
-    // Calculate score from QSO model
-    int qsoCount = m_qsoDataSource->qsoCount();
-    int totalPoints = 0;
-    int totalMults = 0;
-
-    for (int row = 0; row < qsoCount; ++row) {
-        QSO qso = m_qsoDataSource->qsoAt(row);
-        totalPoints += qso.qsoPoints;
-        if (qso.isMultiplier) {
-            totalMults++;
-        }
-    }
+    // Use the same signal-based approach as handleGetContestScore()
+    // This ensures consistent scoring using ScoreCalculationService
+    ScoreResponse response;
+    emit contestScoreRequested(&response);
 
     QJsonObject json;
-    json["qsos"] = qsoCount;
-    json["points"] = totalPoints;
-    json["multipliers"] = totalMults;
-    json["score"] = totalPoints * totalMults;
+    // Include both old and new field names for backward compatibility
+    json["qsos"] = response.totalQsos;
+    json["totalQsos"] = response.totalQsos;
+    json["points"] = response.totalPoints;
+    json["totalPoints"] = response.totalPoints;
+    json["multipliers"] = response.totalMultipliers;
+    json["totalMultipliers"] = response.totalMultipliers;
+    json["score"] = response.score;
     json["lastUpdate"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
 
     QJsonDocument doc(json);

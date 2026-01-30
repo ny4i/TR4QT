@@ -289,6 +289,21 @@ def export_cabrillo() -> str:
     return data.get("content", "")
 
 
+def get_score() -> dict:
+    """Get score from API."""
+    result = subprocess.run(
+        ["curl", "-s", "-m", "30", f"{BASE_URL}/api/contest/score"],
+        capture_output=True,
+        text=True,
+        timeout=35
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(f"curl failed: {result.stderr}")
+
+    return json.loads(result.stdout)
+
+
 def extract_qso_lines(cabrillo_content: str) -> List[str]:
     """Extract just the QSO lines from Cabrillo content."""
     lines = []
@@ -444,9 +459,25 @@ def main():
             print(f"  Logged: {success_count}/{len(qsos)} QSOs" +
                   (f" ({fail_count} failed)" if fail_count > 0 else ""))
 
+            # Get score and compare with claimed
+            print()
+            print("Step 5: Comparing scores...")
+            score_data = get_score()
+            calculated_score = score_data.get("score", 0)
+            # Handle both old and new API field names
+            total_points = score_data.get("totalPoints", score_data.get("points", 0))
+            total_mults = score_data.get("totalMultipliers", score_data.get("multipliers", 0))
+            total_qsos = score_data.get("totalQsos", score_data.get("qsos", 0))
+            claimed_score = header.claimed_score
+            score_diff = calculated_score - claimed_score
+            score_pct = (calculated_score / claimed_score * 100) if claimed_score > 0 else 0
+            print(f"  Claimed score:    {claimed_score:,}")
+            print(f"  Calculated score: {calculated_score:,} ({total_points} pts × {total_mults} mults, {total_qsos} QSOs)")
+            print(f"  Difference:       {score_diff:+,} ({score_pct:.1f}% of claimed)")
+
             # Export to Cabrillo
             print()
-            print("Step 5: Exporting to Cabrillo format...")
+            print("Step 6: Exporting to Cabrillo format...")
             exported_content = export_cabrillo()
 
             # Save exported file
@@ -460,7 +491,7 @@ def main():
 
             # Compare QSO sections
             print()
-            print("Step 6: Comparing QSO sections...")
+            print("Step 7: Comparing QSO sections...")
             success, differences = compare_qso_sections(qsos, exported_content)
 
             if success:

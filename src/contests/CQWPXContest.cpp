@@ -21,6 +21,7 @@
 #include "ContestMetadata.h"
 #include "../models/QSO.h"
 #include "RSTValidator.h"
+#include "../logging/LogMacros.h"
 #include <QRegularExpression>
 
 namespace TR4QT {
@@ -247,18 +248,24 @@ int CQWPXContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStatio
     const QString& theirCountry = qso.dxccEntity;
     const QString& theirContinent = qso.continent;
 
+    // Debug: trace station info used for scoring
+    LOG_DEBUG("CQWPXContest", QString("calculateQSOPoints: %1 -> myStation.country='%2' myStation.continent='%3' | their.country='%4' their.continent='%5'")
+              .arg(qso.callsign).arg(myStation.country).arg(myStation.continent).arg(theirCountry).arg(theirContinent));
+
     // Determine if we're on low bands (160m, 80m, 40m) or high bands (20m, 15m, 10m)
     bool isLowBand = (qso.band == BandType::Band160M ||
                       qso.band == BandType::Band80M ||
                       qso.band == BandType::Band40M);
 
     int points = 0;
+    QString scoringPath;
 
     // Same country: 1 point (all bands)
     // Only check country match if both countries are set (not empty)
     if (!myStation.country.isEmpty() && !theirCountry.isEmpty() &&
         myStation.country == theirCountry) {
         points = 1;
+        scoringPath = "same-country";
     }
     // Different continent
     else if (myStation.continent != theirContinent) {
@@ -268,6 +275,7 @@ int CQWPXContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStatio
             // SSB/Phone: 2/3 of CW points
             points = isLowBand ? 4 : 2;
         }
+        scoringPath = "different-continent";
     }
     // Same continent, different country
     else {
@@ -281,8 +289,14 @@ int CQWPXContest::calculateQSOPoints(const QSO& qso, const StationInfo& myStatio
         // North America exception: double points for contacts within NA
         if (myStation.continent == "NA") {
             points *= 2;
+            scoringPath = "same-continent-NA-doubled";
+        } else {
+            scoringPath = "same-continent-different-country";
         }
     }
+
+    LOG_DEBUG("CQWPXContest", QString("calculateQSOPoints: %1 = %2 pts (path: %3)")
+              .arg(qso.callsign).arg(points).arg(scoringPath));
 
     return points;
 }

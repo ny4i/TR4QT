@@ -526,6 +526,7 @@ set(SERVER_SOURCES
     services/ExchangeMemoryService.cpp
     services/QSOLoggingCoordinator.cpp
     services/QSOLoggingService.cpp
+    services/ScoreCalculationService.cpp
 )
 
 # Create headless server executable

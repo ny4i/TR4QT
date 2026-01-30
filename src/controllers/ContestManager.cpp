@@ -210,14 +210,31 @@ StationInfo ContestManager::buildStationInfo() const
     myStation.county = AppSettings::instance().getMyCounty();
 
     // Lookup country and other geographic data from cty.dat
+    // ALWAYS use cty.dat for geographic info derived from callsign
+    // AppSettings may have stale values from a different callsign (e.g., headless API with foreign call)
     if (m_countryFile) {
         CountryData myCountryData = m_countryFile->lookup(myStation.callsign);
+        LOG_DEBUG("ContestManager", QString("buildStationInfo: callsign=%1, countryFile lookup valid=%2")
+                  .arg(myStation.callsign).arg(myCountryData.isValid()));
         if (myCountryData.isValid()) {
+            // Always use cty.dat for country/continent/zone - it's the authoritative source
+            // for geographic data derived from a callsign
             myStation.country = myCountryData.name;
             myStation.dxccPrefix = myCountryData.primaryPrefix;
             myStation.dxccEntity = myCountryData.dxccEntity;
+            myStation.continent = continentToString(myCountryData.continent);
+            myStation.cqZone = myCountryData.cqZone;
+            myStation.ituZone = myCountryData.ituZone;
+
+            LOG_DEBUG("ContestManager", QString("buildStationInfo: using cty.dat values: continent=%1 cqZone=%2 ituZone=%3")
+                      .arg(myStation.continent).arg(myStation.cqZone).arg(myStation.ituZone));
         }
+    } else {
+        LOG_WARN("ContestManager", "buildStationInfo: m_countryFile is null!");
     }
+
+    LOG_INFO("ContestManager", QString("buildStationInfo result: callsign=%1 country=%2 continent=%3 cqZone=%4")
+             .arg(myStation.callsign).arg(myStation.country).arg(myStation.continent).arg(myStation.cqZone));
 
     return myStation;
 }

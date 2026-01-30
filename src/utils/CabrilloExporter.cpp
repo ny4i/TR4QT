@@ -96,12 +96,10 @@ QString CabrilloExporter::generateCabrillo(const QList<QSO>& qsos, ContestBase* 
     // Write header (analyzes QSOs for operator counts)
     stream << generateHeader(contest, qsos);
 
-    // Write QSO lines
+    // Write QSO lines (include all QSOs, dupes get 0 points)
     int serialNumber = 1;
     for (const QSO& qso : qsos) {
-        if (!qso.isDupe) {
-            stream << formatQSO(qso, contest, serialNumber++);
-        }
+        stream << formatQSO(qso, contest, serialNumber++);
     }
 
     // End of log
@@ -114,19 +112,15 @@ QString CabrilloExporter::generateHeader(ContestBase* contest, const QList<QSO>&
     QString header;
     QTextStream stream(&header);
 
-    // Count non-dupe QSOs and QSOs per operator
-    int qsoCount = 0;
+    // Count all QSOs and QSOs per operator
+    int qsoCount = qsos.size();
     QMap<QString, int> operatorCounts;
 
     for (const QSO& qso : qsos) {
-        if (!qso.isDupe) {
-            qsoCount++;
-
-            // Track QSOs per operator
-            QString op = qso.operatorCall.isEmpty() ? m_callsign : qso.operatorCall;
-            if (!op.isEmpty()) {
-                operatorCounts[op]++;
-            }
+        // Track QSOs per operator (include all, even dupes)
+        QString op = qso.operatorCall.isEmpty() ? m_callsign : qso.operatorCall;
+        if (!op.isEmpty()) {
+            operatorCounts[op]++;
         }
     }
 
