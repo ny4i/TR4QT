@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.21";  // Add ADIF export API endpoint and Python test script
+constexpr const char* APP_VERSION = "3.40.22";  // Fix: Include Qt resources in headless server for schema.sql
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

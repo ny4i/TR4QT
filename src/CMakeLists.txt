@@ -455,6 +455,8 @@ endif()
 # Server sources - headless components only (no UI)
 set(SERVER_SOURCES
     server/main_server.cpp
+    # Qt Resources (schema.sql, etc.)
+    ../resources/resources.qrc
     # Utils (no UI dependencies)
     utils/AppSettings.cpp
     utils/ArrlSectionHelper.cpp
