@@ -63,3 +63,4 @@ cty.dat
 
 # Claude Code local settings (user-specific)
 .claude/settings.local.json
+test_export.adi

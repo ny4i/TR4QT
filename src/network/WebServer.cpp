@@ -2,6 +2,7 @@
 #include "WebServerContext.h"  // For contest API structs
 #include "../radio/RadioController.h"
 #include "../utils/AppSettings.h"
+#include "../utils/ADIFExporter.h"
 #include "../logging/LogMacros.h"
 #include "../core/Types.h"
 #include "../core/Constants.h"
@@ -127,6 +128,11 @@ WebServer::WebServer(IQSODataSource* qsoDataSource,
     // GET /api/contest/status - Get current contest status
     m_server->route("/api/contest/status", [this]() {
         return handleGetContestStatus();
+    });
+
+    // GET /api/export/adif - Export all QSOs to ADIF format
+    m_server->route("/api/export/adif", [this]() {
+        return handleGetExportAdif();
     });
 }
 
@@ -2075,6 +2081,32 @@ QHttpServerResponse WebServer::handleGetContestStatus() {
     }
 
     return jsonSuccess(result);
+}
+
+QHttpServerResponse WebServer::handleGetExportAdif() {
+    LOG_DEBUG("WebServer", "Received GET /api/export/adif");
+
+    if (!m_qsoDataSource) {
+        return jsonError(500, "No QSO data source configured");
+    }
+
+    // Get all QSOs from the data source
+    QList<QSO> qsos = m_qsoDataSource->allQSOs();
+
+    if (qsos.isEmpty()) {
+        // Return empty ADIF with just header
+        ADIFExporter exporter;
+        QString adifContent = exporter.generateADIF(qsos);
+        return QHttpServerResponse("text/plain", adifContent.toUtf8());
+    }
+
+    // Generate ADIF content
+    ADIFExporter exporter;
+    QString adifContent = exporter.generateADIF(qsos);
+
+    // Return as text/plain with .adi suggested filename
+    QHttpServerResponse response("text/plain", adifContent.toUtf8());
+    return response;
 }
 
 } // namespace TR4QT

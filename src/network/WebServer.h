@@ -225,6 +225,9 @@ private:
     QHttpServerResponse handlePostContestClose(const QHttpServerRequest& request);
     QHttpServerResponse handleGetContestStatus();
 
+    // Export API handlers
+    QHttpServerResponse handleGetExportAdif();
+
     // JSON response helpers
     QHttpServerResponse jsonError(int statusCode, const QString& message,
                                    const QString& field = QString());
