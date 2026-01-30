@@ -20,6 +20,7 @@
 #include "../data/QSORepository.h"
 #include "../utils/AppSettings.h"
 #include "../utils/PathManager.h"
+#include "../utils/CabrilloExporter.h"
 #include "../logging/LogMacros.h"
 #include "../contests/ContestRegistry.h"
 
@@ -328,6 +329,104 @@ ContestStatusResponse WebServerContext::getContestStatus() const {
     }
 
     return status;
+}
+
+ScoreResponse WebServerContext::getScore() const {
+    ScoreResponse response;
+
+    response.active = m_hasActiveContest;
+
+    if (!m_hasActiveContest || !m_activeContest) {
+        return response;
+    }
+
+    response.contestName = m_activeContest->getContestName();
+
+    // Build band breakdown from QSO list
+    QMap<QPair<BandType, ModeType>, BandBreakdown> breakdown;
+
+    for (const QSO& qso : m_qsoList) {
+        auto key = qMakePair(qso.band, qso.mode);
+
+        if (!breakdown.contains(key)) {
+            BandBreakdown entry;
+            entry.band = bandToString(qso.band);
+            entry.mode = modeToString(qso.mode);
+            breakdown[key] = entry;
+        }
+
+        BandBreakdown& entry = breakdown[key];
+        entry.qsos++;
+        entry.points += qso.qsoPoints;
+
+        // Count multipliers
+        if (qso.isMultiplier) {
+            entry.multipliers++;
+        }
+    }
+
+    // Convert to list and calculate totals
+    for (auto it = breakdown.begin(); it != breakdown.end(); ++it) {
+        response.bandBreakdown.append(it.value());
+        response.totalQsos += it.value().qsos;
+        response.totalPoints += it.value().points;
+        response.totalMultipliers += it.value().multipliers;
+    }
+
+    // Calculate score (points * multipliers for most contests)
+    response.score = response.totalPoints * response.totalMultipliers;
+
+    return response;
+}
+
+QString WebServerContext::generateCabrillo() const {
+    if (!m_hasActiveContest || !m_activeContest) {
+        return QString();
+    }
+
+    CabrilloExporter exporter;
+
+    // Set station info from m_myStation (populated during contest creation)
+    exporter.setStationInfo(
+        m_myStation.callsign,
+        m_myStation.grid,
+        m_contestInfo.operatorName,
+        QString(),  // address
+        QString(),  // city
+        QString(),  // state
+        QString(),  // postal
+        QString(),  // country
+        QString()   // email
+    );
+
+    // Set category from contest info
+    // m_contestInfo.mode is QString ("CW", "SSB", "Mixed")
+    QString cabrilloMode = m_contestInfo.mode;
+    if (cabrilloMode.isEmpty()) {
+        cabrilloMode = "MIXED";
+    }
+
+    exporter.setCategory(
+        "NON-ASSISTED",                           // assisted
+        "ALL",                                    // band
+        cabrilloMode,                             // mode
+        m_contestInfo.category,                   // operator category
+        m_contestInfo.powerClass,                 // power
+        "FIXED",                                  // station
+        QString(),                                // time
+        "ONE",                                    // transmitter
+        QString()                                 // overlay
+    );
+
+    // Calculate and set score
+    int points = 0;
+    int mults = 0;
+    calculateScore(points, mults);
+    exporter.setClaimedScore(points * mults);
+
+    exporter.setOperators(m_myStation.callsign);
+
+    return exporter.generateCabrillo(m_qsoList, m_activeContest.get());
 }
 
 // === Web Server Signal Handlers ===

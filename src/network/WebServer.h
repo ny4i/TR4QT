@@ -85,6 +85,7 @@ struct CreateContestResponse;
 struct OpenContestRequest;
 struct OpenContestResponse;
 struct ContestStatusResponse;
+struct ScoreResponse;
 
 /**
  * WebServer - HTTP server for contest information display
@@ -197,6 +198,20 @@ signals:
      */
     void contestStatusRequested(ContestStatusResponse* response);
 
+    /**
+     * Emitted when a GET /api/contest/score request is received
+     *
+     * @param response Pointer to response struct to populate
+     */
+    void contestScoreRequested(ScoreResponse* response);
+
+    /**
+     * Emitted when a GET /api/export/cabrillo request is received
+     *
+     * @param content Pointer to QString to receive Cabrillo content
+     */
+    void cabrilloExportRequested(QString* content);
+
 private:
     // HTTP route handlers
     QHttpServerResponse handleRoot();
@@ -227,6 +242,10 @@ private:
 
     // Export API handlers
     QHttpServerResponse handleGetExportAdif();
+    QHttpServerResponse handleGetExportCabrillo();
+
+    // Score API handlers
+    QHttpServerResponse handleGetContestScore();
 
     // JSON response helpers
     QHttpServerResponse jsonError(int statusCode, const QString& message,
