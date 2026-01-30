@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.22";  // Fix: Include Qt resources in headless server for schema.sql
+constexpr const char* APP_VERSION = "3.40.23";  // Fix: Load cty.dat from Qt resources in headless server
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
