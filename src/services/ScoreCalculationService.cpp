@@ -44,7 +44,10 @@ ScoreResult ScoreCalculationService::calculateScore(
     }
 
     // Track unique multiplier values for scoring calculation
-    QMap<MultiplierType, QSet<QString>> uniqueMultValues;
+    // Key: MultiplierType, Value: set of unique values (for AllBands scope)
+    QMap<MultiplierType, QSet<QString>> uniqueMultValuesAllBands;
+    // Key: MultiplierType, Value: map of band -> set of unique values (for PerBand scope)
+    QMap<MultiplierType, QMap<BandType, QSet<QString>>> uniqueMultValuesPerBand;
 
     // Track zones per band
     QMap<BandType, QSet<int>> zonesPerBand;
@@ -82,12 +85,19 @@ ScoreResult ScoreCalculationService::calculateScore(
         }
 
         // Track unique multiplier values for scoring
+        // Respect MultiplierScope: PerBand counts per band, AllBands counts once
         if (contest) {
             for (const MultiplierDefinition& multDef : multDefs) {
                 QString multValue = contest->getMultiplierValue(
                     qso, multDef.type, QStringList());
                 if (!multValue.isEmpty()) {
-                    uniqueMultValues[multDef.type].insert(multValue);
+                    if (multDef.scope == MultiplierScope::PerBand) {
+                        // Per-band: same value on different bands = separate multipliers
+                        uniqueMultValuesPerBand[multDef.type][qso.band].insert(multValue);
+                    } else {
+                        // AllBands: value counts once across all bands
+                        uniqueMultValuesAllBands[multDef.type].insert(multValue);
+                    }
                 }
             }
         }
@@ -105,8 +115,25 @@ ScoreResult ScoreCalculationService::calculateScore(
     }
 
     // Calculate multiplier counts per type for scoring
-    for (auto it = uniqueMultValues.begin(); it != uniqueMultValues.end(); ++it) {
+    // AllBands multipliers: count unique values
+    for (auto it = uniqueMultValuesAllBands.begin(); it != uniqueMultValuesAllBands.end(); ++it) {
         result.multiplierCounts[it.key()] = it.value().size();
+    }
+    // PerBand multipliers: sum unique values across all bands
+    for (auto it = uniqueMultValuesPerBand.begin(); it != uniqueMultValuesPerBand.end(); ++it) {
+        int totalForType = 0;
+        for (auto bandIt = it.value().begin(); bandIt != it.value().end(); ++bandIt) {
+            totalForType += bandIt.value().size();
+        }
+        result.multiplierCounts[it.key()] = totalForType;
+    }
+
+    // Update totalMultipliers to be the sum of all multiplier types
+    // This is used for display (e.g., "X pts × Y mults")
+    // The isMultiplier flag counting above is for per-QSO tracking
+    result.totalMultipliers = 0;
+    for (auto it = result.multiplierCounts.begin(); it != result.multiplierCounts.end(); ++it) {
+        result.totalMultipliers += it.value();
     }
 
     // Calculate final contest score using contest's formula

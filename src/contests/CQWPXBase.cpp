@@ -214,13 +214,25 @@ int CQWPXBase::calculateQSOPoints(const QSO& qso, const StationInfo& myStation) 
     }
     // Different continent
     else if (myStation.continent != theirContinent) {
+        // Per official rules:
+        // - High bands: 3 points CW, 2 points SSB
+        // - Low bands: 6 points CW, 4 points SSB
         int basePoints = isLowBand ? 6 : 3;
         points = static_cast<int>(basePoints * modeMultiplier);
+        if (points < 1) points = 1;  // Safety: minimum 1 point
     }
     // Same continent, different country
     else {
-        int basePoints = isLowBand ? 2 : 1;
-        points = static_cast<int>(basePoints * modeMultiplier);
+        // Per official rules:
+        // - High bands: 1 point (both modes)
+        // - Low bands: 2 points CW, 1 point SSB
+        if (isLowBand) {
+            int basePoints = 2;
+            points = static_cast<int>(basePoints * modeMultiplier);
+            if (points < 1) points = 1;  // Minimum 1 point
+        } else {
+            points = 1;  // High bands: 1 point regardless of mode
+        }
 
         // North America exception: double points for contacts within NA
         if (myStation.continent == "NA") {

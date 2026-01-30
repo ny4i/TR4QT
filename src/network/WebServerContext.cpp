@@ -35,6 +35,7 @@
 #include "../services/QSOPersistenceService.h"
 #include "../services/ExchangeMemoryService.h"
 #include "../services/QSOLoggingCoordinator.h"
+#include "../services/ScoreCalculationService.h"
 #include "../data/QSORepository.h"
 #include "../utils/AppSettings.h"
 #include "../utils/PathManager.h"
@@ -360,39 +361,27 @@ ScoreResponse WebServerContext::getScore() const {
 
     response.contestName = m_activeContest->getContestName();
 
-    // Build band breakdown from QSO list
-    QMap<QPair<BandType, ModeType>, BandBreakdown> breakdown;
+    // Use ScoreCalculationService for accurate contest-specific scoring
+    // This correctly handles per-band vs all-band multipliers, zone counting, etc.
+    ScoreCalculationService scoreService;
+    ScoreResult scoreResult = scoreService.calculateScore(m_qsoList, m_activeContest.get());
 
-    for (const QSO& qso : m_qsoList) {
-        auto key = qMakePair(qso.band, qso.mode);
-
-        if (!breakdown.contains(key)) {
-            BandBreakdown entry;
-            entry.band = bandToString(qso.band);
-            entry.mode = modeToString(qso.mode);
-            breakdown[key] = entry;
-        }
-
-        BandBreakdown& entry = breakdown[key];
-        entry.qsos++;
-        entry.points += qso.qsoPoints;
-
-        // Count multipliers
-        if (qso.isMultiplier) {
-            entry.multipliers++;
-        }
+    // Build band breakdown from score result
+    for (auto it = scoreResult.bandStats.begin(); it != scoreResult.bandStats.end(); ++it) {
+        BandBreakdown entry;
+        entry.band = bandToString(it.key());
+        entry.mode = "";  // ScoreResult doesn't track mode separately
+        entry.qsos = it.value().qsoCount;
+        entry.points = it.value().points;
+        entry.multipliers = it.value().multipliers;
+        response.bandBreakdown.append(entry);
     }
 
-    // Convert to list and calculate totals
-    for (auto it = breakdown.begin(); it != breakdown.end(); ++it) {
-        response.bandBreakdown.append(it.value());
-        response.totalQsos += it.value().qsos;
-        response.totalPoints += it.value().points;
-        response.totalMultipliers += it.value().multipliers;
-    }
-
-    // Calculate score (points * multipliers for most contests)
-    response.score = response.totalPoints * response.totalMultipliers;
+    // Use totals from score calculation service
+    response.totalQsos = scoreResult.totalQSOs;
+    response.totalPoints = scoreResult.totalQSOPoints;
+    response.totalMultipliers = scoreResult.totalMultipliers;
+    response.score = scoreResult.finalScore;
 
     return response;
 }

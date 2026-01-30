@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.30";  // Add datetime parameter to log-qso API
+constexpr const char* APP_VERSION = "3.40.31";  // Fix SSB scoring, per-band multipliers, continent lookup
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
