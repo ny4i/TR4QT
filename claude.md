@@ -970,6 +970,44 @@ Options:
 - `PerBand`: Same call/band (any mode)
 - `AllBand`: Same call (once per contest)
 
+### Scoring System
+
+**Key files for scoring:**
+- `/src/services/ScoreCalculationService.cpp` - Central score calculation (used by both GUI and headless)
+- `/src/contests/ContestBase.h` - Contest scoring interface
+- `/src/controllers/QSOLogger.cpp` - Sets QSO.qsoPoints when logging
+
+**Scoring architecture:**
+1. **QSO Points**: `ContestBase::calculateQSOPoints(qso, myStation)` - called when logging
+   - Most contests: Same continent = 1pt, Different continent = 3pt (for Phone)
+   - CW contests add mode bonus (e.g., 2pt same continent for CW)
+   - Uses `myStation.continent` vs `qso.continent` comparison
+
+2. **Multipliers**: Each contest defines `getMultiplierTypes()` returning list of `MultiplierDefinition`:
+   - `MultiplierType`: Zone, Country, Section, Prefix, State, etc.
+   - `MultiplierScope`: `PerBand` (counts per band) or `AllBands` (counts once)
+   - Example: CQ WW uses Zone + Country, both PerBand
+
+3. **Total Score**: `ContestBase::calculateTotalScore(totalPoints, multiplierCounts)`
+   - Most contests: `totalPoints × totalMultipliers`
+   - ARRL SS: `totalPoints × sections` (2pts per QSO × sections)
+
+**Critical fix (v3.40.31):**
+- Per-band multipliers must track unique values per band, not globally
+- `ScoreCalculationService` uses `QMap<MultiplierType, QMap<BandType, QSet<QString>>>` for PerBand
+- `totalMultipliers` should sum `multiplierCounts` (not count `isMultiplier` flags)
+
+**Station info for scoring:**
+- `myStation` is built from cty.dat lookup on our callsign
+- ALWAYS use cty.dat for `continent`, `cqZone`, etc. (not AppSettings which may be stale)
+- `ContestManager::buildStationInfo()` at line 212-238 does the lookup
+
+**Exchange format for Cabrillo:**
+- `formatSentExchange(serialNumber, rst)` returns the exchange to store in QSO.exchangeSent
+- Contests using serial numbers: prepend serial to `m_exchangeSent`
+- `m_exchangeSent` is set via `setExchangeSent()` when contest is activated
+- ARRL SS: `m_exchangeSent` = "M 62 WWA" (prec check section), format returns "1 M 62 WWA"
+
 ## Key Files
 
 ### Core
