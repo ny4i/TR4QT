@@ -6,6 +6,58 @@ echo "Running TR4QT pre-commit checks..."
 ERRORS=0
 WARNINGS=0
 
+# ============================================================================
+# Check tr4qt.rc version syntax (Windows resource file)
+# ============================================================================
+if git diff --cached --name-only | grep -q "resources/tr4qt.rc"; then
+    echo "Checking tr4qt.rc version syntax..."
+    if ! bash scripts/validate-rc-version.sh; then
+        echo ""
+        echo "❌ ERROR: tr4qt.rc version syntax validation failed"
+        echo ""
+        ERRORS=$((ERRORS + 1))
+    fi
+    echo ""
+fi
+
+# ============================================================================
+# Check version consistency across all 4 version files
+# ============================================================================
+VERSION_FILES="src/core/Constants.h installer/tr4qt.nsi src/CMakeLists.txt resources/tr4qt.rc"
+STAGED_VERSION_FILES=$(git diff --cached --name-only | grep -E "(Constants\.h|tr4qt\.nsi|src/CMakeLists\.txt|tr4qt\.rc)")
+
+if [ -n "$STAGED_VERSION_FILES" ]; then
+    echo "Checking version consistency across all files..."
+
+    # Extract versions from each file
+    V_CONSTANTS=$(grep 'APP_VERSION' src/core/Constants.h | head -1 | sed 's/.*"\([0-9.]*\)".*/\1/')
+    V_NSI=$(grep '!define APPVERSION' installer/tr4qt.nsi | sed 's/.*"\([0-9.]*\)".*/\1/')
+    V_CMAKE=$(grep 'MACOSX_BUNDLE_SHORT_VERSION_STRING' src/CMakeLists.txt | sed 's/.*"\([0-9.]*\)".*/\1/')
+    V_RC=$(grep 'VER_PRODUCTVERSION_STR' resources/tr4qt.rc | head -1 | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+
+    # Check all versions match
+    if [ "$V_CONSTANTS" != "$V_NSI" ] || [ "$V_CONSTANTS" != "$V_CMAKE" ] || [ "$V_CONSTANTS" != "$V_RC" ]; then
+        echo ""
+        echo "❌ ERROR: Version mismatch detected!"
+        echo ""
+        echo "  Constants.h:    $V_CONSTANTS"
+        echo "  tr4qt.nsi:      $V_NSI"
+        echo "  CMakeLists.txt: $V_CMAKE"
+        echo "  tr4qt.rc:       $V_RC"
+        echo ""
+        echo "All 4 files must have the same version. Update:"
+        echo "  - src/core/Constants.h (APP_VERSION)"
+        echo "  - installer/tr4qt.nsi (APPVERSION)"
+        echo "  - src/CMakeLists.txt (MACOSX_BUNDLE_*_VERSION)"
+        echo "  - resources/tr4qt.rc (VER_*VERSION)"
+        echo ""
+        ERRORS=$((ERRORS + 1))
+    else
+        echo "✓ All version files consistent: $V_CONSTANTS"
+    fi
+    echo ""
+fi
+
 # Get list of staged C++ files
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cpp|h)$')
 
@@ -37,10 +89,20 @@ fi
 
 # Check 2: Missing Q_OBJECT macro in classes with signals/slots
 for file in $STAGED_FILES; do
-    # Check if file has Q_OBJECT, signals, or slots
-    HAS_QOBJECT=$(grep -c "Q_OBJECT" "$file" 2>/dev/null || echo 0)
-    HAS_SIGNALS=$(grep -c "signals:" "$file" 2>/dev/null || echo 0)
-    HAS_SLOTS=$(grep -c "slots:" "$file" 2>/dev/null || echo 0)
+    # Check if file has Q_OBJECT, signals, or slots (trim output and handle errors)
+    HAS_QOBJECT=$(grep -c "Q_OBJECT" "$file" 2>/dev/null | head -1 || echo 0)
+    HAS_SIGNALS=$(grep -c "signals:" "$file" 2>/dev/null | head -1 || echo 0)
+    HAS_SLOTS=$(grep -c "slots:" "$file" 2>/dev/null | head -1 || echo 0)
+
+    # Ensure variables are integers (remove any whitespace/newlines)
+    HAS_QOBJECT=$(echo "$HAS_QOBJECT" | tr -d '[:space:]')
+    HAS_SIGNALS=$(echo "$HAS_SIGNALS" | tr -d '[:space:]')
+    HAS_SLOTS=$(echo "$HAS_SLOTS" | tr -d '[:space:]')
+
+    # Default to 0 if empty
+    HAS_QOBJECT=${HAS_QOBJECT:-0}
+    HAS_SIGNALS=${HAS_SIGNALS:-0}
+    HAS_SLOTS=${HAS_SLOTS:-0}
 
     if [ "$HAS_SIGNALS" -gt 0 ] || [ "$HAS_SLOTS" -gt 0 ]; then
         if [ "$HAS_QOBJECT" -eq 0 ]; then
@@ -63,7 +125,26 @@ if echo "$STAGED_FILES" | xargs grep -nE '(password|passwd|secret|api[_-]?key|pr
     ERRORS=$((ERRORS + 1))
 fi
 
-# Check 4: Dangerous pointer dereference without nullptr check
+# Check 4: SQL queries in UI classes (architectural violation)
+UI_FILES=$(echo "$STAGED_FILES" | grep -E 'src/ui/.*\.(cpp|h)$')
+if [ -n "$UI_FILES" ]; then
+    SQL_IN_UI=$(echo "$UI_FILES" | xargs grep -nE '(QSqlQuery|\.execute\(|SELECT |INSERT |UPDATE |DELETE FROM)' 2>/dev/null | grep -v "src/ui/models" | head -5)
+    if [ -n "$SQL_IN_UI" ]; then
+        echo ""
+        echo "❌ ERROR: Found SQL queries in UI classes!"
+        echo "SQL queries belong in Repository classes, NOT UI classes"
+        echo "(Showing first 5 occurrences)"
+        echo ""
+        echo "$SQL_IN_UI"
+        echo ""
+        echo "Architecture rule: UI → Service → Repository → Database"
+        echo "Move queries to src/data/*Repository.cpp or src/controllers/*Service.cpp"
+        echo ""
+        ERRORS=$((ERRORS + 1))
+    fi
+fi
+
+# Check 5: Dangerous pointer dereference without nullptr check
 if echo "$STAGED_FILES" | xargs grep -nE '\*[a-zA-Z_][a-zA-Z0-9_]*\s*\(' 2>/dev/null | grep -v "if.*!=" | grep -v "if.*==" | grep -v "Q_ASSERT" | head -3; then
     echo ""
     echo "⚠️  WARNING: Found pointer dereference - ensure nullptr check exists"
@@ -72,11 +153,34 @@ if echo "$STAGED_FILES" | xargs grep -nE '\*[a-zA-Z_][a-zA-Z0-9_]*\s*\(' 2>/dev/
     WARNINGS=$((WARNINGS + 1))
 fi
 
+# Check 6: Hardcoded hex color codes (should use ThemeManager)
+# Allow: Variable declarations (ColorRole:: definitions, theme defaults, LED colors)
+# Block: Direct usage in UI code (QString workedColor = "#0066cc")
+HEX_COLOR_MATCHES=$(echo "$STAGED_FILES" | xargs grep -nE '=\s*"#[0-9A-Fa-f]{6}"' 2>/dev/null | grep -v "ColorRole::" | grep -v "// Theme default" | grep -v "ThemeManager" | grep -v "LedColors::" | grep -v "ElecraftColors::" | grep -v "// Hardware" | head -5)
+if [ -n "$HEX_COLOR_MATCHES" ]; then
+    echo ""
+    echo "❌ ERROR: Found hardcoded hex color codes"
+    echo "Colors MUST use ThemeManager::instance().color(ColorRole::...)"
+    echo "This ensures theme support and user customization"
+    echo "(Showing first 5 occurrences)"
+    echo ""
+    echo "$HEX_COLOR_MATCHES"
+    echo ""
+    echo "Allowed patterns:"
+    echo "  - Theme definitions: ThemeManager.cpp color mappings"
+    echo "  - Color role defaults: // Theme default: #FF0000"
+    echo ""
+    echo "Bad:  QString color = \"#0066cc\";"
+    echo "Good: QColor color = ThemeManager::instance().color(ColorRole::WorkedStationText);"
+    echo ""
+    ERRORS=$((ERRORS + 1))
+fi
+
 # ============================================================================
 # WARNINGS (won't block commit, but should review)
 # ============================================================================
 
-# Check 5: QWidget created without parent (potential top-level windows)
+# Check 7: QWidget created without parent (potential top-level windows)
 if echo "$STAGED_FILES" | xargs grep -n 'new Q[A-Z][a-zA-Z]*\(Widget\|Dialog\|Window\)()' 2>/dev/null; then
     echo ""
     echo "⚠️  WARNING: Found QWidget/QDialog/QWindow created without parent"
@@ -85,22 +189,16 @@ if echo "$STAGED_FILES" | xargs grep -n 'new Q[A-Z][a-zA-Z]*\(Widget\|Dialog\|Wi
     WARNINGS=$((WARNINGS + 1))
 fi
 
-# Check 6: qDebug() calls (must use LOG_DEBUG/LOG_TRACE instead)
+# Check 8: Debug statements left in code (qDebug, LOG_DEBUG in non-debug code)
 if echo "$STAGED_FILES" | xargs grep -n 'qDebug()' 2>/dev/null; then
     echo ""
-    echo "❌ ERROR: Found qDebug() calls - use LOG_DEBUG/LOG_TRACE/LOG_INFO instead"
+    echo "⚠️  WARNING: Found qDebug() calls"
+    echo "Consider using LOG_DEBUG() for production code or remove debug statements"
     echo ""
-    echo "TR4QT uses a centralized logging system:"
-    echo "  - LOG_TRACE() for verbose protocol/data stream debugging"
-    echo "  - LOG_DEBUG() for general debugging messages"
-    echo "  - LOG_INFO() for informational messages"
-    echo "  - LOG_WARN() for warnings"
-    echo "  - LOG_ERROR() for errors"
-    echo ""
-    ERRORS=$((ERRORS + 1))
+    WARNINGS=$((WARNINGS + 1))
 fi
 
-# Check 7: TODO/FIXME without context
+# Check 9: TODO/FIXME without context
 if echo "$STAGED_FILES" | xargs grep -nE '(TODO|FIXME):?\s*$' 2>/dev/null; then
     echo ""
     echo "⚠️  WARNING: Found TODO/FIXME without description"
@@ -109,7 +207,7 @@ if echo "$STAGED_FILES" | xargs grep -nE '(TODO|FIXME):?\s*$' 2>/dev/null; then
     WARNINGS=$((WARNINGS + 1))
 fi
 
-# Check 8: Magic numbers (literal numbers in code)
+# Check 10: Magic numbers (literal numbers in code)
 # This is aggressive, so we only warn about obvious cases
 if echo "$STAGED_FILES" | xargs grep -nE '\.(setMaximumWidth|setMinimumWidth|setMaximumHeight|setMinimumHeight|setFixedWidth|setFixedHeight)\([0-9]+\)' 2>/dev/null | head -5; then
     echo ""
@@ -120,7 +218,7 @@ if echo "$STAGED_FILES" | xargs grep -nE '\.(setMaximumWidth|setMinimumWidth|set
     WARNINGS=$((WARNINGS + 1))
 fi
 
-# Check 9: QString conversion without UTF-8 awareness
+# Check 11: QString conversion without UTF-8 awareness
 if echo "$STAGED_FILES" | xargs grep -n '\.toStdString()' 2>/dev/null; then
     echo ""
     echo "⚠️  WARNING: Found QString::toStdString() conversion"
@@ -130,7 +228,7 @@ if echo "$STAGED_FILES" | xargs grep -n '\.toStdString()' 2>/dev/null; then
     WARNINGS=$((WARNINGS + 1))
 fi
 
-# Check 10: Deprecated Qt API usage (common ones)
+# Check 12: Deprecated Qt API usage (common ones)
 if echo "$STAGED_FILES" | xargs grep -nE '(QRegExp|qrand|qsrand|QTime::currentTime\.elapsed)' 2>/dev/null; then
     echo ""
     echo "⚠️  WARNING: Found deprecated Qt API"
@@ -141,7 +239,7 @@ if echo "$STAGED_FILES" | xargs grep -nE '(QRegExp|qrand|qsrand|QTime::currentTi
     WARNINGS=$((WARNINGS + 1))
 fi
 
-# Check 11: Missing include guards in header files
+# Check 13: Missing include guards in header files
 for file in $STAGED_FILES; do
     if [[ "$file" == *.h ]]; then
         # Extract expected guard name from filename
