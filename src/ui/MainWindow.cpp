@@ -3247,25 +3247,27 @@ void MainWindow::updateRadioStatusGrid() {
 
     // Update SO2R frequency displays
     if (so2rEnabled) {
-        // Get standby radio state
-        int standbyIndex = m_radioManager->getStandbyRadioIndex();
-        RadioState standbyState = m_radioManager->getRadioState(standbyIndex);
+        // Get radio states by fixed index (Radio 1 = index 0, Radio 2 = index 1)
+        // Radio 1 always on top, Radio 2 always on bottom (regardless of active status)
+        RadioState radio1State = m_radioManager->getRadioState(0);
+        RadioState radio2State = m_radioManager->getRadioState(1);
+        int activeIndex = m_radioManager->getActiveRadioIndex();
 
-        // Standby frequency (grayed out) - show in kHz like TR4W
-        if (hasTwoRadios && standbyState.frequencyA > 0) {
-            m_standbyFreqLabel->setText(formatFreqKHz(standbyState.frequencyA));
+        // Radio 1 frequency (top label) - show in kHz like TR4W
+        if (radio1State.frequencyA > 0) {
+            m_standbyFreqLabel->setText(formatFreqKHz(radio1State.frequencyA));
         } else {
             m_standbyFreqLabel->setText("--");
         }
-        m_standbyFreqLabel->setEnabled(false);  // Grayed out appearance
+        m_standbyFreqLabel->setEnabled(activeIndex == 0);  // Bright if Radio 1 is active
 
-        // Active frequency (bright) - show in kHz like TR4W
-        if (activeState.frequencyA > 0) {
-            m_radioFreqLabel->setText(formatFreqKHz(activeState.frequencyA));
+        // Radio 2 frequency (bottom label) - show in kHz like TR4W
+        if (hasTwoRadios && radio2State.frequencyA > 0) {
+            m_radioFreqLabel->setText(formatFreqKHz(radio2State.frequencyA));
         } else {
-            m_radioFreqLabel->setText("0.00");
+            m_radioFreqLabel->setText("--");
         }
-        m_radioFreqLabel->setEnabled(true);  // Bright appearance
+        m_radioFreqLabel->setEnabled(activeIndex == 1);  // Bright if Radio 2 is active
     } else {
         // Single radio mode - show frequency in MHz format
         if (activeState.frequencyA > 0) {
