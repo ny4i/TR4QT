@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.35";  // Fix infinite resize loop in AmplifierControlWindow
+constexpr const char* APP_VERSION = "3.40.36";  // Fix infinite resize loop (corrected guard flag logic) + disable grid square dialog
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
