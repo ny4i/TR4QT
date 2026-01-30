@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.24";  // Add score/band breakdown and Cabrillo export API endpoints
+constexpr const char* APP_VERSION = "3.40.25";  // Export endpoints return JSON with filename
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
