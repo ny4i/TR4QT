@@ -453,7 +453,15 @@ void WebServerContext::onLogQSOFromWeb(const LogQSOWebRequest& request, LogQSOWe
     RadioState radioState;
     radioState.frequencyA = request.frequency > 0 ? request.frequency : 14000000;  // Default 20m
     radioState.bandA = request.band != BandType::None ? request.band : frequencyToBand(radioState.frequencyA);
-    radioState.modeA = request.mode != ModeType::None ? request.mode : ModeType::CW;
+
+    // Default mode: use request mode, else contest mode, else CW
+    if (request.mode != ModeType::None) {
+        radioState.modeA = request.mode;
+    } else if (!m_contestInfo.mode.isEmpty() && m_contestInfo.mode != "MIXED") {
+        radioState.modeA = stringToMode(m_contestInfo.mode);
+    } else {
+        radioState.modeA = ModeType::CW;  // Fallback for MIXED or unknown
+    }
 
     // If we have a radio handler, get actual radio state
     if (m_config.radioHandler && m_config.radioHandler->isRadioAvailable()) {
