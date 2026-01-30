@@ -7,7 +7,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.20";  // Interface-based architecture: IQSODataSource, IRadioCommandHandler
+constexpr const char* APP_VERSION = "3.40.21";  // Add ADIF export API endpoint and Python test script
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

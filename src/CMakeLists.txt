@@ -464,6 +464,7 @@ set(SERVER_SOURCES
     utils/GeographicUtils.cpp
     utils/PathManager.cpp
     utils/PlatformUtils.cpp
+    utils/ADIFExporter.cpp
     # Network
     network/WebServer.cpp
     network/WebServerContext.cpp
