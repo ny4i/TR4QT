@@ -31,12 +31,20 @@ WebServerContext::WebServerContext(const Config& config, QObject* parent)
 {
     LOG_INFO("WebServerContext", "Initializing headless context");
 
-    // Load country file
+    // Load country file - try filesystem first, then Qt resources
     QString ctyPath = PathManager::getCountryFilePath();
-    if (!m_countryFile.loadFromFile(ctyPath)) {
-        LOG_WARN("WebServerContext", QString("Failed to load country file from: %1").arg(ctyPath));
+    if (m_countryFile.loadFromFile(ctyPath)) {
+        LOG_INFO("WebServerContext", QString("Loaded country file from: %1 (version: %2)")
+                 .arg(ctyPath).arg(m_countryFile.getVersion()));
     } else {
-        LOG_INFO("WebServerContext", QString("Loaded country file version: %1").arg(m_countryFile.getVersion()));
+        // Fallback to Qt resources (embedded cty.dat)
+        QString resourcePath = ":/data/cty.dat";
+        if (m_countryFile.loadFromFile(resourcePath)) {
+            LOG_INFO("WebServerContext", QString("Loaded country file from Qt resources (version: %1)")
+                     .arg(m_countryFile.getVersion()));
+        } else {
+            LOG_ERROR("WebServerContext", "Failed to load country file from any source");
+        }
     }
 
     // Initialize services
