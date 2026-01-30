@@ -174,10 +174,18 @@ def export_adif(base_url: str) -> str:
     print(f"   GET {url}")
 
     response = requests.get(url)
-    adif_content = response.text
+    result = response.json()
+
+    if not result.get("success"):
+        print(f"   ERROR: {result.get('error', 'Unknown error')}")
+        return ""
+
+    filename = result.get("filename", "unknown.adi")
+    adif_content = result.get("content", "")
 
     # Count QSOs in ADIF (by counting <EOR> tags)
     qso_count = adif_content.count("<EOR>")
+    print(f"   Filename: {filename}")
     print(f"   Received {qso_count} QSO records")
 
     # Verify each callsign is present
@@ -232,20 +240,18 @@ def export_cabrillo(base_url: str) -> str:
     print(f"   GET {url}")
 
     response = requests.get(url)
+    result = response.json()
 
-    if response.status_code != 200:
-        print(f"   ERROR: HTTP {response.status_code}")
-        try:
-            error = response.json()
-            print(f"   {error.get('error', 'Unknown error')}")
-        except:
-            pass
+    if not result.get("success"):
+        print(f"   ERROR: {result.get('error', 'Unknown error')}")
         return ""
 
-    cabrillo = response.text
+    filename = result.get("filename", "unknown.cbr")
+    cabrillo = result.get("content", "")
 
     # Count QSO lines
     qso_lines = [line for line in cabrillo.split('\n') if line.startswith('QSO:')]
+    print(f"   Filename: {filename}")
     print(f"   Received {len(qso_lines)} QSO records")
 
     # Verify header

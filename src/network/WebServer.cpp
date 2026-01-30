@@ -2100,27 +2100,57 @@ QHttpServerResponse WebServer::handleGetExportAdif() {
         return jsonError(500, "No QSO data source configured");
     }
 
+    // Get contest info for filename
+    ContestStatusResponse status;
+    emit contestStatusRequested(&status);
+
+    // Generate filename: CONTESTTYPE_YYYYMMDD_NQSOs.adi
+    QString filename;
+    if (status.active && !status.contestType.isEmpty()) {
+        QString dateStr = QDateTime::currentDateTimeUtc().toString("yyyyMMdd");
+        filename = QString("%1_%2_%3qsos.adi")
+            .arg(status.contestType)
+            .arg(dateStr)
+            .arg(status.qsoCount);
+    } else {
+        filename = "export.adi";
+    }
+
     // Get all QSOs from the data source
     QList<QSO> qsos = m_qsoDataSource->allQSOs();
-
-    if (qsos.isEmpty()) {
-        // Return empty ADIF with just header
-        ADIFExporter exporter;
-        QString adifContent = exporter.generateADIF(qsos);
-        return QHttpServerResponse("text/plain", adifContent.toUtf8());
-    }
 
     // Generate ADIF content
     ADIFExporter exporter;
     QString adifContent = exporter.generateADIF(qsos);
 
-    // Return as text/plain with .adi suggested filename
-    QHttpServerResponse response("text/plain", adifContent.toUtf8());
-    return response;
+    // Return JSON with filename and content
+    QJsonObject result;
+    result["success"] = true;
+    result["filename"] = filename;
+    result["qsoCount"] = qsos.size();
+    result["content"] = adifContent;
+
+    LOG_INFO("WebServer", QString("ADIF export: %1 (%2 QSOs)").arg(filename).arg(qsos.size()));
+    return jsonSuccess(result);
 }
 
 QHttpServerResponse WebServer::handleGetExportCabrillo() {
     LOG_DEBUG("WebServer", "Received GET /api/export/cabrillo");
+
+    // Get contest info for filename
+    ContestStatusResponse status;
+    emit contestStatusRequested(&status);
+
+    // Generate filename: CONTESTTYPE_YYYYMMDD.cbr
+    QString filename;
+    if (status.active && !status.contestType.isEmpty()) {
+        QString dateStr = QDateTime::currentDateTimeUtc().toString("yyyyMMdd");
+        filename = QString("%1_%2.cbr")
+            .arg(status.contestType)
+            .arg(dateStr);
+    } else {
+        filename = "export.cbr";
+    }
 
     // Emit signal for handler to generate Cabrillo
     QString cabrilloContent;
@@ -2130,8 +2160,15 @@ QHttpServerResponse WebServer::handleGetExportCabrillo() {
         return jsonError(400, "No active contest or no QSOs to export");
     }
 
-    // Return as text/plain
-    return QHttpServerResponse("text/plain", cabrilloContent.toUtf8());
+    // Return JSON with filename and content
+    QJsonObject result;
+    result["success"] = true;
+    result["filename"] = filename;
+    result["qsoCount"] = status.qsoCount;
+    result["content"] = cabrilloContent;
+
+    LOG_INFO("WebServer", QString("Cabrillo export: %1").arg(filename));
+    return jsonSuccess(result);
 }
 
 QHttpServerResponse WebServer::handleGetContestScore() {
