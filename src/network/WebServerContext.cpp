@@ -494,6 +494,7 @@ void WebServerContext::onLogQSOFromWeb(const LogQSOWebRequest& request, LogQSOWe
     loggingRequest.serialNumber = m_nextSerialNumber;
     loggingRequest.operatingMode = m_operatingMode;
     loggingRequest.radioNumber = 1;
+    loggingRequest.timestamp = request.timestamp;  // Use provided timestamp (or current UTC if invalid)
 
     // Existing QSOs for duplicate/multiplier checking
     loggingRequest.existingQSOs = m_qsoList;

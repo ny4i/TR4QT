@@ -49,6 +49,7 @@ struct LogQSOWebRequest {
     freq_t frequency = 0;              // Optional: Frequency in Hz (0 = use current)
     BandType band = BandType::None;    // Optional: Band (None = use current)
     ModeType mode = ModeType::None;    // Optional: Mode (None = use current)
+    QDateTime timestamp;               // Optional: QSO timestamp (invalid = use current UTC)
 };
 
 /**

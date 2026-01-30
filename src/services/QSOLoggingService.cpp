@@ -54,6 +54,7 @@ QSOLoggingService::LogQSOResult QSOLoggingService::logQSO(const LogQSORequest& r
     loggerInput.serialNumber = request.serialNumber;
     loggerInput.operatingMode = request.operatingMode;
     loggerInput.radioNumber = request.radioNumber;
+    loggerInput.timestamp = request.timestamp;  // Use provided timestamp (or current UTC if invalid)
 
     QSOLogger::Result loggerResult = m_deps.qsoLogger->logQSO(loggerInput, request.existingQSOs);
 

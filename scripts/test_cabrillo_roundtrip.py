@@ -22,7 +22,6 @@ import json
 import time
 import subprocess
 import tempfile
-import requests
 from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
