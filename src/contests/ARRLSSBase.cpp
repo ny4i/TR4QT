@@ -64,9 +64,9 @@ QList<ContestConfigField> ARRLSSBase::getConfigFields() const {
 
 QString ARRLSSBase::formatSentExchange(int serialNumber, const QString& rst) const {
     Q_UNUSED(rst);  // SS doesn't use RST in exchange
-    // Example: "123 A 95 WMA"
-    // User must configure precedence, check, and section in contest setup
-    return QString::number(serialNumber) + " [PREC] [CHK] [SEC]";
+    // m_exchangeSent contains "M 62 WWA" (precedence check section from config)
+    // Return: "1 M 62 WWA"
+    return QString::number(serialNumber) + " " + m_exchangeSent;
 }
 
 bool ARRLSSBase::validateReceivedExchange(const QString& exchange, QString& errorMsg) const {

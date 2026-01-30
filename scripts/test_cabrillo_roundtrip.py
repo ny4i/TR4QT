@@ -116,35 +116,63 @@ def parse_cabrillo(filepath: Path) -> Tuple[CabrilloHeader, List[CabrilloQSO]]:
                 except ValueError:
                     pass
             elif line.startswith("QSO:"):
-                qso = parse_qso_line(line)
+                qso = parse_qso_line(line, header.contest)
                 if qso:
                     # Capture exchange sent from first QSO
                     if not header.exchange_sent:
-                        header.exchange_sent = f"{qso.sent_rst} {qso.sent_exch}"
+                        if "ARRL-SS" in header.contest:
+                            # SS: extract only PREC CHECK SECTION (not serial)
+                            # sent_exch = "1 M 62 WWA" -> exchange_sent = "M 62 WWA"
+                            parts = qso.sent_exch.split()
+                            if len(parts) >= 4:
+                                header.exchange_sent = " ".join(parts[1:])  # Skip serial
+                            else:
+                                header.exchange_sent = qso.sent_exch
+                        elif qso.sent_rst:
+                            header.exchange_sent = f"{qso.sent_rst} {qso.sent_exch}"
+                        else:
+                            header.exchange_sent = qso.sent_exch
                     qsos.append(qso)
 
     return header, qsos
 
 
-def parse_qso_line(line: str) -> Optional[CabrilloQSO]:
+def parse_qso_line(line: str, contest: str = "") -> Optional[CabrilloQSO]:
     """Parse a Cabrillo QSO line.
 
     Handles multiple formats:
     - CQ WW: QSO: freq mode date time sent_call sent_rst sent_zone rcvd_call rcvd_rst rcvd_zone
     - CQ WPX: QSO: freq mode date time sent_call sent_rst sent_serial rcvd_call rcvd_rst rcvd_serial [tx#]
+    - ARRL SS: QSO: freq mode date time sent_call NR PREC CK SEC rcvd_call NR PREC CK SEC
 
     Example CQ WW:  QSO: 14250 PH 2025-10-25 1201 NE4C         59 05     W1AW          59 05
     Example CQ WPX: QSO: 14000 PH 2025-03-29 1723 NE4C         59 001    KC3MIO        59 001    1
+    Example ARRL SS: QSO: 28500 PH 2024-11-16 2100 K7RI 0001 M 62 WWA NT5V 0001 U 69 NTX
     """
     # Remove "QSO:" prefix and split by whitespace
     parts = line[4:].split()
 
-    # Minimum 10 fields required
-    if len(parts) < 10:
-        print(f"Warning: Skipping malformed QSO line: {line}")
-        return None
-
     try:
+        # ARRL Sweepstakes has 14 fields (4 exchange fields each side)
+        if "ARRL-SS" in contest and len(parts) >= 14:
+            return CabrilloQSO(
+                frequency=int(parts[0]),
+                mode=parts[1],
+                date=parts[2],
+                time=parts[3],
+                sent_call=parts[4],
+                sent_rst="",  # SS doesn't use RST
+                sent_exch=f"{parts[5]} {parts[6]} {parts[7]} {parts[8]}",  # NR PREC CK SEC
+                rcvd_call=parts[9],
+                rcvd_rst="",  # SS doesn't use RST
+                rcvd_exch=f"{parts[10]} {parts[11]} {parts[12]} {parts[13]}"  # NR PREC CK SEC
+            )
+
+        # Standard format (CQ WW, CQ WPX, ARRL DX, etc.) - 10 fields minimum
+        if len(parts) < 10:
+            print(f"Warning: Skipping malformed QSO line: {line}")
+            return None
+
         return CabrilloQSO(
             frequency=int(parts[0]),
             mode=parts[1],
@@ -219,6 +247,8 @@ def create_contest(header: CabrilloHeader) -> dict:
         "CQ-WPX-CW": "CQWPX_CW",
         "ARRL-DX-SSB": "ARRL_DX_SSB",
         "ARRL-DX-CW": "ARRL_DX_CW",
+        "ARRL-SS-SSB": "ARRL_SS_SSB",
+        "ARRL-SS-CW": "ARRL_SS_CW",
         "WFD": "WFD"
     }
 
@@ -334,7 +364,7 @@ def normalize_exchange(exch: str) -> str:
     return ' '.join(normalized)
 
 
-def compare_qso_sections(original_qsos: List[CabrilloQSO], exported_content: str) -> Tuple[bool, List[str]]:
+def compare_qso_sections(original_qsos: List[CabrilloQSO], exported_content: str, contest: str = "") -> Tuple[bool, List[str]]:
     """Compare original QSOs with exported Cabrillo content.
 
     Comparison criteria (for round-trip testing):
@@ -362,7 +392,7 @@ def compare_qso_sections(original_qsos: List[CabrilloQSO], exported_content: str
 
     exported_set = set()
     for line in exported_lines:
-        qso = parse_qso_line(line)
+        qso = parse_qso_line(line, contest)
         if qso:
             key = (qso.frequency, qso.mode, qso.rcvd_call.upper(), normalize_exchange(qso.rcvd_exch))
             exported_set.add(key)
@@ -492,7 +522,7 @@ def main():
             # Compare QSO sections
             print()
             print("Step 7: Comparing QSO sections...")
-            success, differences = compare_qso_sections(qsos, exported_content)
+            success, differences = compare_qso_sections(qsos, exported_content, header.contest)
 
             if success:
                 print("  ✓ QSO sections match!")
