@@ -541,8 +541,30 @@ bool SmartExchangeParser::looksLikePower(const QString& token) {
     return watts >= 1 && watts <= 2000;
 }
 
+QString SmartExchangeParser::expandCutNumbers(const QString& token) {
+    // Expand CW cut numbers to their numeric equivalents
+    // T=0, A=1, U=2, V=3, E=5, B=7, D=8, N=9
+    // Examples: "NN" -> "99", "5NN" -> "599", "ATT" -> "100"
+    QString result;
+    for (const QChar& c : token.toUpper()) {
+        switch (c.toLatin1()) {
+            case 'T': result += '0'; break;
+            case 'A': result += '1'; break;
+            case 'U': result += '2'; break;
+            case 'V': result += '3'; break;
+            case 'E': result += '5'; break;
+            case 'B': result += '7'; break;
+            case 'D': result += '8'; break;
+            case 'N': result += '9'; break;
+            default: result += c; break;
+        }
+    }
+    return result;
+}
+
 QString SmartExchangeParser::normalizePower(const QString& token) {
     // Normalize power values: convert K/KW suffix to watts
+    // Also expand CW cut numbers: "NN" -> "99", "5NN" -> "599"
     // "K" -> "1000", "KW" -> "1000", "1K" -> "1000", "1.5KW" -> "1500", "100W" -> "100", "100" -> "100"
     QString upper = token.toUpper();
 
@@ -581,6 +603,12 @@ QString SmartExchangeParser::normalizePower(const QString& token) {
     // Check for W suffix - just strip it
     if (upper.endsWith("W")) {
         return upper.left(upper.length() - 1);
+    }
+
+    // Expand CW cut numbers (NN -> 99, 5NN -> 599, ATT -> 100)
+    QString expanded = expandCutNumbers(upper);
+    if (expanded != upper) {
+        return expanded;
     }
 
     // Already numeric, return as-is

@@ -351,8 +351,52 @@ def normalize_qso_line(line: str) -> str:
     return ' '.join(parts)
 
 
+def expand_cut_numbers(token: str) -> str:
+    """Expand CW cut numbers to digits: T=0, A=1, U=2, V=3, E=5, B=7, D=8, N=9"""
+    result = []
+    for c in token.upper():
+        if c == 'T': result.append('0')
+        elif c == 'A': result.append('1')
+        elif c == 'U': result.append('2')
+        elif c == 'V': result.append('3')
+        elif c == 'E': result.append('5')
+        elif c == 'B': result.append('7')
+        elif c == 'D': result.append('8')
+        elif c == 'N': result.append('9')
+        else: result.append(c)
+    return ''.join(result)
+
+
+def normalize_power(token: str) -> str:
+    """Normalize power values: K/KW -> 1000, cut numbers expanded."""
+    upper = token.upper()
+    # KW or K alone = 1000
+    if upper in ('KW', 'K'):
+        return '1000'
+    # 1KW, 1.5KW -> watts
+    if upper.endswith('KW'):
+        try:
+            return str(int(float(upper[:-2]) * 1000))
+        except ValueError:
+            pass
+    # 1K, 1.5K -> watts
+    if upper.endswith('K'):
+        try:
+            return str(int(float(upper[:-1]) * 1000))
+        except ValueError:
+            pass
+    # W suffix - strip it
+    if upper.endswith('W'):
+        return upper[:-1]
+    # Expand cut numbers (NN -> 99, 5TT -> 500)
+    expanded = expand_cut_numbers(upper)
+    if expanded != upper:
+        return expanded
+    return token
+
+
 def normalize_exchange(exch: str) -> str:
-    """Normalize exchange for comparison (strip leading zeros, whitespace)."""
+    """Normalize exchange for comparison (strip leading zeros, whitespace, power abbrevs)."""
     parts = exch.strip().split()
     normalized = []
     for part in parts:
@@ -360,7 +404,12 @@ def normalize_exchange(exch: str) -> str:
         try:
             normalized.append(str(int(part)))
         except ValueError:
-            normalized.append(part)
+            # Try power normalization (K, KW, cut numbers)
+            norm_power = normalize_power(part)
+            try:
+                normalized.append(str(int(norm_power)))
+            except ValueError:
+                normalized.append(part.upper())
     return ' '.join(normalized)
 
 
