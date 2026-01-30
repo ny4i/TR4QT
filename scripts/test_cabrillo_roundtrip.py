@@ -370,9 +370,10 @@ def compare_qso_sections(original_qsos: List[CabrilloQSO], exported_content: str
     Comparison criteria (for round-trip testing):
     - Frequency must match
     - Mode must match
+    - Date must match
+    - Time must match
     - Callsign must match (case-insensitive)
     - Exchange must match (after normalization)
-    - Date/time are NOT compared (server may use current time if not provided)
 
     Returns (success, list of differences)
     """
@@ -383,29 +384,28 @@ def compare_qso_sections(original_qsos: List[CabrilloQSO], exported_content: str
         differences.append(f"QSO count mismatch: original={len(original_qsos)}, exported={len(exported_lines)}")
 
     # Build a set of normalized QSO data for comparison
-    # Compare by: frequency, mode, rcvd_call, normalized_rcvd_exch
-    # NOT comparing date/time since API may use current time
+    # Compare by: frequency, mode, date, time, rcvd_call, normalized_rcvd_exch
     original_set = set()
     for qso in original_qsos:
-        key = (qso.frequency, qso.mode, qso.rcvd_call.upper(), normalize_exchange(qso.rcvd_exch))
+        key = (qso.frequency, qso.mode, qso.date, qso.time, qso.rcvd_call.upper(), normalize_exchange(qso.rcvd_exch))
         original_set.add(key)
 
     exported_set = set()
     for line in exported_lines:
         qso = parse_qso_line(line, contest)
         if qso:
-            key = (qso.frequency, qso.mode, qso.rcvd_call.upper(), normalize_exchange(qso.rcvd_exch))
+            key = (qso.frequency, qso.mode, qso.date, qso.time, qso.rcvd_call.upper(), normalize_exchange(qso.rcvd_exch))
             exported_set.add(key)
 
     # Find QSOs in original but not in exported
     missing = original_set - exported_set
     for key in sorted(missing):
-        differences.append(f"Missing in export: freq={key[0]} mode={key[1]} call={key[2]} exch={key[3]}")
+        differences.append(f"Missing in export: freq={key[0]} mode={key[1]} date={key[2]} time={key[3]} call={key[4]} exch={key[5]}")
 
     # Find QSOs in exported but not in original
     extra = exported_set - original_set
     for key in sorted(extra):
-        differences.append(f"Extra in export: freq={key[0]} mode={key[1]} call={key[2]} exch={key[3]}")
+        differences.append(f"Extra in export: freq={key[0]} mode={key[1]} date={key[2]} time={key[3]} call={key[4]} exch={key[5]}")
 
     return len(differences) == 0, differences
 
