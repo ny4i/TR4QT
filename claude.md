@@ -6,67 +6,13 @@ This file contains important reminders and conventions for Claude when working o
 
 ### Explicit > Implicit (when implicit is unreliable)
 
-**NEVER use "automatic" deployment tools that don't work reliably.**
-
-Common unreliable tools:
-- ❌ `windeployqt` (Windows) - Silently fails to copy plugins, inconsistent
-- ❌ `macdeployqt` (macOS) - Misses dependencies, gets paths wrong
-- ❌ `linuxdeploy` (Linux) - Complex, hard to debug, inconsistent
-- ❌ **ALL OF THEM** - None bundle Qt TLS plugins by default (critical for HTTPS!)
-
-**Why these tools are problematic:**
-1. **Silent failures** - Missing dependencies without clear errors
-2. **False confidence** - "I used the official tool, so it should work"
-3. **Wastes time** - Hours debugging what the tool "forgot"
-4. **Not deterministic** - Same inputs can produce different outputs
-5. **Hard to debug** - Don't know what they did vs. didn't do
+**NEVER use "automatic" deployment tools** (`windeployqt`, `macdeployqt`, `linuxdeploy`) - they silently fail (missing plugins/TLS backends).
 
 **Instead: Be Explicit**
-
-✅ **List every dependency explicitly**
-✅ **Copy every file with clear commands**
-✅ **Verify what was deployed**
-✅ **Clear errors when something fails**
-
-**Example (Windows):**
-```bash
-# BAD: Hope windeployqt works
-windeployqt tr4qt.exe --sql  # Maybe copies SQL plugin? Maybe not?
-
-# GOOD: Explicit
-cp Qt6Core.dll Qt6Gui.dll Qt6Widgets.dll ...  # Know exactly what's copied
-mkdir sqldrivers && cp qsqlite.dll sqldrivers/  # SQL plugin always included
-ls -la sqldrivers/  # Verify it's there
-```
-
-**Example (macOS):**
-```bash
-# BAD: Trust macdeployqt to bundle everything
-macdeployqt tr4qt.app
-# Result: App launches but HTTPS fails with "No functional TLS backend was found"
-# macdeployqt silently forgot TLS plugins!
-
-# GOOD: Explicit TLS plugin bundling
-macdeployqt tr4qt.app
-mkdir -p tr4qt.app/Contents/PlugIns/tls
-cp /opt/homebrew/opt/qtbase/share/qt/plugins/tls/*.dylib tr4qt.app/Contents/PlugIns/tls/
-ls -la tr4qt.app/Contents/PlugIns/tls/  # Verify all 3 TLS backends present
-# Result: App works perfectly, HTTPS downloads succeed
-```
-
-**Benefits of Explicit Deployment:**
-- Deterministic (same result every time)
-- Transparent (see exactly what's deployed)
-- Debuggable (clear errors when missing)
-- Maintainable (easy to add/remove dependencies)
-- Reliable (no silent failures)
-
-**This philosophy applies to ALL projects, not just TR4QT.**
-
-If you encounter an "automatic" tool that doesn't work reliably:
-1. Don't keep using it hoping it will work this time
-2. Replace it with explicit, deterministic steps
-3. Document exactly what needs to be deployed
+- List every dependency explicitly
+- Copy files with clear commands
+- Verify what was deployed
+- See `docs/macos-deployment.md` and `docs/windows-deployment.md` for examples
 
 ## ⚠️ CRITICAL REMINDERS
 
@@ -625,26 +571,7 @@ m_label->setPalette(QPalette(color));
 - Documented defaults: `QString defaultColor = "#006400";  // Theme default: dark green`
 
 **Prevention**:
-The git pre-commit hook enforces this rule:
-- Located at `.git/hooks/pre-commit`
-- **Blocks commits** containing hardcoded hex colors (e.g., `= "#0066cc"`)
-- Excludes allowed patterns (ThemeManager.cpp, "// Theme default" comments)
-- Can bypass with `git commit --no-verify` if intentional (not recommended)
-
-**Hook Bug Fix (2026-01-06)**:
-The original hook had a bug where `head -5` returns exit code 0 even with no input, causing false positives. Fixed by capturing output in a variable and checking if non-empty:
-
-```bash
-# ❌ OLD (buggy): head -5 returns 0 even with no output, triggers false positive
-if echo "$STAGED_FILES" | xargs grep ... | head -5; then
-
-# ✅ NEW (fixed): Capture output, only trigger if non-empty
-HEX_COLOR_MATCHES=$(echo "$STAGED_FILES" | xargs grep ... | head -5)
-if [ -n "$HEX_COLOR_MATCHES" ]; then
-    echo "$HEX_COLOR_MATCHES"  # Display actual matches
-```
-
-This fix is applied to `.git/hooks/pre-commit` locally. The check is TR4QT-specific (not in general `scripts/pre-commit.sample`).
+Git pre-commit hook (`.git/hooks/pre-commit`) blocks hardcoded hex colors. Bypass with `--no-verify` if intentional.
 
 **This applies to ALL Qt projects with theme support.**
 
@@ -738,45 +665,14 @@ Convention:
 - **Patch (Z)**: Bug fixes, small improvements
 
 Update process:
-1. Increment version in Constants.h
+1. Increment version in Constants.h (e.g., `"3.8.1"`)
 2. Update comment to describe the change
-3. **Update version in tr4qt.nsi to match**
-4. **Update version in CMakeLists.txt to match**
-5. **Update version in tr4qt.rc to match (4 places!)**
-6. **Update CHANGELOG.md**: Move items from `[Unreleased]` to new version section with date
+3. Update tr4qt.nsi: `!define APPVERSION "3.8.1"`
+4. Update CMakeLists.txt: `MACOSX_BUNDLE_SHORT_VERSION_STRING` and `BUNDLE_VERSION`
+5. Update tr4qt.rc: `VER_FILEVERSION`, `VER_FILEVERSION_STR`, `VER_PRODUCTVERSION`, `VER_PRODUCTVERSION_STR`
+6. Update CHANGELOG.md: Move items from `[Unreleased]` to new version section
 7. Include version in commit message: "Feature description - vX.Y.Z"
 8. Rebuild: `cmake --build build`
-
-Example (Constants.h):
-```cpp
-constexpr const char* APP_VERSION = "3.8.1";  // Streamlined ADIF import with checkbox rescore
-```
-
-Example (tr4qt.nsi):
-```nsis
-!define APPVERSION "3.8.1"
-```
-
-Example (CMakeLists.txt):
-```cmake
-MACOSX_BUNDLE_SHORT_VERSION_STRING "3.8.1"
-MACOSX_BUNDLE_BUNDLE_VERSION "3.8.1"
-```
-
-Example (tr4qt.rc):
-```c
-#define VER_FILEVERSION             3,8,1,0
-#define VER_FILEVERSION_STR         "3.8.1.0\0"
-#define VER_PRODUCTVERSION          3,8,1,0
-#define VER_PRODUCTVERSION_STR      "3.8.1\0"
-```
-
-**Why all four files?**
-- Constants.h: Used by the running application for "About" dialog, window titles, etc.
-- tr4qt.nsi: Used by the Windows installer filename and registry entries
-- CMakeLists.txt: Used by macOS Info.plist (shown in crash reports and About dialog)
-- tr4qt.rc: Used by Windows .exe Properties → Details tab (File Version, Product Version, Company)
-- If they don't match, users and crash reports show inconsistent versions
 
 ### Dependency Version Requirements
 
@@ -843,89 +739,15 @@ Changes:
 
 ## Pre-Release Checklist
 
-**CRITICAL**: Before creating any release tag, ALWAYS run through this checklist!
+Before creating release tags (triggers GitHub Actions builds):
 
-Release tags trigger GitHub Actions builds for all platforms. A failed build wastes time and creates confusion.
-
-### 1. Verify Qt Module Dependencies Match
-Compare CMakeLists.txt with Windows CI configuration:
-
-```bash
-# Check what Qt components TR4QT requires
-grep -A 10 "find_package(Qt6 REQUIRED COMPONENTS" CMakeLists.txt
-
-# Check what Windows CI installs
-grep -A 5 "modules:" .github/workflows/build.yml
-```
-
-**Rule**: Every Qt component in CMakeLists.txt (except base modules) must be listed in the Windows CI `modules:` line.
-
-**Base modules** (always installed, don't need to be listed):
-- Core, Gui, Widgets, Network, Sql, PrintSupport, Concurrent, Test, OpenGL, Xml
-
-**Additional modules** (must be explicitly listed):
-- HttpServer (currently required by TR4QT)
-- WebSockets, WebView, Multimedia, Charts, 3D, etc. (add if needed)
-
-**macOS note**: `brew install qt@6` includes all modules, so macOS builds won't catch this issue.
-
-### 2. Verify Last CI Build Passed
-```bash
-gh run list --limit 3
-```
-
-Both macOS and Windows builds must show ✓ success. If either failed, fix the issue before tagging.
-
-### 3. Version Already Bumped
-Confirm Constants.h has been updated in the latest commit:
-```bash
-grep APP_VERSION src/core/Constants.h
-git log -1 --oneline
-```
-
-Version in Constants.h should match the commit message.
-
-### 4. Build and Test Locally
-```bash
-cmake --build build
-cd build && ctest --output-on-failure
-```
-
-All tests should pass. If any fail, investigate before releasing.
-
-### 5. Check for Uncommitted Changes
-```bash
-git status
-```
-
-Should show "nothing to commit, working tree clean".
-
-### 6. Create Release Tag (Only After Above Checks Pass)
-```bash
-# Lightweight tag (testing)
-git tag v2.95.0
-git push origin v2.95.0
-
-# Annotated tag (official releases)
-git tag -a v2.95.0 -m "Release v2.95.0 - WebServer pull model refactoring"
-git push origin v2.95.0
-```
-
-### 7. Monitor GitHub Actions
-```bash
-gh run watch
-```
-
-Watch the triggered build. Both platforms must succeed for a valid release.
-
-### Common Issues Caught By This Checklist:
-- ✅ Missing Qt modules in Windows CI (e.g., HttpServer)
-- ✅ Version mismatch between code and tag
-- ✅ Tests failing on specific platforms
-- ✅ Build errors from uncommitted changes
-- ✅ CI configuration drift from CMakeLists.txt
-
-**Remember**: Release tags are permanent in the git history. It's better to spend 2 minutes verifying than to create a broken release tag!
+1. **Qt Module Sync**: CMakeLists.txt Qt components must match `.github/workflows/build.yml` modules (except base: Core, Gui, Widgets, Network, Sql, PrintSupport, Concurrent, Test, OpenGL, Xml)
+2. **CI Passed**: `gh run list --limit 3` shows ✓ for both macOS and Windows
+3. **Version Bumped**: `grep APP_VERSION src/core/Constants.h` matches commit message
+4. **Tests Pass**: `cmake --build build && cd build && ctest --output-on-failure`
+5. **Clean Tree**: `git status` shows no uncommitted changes
+6. **Create Tag**: `git tag -a vX.Y.Z -m "Release vX.Y.Z - Description" && git push origin vX.Y.Z`
+7. **Monitor**: `gh run watch` until both platforms succeed
 
 ## Common Patterns
 
@@ -972,66 +794,12 @@ if (m_hasActiveContest) {
 ```
 
 ### Dialog Messages
-**CRITICAL**: ALL dialog messages MUST go through DialogHelper. Never use QMessageBox directly.
-
-This ensures:
-- All dialogs are automatically logged (message + user response)
-- Text is selectable/copyable by default for error messages
-- Consistent user experience across the application
-- Easier debugging via log analysis
-
-Use DialogHelper for all user-facing dialogs:
-```cpp
-// Question dialog
-QMessageBox::StandardButton reply = DialogHelper::question(
-    this,
-    "Confirm Action",
-    "Are you sure you want to proceed?"
-);
-
-// Information
-DialogHelper::information(this, "Success", "Operation completed successfully.");
-
-// Warning
-DialogHelper::warning(this, "Warning", "This action cannot be undone.");
-
-// Critical error
-DialogHelper::critical(this, "Error", QString("Failed: %1").arg(errorMessage));
-```
-
-**NEVER** use QMessageBox::question/information/warning/critical directly. Always use DialogHelper.
-
-Files:
-- `/src/utils/DialogHelper.h` - Dialog wrapper with logging
-- `/src/utils/DialogHelper.cpp` - Implementation
-
-**This pattern applies to all projects**: If one dialog is logged, ALL dialogs must be logged via a common helper class.
+See "ALWAYS Use DialogHelper for User Dialogs" above.
 
 ## Known Issues / Limitations
 
 ### Database Threading (Deferred until Networking Implementation)
-**Issue**: Database singleton is not thread-safe for concurrent writes (discovered 2025-12-27)
-
-**Status**: Deferred until TCP networking implementation
-- Single-operator use: SAFE (99% of users)
-- Multi-threaded concurrent writes: CRASHES
-- Test coverage: `tests/test_qso_load_performance.cpp` (concurrent tests disabled)
-
-**Performance Verified**:
-- Single-threaded: 6,800+ QSOs/second
-- Transaction time: <1ms average
-- Database throughput: 24M+ QSOs/hour theoretical max
-
-**Solution Required Before**:
-- TCP-based networked TR4QT (multi-station logging)
-- True multi-operator concurrent logging
-
-**Implementation Options** (documented in `src/data/Database.cpp`):
-1. Connection pool (thread_local connections)
-2. Serialized access (QMutex)
-3. Message queue architecture (recommended for TCP server)
-
-**Reference**: See comprehensive TODO in `/src/data/Database.cpp` line 13
+**Issue**: Database singleton not thread-safe for concurrent writes (single-operator SAFE, multi-threaded CRASHES). Deferred until TCP networking. Performance: 6,800+ QSOs/sec single-threaded. See `/src/data/Database.cpp` line 13 for implementation options.
 
 ## Architecture Notes
 
@@ -1125,22 +893,6 @@ Options:
 ### Country Data
 - `/src/utils/CountryFile.cpp` - CTY.DAT parser
 - `~/.tr4qt/cty.dat` - Country file data
-
-## Recent Changes (Session Summary)
-
-### v2.57.x - Manual Band Selection
-- Fixed focus issues (callsign field gets focus on startup)
-- Fixed duplicate checking (band/mode stored as TEXT not enums)
-- Implemented manual band selection when radio disconnected
-- Added ALT-B/ALT-V (Option-B/Option-V on Mac) for band up/down
-- Set frequency to band edge for manual selection (visual indicator)
-- Fixed frequency display without radio connection
-
-### v2.58.0 - Zone Lookup
-- Implemented country/zone lookup from cty.dat when logging QSO
-- Zones now auto-fill in exchange field (via InitialExchangeManager)
-- Zones display in "Zn" column of QSO table
-- Geographic fields populated: CQ Zone, ITU Zone, Country, Continent
 
 ## Known Issues / TODOs
 
