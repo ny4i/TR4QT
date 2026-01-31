@@ -120,12 +120,12 @@ CTYDownloadResult DownloadManager::downloadCTY(bool headless)
                         result.success = true;
                         result.version = version;
                         result.numericalVersion = numericalVersion;
-                        result.statusMessage = QString("CTY.DAT %1 loaded successfully").arg(version);
+                        result.statusMessage = QString("CTY.DAT CTY-%1 loaded successfully").arg(numericalVersion);
 
                         if (progressDialog) {
                             // Update progress dialog to show completion (user clicks OK to dismiss)
                             const int PROGRESS_COMPLETE = 100;
-                            progressDialog->setLabelText(QString("Country file downloaded and loaded successfully!\n\nVersion: %1").arg(version));
+                            progressDialog->setLabelText(QString("Country file downloaded and loaded successfully!\n\nVersion: CTY-%1 (%2)").arg(numericalVersion).arg(version));
                             progressDialog->setCancelButtonText("OK");
                             progressDialog->setValue(PROGRESS_COMPLETE);
 

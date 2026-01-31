@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.37";  // Batch SVG LED updates to fix Windows UI freeze (29X performance improvement)
+constexpr const char* APP_VERSION = "3.40.40";  // Initialize amplifier service when enabled via preferences
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
