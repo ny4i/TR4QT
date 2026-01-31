@@ -280,10 +280,28 @@ void RadioControlWidget::setupUI() {
 
     mainLayout->addWidget(buttonWidget);
 
+    // Status message label (K4 ER command - shows amp status, errors, etc.)
+    // Always visible to prevent layout shifts - just shows blank when no message
+    // Uses same font as title label for visual consistency
+    m_statusLabel = new QLabel(this);
+    m_statusLabel->setAlignment(Qt::AlignCenter);
+    m_statusLabel->setWordWrap(true);
+    m_statusLabel->setFont(titleFont);  // Same as "Radio 1 TX" title
+    m_statusLabel->setMinimumHeight(m_statusLabel->fontMetrics().height() + 4);  // Reserve space
+    mainLayout->addWidget(m_statusLabel);
+
+    // Timer to auto-clear status messages
+    const int STATUS_CLEAR_TIMEOUT_MS = 5000;  // 5 seconds
+    m_statusClearTimer = new QTimer(this);
+    m_statusClearTimer->setSingleShot(true);
+    connect(m_statusClearTimer, &QTimer::timeout, this, [this]() {
+        m_statusLabel->clear();  // Just clear text, don't hide
+    });
+
     // Set minimum size (no maximum to allow user resizing)
-    // Height accommodates: title, VFO displays, mode, WPM, S-meter, and buttons
+    // Height accommodates: title, VFO displays, mode, WPM, S-meter, buttons, and status
     // All dimensions derived from font metrics (no magic numbers)
-    setMinimumSize(250, 300);
+    setMinimumSize(250, 320);
 }
 
 void RadioControlWidget::updateRadioState(const RadioState& state) {
@@ -480,6 +498,18 @@ void RadioControlWidget::setMaxPower(int maxPowerWatts) {
 
 void RadioControlWidget::setRadioController(RadioController* controller) {
     m_radioController = controller;
+}
+
+void RadioControlWidget::showStatusMessage(int code, const QString& message) {
+    // Display format: "message (code)"
+    QString displayText = QString("%1 (%2)").arg(message).arg(code);
+    m_statusLabel->setText(displayText);
+
+    // Restart the auto-clear timer
+    const int STATUS_CLEAR_TIMEOUT_MS = 5000;  // 5 seconds
+    m_statusClearTimer->start(STATUS_CLEAR_TIMEOUT_MS);
+
+    LOG_DEBUG("RadioControlWidget", QString("Status message displayed: %1").arg(displayText));
 }
 
 void RadioControlWidget::onModeContextMenu(const QPoint& pos) {

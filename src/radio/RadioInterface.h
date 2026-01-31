@@ -241,6 +241,7 @@ signals:
     void connectionStatusChanged(bool connected);
     void errorOccurred(const QString& error);
     void stateUpdated(const RadioState& state);
+    void statusMessageReceived(int code, const QString& message);  // Radio status/error messages (K4 ER command)
 };
 
 } // namespace TR4QT

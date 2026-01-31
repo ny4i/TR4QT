@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.40";  // Initialize amplifier service when enabled via preferences
+constexpr const char* APP_VERSION = "3.40.43";  // Status label matches title font style
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

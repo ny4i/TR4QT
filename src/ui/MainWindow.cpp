@@ -4061,6 +4061,10 @@ void MainWindow::onShowRadioControl() {
                     m_radio->setSplit(enabled, VFO::VFO_B);
                 });
 
+        // Connect radio status messages (K4 ER command) to status display
+        connect(m_radio, &RadioController::statusMessageReceived,
+                m_radioControlWindow, &RadioControlWidget::showStatusMessage);
+
         // Connect close/hide event to disable detailed rig info
         connect(m_radioControlWindow, &QWidget::destroyed, this, [this]() {
             // Window destroyed - disable detailed rig info polling
