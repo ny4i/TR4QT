@@ -28,6 +28,7 @@
 #include <QDialogButtonBox>
 #include <QSerialPortInfo>
 #include <QMessageBox>
+#include <QInputDialog>
 #include <QApplication>
 
 // Hamlib includes for radio list
@@ -63,7 +64,7 @@ void RadioEditDialog::setupUI()
 {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
-    // Radio Name
+    // ===== 1. Radio Name =====
     QGroupBox* nameGroup = new QGroupBox("Radio Name", this);
     QFormLayout* nameLayout = new QFormLayout(nameGroup);
     m_radioNameEdit = new QLineEdit(this);
@@ -71,84 +72,21 @@ void RadioEditDialog::setupUI()
     nameLayout->addRow("Name:", m_radioNameEdit);
     mainLayout->addWidget(nameGroup);
 
-    // Radio Model
-    QGroupBox* modelGroup = new QGroupBox("Radio Model", this);
-    QFormLayout* modelLayout = new QFormLayout(modelGroup);
-
-    m_radioModelCombo = new QComboBox(this);
-    m_radioModelCombo->setEditable(true);
-    m_radioModelCombo->setInsertPolicy(QComboBox::NoInsert);
-    m_radioModelCombo->blockSignals(true);
-
-    m_customModelEdit = new QLineEdit(this);
-    m_customModelEdit->setPlaceholderText("Enter hamlib model ID (e.g., 2046)");
-    m_customModelEdit->setVisible(false);
-
-    modelLayout->addRow("Model:", m_radioModelCombo);
-    modelLayout->addRow("Custom Model ID:", m_customModelEdit);
-
-    // Radio status filter checkboxes
-    m_showStableRadiosCheck = new QCheckBox("Stable", this);
-    m_showBetaRadiosCheck = new QCheckBox("Beta", this);
-    m_showAlphaRadiosCheck = new QCheckBox("Alpha", this);
-    m_showUntestedRadiosCheck = new QCheckBox("Untested", this);
-
-    m_showStableRadiosCheck->setChecked(true);
-
-    connect(m_showStableRadiosCheck, &QCheckBox::stateChanged,
-            this, &RadioEditDialog::onRadioStatusFilterChanged);
-    connect(m_showBetaRadiosCheck, &QCheckBox::stateChanged,
-            this, &RadioEditDialog::onRadioStatusFilterChanged);
-    connect(m_showAlphaRadiosCheck, &QCheckBox::stateChanged,
-            this, &RadioEditDialog::onRadioStatusFilterChanged);
-    connect(m_showUntestedRadiosCheck, &QCheckBox::stateChanged,
-            this, &RadioEditDialog::onRadioStatusFilterChanged);
-
-    QHBoxLayout* filterLayout = new QHBoxLayout();
-    filterLayout->addWidget(new QLabel("Show:", this));
-    filterLayout->addWidget(m_showStableRadiosCheck);
-    filterLayout->addWidget(m_showBetaRadiosCheck);
-    filterLayout->addWidget(m_showAlphaRadiosCheck);
-    filterLayout->addWidget(m_showUntestedRadiosCheck);
-    filterLayout->addStretch();
-    modelLayout->addRow("", filterLayout);
-
-    // Radio Interface Type
-    m_radioTypeCombo = new QComboBox(this);
-    m_radioTypeCombo->addItem("Auto (Recommended)", -1);
-    m_radioTypeCombo->addItem("Hamlib (Universal)", 0);
-    m_radioTypeCombo->addItem("K4 Direct (K4 only, 5-10x faster)", 1);
-    m_radioTypeCombo->addItem("Icom Direct (Icom network radios)", 2);
-    m_radioTypeCombo->setCurrentIndex(0);
-    m_radioTypeCombo->setToolTip(
-        "Auto: Automatically selects the best interface for your radio\n"
-        "Hamlib: Universal compatibility, works with all radios\n"
-        "K4 Direct: Direct TCP control for Elecraft K4 (5-10x faster)\n"
-        "Icom Direct: Native Icom network protocol for supported radios"
-    );
-    connect(m_radioTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &RadioEditDialog::onRadioTypeChanged);
-    modelLayout->addRow("Interface:", m_radioTypeCombo);
-
-    mainLayout->addWidget(modelGroup);
-
-    // Connection Type
+    // ===== 2. Connection Type (Primary Choice) =====
     QGroupBox* connectionGroup = new QGroupBox("Connection", this);
     QVBoxLayout* connectionLayout = new QVBoxLayout(connectionGroup);
 
+    // Serial / Network radio buttons
+    QHBoxLayout* connTypeLayout = new QHBoxLayout();
     m_serialRadio = new QRadioButton("Serial Port", this);
     m_networkRadio = new QRadioButton("Network (TCP)", this);
     m_serialRadio->setChecked(true);
-    connect(m_serialRadio, &QRadioButton::toggled,
-            this, &RadioEditDialog::onConnectionTypeChanged);
+    connTypeLayout->addWidget(m_serialRadio);
+    connTypeLayout->addWidget(m_networkRadio);
+    connTypeLayout->addStretch();
+    connectionLayout->addLayout(connTypeLayout);
 
-    QHBoxLayout* typeLayout = new QHBoxLayout();
-    typeLayout->addWidget(m_serialRadio);
-    typeLayout->addWidget(m_networkRadio);
-    typeLayout->addStretch();
-    connectionLayout->addLayout(typeLayout);
-
-    // Serial Port Settings
+    // ----- Serial Port Settings -----
     m_serialGroup = new QGroupBox("Serial Port Settings", this);
     QFormLayout* serialLayout = new QFormLayout(m_serialGroup);
 
@@ -189,47 +127,123 @@ void RadioEditDialog::setupUI()
 
     connectionLayout->addWidget(m_serialGroup);
 
-    // Network Settings
+    // ----- Network Settings -----
     m_networkGroup = new QGroupBox("Network Settings", this);
-    QFormLayout* networkLayout = new QFormLayout(m_networkGroup);
+    QVBoxLayout* networkMainLayout = new QVBoxLayout(m_networkGroup);
 
+    // Interface Type (only for Network)
+    m_interfaceTypeWidget = new QWidget(this);
+    QHBoxLayout* interfaceLayout = new QHBoxLayout(m_interfaceTypeWidget);
+    interfaceLayout->setContentsMargins(0, 0, 0, 0);
+    QLabel* interfaceLabel = new QLabel("Interface:", this);
+    m_hamlibRadio = new QRadioButton("Hamlib", this);
+    m_k4DirectRadio = new QRadioButton("K4 Direct", this);
+    m_icomDirectRadio = new QRadioButton("Icom Direct", this);
+    m_hamlibRadio->setChecked(true);
+    m_hamlibRadio->setToolTip("Universal compatibility, works with all radios");
+    m_k4DirectRadio->setToolTip("Direct TCP control for Elecraft K4 (5-10x faster)");
+    m_icomDirectRadio->setToolTip("Native Icom network protocol for supported radios");
+    interfaceLayout->addWidget(interfaceLabel);
+    interfaceLayout->addWidget(m_hamlibRadio);
+    interfaceLayout->addWidget(m_k4DirectRadio);
+    interfaceLayout->addWidget(m_icomDirectRadio);
+    interfaceLayout->addStretch();
+    networkMainLayout->addWidget(m_interfaceTypeWidget);
+
+    // Network address fields
+    QFormLayout* networkLayout = new QFormLayout();
     m_ipAddressEdit = new QLineEdit(this);
     m_ipAddressEdit->setPlaceholderText("192.168.1.100");
-    networkLayout->addRow("IP Address:", m_ipAddressEdit);
+    networkLayout->addRow("Host/IP:", m_ipAddressEdit);
 
     m_portSpin = new QSpinBox(this);
     m_portSpin->setRange(1, 65535);
     m_portSpin->setValue(4532);
     networkLayout->addRow("Port:", m_portSpin);
 
+    // Discovery button
+    m_findRadiosButton = new QPushButton("Find Radios on Network", this);
+    connect(m_findRadiosButton, &QPushButton::clicked, this, &RadioEditDialog::onFindNetworkRadios);
+    networkLayout->addRow("", m_findRadiosButton);
+
+    networkMainLayout->addLayout(networkLayout);
+
+    // Icom credentials (shown only for Icom Direct)
+    m_icomCredentialsWidget = new QWidget(this);
+    QFormLayout* icomCredsLayout = new QFormLayout(m_icomCredentialsWidget);
+    icomCredsLayout->setContentsMargins(0, 0, 0, 0);
     m_icomUsernameEdit = new QLineEdit(this);
     m_icomUsernameEdit->setPlaceholderText("Username (optional)");
-    networkLayout->addRow("Icom Username:", m_icomUsernameEdit);
+    icomCredsLayout->addRow("Icom Username:", m_icomUsernameEdit);
 
     m_icomPasswordEdit = new QLineEdit(this);
     m_icomPasswordEdit->setPlaceholderText("Password (optional)");
     m_icomPasswordEdit->setEchoMode(QLineEdit::Password);
-    networkLayout->addRow("Icom Password:", m_icomPasswordEdit);
+    icomCredsLayout->addRow("Icom Password:", m_icomPasswordEdit);
 
     m_icomClientNameEdit = new QLineEdit(this);
     m_icomClientNameEdit->setText("TR4QT");
-    networkLayout->addRow("Client Name:", m_icomClientNameEdit);
+    icomCredsLayout->addRow("Client Name:", m_icomClientNameEdit);
 
-    m_findRadiosButton = new QPushButton("Find Radios on Network", this);
-    connect(m_findRadiosButton, &QPushButton::clicked, this, &RadioEditDialog::onFindNetworkRadios);
-    networkLayout->addRow("", m_findRadiosButton);
+    networkMainLayout->addWidget(m_icomCredentialsWidget);
+    m_icomCredentialsWidget->setVisible(false);
 
     connectionLayout->addWidget(m_networkGroup);
     m_networkGroup->setVisible(false);
 
     mainLayout->addWidget(connectionGroup);
 
-    // Advanced Settings
+    // ===== 3. Radio Model Selection =====
+    m_modelSelectionWidget = new QWidget(this);
+    QVBoxLayout* modelContainerLayout = new QVBoxLayout(m_modelSelectionWidget);
+    modelContainerLayout->setContentsMargins(0, 0, 0, 0);
+
+    QGroupBox* modelGroup = new QGroupBox("Radio Model", this);
+    QFormLayout* modelLayout = new QFormLayout(modelGroup);
+
+    m_radioModelCombo = new QComboBox(this);
+    m_radioModelCombo->setEditable(true);
+    m_radioModelCombo->setInsertPolicy(QComboBox::NoInsert);
+    m_radioModelCombo->blockSignals(true);
+    modelLayout->addRow("Model:", m_radioModelCombo);
+
+    m_customModelEdit = new QLineEdit(this);
+    m_customModelEdit->setPlaceholderText("Enter hamlib model ID (e.g., 2046)");
+    m_customModelEdit->setVisible(false);
+    modelLayout->addRow("Custom Model ID:", m_customModelEdit);
+
+    // Radio status filter checkboxes (for Hamlib only)
+    m_statusFilterWidget = new QWidget(this);
+    QHBoxLayout* filterLayout = new QHBoxLayout(m_statusFilterWidget);
+    filterLayout->setContentsMargins(0, 0, 0, 0);
+    m_showStableRadiosCheck = new QCheckBox("Stable", this);
+    m_showBetaRadiosCheck = new QCheckBox("Beta", this);
+    m_showAlphaRadiosCheck = new QCheckBox("Alpha", this);
+    m_showUntestedRadiosCheck = new QCheckBox("Untested", this);
+    m_showStableRadiosCheck->setChecked(true);
+    filterLayout->addWidget(new QLabel("Show:", this));
+    filterLayout->addWidget(m_showStableRadiosCheck);
+    filterLayout->addWidget(m_showBetaRadiosCheck);
+    filterLayout->addWidget(m_showAlphaRadiosCheck);
+    filterLayout->addWidget(m_showUntestedRadiosCheck);
+    filterLayout->addStretch();
+    modelLayout->addRow("", m_statusFilterWidget);
+
+    modelContainerLayout->addWidget(modelGroup);
+    mainLayout->addWidget(m_modelSelectionWidget);
+
+    // ===== 4. Advanced Settings =====
     QGroupBox* advancedGroup = new QGroupBox("Advanced Settings", this);
     QFormLayout* advancedLayout = new QFormLayout(advancedGroup);
 
+    // CI-V Address (wrapped for show/hide)
+    m_civWidget = new QWidget(this);
+    QHBoxLayout* civLayout = new QHBoxLayout(m_civWidget);
+    civLayout->setContentsMargins(0, 0, 0, 0);
     m_civAddressWidget = new CivAddressWidget(this);
-    advancedLayout->addRow("CI-V Address:", m_civAddressWidget);
+    civLayout->addWidget(m_civAddressWidget);
+    civLayout->addStretch();
+    advancedLayout->addRow("CI-V Address:", m_civWidget);
 
     m_pollIntervalSpin = new QSpinBox(this);
     m_pollIntervalSpin->setRange(100, 5000);
@@ -240,7 +254,7 @@ void RadioEditDialog::setupUI()
 
     mainLayout->addWidget(advancedGroup);
 
-    // Test Connection
+    // ===== 5. Test Connection =====
     QHBoxLayout* testLayout = new QHBoxLayout();
     m_testConnectionButton = new QPushButton("Test Connection", this);
     connect(m_testConnectionButton, &QPushButton::clicked, this, &RadioEditDialog::onTestConnection);
@@ -254,11 +268,10 @@ void RadioEditDialog::setupUI()
 
     mainLayout->addStretch();
 
-    // Dialog buttons
+    // ===== 6. Dialog Buttons =====
     QDialogButtonBox* buttonBox = new QDialogButtonBox(
         QDialogButtonBox::Save | QDialogButtonBox::Cancel, this);
     connect(buttonBox, &QDialogButtonBox::accepted, this, [this]() {
-        // Validate name
         if (m_radioNameEdit->text().trimmed().isEmpty()) {
             DialogHelper::warning(this, "Missing Name",
                 "Please enter a name for this radio.");
@@ -270,15 +283,30 @@ void RadioEditDialog::setupUI()
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     mainLayout->addWidget(buttonBox);
 
-    // Initialize
-    populateRadioList();
-    refreshSerialPorts();
+    // ===== Connect Signals =====
+    connect(m_serialRadio, &QRadioButton::toggled,
+            this, &RadioEditDialog::onConnectionTypeChanged);
+    connect(m_hamlibRadio, &QRadioButton::toggled,
+            this, &RadioEditDialog::onNetworkInterfaceChanged);
+    connect(m_k4DirectRadio, &QRadioButton::toggled,
+            this, &RadioEditDialog::onNetworkInterfaceChanged);
+    connect(m_icomDirectRadio, &QRadioButton::toggled,
+            this, &RadioEditDialog::onNetworkInterfaceChanged);
+
+    connect(m_showStableRadiosCheck, &QCheckBox::stateChanged,
+            this, &RadioEditDialog::onRadioStatusFilterChanged);
+    connect(m_showBetaRadiosCheck, &QCheckBox::stateChanged,
+            this, &RadioEditDialog::onRadioStatusFilterChanged);
+    connect(m_showAlphaRadiosCheck, &QCheckBox::stateChanged,
+            this, &RadioEditDialog::onRadioStatusFilterChanged);
+    connect(m_showUntestedRadiosCheck, &QCheckBox::stateChanged,
+            this, &RadioEditDialog::onRadioStatusFilterChanged);
 
     connect(m_radioModelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &RadioEditDialog::onRadioModelChanged);
     m_radioModelCombo->blockSignals(false);
 
-    // Setup discovery objects
+    // ===== Setup Discovery Objects =====
     m_k4Discovery = new K4Discovery(this);
     connect(m_k4Discovery, &K4Discovery::radioFound,
             this, &RadioEditDialog::onK4RadioFound);
@@ -290,6 +318,29 @@ void RadioEditDialog::setupUI()
             this, &RadioEditDialog::onIcomRadioFound);
     connect(m_icomDiscovery, &IcomDiscovery::discoveryFinished,
             this, &RadioEditDialog::onIcomDiscoveryFinished);
+
+    // ===== Initialize =====
+    refreshSerialPorts();
+    populateRadioList();
+    updateVisibility();
+}
+
+// Helper to get current interface type from radio buttons
+// Returns: 0 = Hamlib, 1 = K4 Direct, 2 = Icom Direct
+int RadioEditDialog::getCurrentInterfaceType() const
+{
+    // For serial, always Hamlib
+    if (m_serialRadio->isChecked()) {
+        return 0;  // Hamlib
+    }
+    // For network, check interface radio buttons
+    if (m_k4DirectRadio->isChecked()) {
+        return 1;  // K4 Direct
+    }
+    if (m_icomDirectRadio->isChecked()) {
+        return 2;  // Icom Direct
+    }
+    return 0;  // Default to Hamlib
 }
 
 void RadioEditDialog::populateRadioList()
@@ -297,10 +348,9 @@ void RadioEditDialog::populateRadioList()
     m_radioModelCombo->blockSignals(true);
     m_radioModelCombo->clear();
 
-    int radioType = m_radioTypeCombo->currentData().toInt();
+    int radioType = getCurrentInterfaceType();
 
     // For direct interfaces, show only radios with actual implementations
-    // Query RadioFactory instead of hardcoding - single source of truth
     RadioFactory::RadioType factoryType = RadioFactory::RadioType::HAMLIB;
     if (radioType == 1) {
         factoryType = RadioFactory::RadioType::K4_DIRECT;
@@ -313,21 +363,11 @@ void RadioEditDialog::populateRadioList()
         for (const SupportedRadio& radio : implementedRadios) {
             m_radioModelCombo->addItem(radio.displayName, radio.hamlibModelId);
         }
-        // Hide the status filter checkboxes - not relevant for direct interfaces
-        m_showStableRadiosCheck->setVisible(false);
-        m_showBetaRadiosCheck->setVisible(false);
-        m_showAlphaRadiosCheck->setVisible(false);
-        m_showUntestedRadiosCheck->setVisible(false);
         m_radioModelCombo->blockSignals(false);
         return;
     }
 
-    // For Hamlib or Auto, show the full Hamlib list with status filters
-    m_showStableRadiosCheck->setVisible(true);
-    m_showBetaRadiosCheck->setVisible(true);
-    m_showAlphaRadiosCheck->setVisible(true);
-    m_showUntestedRadiosCheck->setVisible(true);
-
+    // For Hamlib, show the full Hamlib list with status filters
     bool showStable = m_showStableRadiosCheck->isChecked();
     bool showBeta = m_showBetaRadiosCheck->isChecked();
     bool showAlpha = m_showAlphaRadiosCheck->isChecked();
@@ -401,13 +441,36 @@ void RadioEditDialog::loadProfileIntoUI(const RadioProfile& profile)
 
     const RadioConfig& config = profile.config;
 
-    // Set radio type/interface FIRST so the model list is correctly populated
-    // (Icom Direct shows only supported radios, not the full Hamlib list)
-    int typeIndex = m_radioTypeCombo->findData(config.radioType);
-    if (typeIndex >= 0) {
-        m_radioTypeCombo->setCurrentIndex(typeIndex);
-        // This triggers onRadioTypeChanged which calls populateRadioList()
+    // Determine connection type from port format
+    bool isNetwork = config.port.contains(':');
+
+    // Set connection type FIRST
+    if (isNetwork) {
+        m_networkRadio->setChecked(true);
+    } else {
+        m_serialRadio->setChecked(true);
     }
+
+    // Set interface type (only relevant for network)
+    if (isNetwork) {
+        switch (config.radioType) {
+            case 1:  // K4 Direct
+                m_k4DirectRadio->setChecked(true);
+                break;
+            case 2:  // Icom Direct
+                m_icomDirectRadio->setChecked(true);
+                break;
+            default:  // Hamlib or Auto
+                m_hamlibRadio->setChecked(true);
+                break;
+        }
+    } else {
+        m_hamlibRadio->setChecked(true);  // Serial is always Hamlib
+    }
+
+    // Update visibility and populate model list based on selections
+    updateVisibility();
+    populateRadioList();
 
     // Now find and select radio model (in the correctly filtered list)
     int modelIndex = m_radioModelCombo->findData(config.hamlibModelId);
@@ -415,26 +478,22 @@ void RadioEditDialog::loadProfileIntoUI(const RadioProfile& profile)
         m_radioModelCombo->setCurrentIndex(modelIndex);
     } else if (config.hamlibModelId > 0) {
         // Model not in current list - check if it's a custom model for Hamlib
-        // For direct interfaces, the model should always be in the list
-        int radioType = m_radioTypeCombo->currentData().toInt();
-        if (radioType == 0 || radioType == -1) {  // Hamlib or Auto
+        int radioType = getCurrentInterfaceType();
+        if (radioType == 0) {  // Hamlib
             m_radioModelCombo->setCurrentIndex(m_radioModelCombo->count() - 1);
             m_customModelEdit->setText(QString::number(config.hamlibModelId));
             m_customModelEdit->setVisible(true);
         }
     }
 
-    // Connection type and settings
-    bool isNetwork = config.port.contains(':');
+    // Connection settings
     if (isNetwork) {
-        m_networkRadio->setChecked(true);
         QStringList parts = config.port.split(':');
         if (parts.size() >= 2) {
             m_ipAddressEdit->setText(parts[0]);
             m_portSpin->setValue(parts[1].toInt());
         }
     } else {
-        m_serialRadio->setChecked(true);
         int portIndex = m_serialPortCombo->findText(config.port);
         if (portIndex >= 0) {
             m_serialPortCombo->setCurrentIndex(portIndex);
@@ -476,8 +535,8 @@ RadioConfig RadioEditDialog::buildRadioConfigFromUI() const
     }
     config.hamlibModelId = modelId;
 
-    // Radio type
-    config.radioType = m_radioTypeCombo->currentData().toInt();
+    // Radio type (interface)
+    config.radioType = getCurrentInterfaceType();
 
     // Connection
     if (m_networkRadio->isChecked()) {
@@ -535,45 +594,84 @@ void RadioEditDialog::onConnectionTypeChanged()
     bool isSerial = m_serialRadio->isChecked();
     m_serialGroup->setVisible(isSerial);
     m_networkGroup->setVisible(!isSerial);
+
+    // When switching to serial, reset interface to Hamlib
+    if (isSerial) {
+        m_hamlibRadio->setChecked(true);
+    }
+
+    updateVisibility();
+    populateRadioList();
+}
+
+void RadioEditDialog::onNetworkInterfaceChanged()
+{
+    int interfaceType = getCurrentInterfaceType();
+
+    // Update default port based on interface type
+    if (interfaceType == 1) {  // K4 Direct
+        m_portSpin->setValue(9200);
+    } else if (interfaceType == 2) {  // Icom Direct
+        m_portSpin->setValue(50001);
+    } else {  // Hamlib
+        m_portSpin->setValue(4532);  // Default rigctld
+    }
+
+    updateVisibility();
+    populateRadioList();
+}
+
+void RadioEditDialog::updateVisibility()
+{
+    bool isSerial = m_serialRadio->isChecked();
+    int interfaceType = getCurrentInterfaceType();
+
+    // Model selection: Hide for K4 Direct (auto-selected), show for others
+    bool showModelSelection = (interfaceType != 1);  // Not K4 Direct
+    m_modelSelectionWidget->setVisible(showModelSelection);
+
+    // Status filters: Only show for Hamlib
+    bool showFilters = (interfaceType == 0);  // Hamlib only
+    m_statusFilterWidget->setVisible(showFilters);
+
+    // CI-V: Only for Hamlib with Icom radios
+    bool showCiv = false;
+    if (interfaceType == 0) {  // Hamlib
+        int modelId = m_radioModelCombo->currentData().toInt();
+        // Check if it's an Icom radio (model IDs 3xxx are typically Icom)
+        QString modelName = m_radioModelCombo->currentText().toLower();
+        showCiv = modelName.contains("icom") || (modelId >= 3000 && modelId < 4000);
+    }
+    m_civWidget->setVisible(showCiv);
+
+    // Icom credentials: Only for Icom Direct
+    bool showIcomCreds = (interfaceType == 2);  // Icom Direct
+    m_icomCredentialsWidget->setVisible(showIcomCreds);
+
+    // Discovery button: K4 for K4 Direct, Icom for Icom Direct, both for Hamlib
+    if (interfaceType == 1) {
+        m_findRadiosButton->setText("Find K4 on Network");
+        m_findRadiosButton->setVisible(true);
+    } else if (interfaceType == 2) {
+        m_findRadiosButton->setText("Find Icom Radios");
+        m_findRadiosButton->setVisible(true);
+    } else {
+        m_findRadiosButton->setText("Find Radios on Network");
+        m_findRadiosButton->setVisible(!isSerial);  // Only for network
+    }
 }
 
 void RadioEditDialog::onRadioModelChanged(int index)
 {
     int modelId = m_radioModelCombo->itemData(index).toInt();
     m_customModelEdit->setVisible(modelId == -1);
+
+    // Update CI-V visibility based on model
+    updateVisibility();
 }
 
 void RadioEditDialog::onRadioStatusFilterChanged()
 {
-    int currentModelId = m_radioModelCombo->currentData().toInt();
-    populateRadioList();
-
-    // Try to restore selection
-    int newIndex = m_radioModelCombo->findData(currentModelId);
-    if (newIndex >= 0) {
-        m_radioModelCombo->setCurrentIndex(newIndex);
-    }
-}
-
-void RadioEditDialog::onRadioTypeChanged(int index)
-{
-    int radioType = m_radioTypeCombo->itemData(index).toInt();
-
-    // Update default port based on radio type
-    if (radioType == 1) {  // K4 Direct
-        m_portSpin->setValue(9200);
-        m_networkRadio->setChecked(true);  // K4 Direct is always network
-        onConnectionTypeChanged();
-    } else if (radioType == 2) {  // Icom Direct
-        m_portSpin->setValue(50001);
-        m_networkRadio->setChecked(true);  // Icom Direct is always network
-        onConnectionTypeChanged();
-    } else {
-        m_portSpin->setValue(4532);  // Default rigctld
-    }
-
-    // Repopulate radio list based on interface type
-    // This filters to show only radios supported by the selected interface
     int currentModelId = m_radioModelCombo->currentData().toInt();
     populateRadioList();
 
@@ -633,19 +731,18 @@ void RadioEditDialog::onTestConnection()
 
 void RadioEditDialog::onFindNetworkRadios()
 {
-    int radioType = m_radioTypeCombo->currentData().toInt();
+    int interfaceType = getCurrentInterfaceType();
 
     m_findRadiosButton->setEnabled(false);
     m_findRadiosButton->setText("Searching...");
     m_foundK4Radios.clear();
     m_foundIcomRadios.clear();
 
-    if (radioType == 1) {  // K4 Direct
+    if (interfaceType == 1) {  // K4 Direct
         m_k4Discovery->startDiscovery();
-    } else if (radioType == 2) {  // Icom Direct
+    } else if (interfaceType == 2) {  // Icom Direct
         m_icomDiscovery->startDiscovery();
-    } else {
-        // Auto mode - try both
+    } else {  // Hamlib - try both
         m_k4Discovery->startDiscovery();
         m_icomDiscovery->startDiscovery();
     }
@@ -669,19 +766,14 @@ void RadioEditDialog::refreshSerialPorts()
 void RadioEditDialog::onK4RadioFound(const K4RadioInfo& radio)
 {
     m_foundK4Radios.append(radio);
-    m_ipAddressEdit->setText(radio.ipAddress);
-    m_portSpin->setValue(9200);
-    m_networkRadio->setChecked(true);
-    onConnectionTypeChanged();
-
-    LOG_INFO("RadioEditDialog", QString("K4 found: %1 at %2")
-             .arg(radio.rigType).arg(radio.ipAddress));
+    LOG_INFO("RadioEditDialog", QString("K4 found: %1 S/N %2 at %3")
+             .arg(radio.rigType).arg(radio.serialNumber).arg(radio.ipAddress));
 }
 
 void RadioEditDialog::onK4DiscoveryFinished(int count)
 {
     m_findRadiosButton->setEnabled(true);
-    m_findRadiosButton->setText("Find Radios on Network");
+    updateVisibility();  // Restore correct button text
 
     if (count == 0 && m_foundIcomRadios.isEmpty()) {
         DialogHelper::information(this, "Discovery Complete",
@@ -691,20 +783,13 @@ void RadioEditDialog::onK4DiscoveryFinished(int count)
             "- Connected to the same network\n"
             "- Has network control enabled");
     } else if (count > 0) {
-        DialogHelper::information(this, "Radio Found",
-            QString("Found %1 K4 radio(s) on the network.\n"
-                    "IP address has been filled in.").arg(count));
+        showK4SelectionDialog();
     }
 }
 
 void RadioEditDialog::onIcomRadioFound(const IcomRadioDiscoveryInfo& radio)
 {
     m_foundIcomRadios.append(radio);
-    m_ipAddressEdit->setText(radio.ipAddress);
-    m_portSpin->setValue(50001);
-    m_networkRadio->setChecked(true);
-    onConnectionTypeChanged();
-
     LOG_INFO("RadioEditDialog", QString("Icom found: ID %1 at %2")
              .arg(radio.radioId).arg(radio.ipAddress));
 }
@@ -712,7 +797,7 @@ void RadioEditDialog::onIcomRadioFound(const IcomRadioDiscoveryInfo& radio)
 void RadioEditDialog::onIcomDiscoveryFinished(int count)
 {
     m_findRadiosButton->setEnabled(true);
-    m_findRadiosButton->setText("Find Radios on Network");
+    updateVisibility();  // Restore correct button text
 
     if (count == 0 && m_foundK4Radios.isEmpty()) {
         DialogHelper::information(this, "Discovery Complete",
@@ -722,9 +807,159 @@ void RadioEditDialog::onIcomDiscoveryFinished(int count)
             "- Connected to the same network\n"
             "- Has network control enabled");
     } else if (count > 0) {
-        DialogHelper::information(this, "Radio Found",
-            QString("Found %1 Icom radio(s) on the network.\n"
-                    "IP address has been filled in.").arg(count));
+        showIcomSelectionDialog();
+    }
+}
+
+QSet<QString> RadioEditDialog::getConfiguredRadioIPs() const
+{
+    QSet<QString> configuredIPs;
+    QList<RadioProfile> profiles = AppSettings::instance().loadRadioProfiles();
+
+    for (const RadioProfile& profile : profiles) {
+        // Skip our own profile if editing
+        if (m_isEditMode && profile.name == m_originalProfile.name) {
+            continue;
+        }
+
+        // Extract IP from network port (format: "ip:port")
+        if (profile.config.port.contains(':')) {
+            QString ip = profile.config.port.split(':').first();
+            if (!ip.isEmpty()) {
+                configuredIPs.insert(ip);
+            }
+        }
+    }
+
+    return configuredIPs;
+}
+
+void RadioEditDialog::showK4SelectionDialog()
+{
+    if (m_foundK4Radios.isEmpty()) {
+        return;
+    }
+
+    // Single radio - auto-select
+    if (m_foundK4Radios.size() == 1) {
+        const K4RadioInfo& radio = m_foundK4Radios.first();
+        m_ipAddressEdit->setText(radio.ipAddress);
+        m_portSpin->setValue(9200);
+        m_networkRadio->setChecked(true);
+        m_k4DirectRadio->setChecked(true);
+        onConnectionTypeChanged();
+
+        DialogHelper::information(this, "K4 Found",
+            QString("Found K4 S/N %1 at %2\nIP address has been filled in.")
+                .arg(radio.serialNumber).arg(radio.ipAddress));
+        return;
+    }
+
+    // Multiple radios - show selection dialog
+    QSet<QString> configuredIPs = getConfiguredRadioIPs();
+
+    QStringList items;
+    QList<int> disabledIndices;
+
+    for (int i = 0; i < m_foundK4Radios.size(); ++i) {
+        const K4RadioInfo& radio = m_foundK4Radios[i];
+        QString item = QString("K4 S/N %1 at %2").arg(radio.serialNumber).arg(radio.ipAddress);
+
+        if (configuredIPs.contains(radio.ipAddress)) {
+            item += " (already configured)";
+            disabledIndices.append(i);
+        }
+        items.append(item);
+    }
+
+    // Use QInputDialog with combo box
+    bool ok;
+    QString selected = QInputDialog::getItem(this, "Select K4 Radio",
+        QString("Found %1 K4 radios on the network.\nSelect the radio to use:")
+            .arg(m_foundK4Radios.size()),
+        items, 0, false, &ok);
+
+    if (ok && !selected.isEmpty()) {
+        int index = items.indexOf(selected);
+        if (index >= 0 && index < m_foundK4Radios.size()) {
+            if (disabledIndices.contains(index)) {
+                DialogHelper::warning(this, "Radio Already Configured",
+                    "This radio is already configured in another profile.\n"
+                    "You can still use it, but you may want to edit the existing profile instead.");
+            }
+
+            const K4RadioInfo& radio = m_foundK4Radios[index];
+            m_ipAddressEdit->setText(radio.ipAddress);
+            m_portSpin->setValue(9200);
+            m_networkRadio->setChecked(true);
+            m_k4DirectRadio->setChecked(true);
+            onConnectionTypeChanged();
+        }
+    }
+}
+
+void RadioEditDialog::showIcomSelectionDialog()
+{
+    if (m_foundIcomRadios.isEmpty()) {
+        return;
+    }
+
+    // Single radio - auto-select
+    if (m_foundIcomRadios.size() == 1) {
+        const IcomRadioDiscoveryInfo& radio = m_foundIcomRadios.first();
+        m_ipAddressEdit->setText(radio.ipAddress);
+        m_portSpin->setValue(50001);
+        m_networkRadio->setChecked(true);
+        m_icomDirectRadio->setChecked(true);
+        onConnectionTypeChanged();
+
+        DialogHelper::information(this, "Icom Radio Found",
+            QString("Found Icom radio (ID: %1) at %2\nIP address has been filled in.")
+                .arg(radio.radioId, 8, 16, QChar('0')).arg(radio.ipAddress));
+        return;
+    }
+
+    // Multiple radios - show selection dialog
+    QSet<QString> configuredIPs = getConfiguredRadioIPs();
+
+    QStringList items;
+    QList<int> disabledIndices;
+
+    for (int i = 0; i < m_foundIcomRadios.size(); ++i) {
+        const IcomRadioDiscoveryInfo& radio = m_foundIcomRadios[i];
+        QString item = QString("Icom ID %1 at %2")
+            .arg(radio.radioId, 8, 16, QChar('0')).arg(radio.ipAddress);
+
+        if (configuredIPs.contains(radio.ipAddress)) {
+            item += " (already configured)";
+            disabledIndices.append(i);
+        }
+        items.append(item);
+    }
+
+    // Use QInputDialog with combo box
+    bool ok;
+    QString selected = QInputDialog::getItem(this, "Select Icom Radio",
+        QString("Found %1 Icom radios on the network.\nSelect the radio to use:")
+            .arg(m_foundIcomRadios.size()),
+        items, 0, false, &ok);
+
+    if (ok && !selected.isEmpty()) {
+        int index = items.indexOf(selected);
+        if (index >= 0 && index < m_foundIcomRadios.size()) {
+            if (disabledIndices.contains(index)) {
+                DialogHelper::warning(this, "Radio Already Configured",
+                    "This radio is already configured in another profile.\n"
+                    "You can still use it, but you may want to edit the existing profile instead.");
+            }
+
+            const IcomRadioDiscoveryInfo& radio = m_foundIcomRadios[index];
+            m_ipAddressEdit->setText(radio.ipAddress);
+            m_portSpin->setValue(50001);
+            m_networkRadio->setChecked(true);
+            m_icomDirectRadio->setChecked(true);
+            onConnectionTypeChanged();
+        }
     }
 }
 
