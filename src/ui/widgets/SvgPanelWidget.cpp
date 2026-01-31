@@ -30,9 +30,17 @@ namespace TR4QT {
 SvgPanelWidget::SvgPanelWidget(const QString& svgPath, QWidget* parent)
     : QWidget(parent)
     , m_svgRenderer(nullptr)
+    , m_resizeTimer(new QTimer(this))
 {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setMinimumSize(400, 150);
+
+    // Configure resize debounce timer (16ms = ~60fps, only repaint after resizing stops)
+    m_resizeTimer->setSingleShot(true);
+    m_resizeTimer->setInterval(16);
+    connect(m_resizeTimer, &QTimer::timeout, this, [this]() {
+        update();  // Repaint SVG after resize completes
+    });
 
     if (!loadSvg(svgPath)) {
         LOG_ERROR("SvgPanelWidget", QString("Failed to load SVG: %1").arg(svgPath));
@@ -89,14 +97,20 @@ bool SvgPanelWidget::loadSvg(const QString& svgPath) {
 void SvgPanelWidget::setLedOn(const QString& elementId, const QColor& colorOn) {
     updateElementFill(elementId, colorOn);
     m_elementColors[elementId] = colorOn;
-    update();  // Trigger repaint
+    // If in batch mode, skip update() (will update once at endBatch)
+    if (!m_batchMode) {
+        update();  // Trigger repaint
+    }
 }
 
 void SvgPanelWidget::setLedOff(const QString& elementId) {
     // Set fill to "none" for transparent background when LED is off
     updateElementFillWithValue(elementId, "none");
     m_elementColors.remove(elementId);
-    update();
+    // If in batch mode, skip update() (will update once at endBatch)
+    if (!m_batchMode) {
+        update();
+    }
 }
 
 void SvgPanelWidget::setElementColor(const QString& elementId, const QColor& color) {
@@ -113,6 +127,21 @@ void SvgPanelWidget::resetAllColors() {
     m_elementColors.clear();
     m_elementCache.clear();      // Clear element cache (DOM was reloaded)
     // Don't clear m_missingElements - those IDs still don't exist
+    reloadRenderer();
+    update();
+}
+
+void SvgPanelWidget::beginBatch() {
+    m_batchMode = true;
+}
+
+void SvgPanelWidget::endBatch() {
+    if (!m_batchMode) return;
+
+    m_batchMode = false;
+
+    // Reload renderer once for all batched updates
+    QMutexLocker locker(&m_mutex);
     reloadRenderer();
     update();
 }
@@ -182,6 +211,11 @@ void SvgPanelWidget::updateElementFillWithValue(const QString& elementId, const 
         QRegularExpression fillRegex("fill:\\s*[^;]+");
         style.replace(fillRegex, QString("fill:%1").arg(fillValue));
         element.setAttribute("style", style);
+    }
+
+    // If in batch mode, skip renderer reload (will reload once at endBatch)
+    if (m_batchMode) {
+        return;
     }
 
     // Reload renderer with modified DOM
@@ -273,7 +307,9 @@ void SvgPanelWidget::paintEvent(QPaintEvent* event) {
 
 void SvgPanelWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
-    update();  // Redraw at new size
+    // Debounce repaints: only update after resizing stops (Windows performance fix)
+    // Restart timer on each resize event, only fires after 16ms of no resizing
+    m_resizeTimer->start();
 }
 
 } // namespace TR4QT
