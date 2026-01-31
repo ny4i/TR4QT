@@ -1897,6 +1897,43 @@ void MainWindow::onPreferences() {
             }
         }
 
+        // Update amplifier menu state and initialize service if newly enabled
+        bool amplifierEnabled = settings.getAmplifierEnabled();
+        m_menuManager->amplifierControlAction()->setEnabled(amplifierEnabled);
+
+        // Initialize amplifier service if enabled but not yet created
+        if (amplifierEnabled && !m_amplifierService) {
+            LOG_INFO("MainWindow", "Amplifier enabled in preferences - initializing service");
+            int modelId = settings.getAmplifierModel();
+            QString connectionType = settings.getAmplifierConnectionType();
+            QString port = settings.getAmplifierPort();
+            int baudRate = settings.getAmplifierBaudRate();
+
+            AmplifierConfig config;
+            config.hamlibModelId = modelId;
+            config.connectionType = connectionType;
+            config.port = port;
+            config.baudRate = baudRate;
+            config.pollIntervalMs = settings.getAmplifierPollInterval();
+
+            // Determine amplifier type
+            int amplifierType;
+            const int AMP_MODEL_ELECRAFT_KPA1500 = 1201;
+            if (connectionType == "direct" && modelId == AMP_MODEL_ELECRAFT_KPA1500) {
+                amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::KPA1500_DIRECT);
+            } else {
+                amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::HAMLIB);
+            }
+
+            // Create amplifier controller (manages device in worker thread)
+            m_amplifierController = new AmplifierController(this);
+
+            // Create amplifier service (business logic layer)
+            m_amplifierService = new AmplifierService(m_amplifierController, this);
+
+            LOG_DEBUG("MainWindow", "Amplifier controller and service initialized from preferences");
+        }
+
         // TODO: Reload contest settings if changed
     }
 }
