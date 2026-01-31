@@ -142,6 +142,100 @@ void MainWindow::connectAmplifier() {
 
 **This applies to ALL projects with hardware I/O.**
 
+### ⚡ BATCH Expensive Operations on Main Thread
+
+**CRITICAL**: When the main thread must perform expensive operations repeatedly (e.g., UI updates from state changes), ALWAYS batch multiple operations together to minimize expensive overhead.
+
+**Why this matters**:
+- Some operations have fixed overhead that dominates total time (parsing, memory allocation, serialization)
+- Doing the operation once for N changes is far faster than doing it N times
+- Windows is especially sensitive to main thread blocking
+- Symptom: "Not Responding" even though individual operations are fast
+
+**The Pattern** (SVG LED updates as reference):
+```cpp
+// ❌ WRONG: Reload renderer for EACH LED update
+void updateLeds(const State& state) {
+    for (const QString& ledId : allLeds) {
+        if (shouldBeOn(ledId, state)) {
+            setLedOn(ledId, color);  // Reloads entire SVG renderer!
+        } else {
+            setLedOff(ledId);  // Reloads entire SVG renderer!
+        }
+    }
+    // Result: 29 LEDs × renderer reload = 29 × (delete, allocate, parse SVG)
+    //         116 reloads/second → UI freeze
+}
+
+// ✅ CORRECT: Batch all updates, reload renderer ONCE
+void updateLeds(const State& state) {
+    m_svgPanel->beginBatch();  // Defer expensive operation
+
+    for (const QString& ledId : allLeds) {
+        if (shouldBeOn(ledId, state)) {
+            setLedOn(ledId, color);  // Just modifies DOM
+        } else {
+            setLedOff(ledId);  // Just modifies DOM
+        }
+    }
+
+    m_svgPanel->endBatch();  // Reload renderer ONCE for all changes
+    // Result: 1 reload per update cycle = 4 reloads/second → smooth UI
+}
+```
+
+**Batching Implementation Pattern**:
+```cpp
+class ExpensiveWidget {
+private:
+    bool m_batchMode{false};
+
+public:
+    void beginBatch() {
+        m_batchMode = true;
+    }
+
+    void endBatch() {
+        if (!m_batchMode) return;
+        m_batchMode = false;
+
+        // Do expensive operation ONCE
+        reloadRenderer();
+        update();
+    }
+
+    void updateElement(const QString& id, const QColor& color) {
+        // Cheap operation (modify data structure)
+        m_data[id] = color;
+
+        // Skip expensive operation if batching
+        if (m_batchMode) return;
+
+        // Expensive operation (only when not batching)
+        reloadRenderer();
+        update();
+    }
+};
+```
+
+**When to use batching**:
+1. Multiple related updates happen together (e.g., state change updates 20+ LEDs)
+2. Each update triggers expensive operation (parsing, allocation, serialization)
+3. Expensive operation doesn't depend on individual update order
+4. Updates happen frequently (e.g., every 250ms from hardware polling)
+
+**Debugging expensive operations**:
+1. Add logging with timestamps to measure operation timing
+2. Don't guess - trace with logs to find actual bottleneck
+3. Look for operations called in loops (multiplication effect)
+4. Check for unnecessary re-creation of heavy objects (parsers, renderers, etc.)
+
+**Real bug (v3.40.36)**: Amplifier Control window updated 19 status LEDs + 10 SWR bargraph LEDs every 250ms. Each LED update reloaded entire SVG renderer (delete QSvgRenderer, allocate new one, parse full SVG XML). Result: 29 reloads × 4 updates/sec = 116 renderer reloads/second → Windows UI froze with "Not Responding". Fixed by batching all LED updates into single renderer reload: 29X performance improvement (116/sec → 4/sec).
+
+**Key insight**: The work MUST happen on main thread (Qt requirement for widgets), but HOW MUCH work matters. Batch to minimize expensive overhead.
+
+**This applies to ALL projects with repeated expensive operations.**
+
 ### 🚨 ARCHITECTURE: MainWindow Extraction In Progress
 
 **MainWindow limits** (special case - main UI entry point has higher limits):

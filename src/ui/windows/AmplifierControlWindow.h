@@ -156,6 +156,18 @@ private:
     // LCD display overlay (positioned over label_MAIN in SVG)
     QLabel* m_lcdLabel{nullptr};
     QString m_lastLcdContent;  // Track last content to avoid redundant logs
+    int m_lastLcdFontSize{0};  // Track last font size to avoid redundant setStyleSheet calls
+
+    // Cache SVG element bounds (never change, only calculated once)
+    QRectF m_cachedLcdBounds;  // Cached bounds for label_MAIN element
+    QRectF m_cachedViewBox;    // Cached SVG viewBox
+    bool m_boundsInitialized{false};  // Whether bounds cache is valid
+
+    // Resize debouncing (Windows performance fix)
+    QTimer* m_resizeDebounceTimer{nullptr};  // Debounce overlay repositioning
+
+    // Amplifier update debouncing (Windows performance fix - Issue #XX)
+    QTimer* m_updateDebounceTimer{nullptr};  // Debounce amplifier state repaints
 
     // Generic constants (not amplifier-specific)
     static constexpr float MIN_SWR = 1.0f;  // Perfect SWR
