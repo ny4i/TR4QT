@@ -25,23 +25,37 @@
 namespace TR4QT {
 
 // Convenience macros for categorized logging
+// IMPORTANT: These macros check log level BEFORE evaluating msg to avoid expensive
+// QString formatting when the log level would skip the message anyway.
 #define LOG_TRACE(category, msg) \
-    TR4QT::Logger::instance().log(TR4QT::LogLevel::Trace, category, msg, __FILE__, __LINE__)
+    do { if (TR4QT::Logger::instance().isLevelEnabled(TR4QT::LogLevel::Trace)) \
+        TR4QT::Logger::instance().log(TR4QT::LogLevel::Trace, category, msg, __FILE__, __LINE__); \
+    } while (0)
 
 #define LOG_DEBUG(category, msg) \
-    TR4QT::Logger::instance().log(TR4QT::LogLevel::Debug, category, msg, __FILE__, __LINE__)
+    do { if (TR4QT::Logger::instance().isLevelEnabled(TR4QT::LogLevel::Debug)) \
+        TR4QT::Logger::instance().log(TR4QT::LogLevel::Debug, category, msg, __FILE__, __LINE__); \
+    } while (0)
 
 #define LOG_INFO(category, msg) \
-    TR4QT::Logger::instance().log(TR4QT::LogLevel::Info, category, msg, __FILE__, __LINE__)
+    do { if (TR4QT::Logger::instance().isLevelEnabled(TR4QT::LogLevel::Info)) \
+        TR4QT::Logger::instance().log(TR4QT::LogLevel::Info, category, msg, __FILE__, __LINE__); \
+    } while (0)
 
 #define LOG_WARN(category, msg) \
-    TR4QT::Logger::instance().log(TR4QT::LogLevel::Warn, category, msg, __FILE__, __LINE__)
+    do { if (TR4QT::Logger::instance().isLevelEnabled(TR4QT::LogLevel::Warn)) \
+        TR4QT::Logger::instance().log(TR4QT::LogLevel::Warn, category, msg, __FILE__, __LINE__); \
+    } while (0)
 
 #define LOG_ERROR(category, msg) \
-    TR4QT::Logger::instance().log(TR4QT::LogLevel::Error, category, msg, __FILE__, __LINE__)
+    do { if (TR4QT::Logger::instance().isLevelEnabled(TR4QT::LogLevel::Error)) \
+        TR4QT::Logger::instance().log(TR4QT::LogLevel::Error, category, msg, __FILE__, __LINE__); \
+    } while (0)
 
 #define LOG_FATAL(category, msg) \
-    TR4QT::Logger::instance().log(TR4QT::LogLevel::Fatal, category, msg, __FILE__, __LINE__)
+    do { if (TR4QT::Logger::instance().isLevelEnabled(TR4QT::LogLevel::Fatal)) \
+        TR4QT::Logger::instance().log(TR4QT::LogLevel::Fatal, category, msg, __FILE__, __LINE__); \
+    } while (0)
 
 // Printf-style formatting helpers
 #define LOG_TRACE_F(category, ...) \
