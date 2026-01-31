@@ -26,6 +26,7 @@
 #include <QHash>
 #include <QSet>
 #include <QMutex>
+#include <QTimer>
 #include "../../core/Constants.h"
 
 namespace TR4QT {
@@ -80,6 +81,18 @@ public:
      * Reset all element colors to default (dark gray #202020)
      */
     void resetAllColors();
+
+    /**
+     * Begin batch mode - multiple LED updates without reloading renderer each time
+     * Call endBatch() when done to reload renderer once
+     * CRITICAL: Reduces 29+ renderer reloads per update to just 1 (116/sec → 4/sec)
+     */
+    void beginBatch();
+
+    /**
+     * End batch mode - reload renderer once for all batched updates
+     */
+    void endBatch();
 
     /**
      * Check if SVG loaded successfully
@@ -152,6 +165,12 @@ private:
 
     // Original SVG size (for aspect ratio)
     QSize m_svgSize;
+
+    // Resize debouncing (prevents expensive SVG repaints on every resize event)
+    QTimer* m_resizeTimer;
+
+    // Batch mode flag (prevents renderer reload on every LED update)
+    bool m_batchMode{false};
 
     // Helper: Find element by ID (recursive search since elementById() doesn't work)
     QDomElement findElementById(const QString& elementId);
