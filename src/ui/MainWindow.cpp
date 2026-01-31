@@ -1834,6 +1834,7 @@ void MainWindow::onPreferences() {
         oldConfig = settings.getActiveRadioConfig();
     }
     bool oldAutoConnect = settings.getRadioAutoConnect();
+    QString oldStationProfile = settings.getActiveStationProfile();
 
     PreferencesDialog dialog(this);
     dialog.setRadioConnected(m_radioConnected);
@@ -1863,6 +1864,10 @@ void MainWindow::onPreferences() {
         m_hamPrivileges = std::make_unique<HamRadioPrivileges>(licenseClass);
         LOG_DEBUG("MainWindow", QString("License class updated to: %1").arg(licenseClassStr));
 
+        // Check if station profile changed
+        QString newStationProfile = settings.getActiveStationProfile();
+        bool stationProfileChanged = (oldStationProfile != newStationProfile);
+
         // Check if radio settings actually changed
         bool radioSettingsChanged = false;
         if (settings.hasAnyRadioConfig()) {
@@ -1884,11 +1889,21 @@ void MainWindow::onPreferences() {
             radioSettingsChanged = true;  // Config was removed
         }
 
+        // Station profile change requires reconnection
+        if (stationProfileChanged) {
+            radioSettingsChanged = true;
+            LOG_INFO("MainWindow", QString("Station profile changed from '%1' to '%2'")
+                     .arg(oldStationProfile, newStationProfile));
+        }
+
         // Only ask to reconnect if radio settings actually changed
         if (radioSettingsChanged && m_radioConnected) {
+            QString message = stationProfileChanged
+                ? QString("Station profile changed to '%1'. Reconnect to use the new radios?").arg(newStationProfile)
+                : "Radio settings have changed. Reconnect to apply new settings?";
+
             QMessageBox::StandardButton reply = DialogHelper::question(
-                this, "Reconnect Radio?",
-                "Radio settings have changed. Reconnect to apply new settings?",
+                this, "Reconnect Radio?", message,
                 QMessageBox::Yes | QMessageBox::No);
 
             if (reply == QMessageBox::Yes) {

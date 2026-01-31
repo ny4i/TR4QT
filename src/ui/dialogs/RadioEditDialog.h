@@ -82,12 +82,13 @@ public:
 
 private slots:
     void onConnectionTypeChanged();
+    void onNetworkInterfaceChanged();
     void onRadioModelChanged(int index);
     void onRadioStatusFilterChanged();
-    void onRadioTypeChanged(int index);
     void onTestConnection();
     void onFindNetworkRadios();
     void refreshSerialPorts();
+    void updateVisibility();
 
     // K4 Discovery slots
     void onK4RadioFound(const K4RadioInfo& radio);
@@ -102,24 +103,42 @@ private:
     void populateRadioList();
     void loadProfileIntoUI(const RadioProfile& profile);
     RadioConfig buildRadioConfigFromUI() const;
+    int getCurrentInterfaceType() const;  // 0=Hamlib, 1=K4 Direct, 2=Icom Direct
+    void showK4SelectionDialog();
+    void showIcomSelectionDialog();
+    QSet<QString> getConfiguredRadioIPs() const;
 
     // Radio name
     QLineEdit* m_radioNameEdit;
 
-    // Radio model section
+    // Connection type (primary choice)
+    QRadioButton* m_serialRadio;
+    QRadioButton* m_networkRadio;
+
+    // Serial settings group
+    QGroupBox* m_serialGroup;
+
+    // Network settings group
+    QGroupBox* m_networkGroup;
+
+    // Network interface type (shown only when Network selected)
+    QRadioButton* m_hamlibRadio;
+    QRadioButton* m_k4DirectRadio;
+    QRadioButton* m_icomDirectRadio;
+    QWidget* m_interfaceTypeWidget;
+
+    // Radio model section (context-dependent)
+    QWidget* m_modelSelectionWidget;
     QComboBox* m_radioModelCombo;
     QLineEdit* m_customModelEdit;
     QCheckBox* m_showStableRadiosCheck;
     QCheckBox* m_showBetaRadiosCheck;
     QCheckBox* m_showAlphaRadiosCheck;
     QCheckBox* m_showUntestedRadiosCheck;
-    QComboBox* m_radioTypeCombo;
+    QWidget* m_statusFilterWidget;
 
-    // Connection type
-    QRadioButton* m_serialRadio;
-    QRadioButton* m_networkRadio;
-    QGroupBox* m_serialGroup;
-    QGroupBox* m_networkGroup;
+    // CI-V widget container (for show/hide)
+    QWidget* m_civWidget;
 
     // Serial settings
     QComboBox* m_serialPortCombo;
@@ -134,9 +153,14 @@ private:
     // Network settings
     QLineEdit* m_ipAddressEdit;
     QSpinBox* m_portSpin;
+
+    // Icom credentials (shown only for Icom Direct)
+    QWidget* m_icomCredentialsWidget;
     QLineEdit* m_icomUsernameEdit;
     QLineEdit* m_icomPasswordEdit;
     QLineEdit* m_icomClientNameEdit;
+
+    // Discovery button
     QPushButton* m_findRadiosButton;
 
     // Advanced settings
