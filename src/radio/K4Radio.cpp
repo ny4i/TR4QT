@@ -131,6 +131,7 @@ void K4Radio::onSocketConnected()
 
     // Enable full async updates including S-meter
     enableAIMode(4);    // AI4 = all async updates including S-meter
+    sendCommand("ER1");   // Enable error/status message reporting
     sendCommand("TM1");   // Enable temperature/power/SWR monitoring
     sendCommand("SMH1");  // Enable S-meter in dBm format
 
@@ -624,6 +625,26 @@ void K4Radio::processMessage(const QString& message)
         if (subRx != m_state.subRxEnabled) {
             m_state.subRxEnabled = subRx;
             emit stateUpdated(m_state);
+        }
+    }
+    else if (command == "ER") {
+        // Error/status message format: ERxx:message text here;
+        // Example: ER43:KPA1500 Status: standby;
+        // Parse code and message, emit signal for UI display
+        int colonPos = data.indexOf(':');
+        if (colonPos > 0) {
+            bool ok;
+            int code = data.left(colonPos).toInt(&ok);
+            if (ok) {
+                QString statusMessage = data.mid(colonPos + 1);
+                LOG_INFO("K4Radio", QString("Status message ER%1: %2").arg(code).arg(statusMessage));
+                emit statusMessageReceived(code, statusMessage);
+            } else {
+                LOG_WARN("K4Radio", QString("Invalid ER code format: %1").arg(data));
+            }
+        } else {
+            // ER without colon might be enable/disable response (ER0 or ER1)
+            LOG_DEBUG("K4Radio", QString("ER response: %1").arg(data));
         }
     }
     else {
