@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.51";  // Fix QSettings stuck-in-group bug with RAII scope guards
+constexpr const char* APP_VERSION = "3.40.52";  // Add gradient LUT for S-meter and power meter displays
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

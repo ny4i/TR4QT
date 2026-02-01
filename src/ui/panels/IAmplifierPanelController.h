@@ -115,8 +115,37 @@ public:
     /**
      * @brief Get the color for a power meter LED based on power level
      * @param proportion Power as proportion of max (0.0-1.0)
+     * @deprecated Use getPowerLedColor() for gradient effect
      */
     virtual QColor getPowerMeterColor(double proportion) const = 0;
+
+    /**
+     * @brief Get the gradient color for a power meter LED based on position
+     * @param ledIndex The LED index (0-based)
+     * @param totalLeds Total number of LEDs in the meter
+     * @return Color for this LED position (green→yellow→red gradient)
+     */
+    virtual QColor getPowerLedColor(int ledIndex, int totalLeds) const {
+        // Default implementation: gradient from green to red
+        if (totalLeds <= 1) return QColor(0, 255, 0);  // Green
+
+        float proportion = static_cast<float>(ledIndex) / (totalLeds - 1);
+
+        // Green (0.0) → Yellow (0.5) → Red (1.0)
+        int r, g;
+        if (proportion < 0.5f) {
+            // Green to Yellow
+            float t = proportion * 2.0f;
+            r = static_cast<int>(255 * t);
+            g = 255;
+        } else {
+            // Yellow to Red
+            float t = (proportion - 0.5f) * 2.0f;
+            r = 255;
+            g = static_cast<int>(255 * (1.0f - t));
+        }
+        return QColor(r, g, 0);
+    }
 
     // ========== SWR Meter Configuration ==========
 
@@ -128,8 +157,37 @@ public:
     /**
      * @brief Get the color for an SWR meter LED based on SWR value
      * @param swr The SWR value
+     * @deprecated Use getSwrLedColor() for gradient effect
      */
     virtual QColor getSwrMeterColor(float swr) const = 0;
+
+    /**
+     * @brief Get the gradient color for an SWR meter LED based on position
+     * @param ledIndex The LED index (0-based)
+     * @param totalLeds Total number of LEDs in the meter
+     * @return Color for this LED position (green→yellow→red gradient)
+     */
+    virtual QColor getSwrLedColor(int ledIndex, int totalLeds) const {
+        // Default implementation: gradient from green to red
+        if (totalLeds <= 1) return QColor(0, 255, 0);  // Green
+
+        float proportion = static_cast<float>(ledIndex) / (totalLeds - 1);
+
+        // Green (0.0) → Yellow (0.5) → Red (1.0)
+        int r, g;
+        if (proportion < 0.5f) {
+            // Green to Yellow
+            float t = proportion * 2.0f;
+            r = static_cast<int>(255 * t);
+            g = 255;
+        } else {
+            // Yellow to Red
+            float t = (proportion - 0.5f) * 2.0f;
+            r = 255;
+            g = static_cast<int>(255 * (1.0f - t));
+        }
+        return QColor(r, g, 0);
+    }
 
     /**
      * @brief Get the maximum SWR to display on the meter

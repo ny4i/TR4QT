@@ -44,6 +44,50 @@ namespace SMeterConstants {
     constexpr int NUM_S_UNITS = 9;      // S1 through S9
     constexpr int NUM_OVER_UNITS = 3;   // +20, +40, +60
     constexpr int TOTAL_BARS = NUM_S_UNITS + NUM_OVER_UNITS;  // 12 total bars
+
+    // Gradient LUT for S-meter (RX mode): green → yellow → red
+    // Classic analog meter coloring for signal strength indication
+    const QColor S_METER_LUT[TOTAL_BARS] = {
+        // S1-S6: Green gradient (weak to moderate signals)
+        QColor(0, 180, 0),      // S1 - dark green
+        QColor(0, 200, 0),      // S2
+        QColor(0, 220, 0),      // S3
+        QColor(0, 240, 0),      // S4
+        QColor(50, 255, 0),     // S5
+        QColor(100, 255, 0),    // S6 - yellow-green
+
+        // S7-S9: Yellow gradient (good signal strength)
+        QColor(180, 255, 0),    // S7 - lime
+        QColor(220, 220, 0),    // S8 - yellow
+        QColor(255, 180, 0),    // S9 - orange-yellow
+
+        // +20/+40/+60: Red gradient (strong signals / potential overload)
+        QColor(255, 100, 0),    // +20 - orange-red
+        QColor(255, 50, 0),     // +40 - red-orange
+        QColor(255, 0, 0),      // +60 - bright red
+    };
+
+    // Gradient LUT for power meter (TX mode): green → yellow → orange → red
+    // Indicates safe operating range through high power levels
+    const QColor POWER_METER_LUT[TOTAL_BARS] = {
+        // 0-50% power: Green gradient (safe operating range)
+        QColor(0, 200, 0),      // ~8% - dark green
+        QColor(0, 220, 0),      // ~17%
+        QColor(0, 240, 0),      // ~25%
+        QColor(50, 255, 0),     // ~33%
+        QColor(100, 255, 0),    // ~42% - yellow-green
+        QColor(150, 255, 0),    // ~50% - lime
+
+        // 50-75% power: Yellow gradient (moderate power)
+        QColor(200, 255, 0),    // ~58%
+        QColor(230, 230, 0),    // ~67% - yellow
+        QColor(255, 200, 0),    // ~75% - golden
+
+        // 75-100% power: Orange to Red gradient (high power)
+        QColor(255, 150, 0),    // ~83% - orange
+        QColor(255, 80, 0),     // ~92% - red-orange
+        QColor(255, 0, 0),      // 100% - bright red (max power)
+    };
 }
 
 SMeterWidget::SMeterWidget(QWidget* parent)
@@ -273,10 +317,7 @@ void SMeterWidget::paintEvent(QPaintEvent* event) {
     // Get colors from theme
     QColor textColor = theme.color(ColorRole::PrimaryText);
     QColor borderColor = theme.color(ColorRole::BorderColor);
-
-    // TX mode: orange bars for power, RX mode: green bars for S-meter
-    QColor barActiveColor = m_isTxMode ? QColor(255, 140, 0) : theme.color(ColorRole::ConnectedStatus);  // Orange TX, Green RX
-    QColor barInactiveColor = theme.color(ColorRole::SecondaryText);  // Gray for inactive
+    QColor barInactiveColor = theme.color(ColorRole::SecondaryText);  // Gray for inactive bars
 
     // Setup fonts
     QFont labelFont;
@@ -319,10 +360,11 @@ void SMeterWidget::paintEvent(QPaintEvent* event) {
             }
 
             // Draw bar (filled if power >= this level)
+            // Use gradient LUT - each bar gets its own color from the gradient
             QRect barRect(x, barY, barWidth, m_barHeight);
             bool isActive = (m_currentPowerLevel >= level);
 
-            QColor barColor = isActive ? barActiveColor : barInactiveColor;
+            QColor barColor = isActive ? SMeterConstants::POWER_METER_LUT[i] : barInactiveColor;
             painter.setPen(borderColor);
             painter.setBrush(barColor);
             painter.drawRect(barRect);
@@ -338,10 +380,11 @@ void SMeterWidget::paintEvent(QPaintEvent* event) {
             }
 
             // Draw bar (filled if signal >= this S-unit)
+            // Use gradient LUT - each bar gets its own color from the gradient
             QRect barRect(x, barY, barWidth, m_barHeight);
             bool isActive = (m_currentSUnit >= level);
 
-            QColor barColor = isActive ? barActiveColor : barInactiveColor;
+            QColor barColor = isActive ? SMeterConstants::S_METER_LUT[i] : barInactiveColor;
             painter.setPen(borderColor);
             painter.setBrush(barColor);
             painter.drawRect(barRect);
