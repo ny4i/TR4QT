@@ -1,0 +1,323 @@
+/*
+    TR4QT - An Amateur Radio Contesting Logger inspired by TR4W and TRLog.
+    Copyright (C) 2026 Thomas M. Schaefer NY4I ny4i@ny4i.com
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+*/
+
+import QtQuick
+
+Rectangle {
+    id: root
+    color: "#1a1a1a"
+
+    // Frame rate limiter for spectrum canvas only (waterfall uses ImageProvider)
+    Timer {
+        id: spectrumRepaintTimer
+        interval: 50  // ~20fps for spectrum
+        repeat: false
+        onTriggered: {
+            if (spectrumCanvas.needsRepaint) {
+                spectrumCanvas.needsRepaint = false;
+                spectrumCanvas.requestPaint();
+            }
+        }
+    }
+
+    // Waterfall refresh timer - throttle image updates
+    Timer {
+        id: waterfallRefreshTimer
+        interval: 66  // ~15fps
+        repeat: false
+        onTriggered: {
+            // Force image reload by changing the source URL
+            waterfallImage.source = "";
+            waterfallImage.source = "image://waterfall/frame" + panadapter.waterfallFrame;
+        }
+    }
+
+    // Frequency formatting helper
+    function formatFrequency(freqHz) {
+        var mhz = freqHz / 1000000.0;
+        return mhz.toFixed(3) + " MHz";
+    }
+
+    // Main content column
+    Column {
+        anchors.fill: parent
+        spacing: 0
+
+        // Spectrum display (line graph) - keep as Canvas, it's lightweight
+        Rectangle {
+            id: spectrumArea
+            width: parent.width
+            height: 150
+            color: "#0a0a0a"
+
+            Canvas {
+                id: spectrumCanvas
+                anchors.fill: parent
+                anchors.margins: 2
+
+                property var samples: panadapter ? panadapter.samples : []
+                property bool needsRepaint: false
+
+                onSamplesChanged: {
+                    needsRepaint = true;
+                    if (!spectrumRepaintTimer.running) {
+                        spectrumRepaintTimer.start();
+                    }
+                }
+
+                onPaint: {
+                    var ctx = getContext("2d");
+                    ctx.clearRect(0, 0, width, height);
+
+                    if (!samples || samples.length === 0) return;
+
+                    var noiseFloor = panadapter ? panadapter.noiseFloor : -130;
+                    var refLevel = panadapter ? panadapter.refLevel : 0;
+                    var minDb = Math.min(Math.max(noiseFloor, -150), -100) - 8 + refLevel;
+                    var maxDb = -20 + refLevel;
+                    var dbRange = maxDb - minDb;
+
+                    // Draw grid lines
+                    ctx.strokeStyle = "#333333";
+                    ctx.lineWidth = 1;
+                    for (var i = 0; i <= 4; i++) {
+                        var y = height * i / 4;
+                        ctx.beginPath();
+                        ctx.moveTo(0, y);
+                        ctx.lineTo(width, y);
+                        ctx.stroke();
+                    }
+
+                    // Draw spectrum line
+                    ctx.strokeStyle = "#00ff00";
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+
+                    var step = samples.length / width;
+                    for (var x = 0; x < width; x++) {
+                        var sampleIndex = Math.floor(x * step);
+                        if (sampleIndex >= samples.length) sampleIndex = samples.length - 1;
+
+                        var db = samples[sampleIndex];
+                        var normalized = (db - minDb) / dbRange;
+                        normalized = Math.max(0, Math.min(1, normalized));
+                        var yPos = height * (1 - normalized);
+
+                        if (x === 0) {
+                            ctx.moveTo(x, yPos);
+                        } else {
+                            ctx.lineTo(x, yPos);
+                        }
+                    }
+                    ctx.stroke();
+
+                    // Draw center line
+                    ctx.strokeStyle = "#ff0000";
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(width / 2, 0);
+                    ctx.lineTo(width / 2, height);
+                    ctx.stroke();
+                }
+
+                Connections {
+                    target: panadapter
+                    function onSamplesChanged() {
+                        spectrumCanvas.samples = panadapter.samples;
+                    }
+                }
+            }
+
+            // dB scale on right
+            Column {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.rightMargin: 5
+                width: 40
+
+                Repeater {
+                    model: 5
+                    Text {
+                        width: parent.width
+                        height: spectrumArea.height / 5
+                        color: "#888888"
+                        font.pixelSize: 10
+                        horizontalAlignment: Text.AlignRight
+                        text: {
+                            var noiseFloor = panadapter ? panadapter.noiseFloor : -130;
+                            var refLevel = panadapter ? panadapter.refLevel : 0;
+                            var minDb = Math.min(Math.max(noiseFloor, -150), -100) - 8 + refLevel;
+                            var maxDb = -20 + refLevel;
+                            var db = maxDb - (index * (maxDb - minDb) / 4);
+                            return db.toFixed(0) + " dB";
+                        }
+                    }
+                }
+            }
+        }
+
+        // Waterfall display - uses QImage from C++ ImageProvider
+        Rectangle {
+            id: waterfallArea
+            width: parent.width
+            height: parent.height - spectrumArea.height - freqScale.height
+            color: "#00001e"  // Dark blue background (matches C++ image provider)
+            clip: true
+
+            // Waterfall image from C++ ImageProvider
+            Image {
+                id: waterfallImage
+                anchors.fill: parent
+                cache: false  // Don't cache - image changes every frame
+                asynchronous: false  // Synchronous for immediate update
+                fillMode: Image.Stretch
+                source: "image://waterfall/frame0"
+
+                // React to frame changes
+                Connections {
+                    target: panadapter
+                    function onWaterfallFrameChanged() {
+                        if (!panadapter.paused && !waterfallRefreshTimer.running) {
+                            waterfallRefreshTimer.start();
+                        }
+                    }
+                }
+            }
+
+            // Center frequency marker (overlay on top of image)
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 1
+                color: "#0088ff"
+                opacity: 0.7
+            }
+
+            // Click handler for tuning
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                hoverEnabled: true
+
+                onClicked: function(mouse) {
+                    var xRatio = mouse.x / width;
+                    var freq = panadapter.frequencyAtPosition(xRatio);
+                    var vfo = (mouse.button === Qt.RightButton) ? 1 : 0;
+                    panadapter.onFrequencyClicked(freq, vfo);
+                }
+
+                onPositionChanged: function(mouse) {
+                    var xRatio = mouse.x / width;
+                    var freq = panadapter.frequencyAtPosition(xRatio);
+                    var sampleIndex = Math.floor(xRatio * 2048);
+                    var samples = panadapter.samples;
+                    var db = (samples && sampleIndex < samples.length) ? samples[sampleIndex] : -130;
+                    panadapter.onCursorMoved(freq, db);
+                    cursorFreqText.text = formatFrequency(freq);
+                    cursorDbText.text = db.toFixed(1) + " dB";
+                }
+
+                onExited: {
+                    cursorFreqText.text = "";
+                    cursorDbText.text = "";
+                }
+            }
+
+            // Cursor info overlay
+            Row {
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.margins: 5
+                spacing: 10
+
+                Text {
+                    id: cursorFreqText
+                    color: "#ffff00"
+                    font.pixelSize: 12
+                    font.bold: true
+                }
+                Text {
+                    id: cursorDbText
+                    color: "#00ff00"
+                    font.pixelSize: 12
+                    font.bold: true
+                }
+            }
+        }
+
+        // Frequency scale
+        Rectangle {
+            id: freqScale
+            width: parent.width
+            height: 25
+            color: "#1a1a1a"
+
+            Row {
+                anchors.fill: parent
+                anchors.leftMargin: 5
+                anchors.rightMargin: 5
+
+                Repeater {
+                    model: 5
+                    Text {
+                        width: parent.width / 5
+                        height: parent.height
+                        color: "#aaaaaa"
+                        font.pixelSize: 11
+                        horizontalAlignment: index === 2 ? Text.AlignHCenter : (index < 2 ? Text.AlignLeft : Text.AlignRight)
+                        verticalAlignment: Text.AlignVCenter
+                        text: {
+                            var centerFreq = panadapter ? panadapter.centerFrequency : 7200000;
+                            var sampleRate = panadapter ? panadapter.sampleRate : 48000;
+                            var halfSpan = sampleRate / 2;
+                            var freqOffset = (index - 2) * halfSpan / 2;
+                            var freq = centerFreq + freqOffset;
+                            return formatFrequency(freq);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Center frequency display
+    Text {
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.topMargin: 5
+        color: "#ffff00"
+        font.pixelSize: 14
+        font.bold: true
+        text: formatFrequency(panadapter ? panadapter.centerFrequency : 7200000)
+    }
+
+    // Pan ID indicator
+    Text {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.margins: 5
+        color: "#00ffff"
+        font.pixelSize: 14
+        font.bold: true
+        text: "Pan " + (panadapter ? panadapter.panId : "A")
+    }
+
+    // Paused indicator
+    Text {
+        anchors.centerIn: parent
+        color: "#ff0000"
+        font.pixelSize: 24
+        font.bold: true
+        visible: panadapter ? panadapter.paused : false
+        text: "PAUSED"
+    }
+}

@@ -100,6 +100,11 @@ WindowGeometry SettingsManager::loadWindowGeometry() const {
     geometry.amplifierControlGeometry = settings.loadAmplifierControlGeometry();
     LOG_DEBUG("SettingsManager", QString("Loaded amplifier control visibility: %1").arg(geometry.amplifierControlVisible));
 
+    // Panadapter window - read from PanadapterWindow's keys (it saves its own state)
+    geometry.panadapterVisible = qsettings.value("PanadapterWindow/visible", false).toBool();
+    geometry.panadapterGeometry = qsettings.value("PanadapterWindow/geometry").toByteArray();
+    LOG_DEBUG("SettingsManager", QString("Loaded panadapter visibility: %1").arg(geometry.panadapterVisible));
+
     // Current operator
     geometry.currentOperator = settings.getCurrentOperator();
 
@@ -151,6 +156,11 @@ void SettingsManager::saveWindowGeometry(const WindowGeometry& geometry) {
     LOG_DEBUG("SettingsManager", QString("Saving amplifier control visibility: %1").arg(geometry.amplifierControlVisible));
     settings.saveAmplifierControlGeometry(geometry.amplifierControlGeometry);
     settings.setAmplifierControlVisible(geometry.amplifierControlVisible);
+
+    // Panadapter window - use same keys as PanadapterWindow for consistency
+    LOG_DEBUG("SettingsManager", QString("Saving panadapter visibility: %1").arg(geometry.panadapterVisible));
+    qsettings.setValue("PanadapterWindow/visible", geometry.panadapterVisible);
+    qsettings.setValue("PanadapterWindow/geometry", geometry.panadapterGeometry);
 
     // Ensure local qsettings are written to disk (important on Windows)
     qsettings.sync();

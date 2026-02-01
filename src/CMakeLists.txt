@@ -219,11 +219,17 @@ set(SOURCES
     ui/widgets/QSOSearchPanel.cpp
     ui/widgets/SvgPanelWidget.cpp
     ui/windows/AmplifierControlWindow.cpp
+    ui/windows/PanadapterWindow.cpp
     ui/panels/IAmplifierPanelController.h
     ui/panels/KPA1500PanelController.cpp
     ui/panels/AmplifierPanelFactory.cpp
     ui/plots/qcustomplot.cpp
     3rdparty/miniz/miniz.cpp
+    # Panadapter
+    panadapter/PanadapterDataModel.cpp
+    panadapter/renderers/QmlPanadapterRenderer.cpp
+    panadapter/WaterfallImageProvider.cpp
+    radio/K4PanadapterReader.cpp
 )
 
 set(HEADERS
@@ -341,10 +347,18 @@ set(HEADERS
     ui/widgets/QSOSearchPanel.h
     ui/widgets/SvgPanelWidget.h
     ui/windows/AmplifierControlWindow.h
+    ui/windows/PanadapterWindow.h
     ui/panels/IAmplifierPanelController.h
     ui/panels/KPA1500PanelController.h
     ui/panels/AmplifierPanelFactory.h
     ui/plots/qcustomplot.h
+    # Panadapter
+    panadapter/PanadapterTypes.h
+    panadapter/PanadapterDataModel.h
+    panadapter/IPanadapterRenderer.h
+    panadapter/renderers/QmlPanadapterRenderer.h
+    panadapter/WaterfallImageProvider.h
+    radio/K4PanadapterReader.h
 )
 
 # Set icon file for macOS
@@ -365,8 +379,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.44"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.44"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.45"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.45"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
@@ -400,6 +414,9 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::SerialPort
     Qt6::Svg
     Qt6::Xml
+    Qt6::Quick
+    Qt6::QuickWidgets
+    Qt6::Qml
     qt6keychain  # Secure credential storage (macOS Keychain, Windows Credential Manager)
 )
 
