@@ -29,6 +29,99 @@
 #include <QDateTime>
 #include <algorithm>
 
+namespace {
+
+/**
+ * RAII scope guard for QSettings::beginGroup/endGroup
+ * Ensures endGroup() is called even if an exception is thrown
+ */
+class QSettingsGroupGuard {
+public:
+    explicit QSettingsGroupGuard(QSettings& settings, const QString& group)
+        : m_settings(settings) {
+        m_settings.beginGroup(group);
+    }
+    ~QSettingsGroupGuard() {
+        m_settings.endGroup();
+    }
+    // Non-copyable
+    QSettingsGroupGuard(const QSettingsGroupGuard&) = delete;
+    QSettingsGroupGuard& operator=(const QSettingsGroupGuard&) = delete;
+private:
+    QSettings& m_settings;
+};
+
+/**
+ * RAII scope guard for QSettings::beginReadArray/endArray
+ * Ensures endArray() is called even if an exception is thrown
+ */
+class QSettingsReadArrayGuard {
+public:
+    explicit QSettingsReadArrayGuard(QSettings& settings, const QString& prefix)
+        : m_settings(settings) {
+        m_size = m_settings.beginReadArray(prefix);
+    }
+    ~QSettingsReadArrayGuard() {
+        m_settings.endArray();
+    }
+    int size() const { return m_size; }
+    // Non-copyable
+    QSettingsReadArrayGuard(const QSettingsReadArrayGuard&) = delete;
+    QSettingsReadArrayGuard& operator=(const QSettingsReadArrayGuard&) = delete;
+private:
+    QSettings& m_settings;
+    int m_size{0};
+};
+
+/**
+ * RAII scope guard for QSettings::beginWriteArray/endArray
+ * Ensures endArray() is called even if an exception is thrown
+ */
+class QSettingsWriteArrayGuard {
+public:
+    explicit QSettingsWriteArrayGuard(QSettings& settings, const QString& prefix, int size = -1)
+        : m_settings(settings) {
+        m_settings.beginWriteArray(prefix, size);
+    }
+    ~QSettingsWriteArrayGuard() {
+        m_settings.endArray();
+    }
+    // Non-copyable
+    QSettingsWriteArrayGuard(const QSettingsWriteArrayGuard&) = delete;
+    QSettingsWriteArrayGuard& operator=(const QSettingsWriteArrayGuard&) = delete;
+private:
+    QSettings& m_settings;
+};
+
+// Backward-compatible alias
+using QSettingsArrayGuard = QSettingsReadArrayGuard;
+
+/**
+ * Helper to ensure QSettings is not stuck in a group/array context
+ * Call this at the start of load functions to ensure clean state
+ */
+void ensureCleanSettingsState(QSettings& settings) {
+    QString currentGroup = settings.group();
+    if (!currentGroup.isEmpty()) {
+        LOG_ERROR("AppSettings", QString("QSettings STUCK in group '%1' - escaping before read").arg(currentGroup));
+        int maxAttempts = 10;
+        int attempts = 0;
+        while (!settings.group().isEmpty() && attempts < maxAttempts) {
+            QString before = settings.group();
+            settings.endArray();
+            if (settings.group() == before) {
+                settings.endGroup();
+            }
+            attempts++;
+        }
+        if (settings.group().isEmpty()) {
+            LOG_INFO("AppSettings", QString("Successfully escaped group context after %1 escapes").arg(attempts));
+        }
+    }
+}
+
+} // anonymous namespace
+
 namespace TR4QT {
 
 AppSettings& AppSettings::instance() {
@@ -40,6 +133,10 @@ AppSettings::AppSettings()
     : QObject(nullptr)
     , m_settings(APP_ORG, APP_NAME)
 {
+    // Force sync from disk immediately to ensure we have fresh values
+    // This helps prevent cfprefsd cache issues on macOS
+    m_settings.sync();
+
     migrateLegacyPaths();
     migrateToRadioProfiles();
     migrateToStationProfiles();
@@ -57,6 +154,23 @@ AppSettings::AppSettings()
     }
 
     LOG_INFO("AppSettings", QString("Settings file location: %1").arg(getSettingsFilePath()));
+
+    // Debug: Log grid square value at initialization
+    QString gridAtInit = m_settings.value("Station/gridSquare", "").toString();
+    QString callAtInit = m_settings.value("Station/callsign", "").toString();
+    int keyCount = m_settings.allKeys().size();
+    LOG_INFO("AppSettings", QString("INIT: gridSquare='%1', callsign='%2', status=%3, keyCount=%4")
+        .arg(gridAtInit)
+        .arg(callAtInit)
+        .arg(static_cast<int>(m_settings.status()))
+        .arg(keyCount));
+
+    // Debug: If key count is suspiciously low, log what keys we DO have
+    if (keyCount < 50) {
+        QStringList keys = m_settings.allKeys();
+        LOG_WARN("AppSettings", QString("LOW KEY COUNT! Keys found: %1").arg(keys.join(", ")));
+        LOG_WARN("AppSettings", QString("Settings file path: %1").arg(m_settings.fileName()));
+    }
 }
 
 AppSettings::~AppSettings() {
@@ -180,6 +294,14 @@ bool AppSettings::restoreFromBackup() {
 }
 
 bool AppSettings::verifySettingsIntegrity() const {
+    // Debug: Log what we see at integrity check time
+    QString gridAtIntegrity = m_settings.value("Station/gridSquare", "").toString();
+    QString callAtIntegrity = m_settings.value("Station/callsign", "").toString();
+    LOG_INFO("AppSettings", QString("INTEGRITY CHECK: gridSquare='%1', callsign='%2', keyCount=%3")
+        .arg(gridAtIntegrity)
+        .arg(callAtIntegrity)
+        .arg(m_settings.allKeys().size()));
+
     // Check if QSettings can read without errors
     QSettings::Status status = m_settings.status();
     if (status != QSettings::NoError) {
@@ -286,91 +408,101 @@ void AppSettings::migrateLegacyPaths() {
 }
 
 void AppSettings::saveRadioConfig(const RadioConfig& config) {
-    m_settings.beginGroup("Radio");
-    m_settings.setValue("modelId", config.hamlibModelId);
-    m_settings.setValue("port", config.port);
-    m_settings.setValue("baudRate", config.baudRate);
-    m_settings.setValue("civAddress", config.civAddress);
-    m_settings.setValue("pollInterval", config.pollInterval);
-    m_settings.setValue("radioType", config.radioType);  // Save radio interface type
-    m_settings.setValue("icomUsername", config.icomUsername);
-    m_settings.setValue("icomClientName", config.icomClientName);
-    m_settings.endGroup();
+    {
+        QSettingsGroupGuard groupGuard(m_settings, "Radio");
+        m_settings.setValue("modelId", config.hamlibModelId);
+        m_settings.setValue("port", config.port);
+        m_settings.setValue("baudRate", config.baudRate);
+        m_settings.setValue("civAddress", config.civAddress);
+        m_settings.setValue("pollInterval", config.pollInterval);
+        m_settings.setValue("radioType", config.radioType);  // Save radio interface type
+        m_settings.setValue("icomUsername", config.icomUsername);
+        m_settings.setValue("icomClientName", config.icomClientName);
+    }
 
-    m_settings.beginGroup("Radio");
-    savePasswordSecurely(CredentialKeys::ICOM_RADIO, config.icomUsername,
-                         config.icomPassword, "icomPassword");
-    m_settings.endGroup();
+    {
+        QSettingsGroupGuard groupGuard(m_settings, "Radio");
+        savePasswordSecurely(CredentialKeys::ICOM_RADIO, config.icomUsername,
+                             config.icomPassword, "icomPassword");
+    }
 
     m_settings.sync();
 }
 
 RadioConfig AppSettings::loadRadioConfig() const {
     RadioConfig config;
-    m_settings.beginGroup("Radio");
-    config.hamlibModelId = m_settings.value("modelId", 0).toInt();
-    config.port = m_settings.value("port", "").toString();
-    config.baudRate = m_settings.value("baudRate", 38400).toInt();
-    config.civAddress = m_settings.value("civAddress", 0).toInt();
-    config.pollInterval = m_settings.value("pollInterval", 5000).toInt();  // Default 5s (transceive provides instant updates)
-    config.radioType = m_settings.value("radioType", -1).toInt();  // Default: -1 (Auto)
-    config.icomUsername = m_settings.value("icomUsername", "").toString();
-    config.icomClientName = m_settings.value("icomClientName", "TR4QT").toString();
-    m_settings.endGroup();
+    {
+        QSettingsGroupGuard groupGuard(m_settings, "Radio");
+        config.hamlibModelId = m_settings.value("modelId", 0).toInt();
+        config.port = m_settings.value("port", "").toString();
+        config.baudRate = m_settings.value("baudRate", 38400).toInt();
+        config.civAddress = m_settings.value("civAddress", 0).toInt();
+        config.pollInterval = m_settings.value("pollInterval", 5000).toInt();  // Default 5s (transceive provides instant updates)
+        config.radioType = m_settings.value("radioType", -1).toInt();  // Default: -1 (Auto)
+        config.icomUsername = m_settings.value("icomUsername", "").toString();
+        config.icomClientName = m_settings.value("icomClientName", "TR4QT").toString();
+    }
 
-    m_settings.beginGroup("Radio");
-    config.icomPassword = loadPasswordSecurely(
-        CredentialKeys::ICOM_RADIO, config.icomUsername, "icomPassword");
-    m_settings.endGroup();
+    {
+        QSettingsGroupGuard groupGuard(m_settings, "Radio");
+        config.icomPassword = loadPasswordSecurely(
+            CredentialKeys::ICOM_RADIO, config.icomUsername, "icomPassword");
+    }
 
     return config;
 }
 
 bool AppSettings::hasRadioConfig() const {
-    m_settings.beginGroup("Radio");
+    QSettingsGroupGuard groupGuard(m_settings, "Radio");
     bool hasConfig = m_settings.contains("modelId") && m_settings.contains("port");
-    m_settings.endGroup();
     return hasConfig;
 }
 
 // Radio profiles (multi-config system)
 void AppSettings::saveRadioProfiles(const QList<RadioProfile>& profiles) {
-    m_settings.beginGroup("RadioProfiles");
-    m_settings.remove("Profiles");  // Clear old entries
+    {
+        QSettingsGroupGuard groupGuard(m_settings, "RadioProfiles");
+        m_settings.remove("Profiles");  // Clear old entries
 
-    m_settings.beginWriteArray("Profiles");
-    for (int i = 0; i < profiles.size(); ++i) {
-        m_settings.setArrayIndex(i);
-        m_settings.setValue("name", profiles[i].name);
-        m_settings.setValue("hamlibModelId", profiles[i].config.hamlibModelId);
-        m_settings.setValue("port", profiles[i].config.port);
-        m_settings.setValue("baudRate", profiles[i].config.baudRate);
-        m_settings.setValue("dataBits", profiles[i].config.dataBits);
-        m_settings.setValue("stopBits", profiles[i].config.stopBits);
-        m_settings.setValue("parity", profiles[i].config.parity);
-        m_settings.setValue("civAddress", profiles[i].config.civAddress);
-        m_settings.setValue("pollInterval", profiles[i].config.pollInterval);
-        m_settings.setValue("radioType", profiles[i].config.radioType);
-        m_settings.setValue("icomUsername", profiles[i].config.icomUsername);
-        m_settings.setValue("icomClientName", profiles[i].config.icomClientName);
-        m_settings.setValue("lastUsed", profiles[i].lastUsed);
-        m_settings.setValue("notes", profiles[i].notes);
+        QSettingsWriteArrayGuard arrayGuard(m_settings, "Profiles");
+        for (int i = 0; i < profiles.size(); ++i) {
+            m_settings.setArrayIndex(i);
+            m_settings.setValue("name", profiles[i].name);
+            m_settings.setValue("hamlibModelId", profiles[i].config.hamlibModelId);
+            m_settings.setValue("port", profiles[i].config.port);
+            m_settings.setValue("baudRate", profiles[i].config.baudRate);
+            m_settings.setValue("dataBits", profiles[i].config.dataBits);
+            m_settings.setValue("stopBits", profiles[i].config.stopBits);
+            m_settings.setValue("parity", profiles[i].config.parity);
+            m_settings.setValue("civAddress", profiles[i].config.civAddress);
+            m_settings.setValue("pollInterval", profiles[i].config.pollInterval);
+            m_settings.setValue("radioType", profiles[i].config.radioType);
+            m_settings.setValue("icomUsername", profiles[i].config.icomUsername);
+            m_settings.setValue("icomClientName", profiles[i].config.icomClientName);
+            m_settings.setValue("lastUsed", profiles[i].lastUsed);
+            m_settings.setValue("notes", profiles[i].notes);
 
-        savePasswordSecurely(CredentialKeys::icomRadioProfile(profiles[i].name),
-                             profiles[i].config.icomUsername,
-                             profiles[i].config.icomPassword, "icomPassword");
+            savePasswordSecurely(CredentialKeys::icomRadioProfile(profiles[i].name),
+                                 profiles[i].config.icomUsername,
+                                 profiles[i].config.icomPassword, "icomPassword");
+        }
+        // Guards automatically call endArray() and endGroup() on scope exit
     }
-    m_settings.endArray();
-    m_settings.endGroup();
     m_settings.sync();
 }
 
 QList<RadioProfile> AppSettings::loadRadioProfiles() const {
     QList<RadioProfile> profiles;
 
-    m_settings.beginGroup("RadioProfiles");
-    int size = m_settings.beginReadArray("Profiles");
-    for (int i = 0; i < size; ++i) {
+    // Ensure QSettings is in a clean state before reading
+    ensureCleanSettingsState(m_settings);
+
+    // Use RAII guards to ensure endGroup/endArray are always called
+    // This prevents QSettings from being stuck in wrong group if loadPasswordSecurely throws
+    QSettingsGroupGuard groupGuard(m_settings, "RadioProfiles");
+    QSettingsArrayGuard arrayGuard(m_settings, "Profiles");
+
+    for (int i = 0; i < arrayGuard.size(); ++i) {
         m_settings.setArrayIndex(i);
         RadioProfile profile;
         profile.name = m_settings.value("name").toString();
@@ -394,18 +526,16 @@ QList<RadioProfile> AppSettings::loadRadioProfiles() const {
 
         profiles.append(profile);
     }
-    m_settings.endArray();
-    m_settings.endGroup();
+    // Guards automatically call endArray() and endGroup() on scope exit
 
     return profiles;
 }
 
 bool AppSettings::hasRadioProfiles() const {
-    m_settings.beginGroup("RadioProfiles");
-    int size = m_settings.beginReadArray("Profiles");
-    m_settings.endArray();
-    m_settings.endGroup();
-    return size > 0;
+    ensureCleanSettingsState(m_settings);
+    QSettingsGroupGuard groupGuard(m_settings, "RadioProfiles");
+    QSettingsArrayGuard arrayGuard(m_settings, "Profiles");
+    return arrayGuard.size() > 0;
 }
 
 void AppSettings::setActiveRadioProfile(const QString& profileName) {
@@ -447,10 +577,12 @@ void AppSettings::migrateToRadioProfiles() {
 void AppSettings::migrateToStationProfiles() {
     // Check if StationProfiles already exist (without loading full profiles)
     // This avoids calling CredentialStore before QApplication is created
-    m_settings.beginGroup("StationProfiles");
-    int stationProfileCount = m_settings.beginReadArray("Profiles");
-    m_settings.endArray();
-    m_settings.endGroup();
+    int stationProfileCount;
+    {
+        QSettingsGroupGuard groupGuard(m_settings, "StationProfiles");
+        QSettingsArrayGuard arrayGuard(m_settings, "Profiles");
+        stationProfileCount = arrayGuard.size();
+    }
 
     if (stationProfileCount > 0) {
         return;  // Already migrated
@@ -549,43 +681,45 @@ void AppSettings::migrateCredentialsToSecureStore() {
     LOG_INFO("AppSettings", "Starting credential migration to secure store");
     bool allMigrated = true;
 
-    // Migrate radio profiles
+    // Migrate radio profiles - use RAII guards for exception safety
     if (hasRadioProfiles()) {
-        m_settings.beginGroup("RadioProfiles");
-        int size = m_settings.beginReadArray("Profiles");
-        for (int i = 0; i < size; ++i) {
-            m_settings.setArrayIndex(i);
-            QString profileName = m_settings.value("name").toString();
-            QString password = m_settings.value("icomPassword", "").toString();
-            QString username = m_settings.value("icomUsername", "").toString();
+        {
+            QSettingsGroupGuard groupGuard(m_settings, "RadioProfiles");
+            QSettingsArrayGuard arrayGuard(m_settings, "Profiles");
 
-            if (!password.isEmpty()) {
-                const QString storageKey = CredentialKeys::icomRadioProfile(profileName);
-                int rc = CredentialStore::instance().savePassword(storageKey, username, password);
-                if (rc == 0) {
-                    // Verify round-trip before removing plain text
-                    QString readBack = CredentialStore::instance().getPassword(storageKey, username);
-                    if (readBack == password) {
-                        LOG_INFO("AppSettings",
-                                 QString("Migrated password for profile '%1' to secure store").arg(profileName));
-                        // Note: can't remove individual array values inside beginReadArray,
-                        // removal happens in a second pass below
+            for (int i = 0; i < arrayGuard.size(); ++i) {
+                m_settings.setArrayIndex(i);
+                QString profileName = m_settings.value("name").toString();
+                QString password = m_settings.value("icomPassword", "").toString();
+                QString username = m_settings.value("icomUsername", "").toString();
+
+                if (!password.isEmpty()) {
+                    const QString storageKey = CredentialKeys::icomRadioProfile(profileName);
+                    int rc = CredentialStore::instance().savePassword(storageKey, username, password);
+                    if (rc == 0) {
+                        // Verify round-trip before removing plain text
+                        QString readBack = CredentialStore::instance().getPassword(storageKey, username);
+                        if (readBack == password) {
+                            LOG_INFO("AppSettings",
+                                     QString("Migrated password for profile '%1' to secure store").arg(profileName));
+                            // Note: can't remove individual array values inside beginReadArray,
+                            // removal happens in a second pass below
+                        } else {
+                            LOG_WARN("AppSettings",
+                                     QString("Round-trip verification failed for profile '%1', keeping in QSettings")
+                                         .arg(profileName));
+                            allMigrated = false;
+                        }
                     } else {
                         LOG_WARN("AppSettings",
-                                 QString("Round-trip verification failed for profile '%1', keeping in QSettings")
+                                 QString("Failed to save profile '%1' password to secure store, keeping in QSettings")
                                      .arg(profileName));
                         allMigrated = false;
                     }
-                } else {
-                    LOG_WARN("AppSettings",
-                             QString("Failed to save profile '%1' password to secure store, keeping in QSettings")
-                                 .arg(profileName));
-                    allMigrated = false;
                 }
             }
+            // Guards automatically call endArray() and endGroup() on scope exit
         }
-        m_settings.endArray();
-        m_settings.endGroup();
 
         // Second pass: remove plain-text passwords from successfully migrated profiles
         // We need to re-read and re-write the array to remove individual values
@@ -598,20 +732,24 @@ void AppSettings::migrateCredentialsToSecureStore() {
         }
     }
 
-    // Migrate legacy single radio config
-    m_settings.beginGroup("Radio");
-    QString legacyPassword = m_settings.value("icomPassword", "").toString();
-    QString legacyUsername = m_settings.value("icomUsername", "").toString();
-    m_settings.endGroup();
+    // Migrate legacy single radio config - use RAII guard
+    QString legacyPassword;
+    QString legacyUsername;
+    {
+        QSettingsGroupGuard groupGuard(m_settings, "Radio");
+        legacyPassword = m_settings.value("icomPassword", "").toString();
+        legacyUsername = m_settings.value("icomUsername", "").toString();
+    }
 
     if (!legacyPassword.isEmpty()) {
         int rc = CredentialStore::instance().savePassword(CredentialKeys::ICOM_RADIO, legacyUsername, legacyPassword);
         if (rc == 0) {
             QString readBack = CredentialStore::instance().getPassword(CredentialKeys::ICOM_RADIO, legacyUsername);
             if (readBack == legacyPassword) {
-                m_settings.beginGroup("Radio");
-                m_settings.remove("icomPassword");
-                m_settings.endGroup();
+                {
+                    QSettingsGroupGuard groupGuard(m_settings, "Radio");
+                    m_settings.remove("icomPassword");
+                }
                 m_settings.sync();
                 LOG_INFO("AppSettings", "Migrated legacy radio password to secure store");
             } else {
@@ -706,20 +844,21 @@ QString AppSettings::getSO2RRadioProfile(int slot) const {
 // ===== Station Profiles (Groups of Radios) =====
 
 void AppSettings::saveStationProfiles(const QList<StationProfile>& profiles) {
-    m_settings.beginGroup("StationProfiles");
-    m_settings.remove("Profiles");  // Clear old entries
+    {
+        QSettingsGroupGuard groupGuard(m_settings, "StationProfiles");
+        m_settings.remove("Profiles");  // Clear old entries
 
-    m_settings.beginWriteArray("Profiles");
-    for (int i = 0; i < profiles.size(); ++i) {
-        m_settings.setArrayIndex(i);
-        m_settings.setValue("name", profiles[i].name);
-        m_settings.setValue("radio1Name", profiles[i].radio1Name);
-        m_settings.setValue("radio2Name", profiles[i].radio2Name);
-        m_settings.setValue("defaultActive", profiles[i].defaultActive);
-        m_settings.setValue("so2rEnabled", profiles[i].so2rEnabled);
+        QSettingsWriteArrayGuard arrayGuard(m_settings, "Profiles");
+        for (int i = 0; i < profiles.size(); ++i) {
+            m_settings.setArrayIndex(i);
+            m_settings.setValue("name", profiles[i].name);
+            m_settings.setValue("radio1Name", profiles[i].radio1Name);
+            m_settings.setValue("radio2Name", profiles[i].radio2Name);
+            m_settings.setValue("defaultActive", profiles[i].defaultActive);
+            m_settings.setValue("so2rEnabled", profiles[i].so2rEnabled);
+        }
+        // Guards automatically call endArray() and endGroup() on scope exit
     }
-    m_settings.endArray();
-    m_settings.endGroup();
     m_settings.sync();
 
     LOG_DEBUG("AppSettings", QString("Saved %1 station profile(s)").arg(profiles.size()));
@@ -728,9 +867,13 @@ void AppSettings::saveStationProfiles(const QList<StationProfile>& profiles) {
 QList<StationProfile> AppSettings::loadStationProfiles() const {
     QList<StationProfile> profiles;
 
-    m_settings.beginGroup("StationProfiles");
-    int size = m_settings.beginReadArray("Profiles");
-    for (int i = 0; i < size; ++i) {
+    // Ensure QSettings is in a clean state before reading
+    ensureCleanSettingsState(m_settings);
+
+    QSettingsGroupGuard groupGuard(m_settings, "StationProfiles");
+    QSettingsArrayGuard arrayGuard(m_settings, "Profiles");
+
+    for (int i = 0; i < arrayGuard.size(); ++i) {
         m_settings.setArrayIndex(i);
         StationProfile profile;
         profile.name = m_settings.value("name").toString();
@@ -740,8 +883,7 @@ QList<StationProfile> AppSettings::loadStationProfiles() const {
         profile.so2rEnabled = m_settings.value("so2rEnabled", false).toBool();
         profiles.append(profile);
     }
-    m_settings.endArray();
-    m_settings.endGroup();
+    // Guards automatically call endArray() and endGroup() on scope exit
 
     return profiles;
 }
@@ -1257,6 +1399,38 @@ void AppSettings::setMyGridSquare(const QString& grid) {
 }
 
 QString AppSettings::getMyGridSquare() const {
+    // Defensive check: ensure QSettings is not stuck in a group/array context
+    // This can happen if a previous operation threw an exception before calling endGroup()/endArray()
+    QString currentGroup = m_settings.group();
+    if (!currentGroup.isEmpty()) {
+        LOG_ERROR("AppSettings", QString("QSettings STUCK in group '%1'! Escaping to fix. This indicates a bug.").arg(currentGroup));
+
+        // We need to escape all nested groups/arrays. QSettings::group() returns the full path
+        // regardless of whether the context is from beginGroup() or beginReadArray()/beginWriteArray().
+        // Unfortunately, we can't tell which it is, so we try endArray() first (which will warn if
+        // we're actually in a group), then fall back to endGroup().
+        QSettings& settings = const_cast<QSettings&>(m_settings);
+        int maxAttempts = 10;  // Safety limit to prevent infinite loop
+        int attempts = 0;
+        while (!settings.group().isEmpty() && attempts < maxAttempts) {
+            QString before = settings.group();
+            // Try endArray first (handles array context)
+            settings.endArray();
+            // If that didn't change the group, we're in a group context, not array
+            if (settings.group() == before) {
+                settings.endGroup();
+            }
+            attempts++;
+        }
+
+        if (!settings.group().isEmpty()) {
+            LOG_ERROR("AppSettings", QString("Failed to fully escape group context after %1 attempts. Current: '%2'")
+                      .arg(attempts).arg(settings.group()));
+        } else {
+            LOG_INFO("AppSettings", QString("Successfully escaped group context after %1 escapes").arg(attempts));
+        }
+    }
+
     return m_settings.value("Station/gridSquare", "").toString();
 }
 
@@ -1880,36 +2054,38 @@ int AppSettings::getUDPThrottleInterval() const {
 }
 
 void AppSettings::setUDPDestinations(const QList<UdpDestination>& destinations) {
-    m_settings.beginGroup("UDPBroadcast");
-    m_settings.remove("Destinations");  // Clear old entries
+    {
+        QSettingsGroupGuard groupGuard(m_settings, "UDPBroadcast");
+        m_settings.remove("Destinations");  // Clear old entries
 
-    m_settings.beginWriteArray("Destinations");
-    for (int i = 0; i < destinations.size(); ++i) {
-        m_settings.setArrayIndex(i);
-        m_settings.setValue("host", destinations[i].host);
-        m_settings.setValue("port", destinations[i].port);
-        m_settings.setValue("enabled", destinations[i].enabled);
+        QSettingsWriteArrayGuard arrayGuard(m_settings, "Destinations");
+        for (int i = 0; i < destinations.size(); ++i) {
+            m_settings.setArrayIndex(i);
+            m_settings.setValue("host", destinations[i].host);
+            m_settings.setValue("port", destinations[i].port);
+            m_settings.setValue("enabled", destinations[i].enabled);
+        }
+        // Guards automatically call endArray() and endGroup() on scope exit
     }
-    m_settings.endArray();
-    m_settings.endGroup();
     m_settings.sync();
 }
 
 QList<UdpDestination> AppSettings::getUDPDestinations() const {
     QList<UdpDestination> destinations;
 
-    m_settings.beginGroup("UDPBroadcast");
-    int size = m_settings.beginReadArray("Destinations");
-    for (int i = 0; i < size; ++i) {
-        m_settings.setArrayIndex(i);
-        UdpDestination dest;
-        dest.host = m_settings.value("host").toString();
-        dest.port = m_settings.value("port").toUInt();
-        dest.enabled = m_settings.value("enabled", true).toBool();
-        destinations.append(dest);
+    {
+        QSettingsGroupGuard groupGuard(m_settings, "UDPBroadcast");
+        QSettingsArrayGuard arrayGuard(m_settings, "Destinations");
+
+        for (int i = 0; i < arrayGuard.size(); ++i) {
+            m_settings.setArrayIndex(i);
+            UdpDestination dest;
+            dest.host = m_settings.value("host").toString();
+            dest.port = m_settings.value("port").toUInt();
+            dest.enabled = m_settings.value("enabled", true).toBool();
+            destinations.append(dest);
+        }
     }
-    m_settings.endArray();
-    m_settings.endGroup();
 
     // If no destinations configured, return default N1MM+ localhost destination
     if (destinations.isEmpty()) {
