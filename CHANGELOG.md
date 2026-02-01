@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.40.44] - 2026-01-31
+
+### Changed
+- **RadioEditDialog Refactoring**: Reorganized dialog flow for better UX
+  - Connection Type (Serial/Network) is now the first question
+  - Serial mode: Shows serial port settings → Model selection → CI-V only for Icom radios
+  - Network mode: Shows Interface Type selector (Hamlib/K4 Direct/Icom Direct) → contextual fields
+  - Model selection hidden for K4 Direct (auto-selected)
+  - Icom credentials only shown for Icom Direct
+  - Status filters (Stable/Beta/Alpha) only shown for Hamlib interface
+
+### Added
+- **Radio Discovery Selection Dialog**: When multiple radios found on network
+  - Shows dropdown to select which radio to configure
+  - Displays "(already configured)" for radios in use by other profiles
+  - Works for both K4 and Icom discovery
+- **Station Profile Reconnect Prompt**: When switching station profiles
+  - Detects when active profile changes in preferences
+  - Prompts "Station profile changed to 'X'. Reconnect to use the new radios?"
+  - Automatically disconnects old radios and connects new ones if user confirms
+
+### Fixed
+- **Pre-commit Hook False Positives**: Fixed checks 5 and 10 that showed warnings even with no matches
+  - Pointer dereference check now properly captures output before testing
+  - Magic numbers check now properly captures output before testing
+  - Added exclusions for function return type declarations
+
 ## [3.40.16] - 2026-01-29
 
 ### Fixed
