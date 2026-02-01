@@ -96,6 +96,7 @@ class StatisticsWindow;
 class FunctionKeysWindow;
 class GraylineMapDialog;
 class AmplifierControlWindow;
+class PanadapterWindow;
 class UdpBroadcastManager;
 class WebServer;
 class CountryFileDownloader;
@@ -169,6 +170,7 @@ private slots:
     void onShowWorldMap();          // Show World Map (DXCC)
     void onShowGraylineMap();       // Show Grayline propagation map
     void onShowAmplifierControl();  // Show amplifier control window
+    void onShowPanadapter();        // Show K4 panadapter/waterfall window
     void onSwapMultView();          // TODO: Implement swap multiplier view
     void onMissingMultsReport();    // TODO: Implement missing mults report
 
@@ -426,10 +428,12 @@ private:
     NativeMapViewer* m_worldMapViewer;
     GraylineMapDialog* m_graylineMapDialog;
     AmplifierControlWindow* m_amplifierControlWindow;
+    PanadapterWindow* m_panadapterWindow;
 
     // Window visibility tracking (for reliable save during shutdown)
     // Qt's isVisible() can return false during SIGTERM handling, so we track state ourselves
     bool m_amplifierControlWindowVisible{false};
+    bool m_panadapterWindowVisible{false};
     bool m_radioControlWindowVisible{false};
     bool m_radio2ControlWindowVisible{false};
 

@@ -65,6 +65,8 @@ struct WindowGeometry {
     QByteArray graylineMapGeometry;
     bool amplifierControlVisible = false;
     QByteArray amplifierControlGeometry;
+    bool panadapterVisible = false;
+    QByteArray panadapterGeometry;
     QString currentOperator;
 };
 

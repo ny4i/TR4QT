@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.44";  // RadioEditDialog refactoring, discovery selection, station profile reconnect
+constexpr const char* APP_VERSION = "3.40.49";  // Panadapter waterfall using QImage ImageProvider for low CPU
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

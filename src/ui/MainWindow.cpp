@@ -35,6 +35,8 @@
 #include "widgets/MultiplierWidget.h"
 #include "statistics/StatisticsWindow.h"
 #include "windows/AmplifierControlWindow.h"
+#include "windows/PanadapterWindow.h"
+#include "../radio/RadioFactory.h"
 #include "widgets/QSOSearchPanel.h"
 #include "NativeMapViewer.h"
 #include "../network/UdpBroadcastManager.h"
@@ -140,6 +142,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_worldMapViewer(nullptr)
     , m_graylineMapDialog(nullptr)
     , m_amplifierControlWindow(nullptr)
+    , m_panadapterWindow(nullptr)
     , m_qsosThisHour(0)
     , m_qsosSinceLastIntegrityCheck(0)
     , m_hasActiveContest(false)
@@ -444,6 +447,8 @@ MainWindow::MainWindow(QWidget* parent)
     QTimer::singleShot(1000, this, [this]() {
         AppSettings& settings = AppSettings::instance();
         QString gridSquare = settings.getMyGridSquare();
+        LOG_INFO("MainWindow", QString("Grid square check at 1s delay: value='%1', isEmpty=%2")
+            .arg(gridSquare).arg(gridSquare.isEmpty()));
 
         if (gridSquare.isEmpty()) {
             QMessageBox::StandardButton reply = DialogHelper::question(
@@ -595,6 +600,7 @@ void MainWindow::createMenuBar() {
     config.onShowWorldMap = [this]() { onShowWorldMap(); };
     config.onShowGraylineMap = [this]() { onShowGraylineMap(); };
     config.onShowAmplifierControl = [this]() { onShowAmplifierControl(); };
+    config.onShowPanadapter = [this]() { onShowPanadapter(); };
     config.onSwapMultView = [this]() { onSwapMultView(); };
     config.onMissingMultsReport = [this]() { onMissingMultsReport(); };
     
@@ -1365,6 +1371,17 @@ void MainWindow::restoreChildWindows(const WindowGeometry& geometry) {
     } else {
         LOG_DEBUG("MainWindow", "NOT restoring Amplifier Control window (was hidden on exit)");
     }
+
+    // Panadapter window
+    if (geometry.panadapterVisible) {
+        LOG_DEBUG("MainWindow", "Restoring Panadapter window (was visible on exit)");
+        onShowPanadapter();
+        if (m_panadapterWindow && !geometry.panadapterGeometry.isEmpty()) {
+            m_panadapterWindow->restoreGeometry(geometry.panadapterGeometry);
+        }
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring Panadapter window (was hidden on exit)");
+    }
 }
 
 void MainWindow::saveSettings() {
@@ -1430,6 +1447,13 @@ void MainWindow::saveSettings() {
     geometry.amplifierControlVisible = m_amplifierControlWindowVisible;
     LOG_DEBUG("MainWindow", QString("Amplifier window tracked visibility: %1").arg(m_amplifierControlWindowVisible));
 
+    // Panadapter window
+    if (m_panadapterWindow) {
+        geometry.panadapterGeometry = m_panadapterWindow->saveGeometry();
+    }
+    geometry.panadapterVisible = m_panadapterWindowVisible;
+    LOG_DEBUG("MainWindow", QString("Panadapter window tracked visibility: %1").arg(m_panadapterWindowVisible));
+
     // Debug logging for window visibility
     LOG_DEBUG("MainWindow", QString("Saving window visibility - DXCluster:%1 BandMap:%2 RadioCtrl:%3 Radio2Ctrl:%4 Mult:%5 Stats:%6 Sections:%7 States:%8 Grayline:%9 AmpCtrl:%10")
         .arg(geometry.dxClusterVisible)
@@ -1459,8 +1483,15 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         return;
     }
 
+    // TIMING: Start shutdown timer right after user confirms
+    QElapsedTimer shutdownTimer;
+    shutdownTimer.start();
+    LOG_INFO("MainWindow", "SHUTDOWN TIMING: User confirmed exit, starting shutdown sequence");
+
     // Save settings BEFORE closing windows (so visibility state is correct)
     saveSettings();
+    LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Settings saved (%1ms elapsed)")
+             .arg(shutdownTimer.elapsed()));
 
     // Save band map spots to database before closing
     if (m_bandMapWindow) {
@@ -1503,6 +1534,20 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         m_statisticsWindow->close();
         LOG_DEBUG("MainWindow", QString("Statistics window closed (%1ms)").arg(closeTimer.restart()));
     }
+    if (m_amplifierControlWindow) {
+        LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Closing Amplifier Control window... (%1ms elapsed)")
+                 .arg(shutdownTimer.elapsed()));
+        m_amplifierControlWindow->close();
+        LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Amplifier Control window closed (%1ms, total %2ms)")
+                 .arg(closeTimer.restart()).arg(shutdownTimer.elapsed()));
+    }
+    if (m_panadapterWindow) {
+        LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Closing Panadapter window... (%1ms elapsed)")
+                 .arg(shutdownTimer.elapsed()));
+        m_panadapterWindow->close();
+        LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Panadapter window closed (%1ms, total %2ms)")
+                 .arg(closeTimer.restart()).arg(shutdownTimer.elapsed()));
+    }
 
     // Disconnect radios before closing and wait for completion
     // CRITICAL: Must allow disconnect packets to be sent before app exits
@@ -1523,6 +1568,9 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     }
 
     event->accept();
+
+    LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Shutdown complete, total time: %1ms")
+             .arg(shutdownTimer.elapsed()));
 
     // Ensure application quits
     QApplication::quit();
@@ -3390,6 +3438,12 @@ void MainWindow::updateWindowMenuCheckmarks() {
     if (ampAction) {
         ampAction->setChecked(m_amplifierControlWindow && m_amplifierControlWindow->isVisible());
     }
+
+    // Panadapter action
+    QAction* panadapterAction = m_menuManager->panadapterAction();
+    if (panadapterAction) {
+        panadapterAction->setChecked(m_panadapterWindow && m_panadapterWindow->isVisible());
+    }
 }
 
 void MainWindow::applyFontSettings() {
@@ -4357,6 +4411,50 @@ void MainWindow::onShowAmplifierControl() {
     m_amplifierControlWindow->activateWindow();
     m_amplifierControlWindowVisible = true;  // Track visibility for reliable shutdown save
     // Visibility will be saved in MainWindow::saveSettings() on exit
+    updateWindowMenuCheckmarks();
+}
+
+void MainWindow::onShowPanadapter() {
+    // Create and show panadapter window
+    if (!m_panadapterWindow) {
+        m_panadapterWindow = new PanadapterWindow(this);
+        m_panadapterWindow->setWindowFlags(Qt::Window);
+        m_panadapterWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Position offset from main window (first time)
+        QPoint offset(UIPositioning::WINDOW_INITIAL_OFFSET, UIPositioning::WINDOW_INITIAL_OFFSET);
+        m_panadapterWindow->move(this->pos() + offset);
+
+        // Connect frequency click to tune radio
+        connect(m_panadapterWindow, &PanadapterWindow::frequencyClicked, this,
+                [this](qint64 freqHz, int vfo) {
+            // Tune the radio to the clicked frequency
+            if (m_radio && m_radio->isConnected()) {
+                VFO targetVfo = (vfo == 0) ? VFO::VFO_A : VFO::VFO_B;
+                m_radio->setFrequency(static_cast<freq_t>(freqHz), targetVfo);
+            }
+        });
+
+        // Connect destroyed signal to clear pointer
+        connect(m_panadapterWindow, &QWidget::destroyed, this, [this]() {
+            m_panadapterWindow = nullptr;
+            m_panadapterWindowVisible = false;
+        });
+
+        // Connect windowClosed signal to track when user manually closes window
+        connect(m_panadapterWindow, &PanadapterWindow::windowClosed, this, [this]() {
+            m_panadapterWindowVisible = false;
+            updateWindowMenuCheckmarks();
+        });
+
+        // Auto-connect to K4 panadapter if available
+        m_panadapterWindow->connectToK4();
+    }
+
+    m_panadapterWindow->show();
+    m_panadapterWindow->raise();
+    m_panadapterWindow->activateWindow();
+    m_panadapterWindowVisible = true;
     updateWindowMenuCheckmarks();
 }
 
