@@ -418,6 +418,10 @@ void MenuManager::createWindowMenu(QMenuBar* menuBar, const Config& config) {
         m_amplifierControlAction->setEnabled(false);
     }
 
+    m_panadapterAction = windowMenu->addAction("&Panadapter");
+    m_panadapterAction->setCheckable(true);
+    connect(m_panadapterAction, &QAction::triggered, this, config.onShowPanadapter);
+
     windowMenu->addSeparator();
 
     QAction* swapMultViewAction = windowMenu->addAction("Swap Mult View");

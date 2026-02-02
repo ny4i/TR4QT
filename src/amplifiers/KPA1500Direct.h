@@ -156,6 +156,19 @@ private:
     static constexpr int DS_POLL_INTERVAL_MS = 500;
     QElapsedTimer m_dsSendTimer;  // Timer for DS command throttling (invalid until first send)
 
+    // Pre-flight and backoff constants
+    static constexpr int BACKOFF_THRESHOLD_CYCLES = 4;   // Enter backoff after this many empty cycles
+    static constexpr int MAX_BACKOFF_MULTIPLIER = 32;    // Max backoff = 32x poll interval (~8 seconds)
+    static constexpr int RESPONSE_TIMEOUT_MS = 1000;     // Consider cycle failed if no response in 1 second
+
+    // Pre-flight and backoff state
+    bool m_responseReceivedThisCycle{false};  // Track if we got any response this cycle
+    int m_consecutiveEmptyCycles{0};          // No responses received in this many poll cycles
+    bool m_inBackoff{false};                  // Currently in backoff mode
+    int m_backoffMultiplier{1};               // Exponential backoff multiplier (1, 2, 4, 8, 16, 32)
+    QElapsedTimer m_lastResponseTimer;        // Time since last response received
+    int m_cyclesSinceLastLog{0};              // Suppress repeated log messages
+
     // Network objects
     QUdpSocket* m_socket{nullptr};
     QTimer* m_timer{nullptr};
