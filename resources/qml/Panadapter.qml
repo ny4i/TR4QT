@@ -9,6 +9,7 @@
 */
 
 import QtQuick
+import TR4QT.Panadapter 1.0
 
 Rectangle {
     id: root
@@ -27,15 +28,17 @@ Rectangle {
         }
     }
 
-    // Waterfall refresh timer - throttle image updates
+    // Waterfall refresh timer - throttle image updates (fallback only, not used with QRhi)
     Timer {
         id: waterfallRefreshTimer
         interval: 66  // ~15fps
         repeat: false
         onTriggered: {
-            // Force image reload by changing the source URL
-            waterfallImage.source = "";
-            waterfallImage.source = "image://waterfall/frame" + panadapter.waterfallFrame;
+            // Force image reload by changing the source URL (fallback path)
+            if (typeof waterfallImage !== "undefined") {
+                waterfallImage.source = "";
+                waterfallImage.source = "image://waterfall/frame" + panadapter.waterfallFrame;
+            }
         }
     }
 
@@ -135,6 +138,61 @@ Rectangle {
                 }
             }
 
+            // DX Spot labels overlay
+            Repeater {
+                model: panadapter ? panadapter.visibleSpots : []
+
+                Item {
+                    id: spotItem
+                    property var spotData: modelData
+                    property real xPos: spotData.xRatio * spectrumArea.width
+
+                    x: xPos - spotLabel.width / 2
+                    y: 5  // Offset from top
+
+                    // Vertical line from label to bottom of spectrum
+                    Rectangle {
+                        x: spotLabel.width / 2
+                        y: spotLabel.height
+                        width: 1
+                        height: spectrumArea.height - spotItem.y - spotLabel.height
+                        color: spotData.isMultiplier ? "#ff00ff" : (spotData.isWorked ? "#666666" : "#00ffff")
+                        opacity: 0.7
+                    }
+
+                    // Callsign label
+                    Rectangle {
+                        id: spotLabel
+                        width: spotText.width + 6
+                        height: spotText.height + 2
+                        color: spotData.isMultiplier ? "#400040" : (spotData.isWorked ? "#333333" : "#004040")
+                        border.color: spotData.isMultiplier ? "#ff00ff" : (spotData.isWorked ? "#666666" : "#00ffff")
+                        border.width: 1
+                        radius: 2
+
+                        Text {
+                            id: spotText
+                            anchors.centerIn: parent
+                            text: spotData.callsign
+                            color: spotData.isMultiplier ? "#ff00ff" : (spotData.isWorked ? "#888888" : "#00ffff")
+                            font.pixelSize: 9
+                            font.bold: spotData.isMultiplier
+                        }
+
+                        // Click to tune
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: function(mouse) {
+                                var vfo = (mouse.button === Qt.RightButton) ? 1 : 0;
+                                panadapter.onFrequencyClicked(spotData.frequency, vfo);
+                            }
+                        }
+                    }
+                }
+            }
+
             // dB scale on right
             Column {
                 anchors.right: parent.right
@@ -164,29 +222,32 @@ Rectangle {
             }
         }
 
-        // Waterfall display - uses QImage from C++ ImageProvider
+        // Waterfall display - uses GPU-accelerated QRhi rendering
         Rectangle {
             id: waterfallArea
             width: parent.width
             height: parent.height - spectrumArea.height - freqScale.height
-            color: "#00001e"  // Dark blue background (matches C++ image provider)
+            color: "#00001e"  // Dark blue background (matches QRhi clear color)
             clip: true
 
-            // Waterfall image from C++ ImageProvider
-            Image {
-                id: waterfallImage
+            // GPU-accelerated waterfall using QQuickRhiItem
+            WaterfallRhiItem {
+                id: waterfallRhiItem
                 anchors.fill: parent
-                cache: false  // Don't cache - image changes every frame
-                asynchronous: false  // Synchronous for immediate update
-                fillMode: Image.Stretch
-                source: "image://waterfall/frame0"
 
-                // React to frame changes
+                // Bind settings from panadapter provider
+                // refLevel is for spectrum (not used by waterfall shader)
+                refLevel: panadapter ? panadapter.refLevel : 0
+                // waterfallRefLevel is independent control for waterfall brightness
+                waterfallRefLevel: panadapter ? panadapter.waterfallRefLevel : 0
+                waterfallRange: panadapter ? panadapter.waterfallRange : 80
+
+                // Feed new sample rows to the GPU renderer
                 Connections {
                     target: panadapter
-                    function onWaterfallFrameChanged() {
-                        if (!panadapter.paused && !waterfallRefreshTimer.running) {
-                            waterfallRefreshTimer.start();
+                    function onSamplesChanged() {
+                        if (!panadapter.paused) {
+                            waterfallRhiItem.addRow(panadapter.samples);
                         }
                     }
                 }

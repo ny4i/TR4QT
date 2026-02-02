@@ -21,6 +21,7 @@
 
 #include <QWidget>
 #include <QVector>
+#include <QVariantList>
 #include "PanadapterTypes.h"
 
 namespace TR4QT {
@@ -127,6 +128,23 @@ public:
      * @param db Range in dB (e.g., 60 = 60dB dynamic range)
      */
     virtual void setWaterfallRange(float db) = 0;
+
+    /**
+     * @brief Set the waterfall reference level (independent from spectrum ref level)
+     * @param db Reference level offset in dB
+     */
+    virtual void setWaterfallRefLevel(float db) = 0;
+
+    /**
+     * @brief Set DX spots to display on the spectrum
+     * @param spots List of spot data as QVariantMap with keys:
+     *              - callsign (QString)
+     *              - frequency (qint64 Hz)
+     *              - isMultiplier (bool)
+     *              - isWorked (bool)
+     *              - isLotwUser (bool)
+     */
+    virtual void setVisibleSpots(const QVariantList& spots) = 0;
 
 signals:
     /**

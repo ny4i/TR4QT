@@ -17,6 +17,7 @@
 */
 
 #include "QmlPanadapterRenderer.h"
+#include "../WaterfallRhiItem.h"
 #include "../../logging/LogMacros.h"
 #include <QQmlEngine>
 #include <QtMath>
@@ -57,16 +58,19 @@ void QmlPanadapterRenderer::initialize()
         return;
     }
 
-    LOG_INFO("QmlPanadapterRenderer", "Initializing QML renderer with ImageProvider");
+    LOG_INFO("QmlPanadapterRenderer", "Initializing QML renderer with QRhi waterfall");
 
     m_quickWidget = new QQuickWidget();
     m_quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
 
-    // Create waterfall image provider (QML engine takes ownership)
+    // Create waterfall image provider as fallback (QML engine takes ownership)
     m_waterfallProvider = new WaterfallImageProvider();
 
     // Register image provider with QML engine (must be done before setSource)
     m_quickWidget->engine()->addImageProvider("waterfall", m_waterfallProvider);
+
+    // Register WaterfallRhiItem QML type for GPU-accelerated rendering
+    qmlRegisterType<WaterfallRhiItem>("TR4QT.Panadapter", 1, 0, "WaterfallRhiItem");
 
     // Register data provider with QML context
     m_quickWidget->rootContext()->setContextProperty("panadapter", m_provider);
@@ -154,6 +158,16 @@ void QmlPanadapterRenderer::setWaterfallRange(float db)
     }
 }
 
+void QmlPanadapterRenderer::setWaterfallRefLevel(float db)
+{
+    m_provider->setWaterfallRefLevel(db);
+}
+
+void QmlPanadapterRenderer::setVisibleSpots(const QVariantList& spots)
+{
+    m_provider->updateVisibleSpots(spots);
+}
+
 // ============================================================================
 // PanadapterProvider
 // ============================================================================
@@ -239,6 +253,14 @@ void PanadapterProvider::setWaterfallRange(float db)
     }
 }
 
+void PanadapterProvider::setWaterfallRefLevel(float db)
+{
+    if (!qFuzzyCompare(m_waterfallRefLevel, db)) {
+        m_waterfallRefLevel = db;
+        emit waterfallRefLevelChanged();
+    }
+}
+
 void PanadapterProvider::updateSamples(const QVector<float>& samples)
 {
     if (m_paused) {
@@ -313,6 +335,12 @@ void PanadapterProvider::updatePalette(WaterfallPalette palette)
         rebuildColorLUT();
         emit paletteChanged();
     }
+}
+
+void PanadapterProvider::updateVisibleSpots(const QVariantList& spots)
+{
+    m_visibleSpots = spots;
+    emit visibleSpotsChanged();
 }
 
 void PanadapterProvider::onFrequencyClicked(qint64 freqHz, int vfo)

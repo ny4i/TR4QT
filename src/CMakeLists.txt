@@ -229,6 +229,7 @@ set(SOURCES
     panadapter/PanadapterDataModel.cpp
     panadapter/renderers/QmlPanadapterRenderer.cpp
     panadapter/WaterfallImageProvider.cpp
+    panadapter/WaterfallRhiItem.cpp
     radio/K4PanadapterReader.cpp
 )
 
@@ -358,6 +359,7 @@ set(HEADERS
     panadapter/IPanadapterRenderer.h
     panadapter/renderers/QmlPanadapterRenderer.h
     panadapter/WaterfallImageProvider.h
+    panadapter/WaterfallRhiItem.h
     radio/K4PanadapterReader.h
 )
 
@@ -379,8 +381,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.52"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.52"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.53"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.53"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
@@ -401,6 +403,16 @@ else()
     )
 endif()
 
+# Compile GLSL shaders for waterfall QRhi rendering
+# qt_add_shaders generates .qsb files for all supported backends (Metal, Vulkan, D3D, GLSL)
+qt_add_shaders(tr4qt "waterfall_shaders"
+    PREFIX "/"
+    BASE "${CMAKE_SOURCE_DIR}/resources"
+    FILES
+        ${CMAKE_SOURCE_DIR}/resources/shaders/waterfall.vert
+        ${CMAKE_SOURCE_DIR}/resources/shaders/waterfall.frag
+)
+
 # Link Qt6 libraries, tr4qt_core object library, and qtkeychain
 target_link_libraries(tr4qt PRIVATE
     tr4qt_core  # Core components (radio, logging, types)
@@ -417,6 +429,7 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::Quick
     Qt6::QuickWidgets
     Qt6::Qml
+    Qt6::GuiPrivate  # Required for QRhi (WaterfallRhiItem)
     qt6keychain  # Secure credential storage (macOS Keychain, Windows Credential Manager)
 )
 

@@ -22,6 +22,7 @@
 #include "../../utils/AppSettings.h"
 #include "../../logging/LogMacros.h"
 #include "../../core/Constants.h"
+#include "../widgets/BandMapWidget.h"
 #include <QSettings>
 #include <QCloseEvent>
 #include <QShowEvent>
@@ -40,6 +41,9 @@ static constexpr int AVERAGING_DEFAULT = 3;
 static constexpr int WF_RANGE_MIN = 30;
 static constexpr int WF_RANGE_MAX = 120;
 static constexpr int WF_RANGE_DEFAULT = 80;
+static constexpr int WF_REF_LEVEL_MIN = -30;
+static constexpr int WF_REF_LEVEL_MAX = 30;
+static constexpr int WF_REF_LEVEL_DEFAULT = 0;
 
 // Window size
 static constexpr int DEFAULT_WIDTH = 600;
@@ -139,6 +143,17 @@ void PanadapterWindow::setupUI()
     QObject::connect(m_wfRangeSlider, &QSlider::valueChanged,
             this, &PanadapterWindow::onWaterfallRangeChanged);
 
+    // Waterfall ref level slider (independent brightness control)
+    auto* wfRefLabel = new QLabel("WF Ref:");
+    m_wfRefLevelSlider = new QSlider(Qt::Horizontal);
+    m_wfRefLevelSlider->setRange(WF_REF_LEVEL_MIN, WF_REF_LEVEL_MAX);
+    m_wfRefLevelSlider->setValue(WF_REF_LEVEL_DEFAULT);
+    m_wfRefLevelSlider->setFixedWidth(80);
+    m_wfRefLevelLabel = new QLabel(QString("%1 dB").arg(WF_REF_LEVEL_DEFAULT));
+    m_wfRefLevelLabel->setFixedWidth(45);
+    QObject::connect(m_wfRefLevelSlider, &QSlider::valueChanged,
+            this, &PanadapterWindow::onWaterfallRefLevelChanged);
+
     // Pause button
     m_pauseButton = new QPushButton("Pause");
     m_pauseButton->setCheckable(true);
@@ -164,6 +179,10 @@ void PanadapterWindow::setupUI()
     controlLayout->addWidget(wfRangeLabel);
     controlLayout->addWidget(m_wfRangeSlider);
     controlLayout->addWidget(m_wfRangeLabel);
+    controlLayout->addSpacing(20);
+    controlLayout->addWidget(wfRefLabel);
+    controlLayout->addWidget(m_wfRefLevelSlider);
+    controlLayout->addWidget(m_wfRefLevelLabel);
     controlLayout->addStretch();
     controlLayout->addWidget(m_pauseButton);
     controlLayout->addWidget(m_statusLabel);
@@ -180,6 +199,7 @@ void PanadapterWindow::setupUI()
     m_renderer->setAveraging(AVERAGING_DEFAULT);
     m_renderer->setRefLevel(static_cast<float>(REF_LEVEL_DEFAULT));
     m_renderer->setWaterfallRange(static_cast<float>(WF_RANGE_DEFAULT));
+    m_renderer->setWaterfallRefLevel(static_cast<float>(WF_REF_LEVEL_DEFAULT));
     m_renderer->setPanId(m_panId);
 }
 
@@ -216,11 +236,22 @@ void PanadapterWindow::onPacketReceived(const PanadapterPacket& packet)
         return;
     }
 
+    // Track frequency changes for spot filtering
+    bool frequencyChanged = (m_centerFrequency != packet.centerFreqHz ||
+                            m_sampleRate != packet.sampleRateHz);
+    m_centerFrequency = packet.centerFreqHz;
+    m_sampleRate = packet.sampleRateHz;
+
     // Update renderer with new data
     m_renderer->updateSamples(packet.samples);
     m_renderer->setCenterFrequency(packet.centerFreqHz);
     m_renderer->setSampleRate(packet.sampleRateHz);
     m_renderer->setNoiseFloor(packet.noiseFloor);
+
+    // Re-filter spots if frequency range changed
+    if (frequencyChanged && !m_allSpots.isEmpty()) {
+        updateSpots(m_allSpots);
+    }
 }
 
 void PanadapterWindow::connectToK4()
@@ -259,6 +290,7 @@ void PanadapterWindow::connectToK4()
 void PanadapterWindow::onConnected()
 {
     LOG_INFO("PanadapterWindow", "Connected to panadapter");
+    m_wasConnected = true;  // Remember we were connected for auto-reconnect on window reopen
     m_statusLabel->setText("Connected");
     m_statusLabel->setStyleSheet("color: #0a0;");
     emit connectionStatusChanged(true);
@@ -310,6 +342,12 @@ void PanadapterWindow::onWaterfallRangeChanged(int value)
     m_renderer->setWaterfallRange(static_cast<float>(value));
 }
 
+void PanadapterWindow::onWaterfallRefLevelChanged(int value)
+{
+    m_wfRefLevelLabel->setText(QString("%1 dB").arg(value));
+    m_renderer->setWaterfallRefLevel(static_cast<float>(value));
+}
+
 void PanadapterWindow::onPauseToggled()
 {
     m_paused = m_pauseButton->isChecked();
@@ -338,6 +376,8 @@ void PanadapterWindow::closeEvent(QCloseEvent* event)
         LOG_DEBUG("PanadapterWindow", "App closing down, keeping m_wasVisible=true");
     }
     saveWindowState();
+    // Disconnect but keep m_wasConnected so we reconnect when window is reopened
+    LOG_DEBUG("PanadapterWindow", QString("Closing window, m_wasConnected=%1 (will reconnect on reopen)").arg(m_wasConnected));
     disconnectFromRadio();
     event->accept();
 }
@@ -346,7 +386,17 @@ void PanadapterWindow::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);
     m_wasVisible = true;
-    LOG_DEBUG("PanadapterWindow", "Window shown, m_wasVisible=true");
+    LOG_DEBUG("PanadapterWindow", QString("Window shown, m_wasVisible=true, m_wasConnected=%1").arg(m_wasConnected));
+
+    // Reconnect if we were connected before the window was closed
+    if (m_wasConnected && !isConnected()) {
+        LOG_INFO("PanadapterWindow", "Reconnecting to panadapter after window reopen");
+        if (!m_host.isEmpty()) {
+            connectToRadio(m_host, m_port);
+        } else {
+            connectToK4();  // Try auto-connect if no host was set
+        }
+    }
 }
 
 void PanadapterWindow::hideEvent(QHideEvent* event)
@@ -370,6 +420,7 @@ void PanadapterWindow::saveWindowState()
     settings.setValue("refLevel", m_refLevelSlider->value());
     settings.setValue("averaging", m_averagingSlider->value());
     settings.setValue("waterfallRange", m_wfRangeSlider->value());
+    settings.setValue("waterfallRefLevel", m_wfRefLevelSlider->value());
     settings.endGroup();
     settings.sync();  // Force write immediately
     LOG_DEBUG("PanadapterWindow", QString("saveWindowState completed"));
@@ -413,7 +464,43 @@ void PanadapterWindow::restoreWindowState()
         m_wfRangeSlider->setValue(val);
     }
 
+    if (settings.contains("waterfallRefLevel")) {
+        int val = settings.value("waterfallRefLevel").toInt();
+        m_wfRefLevelSlider->setValue(val);
+    }
+
     settings.endGroup();
+}
+
+void PanadapterWindow::updateSpots(const QList<Spot>& spots)
+{
+    m_allSpots = spots;
+
+    // Calculate visible frequency range
+    qint64 halfSpan = m_sampleRate / 2;
+    qint64 minFreq = m_centerFrequency - halfSpan;
+    qint64 maxFreq = m_centerFrequency + halfSpan;
+
+    // Filter spots to visible range and convert to QVariantList
+    QVariantList visibleSpots;
+    for (const Spot& spot : spots) {
+        if (spot.frequency >= minFreq && spot.frequency <= maxFreq) {
+            QVariantMap spotMap;
+            spotMap["callsign"] = spot.callsign;
+            spotMap["frequency"] = static_cast<qint64>(spot.frequency);
+            spotMap["isMultiplier"] = spot.isMultiplier;
+            spotMap["isWorked"] = spot.isWorked;
+            spotMap["isLotwUser"] = spot.isLotwUser;
+
+            // Calculate x position ratio (0.0 = left edge, 1.0 = right edge)
+            qreal xRatio = static_cast<qreal>(spot.frequency - minFreq) / m_sampleRate;
+            spotMap["xRatio"] = xRatio;
+
+            visibleSpots.append(spotMap);
+        }
+    }
+
+    m_renderer->setVisibleSpots(visibleSpots);
 }
 
 } // namespace TR4QT
