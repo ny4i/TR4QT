@@ -69,7 +69,7 @@ jobs:
         target: desktop
         arch: win64_mingw
         tools: 'tools_mingw1310'
-        modules: 'qtwebsockets qthttpserver qtserialport qtdeclarative qtshadertools'  # HttpServer for web UI, SerialPort for radio, declarative/shadertools for QRhi waterfall
+        modules: 'qtwebsockets qthttpserver qtserialport qtshadertools'  # HttpServer for web UI, SerialPort for radio, shadertools for QRhi waterfall (Qt Quick/QML is in base)
         cache: true
 
     - name: Download Hamlib
@@ -418,7 +418,7 @@ jobs:
         version: ${{ env.QT_VERSION }}
         host: mac
         target: desktop
-        modules: 'qtwebsockets qthttpserver qtserialport qtdeclarative qtshadertools'  # declarative/shadertools for QRhi waterfall
+        modules: 'qtwebsockets qthttpserver qtserialport qtshadertools'  # shadertools for QRhi waterfall (Qt Quick/QML is in base)
         cache: true
 
     - name: Install Other Dependencies
