@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.55";  // Auto-reconnect panadapter when window is reopened
+constexpr const char* APP_VERSION = "3.40.56";  // KPA1500 pre-flight check with exponential backoff
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

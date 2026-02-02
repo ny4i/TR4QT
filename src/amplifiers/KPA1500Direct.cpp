@@ -264,6 +264,64 @@ void KPA1500Direct::doPollCycle()
     if (!m_socket || !m_connected)
         return;
 
+    // Check if previous cycle got any responses
+    if (m_lastResponseTimer.isValid()) {
+        if (!m_responseReceivedThisCycle) {
+            // No response received since last poll cycle
+            m_consecutiveEmptyCycles++;
+
+            if (m_consecutiveEmptyCycles >= BACKOFF_THRESHOLD_CYCLES && !m_inBackoff) {
+                // Enter backoff mode - amplifier appears unreachable
+                m_inBackoff = true;
+                m_backoffMultiplier = 1;
+                LOG_WARN("KPA1500Direct", QString("Amplifier not responding after %1 cycles, entering backoff mode")
+                    .arg(m_consecutiveEmptyCycles));
+            } else if (m_inBackoff) {
+                // Increase backoff multiplier exponentially (up to max)
+                // Double the multiplier every BACKOFF_THRESHOLD_CYCLES empty cycles
+                int cyclesInBackoff = m_consecutiveEmptyCycles - BACKOFF_THRESHOLD_CYCLES;
+                int newMultiplier = 1 << (cyclesInBackoff / BACKOFF_THRESHOLD_CYCLES);  // 1, 2, 4, 8, 16, 32...
+                if (newMultiplier > MAX_BACKOFF_MULTIPLIER) {
+                    newMultiplier = MAX_BACKOFF_MULTIPLIER;
+                }
+                if (newMultiplier != m_backoffMultiplier) {
+                    m_backoffMultiplier = newMultiplier;
+                    LOG_DEBUG("KPA1500Direct", QString("Increasing backoff multiplier to %1 (probe interval: %2ms)")
+                        .arg(m_backoffMultiplier).arg(m_backoffMultiplier * m_intervalMs));
+                }
+            }
+        }
+    }
+
+    // Reset the response flag for this new cycle
+    m_responseReceivedThisCycle = false;
+
+    // In backoff mode, only poll occasionally (exponential backoff)
+    if (m_inBackoff) {
+        // Skip this cycle based on backoff multiplier
+        // backoffMultiplier=1 means poll every cycle, =2 means every other cycle, etc.
+        m_cyclesSinceLastLog++;
+
+        // Only poll on cycles that are multiples of the backoff multiplier
+        if ((m_consecutiveEmptyCycles % m_backoffMultiplier) != 0) {
+            return;  // Skip this poll cycle
+        }
+
+        // Log periodically (not every skipped cycle) to avoid log spam
+        if (m_cyclesSinceLastLog >= m_backoffMultiplier * 4) {
+            LOG_DEBUG("KPA1500Direct", QString("Backoff mode: probing amplifier (multiplier=%1, empty cycles=%2)")
+                .arg(m_backoffMultiplier).arg(m_consecutiveEmptyCycles));
+            m_cyclesSinceLastLog = 0;
+        }
+
+        // In backoff mode, only send a single probe command (^ON; is lightweight)
+        QByteArray probeCmd = "^ON;";
+        sendCommand(probeCmd);
+        m_lastResponseTimer.start();  // Reset timeout
+        return;
+    }
+
+    // Normal polling - send all commands
     for (const QString &cmdStr : m_pollCommands) {
         // DS command has longer interval to reduce load on amplifier
         if (cmdStr == "^DS;") {
@@ -288,6 +346,9 @@ void KPA1500Direct::doPollCycle()
         else
             emit errorOccurred(QStringLiteral("Invalid command format: %1").arg(cmdStr));
     }
+
+    // Start/restart the response timer
+    m_lastResponseTimer.start();
 }
 
 void KPA1500Direct::sendCommand(const QByteArray &cmd)
@@ -316,6 +377,21 @@ void KPA1500Direct::onReadyRead()
         m_socket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
         Q_UNUSED(sender);
         Q_UNUSED(senderPort);
+
+        // Mark that we received a response this cycle
+        m_responseReceivedThisCycle = true;
+
+        // Exit backoff mode if we were in it
+        if (m_inBackoff) {
+            LOG_INFO("KPA1500Direct", QString("Amplifier responding again after %1 empty cycles, resuming normal polling")
+                .arg(m_consecutiveEmptyCycles));
+            m_inBackoff = false;
+            m_backoffMultiplier = 1;
+            m_cyclesSinceLastLog = 0;
+        }
+
+        // Reset consecutive empty cycles counter
+        m_consecutiveEmptyCycles = 0;
 
         processResponse(datagram);
     }
