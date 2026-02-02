@@ -671,60 +671,27 @@ jobs:
             }]
           }"
 
-  # Linux x86_64 build - DISABLED pending self-hosted runner setup on Proxmox
-  # To re-enable: remove `if: false` and uncomment from notify job
+  # Linux x86_64 build - uses self-hosted runner on Proxmox
   build-linux-x86_64:
     name: Linux (x86_64)
-    if: false  # Disabled - GitHub hosted runners timeout waiting for availability
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, X64]
     continue-on-error: true  # Don't fail the workflow if Linux build fails
+
+    # Self-hosted runner has Qt 6.10.1 at /opt/Qt and Hamlib at /opt/hamlib pre-installed
+    env:
+      QT_ROOT_DIR: /opt/Qt/6.10.1/gcc_64
+      HAMLIB_ROOT: /opt/hamlib
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v4
-      with:
-        version: ${{ env.QT_VERSION }}
-        host: linux
-        target: desktop
-        arch: linux_gcc_64
-        modules: 'qtwebsockets qthttpserver qtserialport qtshadertools'
-        cache: true
-
-    - name: Install System Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          cmake \
-          libgl1-mesa-dev \
-          libxkbcommon-dev \
-          libxcb-cursor0 \
-          libxcb-icccm4 \
-          libxcb-keysyms1 \
-          libxcb-shape0 \
-          libusb-1.0-0-dev \
-          libsecret-1-dev \
-          libfuse2
-
-    - name: Build Hamlib from source
-      run: |
-        curl -L -o hamlib.tar.gz "https://github.com/Hamlib/Hamlib/releases/download/${{ env.HAMLIB_VERSION }}/hamlib-${{ env.HAMLIB_VERSION }}.tar.gz"
-        tar -xzf hamlib.tar.gz
-        cd hamlib-${{ env.HAMLIB_VERSION }}
-        ./configure --prefix=$HOME/hamlib --disable-static
-        make -j$(nproc)
-        make install
-        echo "HAMLIB_ROOT=$HOME/hamlib" >> $GITHUB_ENV
 
     - name: Configure CMake
       run: |
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}" \
-          -DHAMLIB_ROOT="$HOME/hamlib" \
+          -DHAMLIB_ROOT="${{ env.HAMLIB_ROOT }}" \
           -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Validate Versions
@@ -839,7 +806,7 @@ jobs:
         cp "$QT_PLUGINS/platformthemes/"*.so "$DEST_PLUGINS/platformthemes/" 2>/dev/null || true
 
         echo "=== Copying Hamlib ==="
-        cp $HOME/hamlib/lib/libhamlib.so* "$DEST_LIB/"
+        cp ${{ env.HAMLIB_ROOT }}/lib/libhamlib.so* "$DEST_LIB/"
 
         echo "=== Copying ICU libraries (if needed) ==="
         for lib in "$QT_LIB"/libicu*.so.*; do
@@ -870,7 +837,7 @@ jobs:
         wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
         chmod +x linuxdeploy-x86_64.AppImage
 
-        export LD_LIBRARY_PATH="${{ env.QT_ROOT_DIR }}/lib:$HOME/hamlib/lib:$LD_LIBRARY_PATH"
+        export LD_LIBRARY_PATH="${{ env.QT_ROOT_DIR }}/lib:${{ env.HAMLIB_ROOT }}/lib:$LD_LIBRARY_PATH"
 
         # Use linuxdeploy to bundle system library dependencies and create AppImage
         # NOT using --plugin qt (we did manual Qt deployment above)
@@ -1195,7 +1162,7 @@ jobs:
 
   notify:
     name: Slack Notification
-    needs: [build-windows, build-macos]  # build-linux-x86_64 disabled pending Proxmox self-hosted runner
+    needs: [build-windows, build-macos, build-linux-x86_64]
     runs-on: ubuntu-latest
     if: always()  # Run even if builds fail
 
@@ -1231,6 +1198,11 @@ jobs:
                 {
                   "title": "macOS",
                   "value": "${{ needs.build-macos.result }}",
+                  "short": true
+                },
+                {
+                  "title": "Linux",
+                  "value": "${{ needs.build-linux-x86_64.result }}",
                   "short": true
                 },
                 {
