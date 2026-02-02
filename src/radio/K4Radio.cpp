@@ -195,7 +195,7 @@ void K4Radio::sendCommand(const QString& cmd, VFO vfo)
         fullCmd += ';';
     }
 
-    LOG_DEBUG("K4Radio", QString("TX: %1 (socket state: %2)")
+    LOG_TRACE("K4Radio", QString("TX: %1 (socket state: %2)")
               .arg(fullCmd.trimmed())
               .arg(m_socket->state()));
 
@@ -218,7 +218,7 @@ void K4Radio::onReadyRead()
     if (m_socket->bytesAvailable() > 0) {
         QByteArray data = m_socket->readAll();
         QString dataStr = QString::fromLatin1(data);
-        LOG_DEBUG("K4Radio", QString("RX raw: %1 bytes: '%2'")
+        LOG_TRACE("K4Radio", QString("RX raw: %1 bytes: '%2'")
                   .arg(data.size()).arg(dataStr));
         m_receiveBuffer += dataStr;
 
@@ -231,13 +231,13 @@ void K4Radio::onReadyRead()
 
             if (!message.isEmpty()) {
                 messageCount++;
-                LOG_DEBUG("K4Radio", QString("RX [%1]: %2;").arg(messageCount).arg(message));
+                LOG_TRACE("K4Radio", QString("RX [%1]: %2;").arg(messageCount).arg(message));
                 processMessage(message);
             }
         }
 
         if (!m_receiveBuffer.isEmpty()) {
-            LOG_DEBUG("K4Radio", QString("Incomplete message in buffer: '%1'").arg(m_receiveBuffer));
+            LOG_TRACE("K4Radio", QString("Incomplete message in buffer: '%1'").arg(m_receiveBuffer));
         }
     }
 }

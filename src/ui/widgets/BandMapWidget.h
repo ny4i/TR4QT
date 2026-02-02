@@ -106,6 +106,11 @@ public:
     int spotCount() const { return m_allSpots.size(); }
 
     /**
+     * Get all spots (for panadapter overlay)
+     */
+    const QList<Spot>& allSpots() const { return m_allSpots; }
+
+    /**
      * Refresh LOTW status for all spots
      * Called when LOTW settings change (e.g., min upload months)
      */
@@ -136,6 +141,12 @@ signals:
      * User double-clicked on a callsign - populate call entry
      */
     void callsignSelected(const QString& callsign);
+
+    /**
+     * Spots have been added, removed, or modified
+     * Used by panadapter overlay to update spot display
+     */
+    void spotsChanged();
 
 protected:
     void paintEvent(QPaintEvent* event) override;

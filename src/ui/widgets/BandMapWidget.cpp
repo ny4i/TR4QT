@@ -136,6 +136,7 @@ void BandMapWidget::addSpot(const Spot& spot) {
         if (m_allSpots[i].callsign == updatedSpot.callsign) {
             m_allSpots[i] = updatedSpot;
             rebuildDisplayList();  // Also triggers viewport repaint
+            emit spotsChanged();
             return;
         }
     }
@@ -143,6 +144,7 @@ void BandMapWidget::addSpot(const Spot& spot) {
     // Add new spot
     m_allSpots.append(updatedSpot);
     rebuildDisplayList();  // Also triggers viewport repaint
+    emit spotsChanged();
 }
 
 void BandMapWidget::removeSpot(const QString& callsign) {
@@ -150,6 +152,7 @@ void BandMapWidget::removeSpot(const QString& callsign) {
         if (m_allSpots[i].callsign == callsign) {
             m_allSpots.removeAt(i);
             rebuildDisplayList();  // Also triggers viewport repaint
+            emit spotsChanged();
             return;
         }
     }
@@ -160,6 +163,7 @@ void BandMapWidget::clearSpots() {
     m_selectedIndex = -1;
     m_selectedCallsign.clear();
     rebuildDisplayList();  // Also triggers viewport repaint
+    emit spotsChanged();
 }
 
 void BandMapWidget::setCurrentFrequency(freq_t freq) {
@@ -845,6 +849,7 @@ void BandMapWidget::removeExpiredSpots() {
 
     if (removedCount > 0) {
         LOG_DEBUG("BandMapWidget", QString("Removed %1 expired spots").arg(removedCount));
+        emit spotsChanged();
     }
 }
 

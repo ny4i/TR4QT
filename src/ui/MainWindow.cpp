@@ -1273,7 +1273,8 @@ void MainWindow::showEvent(QShowEvent* event) {
 
             // Check if TDI mode is enabled (docked panels instead of floating windows)
             QSettings settings(APP_ORG, APP_NAME);
-            bool tdiMode = settings.value("Layout/TDIMode", false).toBool();
+            bool tdiMode = settings.value("TDIModeEnabled", false).toBool();
+            LOG_INFO("MainWindow", QString("TDI mode check: %1 (key: TDIModeEnabled)").arg(tdiMode ? "ENABLED" : "disabled"));
 
             if (tdiMode) {
                 // TDI mode: set up docked panels
