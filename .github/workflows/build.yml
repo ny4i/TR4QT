@@ -671,81 +671,152 @@ jobs:
             }]
           }"
 
-  # Commented out: Linux x86_64 is not a priority (Raspberry Pi ARM64 is the Linux focus)
-  # build-linux-x86_64:
-  #   name: Linux (x86_64)
-  #   runs-on: ubuntu-24.04
-  #
-  #   steps:
-  #   - name: Checkout
-  #     uses: actions/checkout@v4
-  #
-  #   - name: Install Dependencies
-  #     run: |
-  #       sudo apt-get update
-  #       sudo apt-get install -y \
-  #         build-essential \
-  #         cmake \
-  #         libgl1-mesa-dev \
-  #         libhamlib-dev \
-  #         qt6-base-dev \
-  #         qt6-websockets-dev \
-  #         qt6-httpserver-dev \
-  #         libqt6sql6-sqlite \
-  #         libqt6network6 \
-  #         libfuse2
-  #
-  #   - name: Configure CMake
-  #     run: |
-  #       cmake -B build \
-  #         -DCMAKE_BUILD_TYPE=Release \
-  #         -DCMAKE_INSTALL_PREFIX=/usr
-  #
-  #   - name: Build
-  #     run: cmake --build build --config Release -j$(nproc)
-  #
-  #   - name: Run Tests
-  #     run: |
-  #       cd build
-  #       ctest --output-on-failure -C Release
-  #     continue-on-error: true
-  #
-  #   - name: Install to AppDir
-  #     run: |
-  #       DESTDIR=$PWD/appdir cmake --install build
-  #       mkdir -p appdir/usr/share/applications
-  #       mkdir -p appdir/usr/share/icons/hicolor/256x256/apps
-  #
-  #       # Create desktop entry
-  #       cat > appdir/usr/share/applications/tr4qt.desktop <<EOF
-  #       [Desktop Entry]
-  #       Type=Application
-  #       Name=TR4QT
-  #       Comment=Amateur Radio Contest Logger
-  #       Exec=tr4qt
-  #       Icon=tr4qt
-  #       Categories=HamRadio;Network;
-  #       EOF
-  #
-  #   - name: Create AppImage
-  #     run: |
-  #       wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-  #       wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-  #       chmod +x linuxdeploy*.AppImage
-  #
-  #       export QMAKE=/usr/lib/qt6/bin/qmake
-  #       export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
-  #
-  #       ./linuxdeploy-x86_64.AppImage \
-  #         --appdir appdir \
-  #         --plugin qt \
-  #         --output appimage
-  #
-  #   - name: Upload Artifact
-  #     uses: actions/upload-artifact@v4
-  #     with:
-  #       name: TR4QT-Linux-x86_64
-  #       path: TR4QT*.AppImage
+  # Linux x86_64 build - optional, not required for releases
+  build-linux-x86_64:
+    name: Linux (x86_64)
+    runs-on: ubuntu-24.04
+    continue-on-error: true  # Don't fail the workflow if Linux build fails
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: ${{ env.QT_VERSION }}
+        host: linux
+        target: desktop
+        arch: linux_gcc_64
+        modules: 'qtwebsockets qthttpserver qtserialport qtshadertools'
+        cache: true
+
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          libgl1-mesa-dev \
+          libxkbcommon-dev \
+          libxcb-cursor0 \
+          libxcb-icccm4 \
+          libxcb-keysyms1 \
+          libxcb-shape0 \
+          libusb-1.0-0-dev \
+          libfuse2
+
+    - name: Build Hamlib from source
+      run: |
+        curl -L -o hamlib.tar.gz "https://github.com/Hamlib/Hamlib/releases/download/${{ env.HAMLIB_VERSION }}/hamlib-${{ env.HAMLIB_VERSION }}.tar.gz"
+        tar -xzf hamlib.tar.gz
+        cd hamlib-${{ env.HAMLIB_VERSION }}
+        ./configure --prefix=$HOME/hamlib --disable-static
+        make -j$(nproc)
+        make install
+        echo "HAMLIB_ROOT=$HOME/hamlib" >> $GITHUB_ENV
+
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}" \
+          -DHAMLIB_ROOT="$HOME/hamlib" \
+          -DCMAKE_INSTALL_PREFIX=/usr
+
+    - name: Validate Versions
+      run: |
+        echo "=== Version Validation ==="
+        echo "Expected Qt: ${{ env.QT_VERSION }}"
+        echo "Expected Hamlib: ${{ env.HAMLIB_VERSION }}"
+
+        QT_ACTUAL=$(grep -r "Qt6Core" build/CMakeCache.txt | grep -oE '6\.[0-9]+\.[0-9]+' | head -1)
+        echo "Detected Qt: $QT_ACTUAL"
+
+        if [ "$QT_ACTUAL" != "${{ env.QT_VERSION }}" ]; then
+          echo "ERROR: Qt version mismatch!"
+          exit 1
+        fi
+        echo "✓ Qt version validated"
+
+    - name: Build
+      run: cmake --build build --config Release -j$(nproc)
+
+    - name: Run Tests
+      run: |
+        cd build
+        ctest --output-on-failure -C Release
+      continue-on-error: true
+
+    - name: Create AppImage
+      run: |
+        # Install to AppDir
+        DESTDIR=$PWD/appdir cmake --install build
+        mkdir -p appdir/usr/share/applications
+        mkdir -p appdir/usr/share/icons/hicolor/256x256/apps
+
+        # Copy icon (use a placeholder if not exists)
+        if [ -f "resources/icons/tr4qt.png" ]; then
+          cp resources/icons/tr4qt.png appdir/usr/share/icons/hicolor/256x256/apps/
+        else
+          # Create a simple placeholder icon
+          convert -size 256x256 xc:navy -fill white -gravity center -pointsize 48 -annotate 0 "TR4QT" appdir/usr/share/icons/hicolor/256x256/apps/tr4qt.png 2>/dev/null || true
+        fi
+
+        # Create desktop entry
+        cat > appdir/usr/share/applications/tr4qt.desktop <<EOF
+        [Desktop Entry]
+        Type=Application
+        Name=TR4QT
+        Comment=Amateur Radio Contest Logger
+        Exec=tr4qt
+        Icon=tr4qt
+        Categories=HamRadio;Network;
+        EOF
+
+        # Copy Hamlib library
+        mkdir -p appdir/usr/lib
+        cp $HOME/hamlib/lib/libhamlib.so* appdir/usr/lib/
+
+        # Download linuxdeploy
+        wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+        chmod +x linuxdeploy*.AppImage
+
+        # Create AppImage
+        export QMAKE="${{ env.QT_ROOT_DIR }}/bin/qmake"
+        export LD_LIBRARY_PATH="${{ env.QT_ROOT_DIR }}/lib:$HOME/hamlib/lib:$LD_LIBRARY_PATH"
+        export QML_SOURCES_PATHS="${{ github.workspace }}/resources/qml"
+
+        ./linuxdeploy-x86_64.AppImage \
+          --appdir appdir \
+          --plugin qt \
+          --output appimage \
+          --desktop-file appdir/usr/share/applications/tr4qt.desktop
+
+        # Rename to include version
+        VERSION=$(grep 'APP_VERSION' src/core/Constants.h | cut -d'"' -f2)
+        mv TR4QT*.AppImage TR4QT-${VERSION}-x86_64.AppImage
+
+    - name: Verify AppImage
+      run: |
+        APPIMAGE=$(ls TR4QT-*-x86_64.AppImage | head -1)
+        echo "Created: $APPIMAGE"
+        ls -lh "$APPIMAGE"
+
+        SIZE=$(stat -c%s "$APPIMAGE")
+        SIZE_MB=$((SIZE / 1024 / 1024))
+        echo "Size: ${SIZE_MB}MB"
+
+        if [ $SIZE_MB -lt 20 ]; then
+          echo "WARNING: AppImage seems small (< 20MB)"
+        fi
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: TR4QT-Linux-x86_64
+        path: TR4QT-*-x86_64.AppImage
 
   # Linux ARM64 build permanently disabled per user request 2026-01-01
   # Reason: Not a priority platform, was only conditionally built on manual trigger
@@ -974,6 +1045,16 @@ jobs:
         # DMG already has version in filename, just move to expected location
         mv artifacts/TR4QT-macOS/TR4QT-*-macOS.dmg artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
 
+    - name: Prepare Linux AppImage for release (if available)
+      run: |
+        # Linux build is optional - only include if it succeeded
+        if [ -d "artifacts/TR4QT-Linux-x86_64" ]; then
+          mv artifacts/TR4QT-Linux-x86_64/TR4QT-*-x86_64.AppImage artifacts/TR4QT-${{ github.ref_name }}-x86_64.AppImage || true
+          echo "✓ Linux AppImage included in release"
+        else
+          echo "ℹ Linux build not available (optional)"
+        fi
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
@@ -981,6 +1062,8 @@ jobs:
           artifacts/TR4QT-${{ github.ref_name }}-Windows.zip
           artifacts/TR4QT-${{ github.ref_name }}-Setup.exe
           artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
+          artifacts/TR4QT-${{ github.ref_name }}-x86_64.AppImage
+        fail_on_unmatched_files: false
         draft: ${{ !contains(github.ref_name, '-rc') }}
         prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
         generate_release_notes: true
@@ -1024,7 +1107,7 @@ jobs:
 
   notify:
     name: Slack Notification
-    needs: [build-windows, build-macos]
+    needs: [build-windows, build-macos, build-linux-x86_64]
     runs-on: ubuntu-latest
     if: always()  # Run even if builds fail
 
@@ -1032,7 +1115,7 @@ jobs:
     - name: Determine build status
       id: status
       run: |
-        # Only Windows and macOS builds required
+        # Only Windows and macOS builds required (Linux is optional)
         if [ "${{ needs.build-windows.result }}" == "success" ] && \
            [ "${{ needs.build-macos.result }}" == "success" ]; then
           echo "status=✅ SUCCESS" >> $GITHUB_OUTPUT
@@ -1060,6 +1143,11 @@ jobs:
                 {
                   "title": "macOS",
                   "value": "${{ needs.build-macos.result }}",
+                  "short": true
+                },
+                {
+                  "title": "Linux (optional)",
+                  "value": "${{ needs.build-linux-x86_64.result }}",
                   "short": true
                 },
                 {
