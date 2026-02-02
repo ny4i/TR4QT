@@ -69,7 +69,7 @@ jobs:
         target: desktop
         arch: win64_mingw
         tools: 'tools_mingw1310'
-        modules: 'qtwebsockets qthttpserver qtserialport'  # HttpServer for web UI, SerialPort for radio (Svg/Xml in base Qt)
+        modules: 'qtwebsockets qthttpserver qtserialport qtdeclarative qtshadertools'  # HttpServer for web UI, SerialPort for radio, declarative/shadertools for QRhi waterfall
         cache: true
 
     - name: Download Hamlib
@@ -168,6 +168,12 @@ jobs:
         cp "$QT_BIN/Qt6SerialPort.dll" "$DEST/"
         cp "$QT_BIN/Qt6Svg.dll" "$DEST/"
         cp "$QT_BIN/Qt6Xml.dll" "$DEST/"
+        cp "$QT_BIN/Qt6Qml.dll" "$DEST/"
+        cp "$QT_BIN/Qt6Quick.dll" "$DEST/"
+        cp "$QT_BIN/Qt6QuickWidgets.dll" "$DEST/"
+        cp "$QT_BIN/Qt6ShaderTools.dll" "$DEST/"
+        cp "$QT_BIN/Qt6OpenGL.dll" "$DEST/"
+        cp "$QT_BIN/Qt6QmlModels.dll" "$DEST/"
 
         # Copy Qt plugins
         echo "Copying Qt plugins..."
@@ -412,7 +418,7 @@ jobs:
         version: ${{ env.QT_VERSION }}
         host: mac
         target: desktop
-        modules: 'qtwebsockets qthttpserver qtserialport'
+        modules: 'qtwebsockets qthttpserver qtserialport qtdeclarative qtshadertools'  # declarative/shadertools for QRhi waterfall
         cache: true
 
     - name: Install Other Dependencies
