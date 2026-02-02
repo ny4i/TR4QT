@@ -671,9 +671,11 @@ jobs:
             }]
           }"
 
-  # Linux x86_64 build - optional, not required for releases
+  # Linux x86_64 build - DISABLED pending self-hosted runner setup on Proxmox
+  # To re-enable: remove `if: false` and uncomment from notify job
   build-linux-x86_64:
     name: Linux (x86_64)
+    if: false  # Disabled - GitHub hosted runners timeout waiting for availability
     runs-on: ubuntu-24.04
     continue-on-error: true  # Don't fail the workflow if Linux build fails
 
@@ -1193,7 +1195,7 @@ jobs:
 
   notify:
     name: Slack Notification
-    needs: [build-windows, build-macos, build-linux-x86_64]
+    needs: [build-windows, build-macos]  # build-linux-x86_64 disabled pending Proxmox self-hosted runner
     runs-on: ubuntu-latest
     if: always()  # Run even if builds fail
 
@@ -1229,11 +1231,6 @@ jobs:
                 {
                   "title": "macOS",
                   "value": "${{ needs.build-macos.result }}",
-                  "short": true
-                },
-                {
-                  "title": "Linux (optional)",
-                  "value": "${{ needs.build-linux-x86_64.result }}",
                   "short": true
                 },
                 {
