@@ -230,6 +230,7 @@ MainWindow::MainWindow(QWidget* parent)
     m_bandSwitchingManager = new BandSwitchingManager(this);
     m_cwMessageManager = std::make_unique<CWMessageManager>(CWMessageManager::Config{m_radio, nullptr});  // Contest set later
     m_windowManager = new WindowManager(this);
+    m_dockManager = new DockManager(this, this);
     m_settingsManager = std::make_unique<SettingsManager>();
     LOG_DEBUG("MainWindow", "Controllers and UI managers created");
 
@@ -443,14 +444,19 @@ MainWindow::MainWindow(QWidget* parent)
     }
 
     // Check if grid square is configured (needed for azimuth/distance calculations)
-    // Delay check to let UI fully initialize
+    // Delay check to let UI fully initialize, and only ask once per install
     QTimer::singleShot(1000, this, [this]() {
         AppSettings& settings = AppSettings::instance();
         QString gridSquare = settings.getMyGridSquare();
-        LOG_INFO("MainWindow", QString("Grid square check at 1s delay: value='%1', isEmpty=%2")
-            .arg(gridSquare).arg(gridSquare.isEmpty()));
 
-        if (gridSquare.isEmpty()) {
+        // Check if user has already dismissed this dialog
+        QSettings qsettings(APP_ORG, APP_NAME);
+        bool askedAboutGrid = qsettings.value("Prompts/askedAboutGridSquare", false).toBool();
+
+        LOG_INFO("MainWindow", QString("Grid square check at 1s delay: value='%1', isEmpty=%2, alreadyAsked=%3")
+            .arg(gridSquare).arg(gridSquare.isEmpty()).arg(askedAboutGrid));
+
+        if (gridSquare.isEmpty() && !askedAboutGrid) {
             QMessageBox::StandardButton reply = DialogHelper::question(
                 this,
                 "Grid Square Not Configured",
@@ -460,6 +466,9 @@ MainWindow::MainWindow(QWidget* parent)
                 "Would you like to configure it now in Preferences?",
                 QMessageBox::Yes | QMessageBox::No,
                 QMessageBox::Yes);
+
+            // Remember that we asked (don't nag on every startup)
+            qsettings.setValue("Prompts/askedAboutGridSquare", true);
 
             if (reply == QMessageBox::Yes) {
                 onPreferences();
@@ -1261,8 +1270,18 @@ void MainWindow::showEvent(QShowEvent* event) {
             if (!m_pendingGeometry.mainWindowState.isNull()) {
                 restoreState(m_pendingGeometry.mainWindowState);
             }
-            // Then restore child windows
-            restoreChildWindows(m_pendingGeometry);
+
+            // Check if TDI mode is enabled (docked panels instead of floating windows)
+            QSettings settings(APP_ORG, APP_NAME);
+            bool tdiMode = settings.value("Layout/TDIMode", false).toBool();
+
+            if (tdiMode) {
+                // TDI mode: set up docked panels
+                setupTDILayout();
+            } else {
+                // Classic mode: restore floating child windows
+                restoreChildWindows(m_pendingGeometry);
+            }
         });
     }
 }
@@ -1382,6 +1401,56 @@ void MainWindow::restoreChildWindows(const WindowGeometry& geometry) {
     } else {
         LOG_DEBUG("MainWindow", "NOT restoring Panadapter window (was hidden on exit)");
     }
+}
+
+void MainWindow::setupTDILayout()
+{
+    // TDI Mode: Create tool windows as dock widgets instead of floating windows
+    // This provides a Visual Studio-style docked layout
+
+    LOG_INFO("MainWindow", "Setting up TDI docked panel layout");
+
+    // Create Radio Control dock (left side)
+    // Call the normal show method to create and configure the widget
+    onShowRadioControl();
+    if (m_radioControlWindow) {
+        // Remove from floating and add as dock
+        m_radioControlWindow->setWindowFlags(Qt::Widget);  // Remove Qt::Window flag
+        m_dockManager->createDock(DockManager::DockId::Radio1, m_radioControlWindow,
+                                   "Radio 1", Qt::LeftDockWidgetArea);
+    }
+
+    // Create DX Cluster dock (right side)
+    onShowDXCluster();
+    if (m_dxClusterWindow) {
+        m_dxClusterWindow->setWindowFlags(Qt::Widget);
+        m_dockManager->createDock(DockManager::DockId::DXCluster, m_dxClusterWindow,
+                                   "DX Cluster", Qt::RightDockWidgetArea);
+    }
+
+    // Create Band Map dock (right side, below DX Cluster)
+    onShowBandMap();
+    if (m_bandMapWindow) {
+        m_bandMapWindow->setWindowFlags(Qt::Widget);
+        m_dockManager->createDock(DockManager::DockId::BandMap, m_bandMapWindow,
+                                   "Band Map", Qt::RightDockWidgetArea);
+    }
+
+    // Create Panadapter dock (bottom)
+    onShowPanadapter();
+    if (m_panadapterWindow) {
+        m_panadapterWindow->setWindowFlags(Qt::Widget);
+        m_dockManager->createDock(DockManager::DockId::Panadapter, m_panadapterWindow,
+                                   "Panadapter", Qt::BottomDockWidgetArea);
+    }
+
+    // Apply default layout arrangement
+    m_dockManager->resetToDefault();
+
+    // Restore saved dock layout if it exists
+    m_dockManager->restoreLayout("default");
+
+    LOG_INFO("MainWindow", "TDI layout initialized with 4 docked panels");
 }
 
 void MainWindow::saveSettings() {
@@ -4061,6 +4130,14 @@ void MainWindow::onShowBandMap() {
                     m_callsignEntry->setText(callsign);
                     m_callsignEntry->setFocus();
                 });
+
+        // Forward spots to panadapter for overlay display
+        connect(m_bandMapWindow, &BandMapWidget::spotsChanged,
+                this, [this]() {
+                    if (m_panadapterWindow && m_bandMapWindow) {
+                        m_panadapterWindow->updateSpots(m_bandMapWindow->allSpots());
+                    }
+                });
     }
 
     // Send current band to Band Map (works for new window or restored window)
@@ -4449,6 +4526,11 @@ void MainWindow::onShowPanadapter() {
 
         // Auto-connect to K4 panadapter if available
         m_panadapterWindow->connectToK4();
+
+        // Send initial spots if band map has any
+        if (m_bandMapWindow) {
+            m_panadapterWindow->updateSpots(m_bandMapWindow->allSpots());
+        }
     }
 
     m_panadapterWindow->show();

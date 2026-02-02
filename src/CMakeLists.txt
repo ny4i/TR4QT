@@ -189,6 +189,7 @@ set(SOURCES
     ui/managers/SettingsManager.cpp
     ui/managers/MenuManager.cpp
     ui/managers/WindowManager.cpp
+    ui/managers/DockManager.cpp
     ui/dialogs/PreferencesDialog.cpp
     ui/dialogs/OperatorDialog.cpp
     ui/dialogs/ContestChooserDialog.cpp
@@ -381,8 +382,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.53"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.53"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.55"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.55"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

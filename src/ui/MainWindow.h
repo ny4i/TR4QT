@@ -62,6 +62,7 @@
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
+#include "managers/DockManager.h"
 #include "../controllers/ImportExportManager.h"
 #include "../controllers/DownloadManager.h"
 #include "../controllers/RadioManager.h"
@@ -100,6 +101,7 @@ class PanadapterWindow;
 class UdpBroadcastManager;
 class WebServer;
 class CountryFileDownloader;
+class DockManager;
 
 /**
  * Main application window
@@ -275,6 +277,7 @@ private:
     void initializeHardwareServices();
     void loadSettings();
     void restoreChildWindows(const WindowGeometry& geometry);
+    void setupTDILayout();  // Set up TDI docked panel layout
     void applyFontSettings();
     void applyTheme();
     void saveQSOTableColumnWidths();
@@ -484,6 +487,7 @@ private:
     MenuManager* m_menuManager;                          // Qt parent-managed
     std::unique_ptr<SettingsManager> m_settingsManager;  // No Qt parent, owned
     WindowManager* m_windowManager;                      // Qt parent-managed
+    DockManager* m_dockManager{nullptr};                 // TDI dock panel manager
 
     // Controllers
     ImportExportManager* m_importExportManager;          // Qt parent-managed
