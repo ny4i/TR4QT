@@ -58,6 +58,8 @@ public:
     void setPanId(char panId) override;
     void setPaused(bool paused) override;
     void setWaterfallRange(float db) override;
+    void setWaterfallRefLevel(float db) override;
+    void setVisibleSpots(const QVariantList& spots) override;
 
 private:
     QQuickWidget* m_quickWidget{nullptr};
@@ -85,7 +87,9 @@ class PanadapterProvider : public QObject {
     Q_PROPERTY(bool paused READ paused WRITE setPaused NOTIFY pausedChanged)
     Q_PROPERTY(QString palette READ palette WRITE setPaletteString NOTIFY paletteChanged)
     Q_PROPERTY(float waterfallRange READ waterfallRange WRITE setWaterfallRange NOTIFY waterfallRangeChanged)
+    Q_PROPERTY(float waterfallRefLevel READ waterfallRefLevel WRITE setWaterfallRefLevel NOTIFY waterfallRefLevelChanged)
     Q_PROPERTY(int waterfallFrame READ waterfallFrame NOTIFY waterfallFrameChanged)
+    Q_PROPERTY(QVariantList visibleSpots READ visibleSpots NOTIFY visibleSpotsChanged)
 
 public:
     explicit PanadapterProvider(QObject* parent = nullptr);
@@ -100,13 +104,16 @@ public:
     bool paused() const { return m_paused; }
     QString palette() const;
     float waterfallRange() const { return m_waterfallRange; }
+    float waterfallRefLevel() const { return m_waterfallRefLevel; }
     int waterfallFrame() const { return m_waterfallFrame; }
+    QVariantList visibleSpots() const { return m_visibleSpots; }
 
     void setAveraging(int value);
     void setRefLevel(float db);
     void setPaused(bool paused);
     void setPaletteString(const QString& palette);
     void setWaterfallRange(float db);
+    void setWaterfallRefLevel(float db);
 
     // Called by renderer
     void updateSamples(const QVector<float>& samples);
@@ -116,6 +123,7 @@ public:
     void updateNoiseFloor(float db);
     void updatePanId(char panId);
     void updatePalette(WaterfallPalette palette);
+    void updateVisibleSpots(const QVariantList& spots);
 
     // Called from QML for click-to-tune
     Q_INVOKABLE void onFrequencyClicked(qint64 freqHz, int vfo);
@@ -142,6 +150,8 @@ signals:
     void pausedChanged();
     void paletteChanged();
     void waterfallRangeChanged();
+    void waterfallRefLevelChanged();
+    void visibleSpotsChanged();
 
     // Forward to renderer
     void frequencyClicked(qint64 freqHz, int vfo);
@@ -170,7 +180,9 @@ private:
     bool m_paused{false};
     WaterfallPalette m_palette{WaterfallPalette::HeatMap};
     float m_waterfallRange{80.0f};  // Default 80dB dynamic range
+    float m_waterfallRefLevel{0.0f}; // Independent waterfall ref level (dB)
     int m_waterfallFrame{0};  // Frame counter for QML image refresh
+    QVariantList m_visibleSpots;  // DX spots visible in current frequency range
 };
 
 } // namespace TR4QT

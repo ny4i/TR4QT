@@ -40,7 +40,14 @@ find_package(Qt6 REQUIRED COMPONENTS
     Svg
     Xml
     Test
+    Quick
+    QuickWidgets
+    Qml
+    ShaderTools
 )
+
+# Find Qt6 private modules for QRhi (required for WaterfallRhiItem)
+find_package(Qt6 COMPONENTS GuiPrivate)
 
 # qtkeychain - Secure credential storage (macOS Keychain, Windows Credential Manager)
 # Built from source via FetchContent for zero deployment overhead (static link)

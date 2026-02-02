@@ -33,6 +33,9 @@
 
 namespace TR4QT {
 
+// Forward declaration
+struct Spot;
+
 /**
  * @brief Window for displaying K4 panadapter and waterfall
  *
@@ -85,6 +88,12 @@ public:
      */
     void setPanId(char panId);
 
+    /**
+     * @brief Update DX spots to display on the panadapter
+     * @param spots List of all current spots (will be filtered by frequency range)
+     */
+    void updateSpots(const QList<Spot>& spots);
+
 signals:
     /**
      * @brief Emitted when user clicks on waterfall to tune
@@ -124,6 +133,7 @@ private slots:
     void onRefLevelChanged(int value);
     void onAveragingChanged(int value);
     void onWaterfallRangeChanged(int value);
+    void onWaterfallRefLevelChanged(int value);
     void onPauseToggled();
     void onRendererFrequencyClicked(qint64 freqHz, int vfo);
     void onRendererCursorMoved(qint64 freqHz, float db);
@@ -150,9 +160,11 @@ private:
     QSlider* m_refLevelSlider{nullptr};
     QSlider* m_averagingSlider{nullptr};
     QSlider* m_wfRangeSlider{nullptr};
+    QSlider* m_wfRefLevelSlider{nullptr};
     QLabel* m_refLevelLabel{nullptr};
     QLabel* m_averagingLabel{nullptr};
     QLabel* m_wfRangeLabel{nullptr};
+    QLabel* m_wfRefLevelLabel{nullptr};
     QPushButton* m_pauseButton{nullptr};
     QLabel* m_statusLabel{nullptr};
 
@@ -161,6 +173,12 @@ private:
     int m_port{9201};
     bool m_paused{false};
     bool m_wasVisible{false};  // Track visibility for persistence (isVisible() fails during shutdown)
+    bool m_wasConnected{false};  // Track if we should reconnect when window is shown again
+
+    // Frequency state for spot filtering
+    qint64 m_centerFrequency{7200000};
+    int m_sampleRate{48000};
+    QList<Spot> m_allSpots;  // All spots from MainWindow
 };
 
 } // namespace TR4QT
