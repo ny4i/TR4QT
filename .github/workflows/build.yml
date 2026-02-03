@@ -873,9 +873,112 @@ jobs:
         name: TR4QT-Linux-x86_64
         path: TR4QT-*-x86_64.AppImage
 
-  # Linux ARM64 build permanently disabled per user request 2026-01-01
-  # Reason: Not a priority platform, was only conditionally built on manual trigger
+  # Linux ARM64 build - ready to enable when Pi 5 self-hosted runner is set up
+  # To enable: 1) Set up 16GB Pi 5 as self-hosted runner with labels [self-hosted, linux, ARM64]
+  #            2) Uncomment this job
+  #            3) Add build-linux-arm64 to 'needs' in release and notify jobs
+  #            4) Add aarch64.AppImage to release files list
+  # For now, use scripts/build-linux-appimage.sh for local Pi builds
+  #
   # build-linux-arm64:
+  #   name: Linux (ARM64/Pi)
+  #   runs-on: [self-hosted, linux, ARM64]
+  #   continue-on-error: true  # Don't fail the workflow if ARM64 build fails
+  #
+  #   steps:
+  #   - name: Checkout
+  #     uses: actions/checkout@v4
+  #
+  #   - name: Configure CMake
+  #     run: |
+  #       export QMAKE=/usr/lib/qt6/bin/qmake
+  #       cmake -B build \
+  #         -DCMAKE_BUILD_TYPE=Release \
+  #         -DCMAKE_INSTALL_PREFIX=/usr
+  #
+  #   - name: Build
+  #     run: cmake --build build --config Release -j$(nproc)
+  #
+  #   - name: Run Tests
+  #     run: |
+  #       cd build
+  #       ctest --output-on-failure -C Release
+  #     continue-on-error: true
+  #
+  #   - name: Create AppImage
+  #     run: |
+  #       echo "=== Creating ARM64 AppImage ==="
+  #
+  #       # Clean up old artifacts
+  #       rm -rf AppDir TR4QT*.AppImage
+  #
+  #       # Create AppDir structure
+  #       mkdir -p AppDir/usr/bin
+  #       mkdir -p AppDir/usr/share/applications
+  #       mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+  #
+  #       cp build/src/tr4qt AppDir/usr/bin/
+  #
+  #       cat > AppDir/usr/share/applications/tr4qt.desktop << 'EOF'
+  #       [Desktop Entry]
+  #       Name=TR4QT
+  #       Exec=tr4qt
+  #       Icon=tr4qt
+  #       Type=Application
+  #       Categories=Utility;HamRadio;
+  #       EOF
+  #
+  #       # Copy icon if exists
+  #       if [ -f "resources/icons/tr4qt.png" ]; then
+  #         cp resources/icons/tr4qt.png AppDir/usr/share/icons/hicolor/256x256/apps/
+  #       else
+  #         touch AppDir/usr/share/icons/hicolor/256x256/apps/tr4qt.png
+  #       fi
+  #
+  #       ln -sf usr/share/applications/tr4qt.desktop AppDir/tr4qt.desktop
+  #       ln -sf usr/share/icons/hicolor/256x256/apps/tr4qt.png AppDir/tr4qt.png
+  #
+  #       # Download linuxdeploy if not present
+  #       if [ ! -f "./linuxdeploy" ]; then
+  #         wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-aarch64.AppImage -O linuxdeploy
+  #         chmod +x linuxdeploy
+  #       fi
+  #
+  #       if [ ! -f "./linuxdeploy-plugin-qt" ]; then
+  #         wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-aarch64.AppImage -O linuxdeploy-plugin-qt
+  #         chmod +x linuxdeploy-plugin-qt
+  #       fi
+  #
+  #       # Create AppImage
+  #       export QMAKE=/usr/lib/qt6/bin/qmake
+  #       ./linuxdeploy --appdir AppDir --executable build/src/tr4qt --plugin qt --output appimage
+  #
+  #       # Rename with version
+  #       VERSION=$(grep 'APP_VERSION' src/core/Constants.h | cut -d'"' -f2)
+  #       APPIMAGE=$(ls TR4QT*.AppImage | head -1)
+  #       mv "$APPIMAGE" "TR4QT-${VERSION}-aarch64.AppImage"
+  #
+  #       echo "=== AppImage created ==="
+  #       ls -lh TR4QT-*-aarch64.AppImage
+  #
+  #   - name: Copy to Shared Location
+  #     run: |
+  #       # Copy to local network share (Pi specific)
+  #       SHARED_DIR="/mnt/shared/TR4QT/linuxBuild"
+  #       if [ -d "/mnt/shared" ]; then
+  #         mkdir -p "$SHARED_DIR"
+  #         cp TR4QT-*-aarch64.AppImage "$SHARED_DIR/"
+  #         echo "Copied to: $SHARED_DIR/"
+  #         ls -lh "$SHARED_DIR/"
+  #       else
+  #         echo "Shared directory not mounted, skipping copy"
+  #       fi
+  #
+  #   - name: Upload Artifact
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: TR4QT-Linux-ARM64
+  #       path: TR4QT-*-aarch64.AppImage
   #   name: Linux (ARM64/RPi)
   #   runs-on: ubuntu-latest
   #   if: github.event_name == 'workflow_dispatch' && inputs.build_linux == true
