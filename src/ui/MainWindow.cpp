@@ -35,7 +35,9 @@
 #include "widgets/MultiplierWidget.h"
 #include "statistics/StatisticsWindow.h"
 #include "windows/AmplifierControlWindow.h"
+#ifdef PANADAPTER_ENABLED
 #include "windows/PanadapterWindow.h"
+#endif
 #include "../radio/RadioFactory.h"
 #include "widgets/QSOSearchPanel.h"
 #include "NativeMapViewer.h"
@@ -142,7 +144,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_worldMapViewer(nullptr)
     , m_graylineMapDialog(nullptr)
     , m_amplifierControlWindow(nullptr)
-    , m_panadapterWindow(nullptr)
+    // m_panadapterWindow initialized in header (conditionally compiled)
     , m_qsosThisHour(0)
     , m_qsosSinceLastIntegrityCheck(0)
     , m_hasActiveContest(false)
@@ -1372,6 +1374,7 @@ void MainWindow::restoreChildWindows(const WindowGeometry& geometry) {
         LOG_DEBUG("MainWindow", "NOT restoring Amplifier Control window (was hidden on exit)");
     }
 
+#ifdef PANADAPTER_ENABLED
     // Panadapter window
     if (geometry.panadapterVisible) {
         LOG_DEBUG("MainWindow", "Restoring Panadapter window (was visible on exit)");
@@ -1382,6 +1385,7 @@ void MainWindow::restoreChildWindows(const WindowGeometry& geometry) {
     } else {
         LOG_DEBUG("MainWindow", "NOT restoring Panadapter window (was hidden on exit)");
     }
+#endif
 }
 
 void MainWindow::saveSettings() {
@@ -1447,12 +1451,14 @@ void MainWindow::saveSettings() {
     geometry.amplifierControlVisible = m_amplifierControlWindowVisible;
     LOG_DEBUG("MainWindow", QString("Amplifier window tracked visibility: %1").arg(m_amplifierControlWindowVisible));
 
+#ifdef PANADAPTER_ENABLED
     // Panadapter window
     if (m_panadapterWindow) {
         geometry.panadapterGeometry = m_panadapterWindow->saveGeometry();
     }
     geometry.panadapterVisible = m_panadapterWindowVisible;
     LOG_DEBUG("MainWindow", QString("Panadapter window tracked visibility: %1").arg(m_panadapterWindowVisible));
+#endif
 
     // Debug logging for window visibility
     LOG_DEBUG("MainWindow", QString("Saving window visibility - DXCluster:%1 BandMap:%2 RadioCtrl:%3 Radio2Ctrl:%4 Mult:%5 Stats:%6 Sections:%7 States:%8 Grayline:%9 AmpCtrl:%10")
@@ -1541,6 +1547,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Amplifier Control window closed (%1ms, total %2ms)")
                  .arg(closeTimer.restart()).arg(shutdownTimer.elapsed()));
     }
+#ifdef PANADAPTER_ENABLED
     if (m_panadapterWindow) {
         LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Closing Panadapter window... (%1ms elapsed)")
                  .arg(shutdownTimer.elapsed()));
@@ -1548,6 +1555,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Panadapter window closed (%1ms, total %2ms)")
                  .arg(closeTimer.restart()).arg(shutdownTimer.elapsed()));
     }
+#endif
 
     // Disconnect radios before closing and wait for completion
     // CRITICAL: Must allow disconnect packets to be sent before app exits
@@ -3439,11 +3447,13 @@ void MainWindow::updateWindowMenuCheckmarks() {
         ampAction->setChecked(m_amplifierControlWindow && m_amplifierControlWindow->isVisible());
     }
 
+#ifdef PANADAPTER_ENABLED
     // Panadapter action
     QAction* panadapterAction = m_menuManager->panadapterAction();
     if (panadapterAction) {
         panadapterAction->setChecked(m_panadapterWindow && m_panadapterWindow->isVisible());
     }
+#endif
 }
 
 void MainWindow::applyFontSettings() {
@@ -4414,6 +4424,7 @@ void MainWindow::onShowAmplifierControl() {
     updateWindowMenuCheckmarks();
 }
 
+#ifdef PANADAPTER_ENABLED
 void MainWindow::onShowPanadapter() {
     // Create and show panadapter window
     if (!m_panadapterWindow) {
@@ -4457,6 +4468,13 @@ void MainWindow::onShowPanadapter() {
     m_panadapterWindowVisible = true;
     updateWindowMenuCheckmarks();
 }
+#else
+void MainWindow::onShowPanadapter() {
+    DialogHelper::information(this, "Panadapter Not Available",
+        "Panadapter requires Qt 6.6 or later.\n\n"
+        "This build was compiled with an older Qt version.");
+}
+#endif
 
 // Window menu placeholder implementations
 void MainWindow::onSwapMultView() {

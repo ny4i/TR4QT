@@ -1,5 +1,18 @@
 # TR4QT Source Files
 
+# Check Qt version and GuiPrivate availability for panadapter support
+# QQuickRhiItem requires Qt 6.6+ AND Qt6::GuiPrivate (private headers)
+if(Qt6_VERSION VERSION_GREATER_EQUAL "6.6.0" AND Qt6GuiPrivate_FOUND)
+    set(PANADAPTER_SUPPORTED TRUE)
+    message(STATUS "Panadapter: ENABLED (Qt ${Qt6_VERSION} >= 6.6.0, GuiPrivate found)")
+elseif(NOT Qt6_VERSION VERSION_GREATER_EQUAL "6.6.0")
+    set(PANADAPTER_SUPPORTED FALSE)
+    message(STATUS "Panadapter: DISABLED (Qt ${Qt6_VERSION} < 6.6.0, QQuickRhiItem not available)")
+else()
+    set(PANADAPTER_SUPPORTED FALSE)
+    message(STATUS "Panadapter: DISABLED (Qt6::GuiPrivate not found - install qt6-base-private-dev)")
+endif()
+
 # Create object library for core components (enables testing without full app linking)
 # This library contains radio control, logging, and other testable components
 add_library(tr4qt_core OBJECT
@@ -219,19 +232,24 @@ set(SOURCES
     ui/widgets/QSOSearchPanel.cpp
     ui/widgets/SvgPanelWidget.cpp
     ui/windows/AmplifierControlWindow.cpp
-    ui/windows/PanadapterWindow.cpp
     ui/panels/IAmplifierPanelController.h
     ui/panels/KPA1500PanelController.cpp
     ui/panels/AmplifierPanelFactory.cpp
     ui/plots/qcustomplot.cpp
     3rdparty/miniz/miniz.cpp
-    # Panadapter
-    panadapter/PanadapterDataModel.cpp
-    panadapter/renderers/QmlPanadapterRenderer.cpp
-    panadapter/WaterfallImageProvider.cpp
-    panadapter/WaterfallRhiItem.cpp
-    radio/K4PanadapterReader.cpp
 )
+
+# Conditionally add panadapter sources (requires Qt 6.6+)
+if(PANADAPTER_SUPPORTED)
+    list(APPEND SOURCES
+        ui/windows/PanadapterWindow.cpp
+        panadapter/PanadapterDataModel.cpp
+        panadapter/renderers/QmlPanadapterRenderer.cpp
+        panadapter/WaterfallImageProvider.cpp
+        panadapter/WaterfallRhiItem.cpp
+        radio/K4PanadapterReader.cpp
+    )
+endif()
 
 set(HEADERS
     core/Types.h
@@ -348,20 +366,25 @@ set(HEADERS
     ui/widgets/QSOSearchPanel.h
     ui/widgets/SvgPanelWidget.h
     ui/windows/AmplifierControlWindow.h
-    ui/windows/PanadapterWindow.h
     ui/panels/IAmplifierPanelController.h
     ui/panels/KPA1500PanelController.h
     ui/panels/AmplifierPanelFactory.h
     ui/plots/qcustomplot.h
-    # Panadapter
-    panadapter/PanadapterTypes.h
-    panadapter/PanadapterDataModel.h
-    panadapter/IPanadapterRenderer.h
-    panadapter/renderers/QmlPanadapterRenderer.h
-    panadapter/WaterfallImageProvider.h
-    panadapter/WaterfallRhiItem.h
-    radio/K4PanadapterReader.h
 )
+
+# Conditionally add panadapter headers (requires Qt 6.6+)
+if(PANADAPTER_SUPPORTED)
+    list(APPEND HEADERS
+        ui/windows/PanadapterWindow.h
+        panadapter/PanadapterTypes.h
+        panadapter/PanadapterDataModel.h
+        panadapter/IPanadapterRenderer.h
+        panadapter/renderers/QmlPanadapterRenderer.h
+        panadapter/WaterfallImageProvider.h
+        panadapter/WaterfallRhiItem.h
+        radio/K4PanadapterReader.h
+    )
+endif()
 
 # Set icon file for macOS
 set(MACOSX_ICON_FILE "${CMAKE_SOURCE_DIR}/resources/icons/tr4qt.icns")
@@ -381,8 +404,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.57"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.57"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.58"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.58"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
@@ -403,15 +426,17 @@ else()
     )
 endif()
 
-# Compile GLSL shaders for waterfall QRhi rendering
-# qt_add_shaders generates .qsb files for all supported backends (Metal, Vulkan, D3D, GLSL)
-qt_add_shaders(tr4qt "waterfall_shaders"
-    PREFIX "/"
-    BASE "${CMAKE_SOURCE_DIR}/resources"
-    FILES
-        ${CMAKE_SOURCE_DIR}/resources/shaders/waterfall.vert
-        ${CMAKE_SOURCE_DIR}/resources/shaders/waterfall.frag
-)
+# Compile GLSL shaders for waterfall QRhi rendering (only if panadapter supported)
+if(PANADAPTER_SUPPORTED)
+    # qt_add_shaders generates .qsb files for all supported backends (Metal, Vulkan, D3D, GLSL)
+    qt_add_shaders(tr4qt "waterfall_shaders"
+        PREFIX "/"
+        BASE "${CMAKE_SOURCE_DIR}/resources"
+        FILES
+            ${CMAKE_SOURCE_DIR}/resources/shaders/waterfall.vert
+            ${CMAKE_SOURCE_DIR}/resources/shaders/waterfall.frag
+    )
+endif()
 
 # Link Qt6 libraries, tr4qt_core object library, and qtkeychain
 target_link_libraries(tr4qt PRIVATE
@@ -429,9 +454,14 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::Quick
     Qt6::QuickWidgets
     Qt6::Qml
-    Qt6::GuiPrivate  # Required for QRhi (WaterfallRhiItem)
     qt6keychain  # Secure credential storage (macOS Keychain, Windows Credential Manager)
 )
+
+# Conditionally link Qt6::GuiPrivate for panadapter (QRhi requires it)
+if(PANADAPTER_SUPPORTED)
+    target_link_libraries(tr4qt PRIVATE Qt6::GuiPrivate)
+    target_compile_definitions(tr4qt PRIVATE PANADAPTER_ENABLED=1)
+endif()
 
 # Note: Qt6::EntryPoint is not needed for console applications
 # Windows builds as console app due to Qt 6.10.1 MinGW compatibility issues

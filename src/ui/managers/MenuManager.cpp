@@ -42,6 +42,8 @@ MenuManager::MenuManager(QWidget* parent)
     , m_statesMapAction(nullptr)
     , m_worldMapAction(nullptr)
     , m_graylineMapAction(nullptr)
+    , m_amplifierControlAction(nullptr)
+    , m_panadapterAction(nullptr)
 {
 }
 
@@ -424,9 +426,13 @@ void MenuManager::createWindowMenu(QMenuBar* menuBar, const Config& config) {
         m_amplifierControlAction->setEnabled(false);
     }
 
+#ifdef PANADAPTER_ENABLED
     m_panadapterAction = windowMenu->addAction("&Panadapter");
     m_panadapterAction->setCheckable(true);
     connect(m_panadapterAction, &QAction::triggered, this, config.onShowPanadapter);
+#else
+    m_panadapterAction = nullptr;  // Panadapter requires Qt 6.6+
+#endif
 
     windowMenu->addSeparator();
 
