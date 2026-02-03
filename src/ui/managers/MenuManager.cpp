@@ -110,7 +110,8 @@ void MenuManager::createFileMenu(QMenuBar* menuBar, const Config& config) {
 }
 
 void MenuManager::createRadioMenu(QMenuBar* menuBar, const Config& config) {
-    QMenu* radioMenu = menuBar->addMenu("&Radio");
+    // Note: No & accelerator - Alt+R is Toggle Rigs (TR4W compatibility)
+    QMenu* radioMenu = menuBar->addMenu("Radio");
 
     QAction* configAction = radioMenu->addAction("&Configure...");
     configAction->setMenuRole(QAction::NoRole);  // Prevent macOS from moving this to app menu
@@ -162,7 +163,8 @@ void MenuManager::createRadioMenu(QMenuBar* menuBar, const Config& config) {
 }
 
 void MenuManager::createEditMenu(QMenuBar* menuBar, const Config& config) {
-    QMenu* editMenu = menuBar->addMenu("&Edit");
+    // Note: No & accelerator - Alt+E is SO2R Edit (TR4W compatibility)
+    QMenu* editMenu = menuBar->addMenu("Edit");
 
     QAction* viewEditLogAction = editMenu->addAction("View/&Edit Log");
     viewEditLogAction->setShortcut(QKeySequence("Ctrl+L"));
@@ -200,7 +202,7 @@ void MenuManager::createToolsMenu(QMenuBar* menuBar, const Config& config) {
     connect(downloadCTYAction, &QAction::triggered, this, config.onDownloadCTY);
 
     QAction* downloadLOTWAction = downloadMenu->addAction("LOTW Users");
-    downloadLOTWAction->setShortcut(QKeySequence("Alt+L"));
+    // No shortcut - Alt+L is Search Log (TR4W compatibility)
     connect(downloadLOTWAction, &QAction::triggered, this, config.onDownloadLOTW);
 
     QAction* downloadSCPAction = downloadMenu->addAction("MASTER.SCP (Callsign Database)");
@@ -223,7 +225,7 @@ void MenuManager::createToolsMenu(QMenuBar* menuBar, const Config& config) {
 
     // Data integrity check
     QAction* integrityCheckAction = toolsMenu->addAction("Validate Log Integrity");
-    integrityCheckAction->setShortcut(QKeySequence("Alt+I"));
+    // No shortcut - Alt+I is Inc Number (TR4W compatibility)
     connect(integrityCheckAction, &QAction::triggered, this, config.onFullIntegrityCheck);
 
     toolsMenu->addSeparator();
@@ -242,7 +244,8 @@ void MenuManager::createToolsMenu(QMenuBar* menuBar, const Config& config) {
 }
 
 void MenuManager::createOperatingMenu(QMenuBar* menuBar, const Config& config) {
-    QMenu* operatingMenu = menuBar->addMenu("&Operating");
+    // Note: Using O&perating (Alt+P) to avoid conflict with Alt+O (Download CTY - TR4W compatibility)
+    QMenu* operatingMenu = menuBar->addMenu("O&perating");
 
     QAction* autoCQAction = operatingMenu->addAction("Auto CQ");
     autoCQAction->setShortcut(QKeySequence("Alt+Q"));
@@ -295,7 +298,8 @@ void MenuManager::createOperatingMenu(QMenuBar* menuBar, const Config& config) {
 }
 
 void MenuManager::createCommandsMenu(QMenuBar* menuBar, const Config& config) {
-    QMenu* commandsMenu = menuBar->addMenu("&Commands");
+    // Note: No & accelerator - Alt+C is Auto CQ Resume (TR4W compatibility)
+    QMenu* commandsMenu = menuBar->addMenu("Commands");
 
     QAction* cqModeAction = commandsMenu->addAction("CQ Mode");
     cqModeAction->setShortcut(QKeySequence("Shift+Tab"));
@@ -307,7 +311,8 @@ void MenuManager::createCommandsMenu(QMenuBar* menuBar, const Config& config) {
 }
 
 void MenuManager::createAutomationMenu(QMenuBar* menuBar, const Config& config) {
-    QMenu* automationMenu = menuBar->addMenu("&Automation");
+    // Note: No & accelerator - Alt+A is WK Mode (TR4W compatibility)
+    QMenu* automationMenu = menuBar->addMenu("Automation");
 
     QAction* autoSPEnableAction = automationMenu->addAction("AUTO S&&P ENABLE");
     autoSPEnableAction->setCheckable(true);
@@ -355,7 +360,8 @@ void MenuManager::createAutomationMenu(QMenuBar* menuBar, const Config& config) 
 }
 
 void MenuManager::createWindowMenu(QMenuBar* menuBar, const Config& config) {
-    QMenu* windowMenu = menuBar->addMenu("&Window");
+    // Note: No & accelerator - Alt+W is Initialize QSO (TR4W compatibility)
+    QMenu* windowMenu = menuBar->addMenu("Window");
 
     m_bandMapAction = windowMenu->addAction("&Band Map");
     m_bandMapAction->setCheckable(true);

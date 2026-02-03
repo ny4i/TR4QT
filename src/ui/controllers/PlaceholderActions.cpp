@@ -42,7 +42,7 @@ const PlaceholderActions::ActionInfo& PlaceholderActions::getActionInfo(Action a
 
         // Tools menu
         {"WK Mode", "Alt+A", "This will re-initialize the WinKeyer for CW keying."},
-        {"Backup Log", "Alt+O", "This will create a backup of the current log."},
+        {"Backup Log", "Alt+F", "This will create a backup of the current log."},
         {"Initialize", "Alt+W", "This will initialize/reset contest parameters."},
 
         // Operating menu
