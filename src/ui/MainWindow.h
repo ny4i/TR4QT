@@ -96,7 +96,9 @@ class StatisticsWindow;
 class FunctionKeysWindow;
 class GraylineMapDialog;
 class AmplifierControlWindow;
+#ifdef PANADAPTER_ENABLED
 class PanadapterWindow;
+#endif
 class UdpBroadcastManager;
 class WebServer;
 class CountryFileDownloader;
@@ -428,12 +430,16 @@ private:
     NativeMapViewer* m_worldMapViewer;
     GraylineMapDialog* m_graylineMapDialog;
     AmplifierControlWindow* m_amplifierControlWindow;
-    PanadapterWindow* m_panadapterWindow;
+#ifdef PANADAPTER_ENABLED
+    PanadapterWindow* m_panadapterWindow = nullptr;
+#endif
 
     // Window visibility tracking (for reliable save during shutdown)
     // Qt's isVisible() can return false during SIGTERM handling, so we track state ourselves
     bool m_amplifierControlWindowVisible{false};
+#ifdef PANADAPTER_ENABLED
     bool m_panadapterWindowVisible{false};
+#endif
     bool m_radioControlWindowVisible{false};
     bool m_radio2ControlWindowVisible{false};
 
