@@ -492,7 +492,7 @@ private:
     WindowManager* m_windowManager;                      // Qt parent-managed
 
     // Controllers
-    ImportExportManager* m_importExportManager;          // Qt parent-managed
+    std::unique_ptr<ImportExportManager> m_importExportManager;  // RAII-managed (not QObject)
     DownloadManager* m_downloadManager;                  // Qt parent-managed
     RadioManager* m_radioManager;                        // Qt parent-managed
     BandSwitchingManager* m_bandSwitchingManager;        // Qt parent-managed
@@ -507,7 +507,7 @@ private:
     RotatorService* m_rotatorService{nullptr};
 
     // Maintenance service (log clearing, backups)
-    MaintenanceService* m_maintenanceService;
+    std::unique_ptr<MaintenanceService> m_maintenanceService;  // RAII-managed (not QObject)
 
     // Input handler service (keyboard handling for CW, mode switching)
     InputHandlerService* m_inputHandler;
