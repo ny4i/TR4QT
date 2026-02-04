@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.40.58] - 2026-02-04
+
+### Added
+- **Linux x86_64 AppImage**: Native Linux desktop support
+  - Self-hosted Proxmox runner for CI builds
+  - Manual Qt deployment (linuxdeploy too unreliable)
+- **Linux ARM64 AppImage**: Support for Raspberry Pi 4/5/400
+  - Build script and CI template for ARM64 builds
+  - Uses Bookworm chroot for glibc 2.36 compatibility
+  - Native C wrapper binary for proper architecture detection
+- **Wiki Documentation**: Added user guides
+  - "Running TR4QT for the First Time" - complete setup guide
+  - "Raspberry Pi ARM64 Build" - build environment documentation
+
+### Changed
+- **Qt 6.4 Compatibility**: Changed `QTimeZone::UTC` to `Qt::UTC` for older Qt versions
+  - Affected files: `ADIFFieldMapper.cpp`, `test_adif_import.cpp`
+- **Panadapter Optional**: Feature disabled on Qt < 6.6 (Raspberry Pi builds)
+
+## [3.40.57] - 2026-02-03
+
+### Fixed
+- **Alt+O Shortcut Conflict on Windows**: Fixed keyboard shortcut conflicts for TR4W compatibility
+  - Alt+O and other Alt shortcuts no longer conflict with Windows menu accelerators
+
+## [3.40.56] - 2026-02-02
+
+### Changed
+- **KPA1500 Pre-flight Check**: Added exponential backoff for connection reliability
+  - Improves connection stability when amplifier is slow to respond
+
+## [3.40.55] - 2026-02-01
+
+### Added
+- **GPU-Accelerated Waterfall Display**: New QRhi-based rendering for K4 panadapter
+  - Independent reference level controls for each VFO
+  - Hardware-accelerated rendering for smooth display
+  - Requires Qt 6.6+ (disabled on older Qt)
+
+## [3.40.52] - 2026-02-01
+
+### Added
+- **Gradient LUT for Meters**: Visual improvements for analog-style displays
+  - S-meter uses gradient lookup table for smooth color transitions
+  - Power meter gradient display
+  - Amplifier SWR display with gradient coloring
+
+## [3.40.51] - 2026-01-31
+
+### Fixed
+- **QSettings Stuck-in-Group Bug**: Fixed settings corruption issue
+  - Added RAII scope guards to ensure `endGroup()` always called
+  - Prevents settings from being written to wrong groups
+
+## [3.40.49] - 2026-01-31
+
+### Added
+- **K4 Panadapter/Waterfall Display**: Real-time spectrum display for Elecraft K4
+  - QImage-based ImageProvider for efficient rendering
+  - Displays both VFO A and VFO B spectrum data
+
 ## [3.40.44] - 2026-01-31
 
 ### Changed
