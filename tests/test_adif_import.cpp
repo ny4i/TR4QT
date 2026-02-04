@@ -52,7 +52,7 @@ private slots:
         QCOMPARE(firstQSO.qsoPoints, 1);
 
         // Verify date/time parsing (2025-09-27 00:24:48 UTC)
-        QDateTime expected = QDateTime(QDate(2025, 9, 27), QTime(0, 24, 48), QTimeZone::UTC);
+        QDateTime expected = QDateTime(QDate(2025, 9, 27), QTime(0, 24, 48), Qt::UTC);
         QCOMPARE(firstQSO.timestamp, expected);
     }
 
