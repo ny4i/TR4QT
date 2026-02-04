@@ -204,7 +204,7 @@ MainWindow::MainWindow(QWidget* parent)
     LOG_DEBUG("MainWindow", "ScoreCalculationService created");
 
     // Create MaintenanceService (clear log, backup workflows)
-    m_maintenanceService = new MaintenanceService(this);
+    m_maintenanceService = std::make_unique<MaintenanceService>(this);
     LOG_DEBUG("MainWindow", "MaintenanceService created");
 
     // Create QSOQueryService (Phase 13 extraction)
@@ -285,7 +285,7 @@ MainWindow::MainWindow(QWidget* parent)
     importExportConfig.currentContestDbId = m_currentContestDbId;
     importExportConfig.currentContestName = m_currentContest.contestName;
     importExportConfig.hasActiveContest = m_hasActiveContest;
-    m_importExportManager = new ImportExportManager(importExportConfig, this);
+    m_importExportManager = std::make_unique<ImportExportManager>(importExportConfig, this);
     LOG_DEBUG("MainWindow", "ImportExportManager created");
 
     // Initialize web server with current operator (only if explicitly set)

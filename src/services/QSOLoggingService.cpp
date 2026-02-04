@@ -59,19 +59,25 @@ QSOLoggingService::LogQSOResult QSOLoggingService::logQSO(const LogQSORequest& r
     QSOLogger::Result loggerResult = m_deps.qsoLogger->logQSO(loggerInput, request.existingQSOs);
 
     if (!loggerResult.success) {
-        // Validation failed - determine which field caused the error
+        // Validation failed - map QSOLogger's error field to our ErrorField
         result.success = false;
         result.errorMessage = loggerResult.errorMessage;
 
-        // Set errorField based on error message content (QSOLogger returns specific messages)
-        if (result.errorMessage.contains("Callsign", Qt::CaseInsensitive)) {
-            result.errorField = ErrorField::Callsign;
-        } else if (result.errorMessage.contains("Exchange", Qt::CaseInsensitive)) {
-            result.errorField = ErrorField::Exchange;
-        } else if (result.errorMessage.contains("Band", Qt::CaseInsensitive)) {
-            result.errorField = ErrorField::Frequency;
-        } else if (result.errorMessage.contains("Mode", Qt::CaseInsensitive)) {
-            result.errorField = ErrorField::Mode;
+        // Map ValidationErrorField to ErrorField (enum-based, not string matching)
+        switch (loggerResult.errorField) {
+            case ValidationErrorField::Callsign:
+                result.errorField = ErrorField::Callsign;
+                break;
+            case ValidationErrorField::Exchange:
+                result.errorField = ErrorField::Exchange;
+                break;
+            case ValidationErrorField::BandMode:
+                result.errorField = ErrorField::Frequency;  // Maps to band/mode error
+                break;
+            case ValidationErrorField::None:
+            default:
+                result.errorField = ErrorField::None;
+                break;
         }
 
         LOG_DEBUG("QSOLoggingService", QString("QSOLogger validation failed: %1 (field: %2)")

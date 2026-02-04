@@ -31,6 +31,17 @@
 using namespace TR4QT;
 
 /**
+ * Enum indicating which field caused a validation error.
+ * Used by QSOLoggingService to set focus to the correct input field.
+ */
+enum class ValidationErrorField {
+    None,       // No error or unknown
+    Callsign,   // Callsign validation failed
+    Exchange,   // Exchange validation failed
+    BandMode    // Band or mode validation failed
+};
+
+/**
  * QSOLogger - Handles QSO logging workflow
  *
  * Extracted from MainWindow::onLogQSO() to isolate core logging logic
@@ -74,6 +85,7 @@ public:
     struct Result {
         bool success = false;           // true if QSO created successfully
         QString errorMessage;           // Error message if success = false
+        ValidationErrorField errorField = ValidationErrorField::None;  // Which field failed
         QSO qso;                        // Created QSO object (if success = true)
         bool isDuplicate = false;       // true if this is a duplicate QSO
         QString dupeInfo;               // Human-readable duplicate info

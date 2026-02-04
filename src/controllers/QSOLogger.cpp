@@ -38,16 +38,19 @@ QSOLogger::Result QSOLogger::logQSO(const Input& input, const QList<QSO>& existi
 
     if (!validateCallsign(input.callsign, errorMsg)) {
         result.errorMessage = errorMsg;
+        result.errorField = ValidationErrorField::Callsign;
         return result;
     }
 
     if (!validateExchange(input.exchange, errorMsg)) {
         result.errorMessage = errorMsg;
+        result.errorField = ValidationErrorField::Exchange;
         return result;
     }
 
     if (!validateBandMode(input.radioState, errorMsg)) {
         result.errorMessage = errorMsg;
+        result.errorField = ValidationErrorField::BandMode;
         return result;
     }
 
