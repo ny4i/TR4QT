@@ -62,6 +62,7 @@
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
+#include "helpers/WindowActivationHelper.h"
 #include "../controllers/ImportExportManager.h"
 #include "../controllers/DownloadManager.h"
 #include "../controllers/RadioManager.h"
@@ -490,6 +491,7 @@ private:
     MenuManager* m_menuManager;                          // Qt parent-managed
     std::unique_ptr<SettingsManager> m_settingsManager;  // No Qt parent, owned
     WindowManager* m_windowManager;                      // Qt parent-managed
+    WindowActivationHelper* m_windowActivationHelper;    // Qt parent-managed (Issue #76)
 
     // Controllers
     std::unique_ptr<ImportExportManager> m_importExportManager;  // RAII-managed (not QObject)

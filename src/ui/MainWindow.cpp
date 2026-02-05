@@ -164,6 +164,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_menuManager(nullptr)
     , m_settingsManager(nullptr)
     , m_windowManager(nullptr)
+    , m_windowActivationHelper(nullptr)
     , m_importExportManager(nullptr)
     , m_downloadManager(nullptr)
     , m_radioManager(nullptr)
@@ -232,6 +233,7 @@ MainWindow::MainWindow(QWidget* parent)
     m_bandSwitchingManager = new BandSwitchingManager(this);
     m_cwMessageManager = std::make_unique<CWMessageManager>(CWMessageManager::Config{m_radio, nullptr});  // Contest set later
     m_windowManager = new WindowManager(this);
+    m_windowActivationHelper = new WindowActivationHelper(this, this);
     m_settingsManager = std::make_unique<SettingsManager>();
     LOG_DEBUG("MainWindow", "Controllers and UI managers created");
 
@@ -1649,15 +1651,11 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
 }
 
 bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
-#ifdef Q_OS_MAC
-    // macOS: Bring all windows to front when app is activated (if setting enabled)
-    if (event->type() == QEvent::ApplicationActivate) {
-        if (AppSettings::instance().getShowAllWindowsOnActivate()) {
-            LOG_DEBUG("MainWindow", "ApplicationActivate received - raising all windows");
-            raiseAllWindows();
-        }
+    // Delegate window activation events to WindowActivationHelper (Issue #76)
+    // Handles: ApplicationActivate (macOS), WindowActivate on tracked child windows
+    if (m_windowActivationHelper->handleEvent(obj, event)) {
+        return true;
     }
-#endif
 
     // Delegate keyboard events to InputHandlerService
     if (event->type() == QEvent::KeyPress) {
@@ -1683,21 +1681,6 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
         return false;
     }
 
-    // Catch WindowActivate events on any of our windows
-    if (event->type() == QEvent::WindowActivate) {
-        QWidget* widget = qobject_cast<QWidget*>(obj);
-        if (widget && widget->isWindow()) {
-            // Only raise windows when one of the CHILD windows is activated
-            if (widget == m_dxClusterWindow ||
-                widget == m_bandMapWindow ||
-                widget == m_radioControlWindow ||
-                widget == m_multiplierWindow ||
-                widget == m_statisticsWindow) {
-                raiseAllWindows(widget);
-            }
-        }
-    }
-
     // Radio Control window show/hide: Toggle detailed rig info (S-meter, temperature)
     if (obj == m_radioControlWindow) {
         if (event->type() == QEvent::Show) {
@@ -1719,28 +1702,8 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
 }
 
 void MainWindow::raiseAllWindows(QWidget* activatedWindow) {
-    // Raise ALL top-level windows belonging to this application.
-    // This is more robust than tracking individual windows, as windows
-    // may be created lazily and WindowManager config may be stale.
-    //
-    // Order matters: raise all windows first, then re-raise the window
-    // the user clicked on so it stays on top (not buried under MainWindow).
-    const auto topLevelWidgets = QApplication::topLevelWidgets();
-    for (QWidget* widget : topLevelWidgets) {
-        if (widget && widget->isVisible() && !widget->isMinimized() && widget != activatedWindow) {
-            widget->raise();
-        }
-    }
-
-    // Re-raise the clicked window last so it stays in front
-    if (activatedWindow && activatedWindow->isVisible()) {
-        activatedWindow->raise();
-        activatedWindow->activateWindow();
-    } else {
-        // No specific window activated (e.g., ApplicationActivate) — activate MainWindow
-        raise();
-        activateWindow();
-    }
+    // Delegate to WindowActivationHelper (Issue #76)
+    m_windowActivationHelper->raiseAllWindows(activatedWindow);
 }
 
 void MainWindow::setStatusMessage(const QString& message) {
@@ -4012,6 +3975,9 @@ void MainWindow::onShowDXCluster() {
                     }
                 });
 
+        // Track window for activation behavior (Issue #76)
+        m_windowActivationHelper->trackWindow(m_dxClusterWindow);
+
         // Update WindowManager config with new window
         if (m_windowManager) {
             WindowManager::Config config;
@@ -4071,6 +4037,9 @@ void MainWindow::onShowBandMap() {
                     m_callsignEntry->setText(callsign);
                     m_callsignEntry->setFocus();
                 });
+
+        // Track window for activation behavior (Issue #76)
+        m_windowActivationHelper->trackWindow(m_bandMapWindow);
     }
 
     // Send current band to Band Map (works for new window or restored window)
@@ -4179,6 +4148,9 @@ void MainWindow::onShowRadioControl() {
                       .arg(static_cast<int>(m_currentState.bandA)));
             m_radioControlWindow->updateRadioState(m_currentState);
         }
+
+        // Track window for activation behavior (Issue #76)
+        m_windowActivationHelper->trackWindow(m_radioControlWindow);
     }
     m_radioControlWindow->show();
     m_radioControlWindow->raise();
@@ -4296,6 +4268,9 @@ void MainWindow::onShowMultipliers() {
         m_multiplierWindow->setWindowTitle("Multipliers");
         m_multiplierWindow->setWindowFlags(Qt::Window);
         m_multiplierWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Track window for activation behavior (Issue #76)
+        m_windowActivationHelper->trackWindow(m_multiplierWindow);
     }
     m_multiplierWindow->show();
     m_multiplierWindow->raise();
@@ -4309,6 +4284,9 @@ void MainWindow::onShowStatistics() {
         m_statisticsWindow->setWindowTitle("Statistics");
         m_statisticsWindow->setWindowFlags(Qt::Window);
         m_statisticsWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Track window for activation behavior (Issue #76)
+        m_windowActivationHelper->trackWindow(m_statisticsWindow);
     }
 
     // Always reload contest data when showing the window to ensure fresh data
