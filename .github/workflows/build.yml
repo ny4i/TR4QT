@@ -48,16 +48,38 @@ jobs:
       MINGW_BIN: C:/Qt/Tools/mingw1310_64/bin
 
     steps:
-    - name: Clean workspace
-      shell: bash
-      run: |
-        # Self-hosted runners persist between builds - clean old artifacts
-        rm -rf build || true
-
     - name: Checkout
       uses: actions/checkout@v4
       with:
         clean: true
+        fetch-depth: 2  # Need HEAD~1 for incremental build detection
+
+    - name: Smart clean (incremental builds)
+      shell: bash
+      run: |
+        # Self-hosted runners keep build dir between runs for fast incremental builds.
+        # Force clean rebuild when build system changes or on release tags.
+        FORCE_CLEAN=false
+
+        # Always clean for release/tag builds (safety first)
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          echo "Tag build - forcing clean rebuild"
+          FORCE_CLEAN=true
+        # Clean if CMake config changed
+        elif git diff HEAD~1 --name-only 2>/dev/null | grep -qE '(CMakeLists\.txt|\.cmake)'; then
+          echo "Build system changed - forcing clean rebuild"
+          FORCE_CLEAN=true
+        # Clean if no previous build exists
+        elif [ ! -d build ]; then
+          echo "No previous build - clean build"
+          FORCE_CLEAN=true
+        else
+          echo "Incremental build (only recompiling changed files)"
+        fi
+
+        if [ "$FORCE_CLEAN" = true ]; then
+          rm -rf build || true
+        fi
 
     - name: Validate tr4qt.rc Version Syntax
       shell: bash
@@ -672,6 +694,31 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 2  # Need HEAD~1 for incremental build detection
+
+    - name: Smart clean (incremental builds)
+      run: |
+        # Self-hosted runners keep build dir between runs for fast incremental builds.
+        # Force clean rebuild when build system changes or on release tags.
+        FORCE_CLEAN=false
+
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          echo "Tag build - forcing clean rebuild"
+          FORCE_CLEAN=true
+        elif git diff HEAD~1 --name-only 2>/dev/null | grep -qE '(CMakeLists\.txt|\.cmake)'; then
+          echo "Build system changed - forcing clean rebuild"
+          FORCE_CLEAN=true
+        elif [ ! -d build ]; then
+          echo "No previous build - clean build"
+          FORCE_CLEAN=true
+        else
+          echo "Incremental build (only recompiling changed files)"
+        fi
+
+        if [ "$FORCE_CLEAN" = true ]; then
+          rm -rf build || true
+        fi
 
     - name: Configure CMake
       run: |
