@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.40.62] - 2026-02-04
+
+### Added
+- **StatusNotifier Service** (Issue #75): Centralized status bar messaging
+  - `StatusEvent` enum with 50+ event types for all status messages
+  - `StatusStyle` enum for consistent styling (Normal, Warning, Error, Success, Highlight)
+  - MainWindow subscribes via signal/slot - domain code no longer touches UI directly
+- **WindowActivationHelper** (Issue #76): Extracted window activation logic from MainWindow
+  - Manages window z-order and "raise all windows" behavior
+  - Tracks child windows (DXCluster, BandMap, RadioControl, Multiplier, Statistics)
+  - Handles ApplicationActivate (macOS) and WindowActivate events
+- **Post-Release Script**: `scripts/post-release.sh` automates macOS notarization and Pi builds
+- **macOS Notarization**: Hardened runtime enabled in `macos-bundle.sh` for Apple notarization
+
+### Fixed
+- **Linux Segfault**: Null check for WindowActivationHelper in eventFilter
+  - Crash occurred when eventFilter was called during MainWindow construction
+
 ## [3.40.60] - 2026-02-04
 
 ### Added
