@@ -162,16 +162,16 @@ bool QSOLogger::validateExchange(const QString& exchange, QString& errorMsg)
 
 bool QSOLogger::validateBandMode(const RadioState& radioState, QString& errorMsg)
 {
-    // CRITICAL: Prevent logging QSO with invalid band/mode
-    if (radioState.bandA == BandType::None || radioState.modeA == ModeType::None) {
-        if (radioState.bandA == BandType::None && radioState.modeA == ModeType::None) {
-            errorMsg = "Error: Band and Mode not set - use Band Up/Down (ALT-B/ALT-V) to select band";
-        } else if (radioState.bandA == BandType::None) {
-            errorMsg = "Error: Band not set - use Band Up/Down (ALT-B/ALT-V) to select band";
-        } else {
-            errorMsg = "Error: Mode not set - radio not connected and mode unknown";
-        }
+    // Band is always required - can't log without knowing the band
+    if (radioState.bandA == BandType::None) {
+        errorMsg = "Error: Band not set - use Band Up/Down (ALT-B/ALT-V) to select band";
         return false;
+    }
+
+    // Mode unknown is allowed - radio may report RIG_MODE_NONE when disconnected
+    // or during mode transitions. Log a warning but let the QSO proceed.
+    if (radioState.modeA == ModeType::None) {
+        LOG_WARN("QSOLogger", "Logging QSO with unknown mode (radio may be disconnected)");
     }
 
     return true;
@@ -295,7 +295,12 @@ bool QSOLogger::checkForDuplicate(const QString& callsign,
         switch (dupeRule) {
         case DuplicateCheckingRule::PerBandMode:
             // Duplicate if same callsign + same band + same mode
-            isDupe = (existingQSO.band == band && existingQSO.mode == mode);
+            // If either QSO has unknown mode, treat as wildcard (match any mode)
+            // to prevent logging the same station twice when mode is uncertain
+            isDupe = (existingQSO.band == band &&
+                      (existingQSO.mode == mode ||
+                       mode == ModeType::None ||
+                       existingQSO.mode == ModeType::None));
             if (isDupe) {
                 dupeInfo = QString("Already worked on %1 %2")
                            .arg(bandToString(band))
@@ -305,7 +310,10 @@ bool QSOLogger::checkForDuplicate(const QString& callsign,
 
         case DuplicateCheckingRule::AllBandMode:
             // Duplicate if same callsign + same mode (any band)
-            isDupe = (existingQSO.mode == mode);
+            // Unknown mode = wildcard (matches any mode)
+            isDupe = (existingQSO.mode == mode ||
+                      mode == ModeType::None ||
+                      existingQSO.mode == ModeType::None);
             if (isDupe) {
                 dupeInfo = QString("Already worked on %1 (any band)")
                            .arg(modeToString(mode));

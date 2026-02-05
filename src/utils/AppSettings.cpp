@@ -474,6 +474,9 @@ void AppSettings::saveRadioProfiles(const QList<RadioProfile>& profiles) {
             m_settings.setValue("dataBits", profiles[i].config.dataBits);
             m_settings.setValue("stopBits", profiles[i].config.stopBits);
             m_settings.setValue("parity", profiles[i].config.parity);
+            m_settings.setValue("handshake", profiles[i].config.handshake);
+            m_settings.setValue("dtrState", profiles[i].config.dtrState);
+            m_settings.setValue("rtsState", profiles[i].config.rtsState);
             m_settings.setValue("civAddress", profiles[i].config.civAddress);
             m_settings.setValue("pollInterval", profiles[i].config.pollInterval);
             m_settings.setValue("radioType", profiles[i].config.radioType);
@@ -512,6 +515,9 @@ QList<RadioProfile> AppSettings::loadRadioProfiles() const {
         profile.config.dataBits = m_settings.value("dataBits", 8).toInt();
         profile.config.stopBits = m_settings.value("stopBits", 1).toInt();
         profile.config.parity = m_settings.value("parity", 0).toInt();
+        profile.config.handshake = m_settings.value("handshake", 0).toInt();
+        profile.config.dtrState = m_settings.value("dtrState", 0).toInt();
+        profile.config.rtsState = m_settings.value("rtsState", 0).toInt();
         profile.config.civAddress = m_settings.value("civAddress", 0).toInt();
         profile.config.pollInterval = m_settings.value("pollInterval", 5000).toInt();  // Default 5s (transceive provides instant updates)
         profile.config.radioType = m_settings.value("radioType", -1).toInt();

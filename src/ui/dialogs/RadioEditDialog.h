@@ -150,6 +150,9 @@ private:
     QComboBox* m_dataBitsCombo;
     QComboBox* m_stopBitsCombo;
     QComboBox* m_parityCombo;
+    QComboBox* m_handshakeCombo;
+    QComboBox* m_dtrStateCombo;
+    QComboBox* m_rtsStateCombo;
 
     // Network settings
     QLineEdit* m_ipAddressEdit;
