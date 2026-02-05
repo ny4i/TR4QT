@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.40.60] - 2026-02-04
+
+### Added
+- **Manual Mode Override**: Click mode label in Radio Control window to set mode manually
+  - Works even when radio doesn't report supported modes via Hamlib
+  - Fallback list: CW, CW-R, USB, LSB, RTTY, RTTY-R, DATA, DATA-R, FM, AM
+  - Supports both Radio 1 and Radio 2 (SO2R)
+- **Custom Baud Rate Support**: Enter any baud rate for non-standard radios
+  - New "Custom" option in baud rate dropdown with text entry field
+  - Supports rates from 300 to 5,000,000 (for high-speed 3Mbaud radios)
+  - Preset options now include 3000000
+
+## [3.40.59] - 2026-02-04
+
+### Changed
+- **RAII Smart Pointers**: Converted MaintenanceService and ImportExportManager to `std::unique_ptr`
+- **Enum-Based Error Fields**: Replaced string-matching error handling with enums in QSOLogger
+  - Preparation for future internationalization (i18n) support
+  - Field focus logic no longer depends on error message text
+
 ## [3.40.58] - 2026-02-04
 
 ### Added
