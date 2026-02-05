@@ -38,12 +38,26 @@ permissions:
 jobs:
   build-windows:
     name: Windows (MinGW)
-    runs-on: windows-latest
+    runs-on: [self-hosted, windows, X64]
     if: github.event_name != 'workflow_dispatch' || inputs.build_windows == true
 
+    # Self-hosted runner has Qt 6.10.1, MinGW, and Hamlib pre-installed
+    env:
+      QT_ROOT_DIR: C:/Qt/6.10.1/mingw_64
+      HAMLIB_ROOT: C:/hamlib
+      MINGW_BIN: C:/Qt/Tools/mingw1310_64/bin
+
     steps:
+    - name: Clean workspace
+      shell: bash
+      run: |
+        # Self-hosted runners persist between builds - clean old artifacts
+        rm -rf build || true
+
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        clean: true
 
     - name: Validate tr4qt.rc Version Syntax
       shell: bash
@@ -61,41 +75,26 @@ jobs:
         echo ""
         bash scripts/validate-qt-modules.sh
 
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v4
-      with:
-        version: ${{ env.QT_VERSION }}
-        host: windows
-        target: desktop
-        arch: win64_mingw
-        tools: 'tools_mingw1310'
-        modules: 'qtwebsockets qthttpserver qtserialport qtshadertools'  # HttpServer for web UI, SerialPort for radio, shadertools for QRhi waterfall (Qt Quick/QML is in base)
-        cache: true
-
-    - name: Download Hamlib
+    - name: Verify Pre-installed Tools
       shell: bash
       run: |
-        curl -L -o hamlib.zip "https://github.com/Hamlib/Hamlib/releases/download/${{ env.HAMLIB_VERSION }}/hamlib-w64-${{ env.HAMLIB_VERSION }}.zip"
-        unzip hamlib.zip -d hamlib-temp
-        # Find the extracted directory (it may have version in name)
-        HAMLIB_DIR=$(ls -d hamlib-temp/hamlib-w64-* 2>/dev/null | head -1)
-        if [ -z "$HAMLIB_DIR" ]; then
-          HAMLIB_DIR="hamlib-temp"
-        fi
-        mkdir -p C:/hamlib
-        cp -r "$HAMLIB_DIR"/* C:/hamlib/ || cp -r hamlib-temp/* C:/hamlib/
-        ls -la C:/hamlib/
-        ls -la C:/hamlib/bin/ || true
-        ls -la C:/hamlib/lib/ || true
+        echo "=== Verifying Pre-installed Build Tools ==="
+        echo "Qt: ${{ env.QT_ROOT_DIR }}"
+        ls "${{ env.QT_ROOT_DIR }}/bin/Qt6Core.dll" || { echo "ERROR: Qt not found"; exit 1; }
+        echo "MinGW: ${{ env.MINGW_BIN }}"
+        ls "${{ env.MINGW_BIN }}/g++.exe" || { echo "ERROR: MinGW not found"; exit 1; }
+        echo "Hamlib: ${{ env.HAMLIB_ROOT }}"
+        ls "${{ env.HAMLIB_ROOT }}/bin/libhamlib-4.dll" || { echo "ERROR: Hamlib not found"; exit 1; }
+        echo "✓ All pre-installed tools verified"
 
     - name: Configure CMake
       shell: bash
       run: |
-        export PATH="${{ runner.temp }}/../Qt/Tools/mingw1310_64/bin:$PATH"
+        export PATH="${{ env.MINGW_BIN }}:$PATH"
         cmake -B build -G "MinGW Makefiles" \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}" \
-          -DHAMLIB_ROOT="C:/hamlib"
+          -DHAMLIB_ROOT="${{ env.HAMLIB_ROOT }}"
 
     - name: Validate Versions
       shell: bash
@@ -120,13 +119,13 @@ jobs:
     - name: Build
       shell: bash
       run: |
-        export PATH="${{ runner.temp }}/../Qt/Tools/mingw1310_64/bin:$PATH"
+        export PATH="${{ env.MINGW_BIN }}:$PATH"
         cmake --build build --config Release -j4
 
     - name: Run Tests
       shell: bash
       run: |
-        export PATH="${{ runner.temp }}/../Qt/Tools/mingw1310_64/bin:${{ env.QT_ROOT_DIR }}/bin:C:/hamlib/bin:$PATH"
+        export PATH="${{ env.MINGW_BIN }}:${{ env.QT_ROOT_DIR }}/bin:${{ env.HAMLIB_ROOT }}/bin:$PATH"
         cd build
         ctest --output-on-failure -C Release
       continue-on-error: true
@@ -138,20 +137,9 @@ jobs:
 
         QT_BIN="${{ env.QT_ROOT_DIR }}/bin"
         QT_PLUGINS="${{ env.QT_ROOT_DIR }}/plugins"
-        # Find MinGW bin directory (installed by install-qt-action)
-        # QT_ROOT_DIR is like D:\a\TR4QT\Qt\6.7.2\mingw_64, so go up 2 levels to find Tools
-        QT_BASE=$(dirname $(dirname "${{ env.QT_ROOT_DIR }}"))
-        echo "DEBUG: QT_ROOT_DIR=${{ env.QT_ROOT_DIR }}"
-        echo "DEBUG: QT_BASE=$QT_BASE"
-        MINGW_BIN=$(find "$QT_BASE/Tools" -type d -name "mingw*_64" -print -quit 2>/dev/null || echo "")
-        if [ -n "$MINGW_BIN" ]; then
-          MINGW_BIN="$MINGW_BIN/bin"
-        fi
-        if [ ! -d "$MINGW_BIN" ] || [ -z "$MINGW_BIN" ]; then
-          echo "ERROR: MinGW not found, checking alternative locations..."
-          MINGW_BIN="C:/Qt/Tools/mingw1310_64/bin"
-        fi
-        echo "Using MinGW from: $MINGW_BIN"
+        MINGW_BIN="${{ env.MINGW_BIN }}"
+        echo "Qt: ${{ env.QT_ROOT_DIR }}"
+        echo "MinGW: $MINGW_BIN"
         DEST="build/src"
 
         # Copy Qt DLLs (explicit list of what we need)
@@ -223,7 +211,7 @@ jobs:
 
         # Copy Hamlib DLLs
         echo "Copying Hamlib DLLs..."
-        cp C:/hamlib/bin/*.dll "$DEST/" || true
+        cp ${{ env.HAMLIB_ROOT }}/bin/*.dll "$DEST/" || true
 
         # Copy MinGW runtime DLLs (CRITICAL - required for application to run)
         echo "Copying MinGW runtime DLLs from: $MINGW_BIN"
@@ -285,8 +273,6 @@ jobs:
     - name: Create Installer
       shell: bash
       run: |
-        # Install NSIS
-        choco install nsis -y
         export PATH="/c/Program Files (x86)/NSIS:$PATH"
 
         # Build installer
@@ -301,9 +287,6 @@ jobs:
         # Find the installer file
         INSTALLER=$(ls build/src/TR4QT-*-Setup.exe | head -1)
         echo "Checking installer: $INSTALLER"
-
-        # Install 7-Zip if not already available
-        choco install 7zip -y
 
         # List installer contents
         echo "Full installer contents:"
