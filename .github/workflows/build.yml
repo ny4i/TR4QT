@@ -124,10 +124,11 @@ jobs:
 
     - name: Run Tests
       shell: bash
+      timeout-minutes: 5
       run: |
         export PATH="${{ env.MINGW_BIN }}:${{ env.QT_ROOT_DIR }}/bin:${{ env.HAMLIB_ROOT }}/bin:$PATH"
         cd build
-        ctest --output-on-failure -C Release
+        ctest --output-on-failure -C Release --timeout 60
       continue-on-error: true
 
     - name: Deploy Qt Dependencies
@@ -655,9 +656,12 @@ jobs:
           }"
 
   # Linux x86_64 build - uses self-hosted runner on Proxmox
+  # Runs after Windows to avoid CPU thrashing (both runners share same Proxmox host)
   build-linux-x86_64:
     name: Linux (x86_64)
+    needs: [build-windows]
     runs-on: [self-hosted, linux, X64]
+    if: always()  # Run even if Windows build fails
     continue-on-error: true  # Don't fail the workflow if Linux build fails
 
     # Self-hosted runner has Qt 6.10.1 at /opt/Qt and Hamlib at /opt/hamlib pre-installed
