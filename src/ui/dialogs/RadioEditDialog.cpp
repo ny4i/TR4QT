@@ -29,6 +29,7 @@
 #include <QSerialPortInfo>
 #include <QMessageBox>
 #include <QInputDialog>
+#include <QIntValidator>
 #include <QApplication>
 
 // Hamlib includes for radio list
@@ -105,10 +106,33 @@ void RadioEditDialog::setupUI()
     m_serialPortEdit->setPlaceholderText("Manual entry (e.g., COM10 or /dev/ttyUSB0)");
     serialLayout->addRow("Or manual:", m_serialPortEdit);
 
+    // Baud rate: combo on left, custom entry on right (enabled when "Custom" selected)
+    QWidget* baudRateWidget = new QWidget(this);
+    QHBoxLayout* baudRateLayout = new QHBoxLayout(baudRateWidget);
+    baudRateLayout->setContentsMargins(0, 0, 0, 0);
+
     m_baudRateCombo = new QComboBox(this);
-    m_baudRateCombo->addItems({"4800", "9600", "19200", "38400", "57600", "115200"});
+    m_baudRateCombo->addItems({"4800", "9600", "19200", "38400", "57600", "115200", "230400", "3000000", "Custom"});
     m_baudRateCombo->setCurrentText("38400");
-    serialLayout->addRow("Baud Rate:", m_baudRateCombo);
+    baudRateLayout->addWidget(m_baudRateCombo);
+
+    m_customBaudRateEdit = new QLineEdit(this);
+    m_customBaudRateEdit->setPlaceholderText("Enter baud rate");
+    m_customBaudRateEdit->setValidator(new QIntValidator(300, 5000000, this));
+    m_customBaudRateEdit->setEnabled(false);  // Disabled until "Custom" selected
+    m_customBaudRateEdit->setFixedWidth(120);
+    baudRateLayout->addWidget(m_customBaudRateEdit);
+
+    // Enable/disable custom field based on combo selection
+    connect(m_baudRateCombo, &QComboBox::currentTextChanged, this, [this](const QString& text) {
+        bool isCustom = (text == "Custom");
+        m_customBaudRateEdit->setEnabled(isCustom);
+        if (isCustom && m_customBaudRateEdit->text().isEmpty()) {
+            m_customBaudRateEdit->setFocus();
+        }
+    });
+
+    serialLayout->addRow("Baud Rate:", baudRateWidget);
 
     m_dataBitsCombo = new QComboBox(this);
     m_dataBitsCombo->addItems({"5", "6", "7", "8"});
@@ -500,7 +524,19 @@ void RadioEditDialog::loadProfileIntoUI(const RadioProfile& profile)
         } else {
             m_serialPortEdit->setText(config.port);
         }
-        m_baudRateCombo->setCurrentText(QString::number(config.baudRate));
+        // Check if baud rate is a standard preset or custom
+        QString baudRateStr = QString::number(config.baudRate);
+        int index = m_baudRateCombo->findText(baudRateStr);
+        if (index >= 0) {
+            m_baudRateCombo->setCurrentIndex(index);
+            m_customBaudRateEdit->clear();
+            m_customBaudRateEdit->setEnabled(false);
+        } else {
+            // Non-standard baud rate - select "Custom" and fill in the value
+            m_baudRateCombo->setCurrentText("Custom");
+            m_customBaudRateEdit->setText(baudRateStr);
+            m_customBaudRateEdit->setEnabled(true);
+        }
         m_dataBitsCombo->setCurrentText(QString::number(config.dataBits));
         m_stopBitsCombo->setCurrentText(QString::number(config.stopBits));
         m_parityCombo->setCurrentIndex(config.parity);
@@ -551,7 +587,12 @@ RadioConfig RadioEditDialog::buildRadioConfigFromUI() const
         } else {
             config.port = m_serialPortCombo->currentText();
         }
-        config.baudRate = m_baudRateCombo->currentText().toInt();
+        // Use custom baud rate if "Custom" is selected, otherwise use combo value
+        if (m_baudRateCombo->currentText() == "Custom") {
+            config.baudRate = m_customBaudRateEdit->text().toInt();
+        } else {
+            config.baudRate = m_baudRateCombo->currentText().toInt();
+        }
         config.dataBits = m_dataBitsCombo->currentText().toInt();
         config.stopBits = m_stopBitsCombo->currentText().toInt();
         config.parity = m_parityCombo->currentIndex();

@@ -513,18 +513,30 @@ void RadioControlWidget::showStatusMessage(int code, const QString& message) {
 }
 
 void RadioControlWidget::onModeContextMenu(const QPoint& pos) {
-    // Don't show menu if radio not connected or no radio controller set
-    if (!m_radioController || !m_radioController->isConnected()) {
-        LOG_DEBUG("RadioControlWidget", "Mode context menu suppressed - radio not connected");
-        return;
+    // Get supported modes from radio (if connected)
+    QList<ModeType> supportedModes;
+    bool radioConnected = m_radioController && m_radioController->isConnected();
+
+    if (radioConnected) {
+        supportedModes = m_radioController->getSupportedModes();
     }
 
-    // Get supported modes from radio
-    QList<ModeType> supportedModes = m_radioController->getSupportedModes();
-
+    // If no supported modes (radio not connected or doesn't report modes),
+    // use fallback list of common contest modes for manual override
     if (supportedModes.isEmpty()) {
-        LOG_DEBUG("RadioControlWidget", "No supported modes found for radio");
-        return;
+        LOG_DEBUG("RadioControlWidget", "Using fallback mode list for manual override");
+        supportedModes = {
+            ModeType::CW,
+            ModeType::CWR,
+            ModeType::USB,
+            ModeType::LSB,
+            ModeType::RTTY,
+            ModeType::RTTYR,
+            ModeType::DATA,
+            ModeType::DATAR,
+            ModeType::FM,
+            ModeType::AM
+        };
     }
 
     // Create context menu
