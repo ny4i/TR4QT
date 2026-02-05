@@ -149,6 +149,24 @@ void RadioEditDialog::setupUI()
     m_parityCombo->setCurrentIndex(0);
     serialLayout->addRow("Parity:", m_parityCombo);
 
+    m_handshakeCombo = new QComboBox(this);
+    m_handshakeCombo->addItems({"Default", "None", "XON/XOFF", "Hardware (RTS/CTS)"});
+    m_handshakeCombo->setCurrentIndex(0);
+    m_handshakeCombo->setToolTip("Serial flow control method (Default = let Hamlib decide)");
+    serialLayout->addRow("Handshake:", m_handshakeCombo);
+
+    m_dtrStateCombo = new QComboBox(this);
+    m_dtrStateCombo->addItems({"Default", "On", "Off"});
+    m_dtrStateCombo->setCurrentIndex(0);
+    m_dtrStateCombo->setToolTip("DTR line state (Default = let Hamlib decide)");
+    serialLayout->addRow("DTR State:", m_dtrStateCombo);
+
+    m_rtsStateCombo = new QComboBox(this);
+    m_rtsStateCombo->addItems({"Default", "On", "Off"});
+    m_rtsStateCombo->setCurrentIndex(0);
+    m_rtsStateCombo->setToolTip("RTS line state (Default = let Hamlib decide)");
+    serialLayout->addRow("RTS State:", m_rtsStateCombo);
+
     connectionLayout->addWidget(m_serialGroup);
 
     // ----- Network Settings -----
@@ -540,6 +558,9 @@ void RadioEditDialog::loadProfileIntoUI(const RadioProfile& profile)
         m_dataBitsCombo->setCurrentText(QString::number(config.dataBits));
         m_stopBitsCombo->setCurrentText(QString::number(config.stopBits));
         m_parityCombo->setCurrentIndex(config.parity);
+        m_handshakeCombo->setCurrentIndex(config.handshake);
+        m_dtrStateCombo->setCurrentIndex(config.dtrState);
+        m_rtsStateCombo->setCurrentIndex(config.rtsState);
     }
 
     // Icom settings
@@ -596,6 +617,9 @@ RadioConfig RadioEditDialog::buildRadioConfigFromUI() const
         config.dataBits = m_dataBitsCombo->currentText().toInt();
         config.stopBits = m_stopBitsCombo->currentText().toInt();
         config.parity = m_parityCombo->currentIndex();
+        config.handshake = m_handshakeCombo->currentIndex();
+        config.dtrState = m_dtrStateCombo->currentIndex();
+        config.rtsState = m_rtsStateCombo->currentIndex();
         config.connectionMethod = 1;  // Serial
     }
 

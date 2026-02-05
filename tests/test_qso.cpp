@@ -131,13 +131,14 @@ void TestQSO::testIsValid_MissingBand() {
 }
 
 void TestQSO::testIsValid_MissingMode() {
+    // Unknown mode is allowed - radio may report RIG_MODE_NONE when disconnected
     QSO qso;
     qso.callsign = "W1AW";
     qso.timestamp = QDateTime::currentDateTime();
     qso.band = BandType::Band20M;
-    qso.mode = ModeType::None;  // Missing
+    qso.mode = ModeType::None;  // Unknown mode - still valid
 
-    QVERIFY(!qso.isValid());
+    QVERIFY(qso.isValid());
 }
 
 void TestQSO::testIsValid_AllMissing() {

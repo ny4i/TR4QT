@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.62";  // Issue #75: StatusNotifier service for centralized status messages
+constexpr const char* APP_VERSION = "3.40.63";  // Allow unknown mode logging + serial handshake/DTR/RTS settings
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
