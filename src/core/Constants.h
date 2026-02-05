@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.60";  // Issue #72/#74: Manual mode override, custom baud rate support
+constexpr const char* APP_VERSION = "3.40.61";  // Issue #76: Extract WindowActivationHelper from MainWindow
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
