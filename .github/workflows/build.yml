@@ -21,6 +21,11 @@ on:
         required: false
         default: 'true'
         type: boolean
+      skip_virustotal:
+        description: 'Skip VirusTotal scan (emergency releases only)'
+        required: false
+        default: 'false'
+        type: boolean
       # Linux ARM64 build permanently disabled per user request 2026-01-01
       # build_linux:
       #   description: 'Build Linux ARM64'
@@ -31,6 +36,10 @@ on:
 env:
   QT_VERSION: '6.10.1'
   HAMLIB_VERSION: '4.6.5'
+  # VirusTotal: max malicious detections before blocking release.
+  # Unsigned MinGW/NSIS builds typically trigger 1-3 heuristic false positives.
+  # Tighten to 1 or 0 after code-signing is implemented.
+  VT_MALICIOUS_THRESHOLD: '4'
 
 permissions:
   contents: write
@@ -1207,10 +1216,303 @@ jobs:
   #            }]
   #          }"
 
+  # Scan built artifacts with VirusTotal
+  virustotal-scan:
+    name: VirusTotal Scan
+    needs: [build-windows, build-macos, build-linux-x86_64]
+    runs-on: ubuntu-latest
+    # Required gate: release is blocked if VT scan fails (fail closed).
+    # Use skip_virustotal input for emergency releases when VT API is down.
+    if: >-
+      always()
+      && (needs.build-windows.result == 'success' || needs.build-macos.result == 'success')
+      && !(github.event_name == 'workflow_dispatch' && inputs.skip_virustotal == true)
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Scan artifacts with VirusTotal
+      env:
+        VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Collect scannable files (installers/packages only, not raw binaries)
+        SCAN_FILES=()
+        for pattern in "*-Setup.exe" "*.AppImage" "*.dmg"; do
+          while IFS= read -r -d '' f; do
+            SCAN_FILES+=("$f")
+          done < <(find artifacts -name "$pattern" -print0 2>/dev/null)
+        done
+
+        if [ ${#SCAN_FILES[@]} -eq 0 ]; then
+          echo "No scannable artifacts found"
+          echo "# VirusTotal Scan Report" > virustotal-report.md
+          echo "" >> virustotal-report.md
+          echo "No artifacts were available for scanning." >> virustotal-report.md
+          exit 0
+        fi
+
+        echo "Found ${#SCAN_FILES[@]} files to scan:"
+        printf '  %s\n' "${SCAN_FILES[@]}"
+
+        # --- Helper: upload a file to VirusTotal ---
+        upload_file() {
+          local filepath="$1"
+          local filesize
+          filesize=$(stat -c%s "$filepath")
+          local upload_url="https://www.virustotal.com/api/v3/files"
+
+          # Files >32MB need a special upload URL
+          if [ "$filesize" -gt 33554432 ]; then
+            echo "  File >32MB, requesting large-file upload URL..." >&2
+            upload_url=$(curl -s --request GET \
+              --url "https://www.virustotal.com/api/v3/files/upload_url" \
+              --header "x-apikey: ${VT_API_KEY}" | jq -r '.data')
+
+            if [ -z "$upload_url" ] || [ "$upload_url" = "null" ]; then
+              echo "  ERROR: Failed to get large-file upload URL" >&2
+              return 1
+            fi
+            echo "  Got large-file upload URL" >&2
+          fi
+
+          # Upload the file
+          local response
+          response=$(curl -s --request POST \
+            --url "$upload_url" \
+            --header "x-apikey: ${VT_API_KEY}" \
+            --form "file=@${filepath}")
+
+          local analysis_id
+          analysis_id=$(echo "$response" | jq -r '.data.id // empty')
+
+          if [ -z "$analysis_id" ]; then
+            echo "  ERROR: Upload failed. Response: $response" >&2
+            return 1
+          fi
+
+          echo "$analysis_id"
+        }
+
+        # --- Helper: poll for analysis completion ---
+        poll_analysis() {
+          local analysis_id="$1"
+          local max_attempts=40  # 40 * 15s = 10 minutes max
+          local attempt=0
+
+          while [ $attempt -lt $max_attempts ]; do
+            sleep 15  # Respect free tier rate limit (4 req/min)
+            attempt=$((attempt + 1))
+
+            local response
+            response=$(curl -s --request GET \
+              --url "https://www.virustotal.com/api/v3/analyses/${analysis_id}" \
+              --header "x-apikey: ${VT_API_KEY}")
+
+            local status
+            status=$(echo "$response" | jq -r '.data.attributes.status // empty')
+
+            if [ "$status" = "completed" ]; then
+              echo "$response"
+              return 0
+            fi
+
+            echo "  Poll $attempt/$max_attempts: status=$status" >&2
+          done
+
+          echo "  ERROR: Analysis timed out after $max_attempts attempts" >&2
+          return 1
+        }
+
+        # --- Scan each file and collect results ---
+        declare -A RESULTS
+        declare -A ENGINE_DETAILS
+        COMMIT_SHA="${{ github.sha }}"
+        SHORT_SHA="${COMMIT_SHA:0:7}"
+        REF_NAME="${{ github.ref_name }}"
+        SCAN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+
+        for filepath in "${SCAN_FILES[@]}"; do
+          filename=$(basename "$filepath")
+          filesize=$(stat -c%s "$filepath")
+          filesize_mb=$((filesize / 1024 / 1024))
+          echo ""
+          echo "=== Scanning: $filename (${filesize_mb}MB) ==="
+
+          # Upload
+          echo "  Uploading to VirusTotal..."
+          analysis_id=$(upload_file "$filepath") || {
+            RESULTS["$filename"]="UPLOAD_FAILED|||||||"
+            continue
+          }
+          echo "  Analysis ID: $analysis_id"
+
+          # Poll for completion
+          echo "  Waiting for analysis..."
+          analysis_response=$(poll_analysis "$analysis_id") || {
+            RESULTS["$filename"]="POLL_TIMEOUT|||||||"
+            continue
+          }
+
+          # Extract results
+          malicious=$(echo "$analysis_response" | jq -r '.data.attributes.stats.malicious // 0')
+          suspicious=$(echo "$analysis_response" | jq -r '.data.attributes.stats.suspicious // 0')
+          undetected=$(echo "$analysis_response" | jq -r '.data.attributes.stats.undetected // 0')
+          harmless=$(echo "$analysis_response" | jq -r '.data.attributes.stats.harmless // 0')
+          failure=$(echo "$analysis_response" | jq -r '.data.attributes.stats.failure // 0')
+          total=$((malicious + suspicious + undetected + harmless + failure))
+
+          # Get the SHA-256 for the permalink
+          file_sha256=$(sha256sum "$filepath" | awk '{print $1}')
+          permalink="https://www.virustotal.com/gui/file/${file_sha256}"
+
+          # Extract per-engine detections (which engines flagged this file)
+          engine_details=""
+          if [ "$malicious" -gt 0 ] || [ "$suspicious" -gt 0 ]; then
+            engine_details=$(echo "$analysis_response" | jq -r '
+              [.data.attributes.results | to_entries[]
+               | select(.value.category == "malicious" or .value.category == "suspicious")
+               | "\(.key)|\(.value.category)|\(.value.result)"]
+              | join("\n")')
+          fi
+
+          RESULTS["$filename"]="${malicious}|${suspicious}|${undetected}|${harmless}|${total}|${permalink}|${file_sha256}"
+          # Store engine details in a separate array (newline-delimited)
+          ENGINE_DETAILS["$filename"]="$engine_details"
+
+          # Determine result label
+          if [ "$malicious" -gt 0 ] || [ "$suspicious" -gt 0 ]; then
+            echo "  Result: ${malicious} malicious, ${suspicious} suspicious out of ${total} engines"
+            echo "  Flagged by:"
+            echo "$engine_details" | while IFS='|' read -r eng cat res; do
+              echo "    - ${eng}: ${cat} (${res})"
+            done
+          else
+            echo "  Result: CLEAN (${undetected} undetected, ${harmless} harmless out of ${total} engines)"
+          fi
+        done
+
+        # --- Determine pass/fail per threshold ---
+        THRESHOLD="${{ env.VT_MALICIOUS_THRESHOLD }}"
+        SCAN_FAILED=false
+        FAILED_FILES=()
+
+        for filename in "${!RESULTS[@]}"; do
+          IFS='|' read -r mal sus undet harm tot link sha <<< "${RESULTS[$filename]}"
+          if [ "$mal" = "UPLOAD_FAILED" ] || [ "$mal" = "POLL_TIMEOUT" ]; then
+            # Upload/poll failures are hard failures (fail closed)
+            SCAN_FAILED=true
+            FAILED_FILES+=("$filename (scan incomplete)")
+          elif [ "$mal" -ge "$THRESHOLD" ]; then
+            SCAN_FAILED=true
+            FAILED_FILES+=("$filename (${mal} malicious detections >= threshold ${THRESHOLD})")
+          fi
+        done
+
+        # --- Generate Markdown Report ---
+        {
+          echo "# VirusTotal Scan Report"
+          echo ""
+          echo "**Build**: ${REF_NAME} | **Date**: ${SCAN_DATE} | **Commit**: ${SHORT_SHA}"
+          echo "**Detection threshold**: ${THRESHOLD} malicious engines"
+          echo ""
+          echo "## Results Summary"
+          echo ""
+          echo "| File | Malicious | Suspicious | Clean | Total | Result | Link |"
+          echo "|------|-----------|------------|-------|-------|--------|------|"
+
+          for filename in "${!RESULTS[@]}"; do
+            IFS='|' read -r mal sus undet harm tot link sha <<< "${RESULTS[$filename]}"
+
+            if [ "$mal" = "UPLOAD_FAILED" ]; then
+              echo "| ${filename} | - | - | - | - | UPLOAD FAILED | - |"
+            elif [ "$mal" = "POLL_TIMEOUT" ]; then
+              echo "| ${filename} | - | - | - | - | TIMEOUT | - |"
+            elif [ "$mal" -ge "$THRESHOLD" ]; then
+              echo "| ${filename} | **${mal}** | ${sus} | ${undet} | ${tot} | BLOCKED | [View](${link}) |"
+            elif [ "$mal" -gt 0 ] || [ "$sus" -gt 0 ]; then
+              echo "| ${filename} | ${mal} | ${sus} | ${undet} | ${tot} | WARN (below threshold) | [View](${link}) |"
+            else
+              clean=$((undet + harm))
+              echo "| ${filename} | ${mal} | ${sus} | ${clean} | ${tot} | CLEAN | [View](${link}) |"
+            fi
+          done
+
+          # Per-engine detection details (shows exactly who flagged what)
+          HAS_DETECTIONS=false
+          for filename in "${!ENGINE_DETAILS[@]}"; do
+            if [ -n "${ENGINE_DETAILS[$filename]}" ]; then
+              HAS_DETECTIONS=true
+              break
+            fi
+          done
+
+          if [ "$HAS_DETECTIONS" = true ]; then
+            echo ""
+            echo "## Detection Details"
+            echo ""
+            for filename in "${!ENGINE_DETAILS[@]}"; do
+              details="${ENGINE_DETAILS[$filename]}"
+              if [ -n "$details" ]; then
+                echo "### ${filename}"
+                echo ""
+                echo "| Engine | Category | Detection |"
+                echo "|--------|----------|-----------|"
+                echo "$details" | while IFS='|' read -r eng cat res; do
+                  echo "| ${eng} | ${cat} | ${res} |"
+                done
+                echo ""
+              fi
+            done
+          fi
+
+          echo ""
+          echo "## File Hashes (SHA-256)"
+          echo ""
+          echo '```'
+          for filename in "${!RESULTS[@]}"; do
+            IFS='|' read -r mal sus undet harm tot link sha <<< "${RESULTS[$filename]}"
+            if [ -n "$sha" ] && [ "$sha" != "" ]; then
+              echo "${sha}  ${filename}"
+            fi
+          done
+          echo '```'
+          echo ""
+          echo "---"
+          echo "*Scanned by [VirusTotal](https://www.virustotal.com) via GitHub Actions | Threshold: ${THRESHOLD} malicious detections*"
+        } > virustotal-report.md
+
+        echo ""
+        echo "=== Scan Report ==="
+        cat virustotal-report.md
+
+        # --- Fail the job if threshold exceeded ---
+        if [ "$SCAN_FAILED" = true ]; then
+          echo ""
+          echo "SCAN FAILED — release will be blocked:"
+          printf '  %s\n' "${FAILED_FILES[@]}"
+          exit 1
+        fi
+
+        echo ""
+        echo "All artifacts passed VirusTotal scan (threshold: ${THRESHOLD})"
+
+    - name: Upload scan report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: virustotal-report
+        path: virustotal-report.md
+
   # Create release when a tag is pushed
   release:
     name: Create Release
-    needs: [build-windows, build-macos, build-linux-x86_64]
+    needs: [build-windows, build-macos, build-linux-x86_64, virustotal-scan]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
@@ -1247,6 +1549,15 @@ jobs:
           echo "ℹ Linux build not available (optional)"
         fi
 
+    - name: Prepare VirusTotal report (if available)
+      run: |
+        if [ -d "artifacts/virustotal-report" ]; then
+          cp artifacts/virustotal-report/virustotal-report.md artifacts/TR4QT-${{ github.ref_name }}-virustotal-report.md || true
+          echo "✓ VirusTotal report included in release"
+        else
+          echo "ℹ VirusTotal scan not available (optional)"
+        fi
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
@@ -1255,6 +1566,7 @@ jobs:
           artifacts/TR4QT-${{ github.ref_name }}-Setup.exe
           artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
           artifacts/TR4QT-${{ github.ref_name }}-x86_64.AppImage
+          artifacts/TR4QT-${{ github.ref_name }}-virustotal-report.md
         fail_on_unmatched_files: false
         draft: ${{ !contains(github.ref_name, '-rc') }}
         prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
