@@ -4107,11 +4107,23 @@ void MainWindow::onShowRadioControl() {
             m_radioControlWindow->setMaxPower(m_radio->maxPowerWatts());
         }
 
-        // Connect mode change requests
+        // Connect mode change requests (supports manual override when radio can't set mode)
         connect(m_radioControlWindow, &RadioControlWidget::modeChangeRequested,
                 this, [this](ModeType mode) {
-                    LOG_INFO("MainWindow", QString("Mode change requested from radio control: %1").arg(static_cast<int>(mode)));
-                    m_radio->setMode(mode, VFO::VFO_A);
+                    LOG_INFO("MainWindow", QString("Mode change requested from radio control: %1").arg(modeToString(mode)));
+
+                    // Always update local state (enables manual override for radios that don't support mode setting)
+                    m_currentState.modeA = mode;
+
+                    // Update the RadioControlWidget display immediately
+                    if (m_radioControlWindow) {
+                        m_radioControlWindow->updateRadioState(m_currentState);
+                    }
+
+                    // Try to set on radio if connected (may fail silently for unsupported radios)
+                    if (m_radio && m_radio->isConnected()) {
+                        m_radio->setMode(mode, VFO::VFO_A);
+                    }
                 });
 
         // Connect CW speed change requests
@@ -4210,11 +4222,25 @@ void MainWindow::onShowRadio2Control() {
             m_radio2ControlWindow->setMaxPower(radio2->maxPowerWatts());
         }
 
-        // Connect mode change requests
+        // Connect mode change requests (supports manual override when radio can't set mode)
         connect(m_radio2ControlWindow, &RadioControlWidget::modeChangeRequested,
                 this, [this, radio2](ModeType mode) {
-                    LOG_INFO("MainWindow", QString("Mode change requested from Radio 2 control: %1").arg(static_cast<int>(mode)));
-                    if (radio2) radio2->setMode(mode, VFO::VFO_A);
+                    LOG_INFO("MainWindow", QString("Mode change requested from Radio 2 control: %1").arg(modeToString(mode)));
+
+                    // Update the RadioControlWidget display immediately for manual override
+                    if (m_radio2ControlWindow) {
+                        RadioState state;
+                        if (radio2) {
+                            state = radio2->getCurrentState();
+                        }
+                        state.modeA = mode;
+                        m_radio2ControlWindow->updateRadioState(state);
+                    }
+
+                    // Try to set on radio if connected (may fail silently for unsupported radios)
+                    if (radio2 && radio2->isConnected()) {
+                        radio2->setMode(mode, VFO::VFO_A);
+                    }
                 });
 
         // Connect CW speed change requests

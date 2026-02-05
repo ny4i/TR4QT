@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.59";  // Issue #72/#74: RAII smart pointers, enum-based error fields
+constexpr const char* APP_VERSION = "3.40.60";  // Issue #72/#74: Manual mode override, custom baud rate support
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

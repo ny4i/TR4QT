@@ -146,6 +146,7 @@ private:
     QPushButton* m_refreshPortsButton;
     QTimer* m_portRefreshTimer;
     QComboBox* m_baudRateCombo;
+    QLineEdit* m_customBaudRateEdit;
     QComboBox* m_dataBitsCombo;
     QComboBox* m_stopBitsCombo;
     QComboBox* m_parityCombo;
