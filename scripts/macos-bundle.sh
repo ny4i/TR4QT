@@ -240,9 +240,9 @@ for plugin in "$PLUGINS"/imageformats/*.dylib; do
 done
 echo "    Fixed imageformats plugin dependencies"
 
-# Step 8: Code signing (CRITICAL - sign in dependency order)
-echo "==> Step 8: Code signing..."
-echo "    IMPORTANT: Sign dependencies before dependents, use --deep for thorough signing"
+# Step 8: Code signing (CRITICAL - sign in dependency order with hardened runtime)
+echo "==> Step 8: Code signing with hardened runtime..."
+echo "    IMPORTANT: Sign dependencies before dependents, --options runtime required for notarization"
 
 # Sign order:
 # 1. Libraries (deepest dependencies first)
@@ -253,27 +253,27 @@ echo "    IMPORTANT: Sign dependencies before dependents, use --deep for thoroug
 
 # 1. Sign all dylibs in Frameworks (dependencies)
 echo "    Signing all dylibs in Frameworks..."
-find "$FRAMEWORKS" -name "*.dylib" -type f -exec codesign --force --sign "$SIGNING_IDENTITY" {} \;
+find "$FRAMEWORKS" -name "*.dylib" -type f -exec codesign --force --options runtime --sign "$SIGNING_IDENTITY" {} \;
 
 # 2. Sign all frameworks
 echo "    Signing all frameworks..."
 for framework in "$FRAMEWORKS"/*.framework; do
     if [ -d "$framework" ]; then
-        codesign --force --sign "$SIGNING_IDENTITY" "$framework"
+        codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$framework"
     fi
 done
 
 # 3. Sign all plugins
 echo "    Signing all plugins..."
-find "$PLUGINS" -name "*.dylib" -type f -exec codesign --force --sign "$SIGNING_IDENTITY" {} \;
+find "$PLUGINS" -name "*.dylib" -type f -exec codesign --force --options runtime --sign "$SIGNING_IDENTITY" {} \;
 
 # 4. Sign the executable
 echo "    Signing executable..."
-codesign --force --sign "$SIGNING_IDENTITY" "$APP_BUNDLE/Contents/MacOS/tr4qt"
+codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$APP_BUNDLE/Contents/MacOS/tr4qt"
 
 # 5. Sign the entire app bundle
 echo "    Signing app bundle..."
-codesign --force --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
+codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
 
 echo "    ✓ Code signing completed"
 
