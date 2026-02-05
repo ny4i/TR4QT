@@ -195,6 +195,7 @@ set(SOURCES
     services/MaintenanceService.cpp
     services/InputHandlerService.cpp
     services/QSOSearchService.cpp
+    services/StatusNotifier.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp
@@ -406,8 +407,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.61"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.61"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.62"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.62"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
