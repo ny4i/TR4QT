@@ -59,6 +59,7 @@
 #include "../services/RotatorService.h"
 #include "../services/MaintenanceService.h"
 #include "../services/InputHandlerService.h"
+#include "../services/StatusNotifier.h"
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
@@ -294,6 +295,7 @@ private:
     void updateRadioStatusGrid();
     void raiseAllWindows(QWidget* activatedWindow = nullptr);
     void setStatusMessage(const QString& message);  // Set status and log it
+    void onStatusChanged(const QString& message, TR4QT::StatusStyle style);  // Handle StatusNotifier events
     void updateWindowMenuCheckmarks();  // Update checkmarks for open windows
 
     // Contest management

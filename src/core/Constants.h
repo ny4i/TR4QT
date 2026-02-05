@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.61";  // Issue #76: Extract WindowActivationHelper from MainWindow
+constexpr const char* APP_VERSION = "3.40.62";  // Issue #75: StatusNotifier service for centralized status messages
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

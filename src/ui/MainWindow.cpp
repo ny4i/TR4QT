@@ -1243,6 +1243,10 @@ void MainWindow::loadSettings() {
             this, &MainWindow::applyTheme);
     applyTheme();
 
+    // Connect to StatusNotifier for centralized status messages (Issue #75)
+    connect(&StatusNotifier::instance(), &StatusNotifier::statusChanged,
+            this, &MainWindow::onStatusChanged);
+
     // Geometry restoration is now handled in showEvent()
 }
 
@@ -1653,7 +1657,8 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
 bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
     // Delegate window activation events to WindowActivationHelper (Issue #76)
     // Handles: ApplicationActivate (macOS), WindowActivate on tracked child windows
-    if (m_windowActivationHelper->handleEvent(obj, event)) {
+    // Note: Check for null - eventFilter can be called during construction before helper is created
+    if (m_windowActivationHelper && m_windowActivationHelper->handleEvent(obj, event)) {
         return true;
     }
 
@@ -1718,6 +1723,34 @@ void MainWindow::setStatusMessage(const QString& message) {
     }
     m_statusLabel->setText(displayMessage);
     m_statusLabel->setToolTip(message);  // Full message in tooltip
+}
+
+void MainWindow::onStatusChanged(const QString& message, TR4QT::StatusStyle style) {
+    // Apply style based on event type
+    switch (style) {
+        case TR4QT::StatusStyle::Warning:
+            m_statusLabel->setStyleSheet("color: orange; font-weight: bold;");
+            break;
+        case TR4QT::StatusStyle::Error:
+            m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
+                .arg(ThemeManager::instance().colorName(ColorRole::DupeText)));
+            break;
+        case TR4QT::StatusStyle::Success:
+            m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
+                .arg(ThemeManager::instance().colorName(ColorRole::ConnectedStatus)));
+            break;
+        case TR4QT::StatusStyle::Highlight:
+            m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
+                .arg(ThemeManager::instance().colorName(ColorRole::MultiplierText)));
+            break;
+        case TR4QT::StatusStyle::Normal:
+        default:
+            m_statusLabel->setStyleSheet("");
+            break;
+    }
+
+    // Use existing setStatusMessage for the actual display
+    setStatusMessage(message);
 }
 
 void MainWindow::onRadioConfigure() {
