@@ -102,11 +102,13 @@ check_file "Qt6Concurrent.dll" "Qt Concurrent" true
 check_file "Qt6Svg.dll" "Qt SVG" true
 check_file "Qt6Xml.dll" "Qt XML" true
 check_file "Qt6Qml.dll" "Qt QML" true
+check_file "Qt6QmlMeta.dll" "Qt QML Meta" true
+check_file "Qt6QmlModels.dll" "Qt QML Models" true
+check_file "Qt6QmlWorkerScript.dll" "Qt QML WorkerScript" true
 check_file "Qt6Quick.dll" "Qt Quick" true
 check_file "Qt6QuickWidgets.dll" "Qt Quick Widgets" true
 check_file "Qt6ShaderTools.dll" "Qt Shader Tools" true
 check_file "Qt6OpenGL.dll" "Qt OpenGL" true
-check_file "Qt6QmlModels.dll" "Qt QML Models" true
 echo ""
 
 echo "=== Qt Plugins ==="
