@@ -370,8 +370,54 @@ jobs:
 
         echo "✓ Installer size verified: ${SIZE_MB}MB"
         echo "Note: Installer contents already verified by 7-Zip in previous step"
-        echo "Note: Skipping actual installation (unreliable in CI, takes 10+ minutes)"
-        echo "✓ Smoke test completed successfully"
+
+    - name: Launch Test (catch missing DLLs)
+      shell: bash
+      run: |
+        echo "=== Launch Test: Verify all DLL dependencies load ==="
+        echo "This catches missing Qt runtime DLLs that static analysis misses."
+
+        cd build/src
+
+        # Launch the app with a timeout - it will either:
+        # 1. Start successfully (we kill it after 5 seconds)
+        # 2. Fail immediately with missing DLL error (non-zero exit)
+        # 3. Hang (timeout kills it)
+
+        # Use timeout to kill after 5 seconds if it starts successfully
+        # The app needs QT_QPA_PLATFORM=offscreen to avoid needing a display
+        echo "Launching tr4qt.exe with 5-second timeout..."
+        export QT_QPA_PLATFORM=offscreen
+
+        # Run with timeout, capture exit code
+        timeout 5 ./tr4qt.exe &
+        APP_PID=$!
+        sleep 3
+
+        # Check if process is still running (good - means it started)
+        if kill -0 $APP_PID 2>/dev/null; then
+          echo "✓ Application started successfully (no missing DLLs)"
+          kill $APP_PID 2>/dev/null || true
+          wait $APP_PID 2>/dev/null || true
+        else
+          # Process exited - check if it was an error
+          wait $APP_PID
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -eq 124 ]; then
+            echo "✓ Application started successfully (timeout reached)"
+          elif [ $EXIT_CODE -ne 0 ]; then
+            echo "✗ ERROR: Application failed to start (exit code: $EXIT_CODE)"
+            echo "This usually indicates missing DLLs or other runtime dependencies."
+            echo ""
+            echo "Check the Windows Event Log or run locally with:"
+            echo "  ./tr4qt.exe"
+            exit 1
+          else
+            echo "✓ Application exited cleanly"
+          fi
+        fi
+
+        echo "✓ Launch test passed - all DLL dependencies present"
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
