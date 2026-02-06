@@ -111,6 +111,7 @@ public:
         std::function<void()> onShowWorldMap;
         std::function<void()> onShowGraylineMap;
         std::function<void()> onShowAmplifierControl;
+        std::function<void()> onShowPanadapter;
         std::function<void()> onSwapMultView;
         std::function<void()> onMissingMultsReport;
 
@@ -154,6 +155,7 @@ public:
     QAction* worldMapAction() const { return m_worldMapAction; }
     QAction* graylineMapAction() const { return m_graylineMapAction; }
     QAction* amplifierControlAction() const { return m_amplifierControlAction; }
+    QAction* panadapterAction() const { return m_panadapterAction; }
 
 private:
     void createFileMenu(QMenuBar* menuBar, const Config& config);
@@ -185,6 +187,7 @@ private:
     QAction* m_worldMapAction;
     QAction* m_graylineMapAction;
     QAction* m_amplifierControlAction;
+    QAction* m_panadapterAction;
 };
 
 } // namespace TR4QT

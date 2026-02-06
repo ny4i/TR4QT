@@ -62,6 +62,8 @@ public:
     // ========== SWR Meter Configuration ==========
     QStringList getSwrMeterLedIds() const override;
     QColor getSwrMeterColor(float swr) const override;
+    QColor getSwrLedColor(int ledIndex, int totalLeds) const override;
+    QColor getPowerLedColor(int ledIndex, int totalLeds) const override;
 
     // ========== Display Configuration ==========
     QString getAmplifierName() const override { return "Elecraft KPA1500"; }

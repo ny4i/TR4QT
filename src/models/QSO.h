@@ -118,8 +118,7 @@ struct QSO {
     bool isValid() const {
         return !callsign.isEmpty() &&
                timestamp.isValid() &&
-               band != BandType::None &&
-               mode != ModeType::None;
+               band != BandType::None;
     }
 
     /**

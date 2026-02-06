@@ -21,6 +21,11 @@ on:
         required: false
         default: 'true'
         type: boolean
+      skip_virustotal:
+        description: 'Skip VirusTotal scan (emergency releases only)'
+        required: false
+        default: 'false'
+        type: boolean
       # Linux ARM64 build permanently disabled per user request 2026-01-01
       # build_linux:
       #   description: 'Build Linux ARM64'
@@ -31,6 +36,10 @@ on:
 env:
   QT_VERSION: '6.10.1'
   HAMLIB_VERSION: '4.6.5'
+  # VirusTotal: max malicious detections before blocking release.
+  # Unsigned MinGW/NSIS builds typically trigger 1-3 heuristic false positives.
+  # Tighten to 1 or 0 after code-signing is implemented.
+  VT_MALICIOUS_THRESHOLD: '4'
 
 permissions:
   contents: write
@@ -38,12 +47,48 @@ permissions:
 jobs:
   build-windows:
     name: Windows (MinGW)
-    runs-on: windows-latest
+    runs-on: [self-hosted, windows, X64]
     if: github.event_name != 'workflow_dispatch' || inputs.build_windows == true
+
+    # Self-hosted runner has Qt 6.10.1, MinGW, and Hamlib pre-installed
+    env:
+      QT_ROOT_DIR: C:/Qt/6.10.1/mingw_64
+      HAMLIB_ROOT: C:/hamlib
+      MINGW_BIN: C:/Qt/Tools/mingw1310_64/bin
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        clean: false  # Preserve build/ directory for incremental builds
+        fetch-depth: 2  # Need HEAD~1 for incremental build detection
+
+    - name: Smart clean (incremental builds)
+      shell: bash
+      run: |
+        # Self-hosted runners keep build dir between runs for fast incremental builds.
+        # Force clean rebuild when build system changes or on release tags.
+        FORCE_CLEAN=false
+
+        # Always clean for release/tag builds (safety first)
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          echo "Tag build - forcing clean rebuild"
+          FORCE_CLEAN=true
+        # Clean if CMake config changed
+        elif git diff HEAD~1 --name-only 2>/dev/null | grep -qE '(CMakeLists\.txt|\.cmake)'; then
+          echo "Build system changed - forcing clean rebuild"
+          FORCE_CLEAN=true
+        # Clean if no previous build exists
+        elif [ ! -d build ]; then
+          echo "No previous build - clean build"
+          FORCE_CLEAN=true
+        else
+          echo "Incremental build (only recompiling changed files)"
+        fi
+
+        if [ "$FORCE_CLEAN" = true ]; then
+          rm -rf build || true
+        fi
 
     - name: Validate tr4qt.rc Version Syntax
       shell: bash
@@ -61,41 +106,26 @@ jobs:
         echo ""
         bash scripts/validate-qt-modules.sh
 
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v4
-      with:
-        version: ${{ env.QT_VERSION }}
-        host: windows
-        target: desktop
-        arch: win64_mingw
-        tools: 'tools_mingw1310'
-        modules: 'qtwebsockets qthttpserver qtserialport'  # HttpServer for web UI, SerialPort for radio (Svg/Xml in base Qt)
-        cache: true
-
-    - name: Download Hamlib
+    - name: Verify Pre-installed Tools
       shell: bash
       run: |
-        curl -L -o hamlib.zip "https://github.com/Hamlib/Hamlib/releases/download/${{ env.HAMLIB_VERSION }}/hamlib-w64-${{ env.HAMLIB_VERSION }}.zip"
-        unzip hamlib.zip -d hamlib-temp
-        # Find the extracted directory (it may have version in name)
-        HAMLIB_DIR=$(ls -d hamlib-temp/hamlib-w64-* 2>/dev/null | head -1)
-        if [ -z "$HAMLIB_DIR" ]; then
-          HAMLIB_DIR="hamlib-temp"
-        fi
-        mkdir -p C:/hamlib
-        cp -r "$HAMLIB_DIR"/* C:/hamlib/ || cp -r hamlib-temp/* C:/hamlib/
-        ls -la C:/hamlib/
-        ls -la C:/hamlib/bin/ || true
-        ls -la C:/hamlib/lib/ || true
+        echo "=== Verifying Pre-installed Build Tools ==="
+        echo "Qt: ${{ env.QT_ROOT_DIR }}"
+        ls "${{ env.QT_ROOT_DIR }}/bin/Qt6Core.dll" || { echo "ERROR: Qt not found"; exit 1; }
+        echo "MinGW: ${{ env.MINGW_BIN }}"
+        ls "${{ env.MINGW_BIN }}/g++.exe" || { echo "ERROR: MinGW not found"; exit 1; }
+        echo "Hamlib: ${{ env.HAMLIB_ROOT }}"
+        ls "${{ env.HAMLIB_ROOT }}/bin/libhamlib-4.dll" || { echo "ERROR: Hamlib not found"; exit 1; }
+        echo "✓ All pre-installed tools verified"
 
     - name: Configure CMake
       shell: bash
       run: |
-        export PATH="${{ runner.temp }}/../Qt/Tools/mingw1310_64/bin:$PATH"
+        export PATH="${{ env.MINGW_BIN }}:$PATH"
         cmake -B build -G "MinGW Makefiles" \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}" \
-          -DHAMLIB_ROOT="C:/hamlib"
+          -DHAMLIB_ROOT="${{ env.HAMLIB_ROOT }}"
 
     - name: Validate Versions
       shell: bash
@@ -120,15 +150,16 @@ jobs:
     - name: Build
       shell: bash
       run: |
-        export PATH="${{ runner.temp }}/../Qt/Tools/mingw1310_64/bin:$PATH"
+        export PATH="${{ env.MINGW_BIN }}:$PATH"
         cmake --build build --config Release -j4
 
     - name: Run Tests
       shell: bash
+      timeout-minutes: 5
       run: |
-        export PATH="${{ runner.temp }}/../Qt/Tools/mingw1310_64/bin:${{ env.QT_ROOT_DIR }}/bin:C:/hamlib/bin:$PATH"
+        export PATH="${{ env.MINGW_BIN }}:${{ env.QT_ROOT_DIR }}/bin:${{ env.HAMLIB_ROOT }}/bin:$PATH"
         cd build
-        ctest --output-on-failure -C Release
+        ctest --output-on-failure -C Release --timeout 60
       continue-on-error: true
 
     - name: Deploy Qt Dependencies
@@ -138,20 +169,9 @@ jobs:
 
         QT_BIN="${{ env.QT_ROOT_DIR }}/bin"
         QT_PLUGINS="${{ env.QT_ROOT_DIR }}/plugins"
-        # Find MinGW bin directory (installed by install-qt-action)
-        # QT_ROOT_DIR is like D:\a\TR4QT\Qt\6.7.2\mingw_64, so go up 2 levels to find Tools
-        QT_BASE=$(dirname $(dirname "${{ env.QT_ROOT_DIR }}"))
-        echo "DEBUG: QT_ROOT_DIR=${{ env.QT_ROOT_DIR }}"
-        echo "DEBUG: QT_BASE=$QT_BASE"
-        MINGW_BIN=$(find "$QT_BASE/Tools" -type d -name "mingw*_64" -print -quit 2>/dev/null || echo "")
-        if [ -n "$MINGW_BIN" ]; then
-          MINGW_BIN="$MINGW_BIN/bin"
-        fi
-        if [ ! -d "$MINGW_BIN" ] || [ -z "$MINGW_BIN" ]; then
-          echo "ERROR: MinGW not found, checking alternative locations..."
-          MINGW_BIN="C:/Qt/Tools/mingw1310_64/bin"
-        fi
-        echo "Using MinGW from: $MINGW_BIN"
+        MINGW_BIN="${{ env.MINGW_BIN }}"
+        echo "Qt: ${{ env.QT_ROOT_DIR }}"
+        echo "MinGW: $MINGW_BIN"
         DEST="build/src"
 
         # Copy Qt DLLs (explicit list of what we need)
@@ -168,6 +188,12 @@ jobs:
         cp "$QT_BIN/Qt6SerialPort.dll" "$DEST/"
         cp "$QT_BIN/Qt6Svg.dll" "$DEST/"
         cp "$QT_BIN/Qt6Xml.dll" "$DEST/"
+        cp "$QT_BIN/Qt6Qml.dll" "$DEST/"
+        cp "$QT_BIN/Qt6Quick.dll" "$DEST/"
+        cp "$QT_BIN/Qt6QuickWidgets.dll" "$DEST/"
+        cp "$QT_BIN/Qt6ShaderTools.dll" "$DEST/"
+        cp "$QT_BIN/Qt6OpenGL.dll" "$DEST/"
+        cp "$QT_BIN/Qt6QmlModels.dll" "$DEST/"
 
         # Copy Qt plugins
         echo "Copying Qt plugins..."
@@ -217,7 +243,7 @@ jobs:
 
         # Copy Hamlib DLLs
         echo "Copying Hamlib DLLs..."
-        cp C:/hamlib/bin/*.dll "$DEST/" || true
+        cp ${{ env.HAMLIB_ROOT }}/bin/*.dll "$DEST/" || true
 
         # Copy MinGW runtime DLLs (CRITICAL - required for application to run)
         echo "Copying MinGW runtime DLLs from: $MINGW_BIN"
@@ -279,8 +305,6 @@ jobs:
     - name: Create Installer
       shell: bash
       run: |
-        # Install NSIS
-        choco install nsis -y
         export PATH="/c/Program Files (x86)/NSIS:$PATH"
 
         # Build installer
@@ -295,9 +319,6 @@ jobs:
         # Find the installer file
         INSTALLER=$(ls build/src/TR4QT-*-Setup.exe | head -1)
         echo "Checking installer: $INSTALLER"
-
-        # Install 7-Zip if not already available
-        choco install 7zip -y
 
         # List installer contents
         echo "Full installer contents:"
@@ -412,7 +433,7 @@ jobs:
         version: ${{ env.QT_VERSION }}
         host: mac
         target: desktop
-        modules: 'qtwebsockets qthttpserver qtserialport'
+        modules: 'qtwebsockets qthttpserver qtserialport qtshadertools'  # shadertools for QRhi waterfall (Qt Quick/QML is in base)
         cache: true
 
     - name: Install Other Dependencies
@@ -665,32 +686,261 @@ jobs:
             }]
           }"
 
-  # Commented out: Linux x86_64 is not a priority (Raspberry Pi ARM64 is the Linux focus)
-  # build-linux-x86_64:
-  #   name: Linux (x86_64)
-  #   runs-on: ubuntu-24.04
+  # Linux x86_64 build - uses self-hosted runner on Proxmox
+  # Runs after Windows to avoid CPU thrashing (both runners share same Proxmox host)
+  build-linux-x86_64:
+    name: Linux (x86_64)
+    needs: [build-windows]
+    runs-on: [self-hosted, linux, X64]
+    if: always()  # Run even if Windows build fails
+    continue-on-error: true  # Don't fail the workflow if Linux build fails
+
+    # Self-hosted runner has Qt 6.10.1 at /opt/Qt and Hamlib at /opt/hamlib pre-installed
+    env:
+      QT_ROOT_DIR: /opt/Qt/6.10.1/gcc_64
+      HAMLIB_ROOT: /opt/hamlib
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        clean: false  # Preserve build/ directory for incremental builds
+        fetch-depth: 2  # Need HEAD~1 for incremental build detection
+
+    - name: Smart clean (incremental builds)
+      run: |
+        # Self-hosted runners keep build dir between runs for fast incremental builds.
+        # Force clean rebuild when build system changes or on release tags.
+        FORCE_CLEAN=false
+
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          echo "Tag build - forcing clean rebuild"
+          FORCE_CLEAN=true
+        elif git diff HEAD~1 --name-only 2>/dev/null | grep -qE '(CMakeLists\.txt|\.cmake)'; then
+          echo "Build system changed - forcing clean rebuild"
+          FORCE_CLEAN=true
+        elif [ ! -d build ]; then
+          echo "No previous build - clean build"
+          FORCE_CLEAN=true
+        else
+          echo "Incremental build (only recompiling changed files)"
+        fi
+
+        if [ "$FORCE_CLEAN" = true ]; then
+          rm -rf build || true
+        fi
+
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}" \
+          -DHAMLIB_ROOT="${{ env.HAMLIB_ROOT }}" \
+          -DCMAKE_INSTALL_PREFIX=/usr
+
+    - name: Validate Versions
+      run: |
+        echo "=== Version Validation ==="
+        echo "Expected Qt: ${{ env.QT_VERSION }}"
+        echo "Expected Hamlib: ${{ env.HAMLIB_VERSION }}"
+
+        QT_ACTUAL=$(grep -r "Qt6Core" build/CMakeCache.txt | grep -oE '6\.[0-9]+\.[0-9]+' | head -1)
+        echo "Detected Qt: $QT_ACTUAL"
+
+        if [ "$QT_ACTUAL" != "${{ env.QT_VERSION }}" ]; then
+          echo "ERROR: Qt version mismatch!"
+          exit 1
+        fi
+        echo "✓ Qt version validated"
+
+    - name: Build
+      run: cmake --build build --config Release -j$(nproc)
+
+    - name: Run Tests
+      run: |
+        cd build
+        ctest --output-on-failure -C Release
+      continue-on-error: true
+
+    - name: Create AppImage
+      run: |
+        # === Explicit Linux x86_64 Deployment (no linuxdeploy-plugin-qt) ===
+        # linuxdeploy-plugin-qt fails because:
+        # 1. TR4QT.Panadapter QML module is registered at runtime via qmlRegisterType
+        #    (not a file-based module), causing "Missing qml module" error
+        # 2. It tries to deploy Oracle SQL driver (qsqloci) which needs libclntsh.so
+        # Solution: Manual Qt deployment like Windows/macOS builds
+
+        # Install to AppDir
+        DESTDIR=$PWD/appdir cmake --install build
+        mkdir -p appdir/usr/share/applications
+        mkdir -p appdir/usr/share/icons/hicolor/256x256/apps
+
+        # Copy icon (use a placeholder if not exists)
+        if [ -f "resources/icons/tr4qt.png" ]; then
+          cp resources/icons/tr4qt.png appdir/usr/share/icons/hicolor/256x256/apps/
+        else
+          # Create a simple placeholder icon
+          convert -size 256x256 xc:navy -fill white -gravity center -pointsize 48 -annotate 0 "TR4QT" appdir/usr/share/icons/hicolor/256x256/apps/tr4qt.png 2>/dev/null || true
+        fi
+
+        # Create desktop entry
+        cat > appdir/usr/share/applications/tr4qt.desktop << 'EOF'
+        [Desktop Entry]
+        Type=Application
+        Name=TR4QT
+        Comment=Amateur Radio Contest Logger
+        Exec=tr4qt
+        Icon=tr4qt
+        Categories=HamRadio;Network;
+        EOF
+
+        # === Manual Qt Library Deployment ===
+        QT_LIB="${{ env.QT_ROOT_DIR }}/lib"
+        QT_PLUGINS="${{ env.QT_ROOT_DIR }}/plugins"
+        DEST_LIB="appdir/usr/lib"
+        DEST_PLUGINS="appdir/usr/plugins"
+
+        mkdir -p "$DEST_LIB" "$DEST_PLUGINS"
+
+        echo "=== Copying Qt libraries ==="
+        # Core Qt libraries
+        for lib in Core Gui Widgets Network Sql HttpServer WebSockets PrintSupport \
+                   Concurrent SerialPort Svg Xml Qml Quick QuickWidgets \
+                   ShaderTools OpenGL QmlModels DBus XcbQpa; do
+          if [ -f "$QT_LIB/libQt6${lib}.so.6" ]; then
+            cp -L "$QT_LIB/libQt6${lib}.so.6" "$DEST_LIB/"
+            echo "  Copied libQt6${lib}.so.6"
+          fi
+        done
+
+        echo "=== Copying Qt plugins ==="
+        # Platform plugin (CRITICAL)
+        mkdir -p "$DEST_PLUGINS/platforms"
+        cp "$QT_PLUGINS/platforms/libqxcb.so" "$DEST_PLUGINS/platforms/"
+        echo "  Copied platforms/libqxcb.so"
+
+        # SQL drivers - ONLY SQLite (skip Oracle qsqloci which needs libclntsh.so)
+        mkdir -p "$DEST_PLUGINS/sqldrivers"
+        cp "$QT_PLUGINS/sqldrivers/libqsqlite.so" "$DEST_PLUGINS/sqldrivers/"
+        echo "  Copied sqldrivers/libqsqlite.so"
+
+        # Image formats
+        mkdir -p "$DEST_PLUGINS/imageformats"
+        cp "$QT_PLUGINS/imageformats/"*.so "$DEST_PLUGINS/imageformats/" 2>/dev/null || true
+        echo "  Copied imageformats/"
+
+        # TLS plugins (CRITICAL for HTTPS)
+        mkdir -p "$DEST_PLUGINS/tls"
+        if [ -d "$QT_PLUGINS/tls" ]; then
+          cp "$QT_PLUGINS/tls/"*.so "$DEST_PLUGINS/tls/" 2>/dev/null || true
+          echo "  Copied tls/"
+        fi
+
+        # Icon engines
+        mkdir -p "$DEST_PLUGINS/iconengines"
+        cp "$QT_PLUGINS/iconengines/"*.so "$DEST_PLUGINS/iconengines/" 2>/dev/null || true
+
+        # XCB GL integration
+        mkdir -p "$DEST_PLUGINS/xcbglintegrations"
+        cp "$QT_PLUGINS/xcbglintegrations/"*.so "$DEST_PLUGINS/xcbglintegrations/" 2>/dev/null || true
+
+        # Platform themes
+        mkdir -p "$DEST_PLUGINS/platformthemes"
+        cp "$QT_PLUGINS/platformthemes/"*.so "$DEST_PLUGINS/platformthemes/" 2>/dev/null || true
+
+        echo "=== Copying Hamlib ==="
+        cp ${{ env.HAMLIB_ROOT }}/lib/libhamlib.so* "$DEST_LIB/"
+
+        echo "=== Copying ICU libraries (if needed) ==="
+        for lib in "$QT_LIB"/libicu*.so.*; do
+          if [ -f "$lib" ]; then
+            cp -L "$lib" "$DEST_LIB/"
+          fi
+        done
+
+        # Create AppRun script
+        cat > appdir/AppRun << 'APPRUN'
+        #!/bin/bash
+        SELF=$(readlink -f "$0")
+        HERE=${SELF%/*}
+        export LD_LIBRARY_PATH="${HERE}/usr/lib:$LD_LIBRARY_PATH"
+        export QT_PLUGIN_PATH="${HERE}/usr/plugins"
+        export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/plugins/platforms"
+        exec "${HERE}/usr/bin/tr4qt" "$@"
+        APPRUN
+        chmod +x appdir/AppRun
+
+        # Symlink for .desktop
+        ln -sf usr/share/applications/tr4qt.desktop appdir/tr4qt.desktop
+        ln -sf usr/share/icons/hicolor/256x256/apps/tr4qt.png appdir/tr4qt.png 2>/dev/null || \
+          ln -sf usr/share/icons/hicolor/256x256/apps/tr4qt.png appdir/.DirIcon 2>/dev/null || true
+
+        echo "=== Creating AppImage with linuxdeploy (no Qt plugin) ==="
+        # Clean up old AppImages from previous builds (incremental build leaves these behind)
+        rm -f TR4QT*.AppImage
+
+        # Download linuxdeploy if not already cached
+        if [ ! -f linuxdeploy-x86_64.AppImage ]; then
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+        fi
+
+        export LD_LIBRARY_PATH="${{ env.QT_ROOT_DIR }}/lib:${{ env.HAMLIB_ROOT }}/lib:$LD_LIBRARY_PATH"
+
+        # Use linuxdeploy to bundle system library dependencies and create AppImage
+        # NOT using --plugin qt (we did manual Qt deployment above)
+        ./linuxdeploy-x86_64.AppImage \
+          --appdir appdir \
+          --output appimage \
+          --desktop-file appdir/usr/share/applications/tr4qt.desktop
+
+        # Rename to include version
+        VERSION=$(grep 'APP_VERSION' src/core/Constants.h | cut -d'"' -f2)
+        mv TR4QT-x86_64.AppImage TR4QT-${VERSION}-x86_64.AppImage
+
+        echo "=== AppImage created ==="
+        ls -lh TR4QT-*.AppImage
+
+    - name: Verify AppImage
+      run: |
+        APPIMAGE=$(ls TR4QT-*-x86_64.AppImage | head -1)
+        echo "Created: $APPIMAGE"
+        ls -lh "$APPIMAGE"
+
+        SIZE=$(stat -c%s "$APPIMAGE")
+        SIZE_MB=$((SIZE / 1024 / 1024))
+        echo "Size: ${SIZE_MB}MB"
+
+        if [ $SIZE_MB -lt 20 ]; then
+          echo "WARNING: AppImage seems small (< 20MB)"
+        fi
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: TR4QT-Linux-x86_64
+        path: TR4QT-*-x86_64.AppImage
+
+  # Linux ARM64 build - ready to enable when Pi 5 self-hosted runner is set up
+  # To enable: 1) Set up 16GB Pi 5 as self-hosted runner with labels [self-hosted, linux, ARM64]
+  #            2) Uncomment this job
+  #            3) Add build-linux-arm64 to 'needs' in release and notify jobs
+  #            4) Add aarch64.AppImage to release files list
+  # For now, use scripts/build-linux-appimage.sh for local Pi builds
+  #
+  # build-linux-arm64:
+  #   name: Linux (ARM64/Pi)
+  #   runs-on: [self-hosted, linux, ARM64]
+  #   continue-on-error: true  # Don't fail the workflow if ARM64 build fails
   #
   #   steps:
   #   - name: Checkout
   #     uses: actions/checkout@v4
   #
-  #   - name: Install Dependencies
-  #     run: |
-  #       sudo apt-get update
-  #       sudo apt-get install -y \
-  #         build-essential \
-  #         cmake \
-  #         libgl1-mesa-dev \
-  #         libhamlib-dev \
-  #         qt6-base-dev \
-  #         qt6-websockets-dev \
-  #         qt6-httpserver-dev \
-  #         libqt6sql6-sqlite \
-  #         libqt6network6 \
-  #         libfuse2
-  #
   #   - name: Configure CMake
   #     run: |
+  #       export QMAKE=/usr/lib/qt6/bin/qmake
   #       cmake -B build \
   #         -DCMAKE_BUILD_TYPE=Release \
   #         -DCMAKE_INSTALL_PREFIX=/usr
@@ -704,46 +954,80 @@ jobs:
   #       ctest --output-on-failure -C Release
   #     continue-on-error: true
   #
-  #   - name: Install to AppDir
-  #     run: |
-  #       DESTDIR=$PWD/appdir cmake --install build
-  #       mkdir -p appdir/usr/share/applications
-  #       mkdir -p appdir/usr/share/icons/hicolor/256x256/apps
-  #
-  #       # Create desktop entry
-  #       cat > appdir/usr/share/applications/tr4qt.desktop <<EOF
-  #       [Desktop Entry]
-  #       Type=Application
-  #       Name=TR4QT
-  #       Comment=Amateur Radio Contest Logger
-  #       Exec=tr4qt
-  #       Icon=tr4qt
-  #       Categories=HamRadio;Network;
-  #       EOF
-  #
   #   - name: Create AppImage
   #     run: |
-  #       wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-  #       wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-  #       chmod +x linuxdeploy*.AppImage
+  #       echo "=== Creating ARM64 AppImage ==="
   #
+  #       # Clean up old artifacts
+  #       rm -rf AppDir TR4QT*.AppImage
+  #
+  #       # Create AppDir structure
+  #       mkdir -p AppDir/usr/bin
+  #       mkdir -p AppDir/usr/share/applications
+  #       mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+  #
+  #       cp build/src/tr4qt AppDir/usr/bin/
+  #
+  #       cat > AppDir/usr/share/applications/tr4qt.desktop << 'EOF'
+  #       [Desktop Entry]
+  #       Name=TR4QT
+  #       Exec=tr4qt
+  #       Icon=tr4qt
+  #       Type=Application
+  #       Categories=Utility;HamRadio;
+  #       EOF
+  #
+  #       # Copy icon if exists
+  #       if [ -f "resources/icons/tr4qt.png" ]; then
+  #         cp resources/icons/tr4qt.png AppDir/usr/share/icons/hicolor/256x256/apps/
+  #       else
+  #         touch AppDir/usr/share/icons/hicolor/256x256/apps/tr4qt.png
+  #       fi
+  #
+  #       ln -sf usr/share/applications/tr4qt.desktop AppDir/tr4qt.desktop
+  #       ln -sf usr/share/icons/hicolor/256x256/apps/tr4qt.png AppDir/tr4qt.png
+  #
+  #       # Download linuxdeploy if not present
+  #       if [ ! -f "./linuxdeploy" ]; then
+  #         wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-aarch64.AppImage -O linuxdeploy
+  #         chmod +x linuxdeploy
+  #       fi
+  #
+  #       if [ ! -f "./linuxdeploy-plugin-qt" ]; then
+  #         wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-aarch64.AppImage -O linuxdeploy-plugin-qt
+  #         chmod +x linuxdeploy-plugin-qt
+  #       fi
+  #
+  #       # Create AppImage
   #       export QMAKE=/usr/lib/qt6/bin/qmake
-  #       export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+  #       ./linuxdeploy --appdir AppDir --executable build/src/tr4qt --plugin qt --output appimage
   #
-  #       ./linuxdeploy-x86_64.AppImage \
-  #         --appdir appdir \
-  #         --plugin qt \
-  #         --output appimage
+  #       # Rename with version
+  #       VERSION=$(grep 'APP_VERSION' src/core/Constants.h | cut -d'"' -f2)
+  #       APPIMAGE=$(ls TR4QT*.AppImage | head -1)
+  #       mv "$APPIMAGE" "TR4QT-${VERSION}-aarch64.AppImage"
+  #
+  #       echo "=== AppImage created ==="
+  #       ls -lh TR4QT-*-aarch64.AppImage
+  #
+  #   - name: Copy to Shared Location
+  #     run: |
+  #       # Copy to local network share (Pi specific)
+  #       SHARED_DIR="/mnt/shared/TR4QT/linuxBuild"
+  #       if [ -d "/mnt/shared" ]; then
+  #         mkdir -p "$SHARED_DIR"
+  #         cp TR4QT-*-aarch64.AppImage "$SHARED_DIR/"
+  #         echo "Copied to: $SHARED_DIR/"
+  #         ls -lh "$SHARED_DIR/"
+  #       else
+  #         echo "Shared directory not mounted, skipping copy"
+  #       fi
   #
   #   - name: Upload Artifact
   #     uses: actions/upload-artifact@v4
   #     with:
-  #       name: TR4QT-Linux-x86_64
-  #       path: TR4QT*.AppImage
-
-  # Linux ARM64 build permanently disabled per user request 2026-01-01
-  # Reason: Not a priority platform, was only conditionally built on manual trigger
-  # build-linux-arm64:
+  #       name: TR4QT-Linux-ARM64
+  #       path: TR4QT-*-aarch64.AppImage
   #   name: Linux (ARM64/RPi)
   #   runs-on: ubuntu-latest
   #   if: github.event_name == 'workflow_dispatch' && inputs.build_linux == true
@@ -938,10 +1222,303 @@ jobs:
   #            }]
   #          }"
 
+  # Scan built artifacts with VirusTotal
+  virustotal-scan:
+    name: VirusTotal Scan
+    needs: [build-windows, build-macos, build-linux-x86_64]
+    runs-on: ubuntu-latest
+    # Required gate: release is blocked if VT scan fails (fail closed).
+    # Use skip_virustotal input for emergency releases when VT API is down.
+    if: >-
+      always()
+      && (needs.build-windows.result == 'success' || needs.build-macos.result == 'success')
+      && !(github.event_name == 'workflow_dispatch' && inputs.skip_virustotal == true)
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Scan artifacts with VirusTotal
+      env:
+        VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Collect scannable files (installers/packages only, not raw binaries)
+        SCAN_FILES=()
+        for pattern in "*-Setup.exe" "*.AppImage" "*.dmg"; do
+          while IFS= read -r -d '' f; do
+            SCAN_FILES+=("$f")
+          done < <(find artifacts -name "$pattern" -print0 2>/dev/null)
+        done
+
+        if [ ${#SCAN_FILES[@]} -eq 0 ]; then
+          echo "No scannable artifacts found"
+          echo "# VirusTotal Scan Report" > virustotal-report.md
+          echo "" >> virustotal-report.md
+          echo "No artifacts were available for scanning." >> virustotal-report.md
+          exit 0
+        fi
+
+        echo "Found ${#SCAN_FILES[@]} files to scan:"
+        printf '  %s\n' "${SCAN_FILES[@]}"
+
+        # --- Helper: upload a file to VirusTotal ---
+        upload_file() {
+          local filepath="$1"
+          local filesize
+          filesize=$(stat -c%s "$filepath")
+          local upload_url="https://www.virustotal.com/api/v3/files"
+
+          # Files >32MB need a special upload URL
+          if [ "$filesize" -gt 33554432 ]; then
+            echo "  File >32MB, requesting large-file upload URL..." >&2
+            upload_url=$(curl -s --request GET \
+              --url "https://www.virustotal.com/api/v3/files/upload_url" \
+              --header "x-apikey: ${VT_API_KEY}" | jq -r '.data')
+
+            if [ -z "$upload_url" ] || [ "$upload_url" = "null" ]; then
+              echo "  ERROR: Failed to get large-file upload URL" >&2
+              return 1
+            fi
+            echo "  Got large-file upload URL" >&2
+          fi
+
+          # Upload the file
+          local response
+          response=$(curl -s --request POST \
+            --url "$upload_url" \
+            --header "x-apikey: ${VT_API_KEY}" \
+            --form "file=@${filepath}")
+
+          local analysis_id
+          analysis_id=$(echo "$response" | jq -r '.data.id // empty')
+
+          if [ -z "$analysis_id" ]; then
+            echo "  ERROR: Upload failed. Response: $response" >&2
+            return 1
+          fi
+
+          echo "$analysis_id"
+        }
+
+        # --- Helper: poll for analysis completion ---
+        poll_analysis() {
+          local analysis_id="$1"
+          local max_attempts=40  # 40 * 15s = 10 minutes max
+          local attempt=0
+
+          while [ $attempt -lt $max_attempts ]; do
+            sleep 15  # Respect free tier rate limit (4 req/min)
+            attempt=$((attempt + 1))
+
+            local response
+            response=$(curl -s --request GET \
+              --url "https://www.virustotal.com/api/v3/analyses/${analysis_id}" \
+              --header "x-apikey: ${VT_API_KEY}")
+
+            local status
+            status=$(echo "$response" | jq -r '.data.attributes.status // empty')
+
+            if [ "$status" = "completed" ]; then
+              echo "$response"
+              return 0
+            fi
+
+            echo "  Poll $attempt/$max_attempts: status=$status" >&2
+          done
+
+          echo "  ERROR: Analysis timed out after $max_attempts attempts" >&2
+          return 1
+        }
+
+        # --- Scan each file and collect results ---
+        declare -A RESULTS
+        declare -A ENGINE_DETAILS
+        COMMIT_SHA="${{ github.sha }}"
+        SHORT_SHA="${COMMIT_SHA:0:7}"
+        REF_NAME="${{ github.ref_name }}"
+        SCAN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+
+        for filepath in "${SCAN_FILES[@]}"; do
+          filename=$(basename "$filepath")
+          filesize=$(stat -c%s "$filepath")
+          filesize_mb=$((filesize / 1024 / 1024))
+          echo ""
+          echo "=== Scanning: $filename (${filesize_mb}MB) ==="
+
+          # Upload
+          echo "  Uploading to VirusTotal..."
+          analysis_id=$(upload_file "$filepath") || {
+            RESULTS["$filename"]="UPLOAD_FAILED|||||||"
+            continue
+          }
+          echo "  Analysis ID: $analysis_id"
+
+          # Poll for completion
+          echo "  Waiting for analysis..."
+          analysis_response=$(poll_analysis "$analysis_id") || {
+            RESULTS["$filename"]="POLL_TIMEOUT|||||||"
+            continue
+          }
+
+          # Extract results
+          malicious=$(echo "$analysis_response" | jq -r '.data.attributes.stats.malicious // 0')
+          suspicious=$(echo "$analysis_response" | jq -r '.data.attributes.stats.suspicious // 0')
+          undetected=$(echo "$analysis_response" | jq -r '.data.attributes.stats.undetected // 0')
+          harmless=$(echo "$analysis_response" | jq -r '.data.attributes.stats.harmless // 0')
+          failure=$(echo "$analysis_response" | jq -r '.data.attributes.stats.failure // 0')
+          total=$((malicious + suspicious + undetected + harmless + failure))
+
+          # Get the SHA-256 for the permalink
+          file_sha256=$(sha256sum "$filepath" | awk '{print $1}')
+          permalink="https://www.virustotal.com/gui/file/${file_sha256}"
+
+          # Extract per-engine detections (which engines flagged this file)
+          engine_details=""
+          if [ "$malicious" -gt 0 ] || [ "$suspicious" -gt 0 ]; then
+            engine_details=$(echo "$analysis_response" | jq -r '
+              [.data.attributes.results | to_entries[]
+               | select(.value.category == "malicious" or .value.category == "suspicious")
+               | "\(.key)|\(.value.category)|\(.value.result)"]
+              | join("\n")')
+          fi
+
+          RESULTS["$filename"]="${malicious}|${suspicious}|${undetected}|${harmless}|${total}|${permalink}|${file_sha256}"
+          # Store engine details in a separate array (newline-delimited)
+          ENGINE_DETAILS["$filename"]="$engine_details"
+
+          # Determine result label
+          if [ "$malicious" -gt 0 ] || [ "$suspicious" -gt 0 ]; then
+            echo "  Result: ${malicious} malicious, ${suspicious} suspicious out of ${total} engines"
+            echo "  Flagged by:"
+            echo "$engine_details" | while IFS='|' read -r eng cat res; do
+              echo "    - ${eng}: ${cat} (${res})"
+            done
+          else
+            echo "  Result: CLEAN (${undetected} undetected, ${harmless} harmless out of ${total} engines)"
+          fi
+        done
+
+        # --- Determine pass/fail per threshold ---
+        THRESHOLD="${{ env.VT_MALICIOUS_THRESHOLD }}"
+        SCAN_FAILED=false
+        FAILED_FILES=()
+
+        for filename in "${!RESULTS[@]}"; do
+          IFS='|' read -r mal sus undet harm tot link sha <<< "${RESULTS[$filename]}"
+          if [ "$mal" = "UPLOAD_FAILED" ] || [ "$mal" = "POLL_TIMEOUT" ]; then
+            # Upload/poll failures are hard failures (fail closed)
+            SCAN_FAILED=true
+            FAILED_FILES+=("$filename (scan incomplete)")
+          elif [ "$mal" -ge "$THRESHOLD" ]; then
+            SCAN_FAILED=true
+            FAILED_FILES+=("$filename (${mal} malicious detections >= threshold ${THRESHOLD})")
+          fi
+        done
+
+        # --- Generate Markdown Report ---
+        {
+          echo "# VirusTotal Scan Report"
+          echo ""
+          echo "**Build**: ${REF_NAME} | **Date**: ${SCAN_DATE} | **Commit**: ${SHORT_SHA}"
+          echo "**Detection threshold**: ${THRESHOLD} malicious engines"
+          echo ""
+          echo "## Results Summary"
+          echo ""
+          echo "| File | Malicious | Suspicious | Clean | Total | Result | Link |"
+          echo "|------|-----------|------------|-------|-------|--------|------|"
+
+          for filename in "${!RESULTS[@]}"; do
+            IFS='|' read -r mal sus undet harm tot link sha <<< "${RESULTS[$filename]}"
+
+            if [ "$mal" = "UPLOAD_FAILED" ]; then
+              echo "| ${filename} | - | - | - | - | UPLOAD FAILED | - |"
+            elif [ "$mal" = "POLL_TIMEOUT" ]; then
+              echo "| ${filename} | - | - | - | - | TIMEOUT | - |"
+            elif [ "$mal" -ge "$THRESHOLD" ]; then
+              echo "| ${filename} | **${mal}** | ${sus} | ${undet} | ${tot} | BLOCKED | [View](${link}) |"
+            elif [ "$mal" -gt 0 ] || [ "$sus" -gt 0 ]; then
+              echo "| ${filename} | ${mal} | ${sus} | ${undet} | ${tot} | WARN (below threshold) | [View](${link}) |"
+            else
+              clean=$((undet + harm))
+              echo "| ${filename} | ${mal} | ${sus} | ${clean} | ${tot} | CLEAN | [View](${link}) |"
+            fi
+          done
+
+          # Per-engine detection details (shows exactly who flagged what)
+          HAS_DETECTIONS=false
+          for filename in "${!ENGINE_DETAILS[@]}"; do
+            if [ -n "${ENGINE_DETAILS[$filename]}" ]; then
+              HAS_DETECTIONS=true
+              break
+            fi
+          done
+
+          if [ "$HAS_DETECTIONS" = true ]; then
+            echo ""
+            echo "## Detection Details"
+            echo ""
+            for filename in "${!ENGINE_DETAILS[@]}"; do
+              details="${ENGINE_DETAILS[$filename]}"
+              if [ -n "$details" ]; then
+                echo "### ${filename}"
+                echo ""
+                echo "| Engine | Category | Detection |"
+                echo "|--------|----------|-----------|"
+                echo "$details" | while IFS='|' read -r eng cat res; do
+                  echo "| ${eng} | ${cat} | ${res} |"
+                done
+                echo ""
+              fi
+            done
+          fi
+
+          echo ""
+          echo "## File Hashes (SHA-256)"
+          echo ""
+          echo '```'
+          for filename in "${!RESULTS[@]}"; do
+            IFS='|' read -r mal sus undet harm tot link sha <<< "${RESULTS[$filename]}"
+            if [ -n "$sha" ] && [ "$sha" != "" ]; then
+              echo "${sha}  ${filename}"
+            fi
+          done
+          echo '```'
+          echo ""
+          echo "---"
+          echo "*Scanned by [VirusTotal](https://www.virustotal.com) via GitHub Actions | Threshold: ${THRESHOLD} malicious detections*"
+        } > virustotal-report.md
+
+        echo ""
+        echo "=== Scan Report ==="
+        cat virustotal-report.md
+
+        # --- Fail the job if threshold exceeded ---
+        if [ "$SCAN_FAILED" = true ]; then
+          echo ""
+          echo "SCAN FAILED — release will be blocked:"
+          printf '  %s\n' "${FAILED_FILES[@]}"
+          exit 1
+        fi
+
+        echo ""
+        echo "All artifacts passed VirusTotal scan (threshold: ${THRESHOLD})"
+
+    - name: Upload scan report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: virustotal-report
+        path: virustotal-report.md
+
   # Create release when a tag is pushed
   release:
     name: Create Release
-    needs: [build-windows, build-macos]
+    needs: [build-windows, build-macos, build-linux-x86_64, virustotal-scan]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
@@ -968,6 +1545,25 @@ jobs:
         # DMG already has version in filename, just move to expected location
         mv artifacts/TR4QT-macOS/TR4QT-*-macOS.dmg artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
 
+    - name: Prepare Linux AppImage for release (if available)
+      run: |
+        # Linux build is optional - only include if it succeeded
+        if [ -d "artifacts/TR4QT-Linux-x86_64" ]; then
+          mv artifacts/TR4QT-Linux-x86_64/TR4QT-*-x86_64.AppImage artifacts/TR4QT-${{ github.ref_name }}-x86_64.AppImage || true
+          echo "✓ Linux AppImage included in release"
+        else
+          echo "ℹ Linux build not available (optional)"
+        fi
+
+    - name: Prepare VirusTotal report (if available)
+      run: |
+        if [ -d "artifacts/virustotal-report" ]; then
+          cp artifacts/virustotal-report/virustotal-report.md artifacts/TR4QT-${{ github.ref_name }}-virustotal-report.md || true
+          echo "✓ VirusTotal report included in release"
+        else
+          echo "ℹ VirusTotal scan not available (optional)"
+        fi
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
@@ -975,6 +1571,9 @@ jobs:
           artifacts/TR4QT-${{ github.ref_name }}-Windows.zip
           artifacts/TR4QT-${{ github.ref_name }}-Setup.exe
           artifacts/TR4QT-${{ github.ref_name }}-macOS.dmg
+          artifacts/TR4QT-${{ github.ref_name }}-x86_64.AppImage
+          artifacts/TR4QT-${{ github.ref_name }}-virustotal-report.md
+        fail_on_unmatched_files: false
         draft: ${{ !contains(github.ref_name, '-rc') }}
         prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
         generate_release_notes: true
@@ -1018,7 +1617,7 @@ jobs:
 
   notify:
     name: Slack Notification
-    needs: [build-windows, build-macos]
+    needs: [build-windows, build-macos, build-linux-x86_64]
     runs-on: ubuntu-latest
     if: always()  # Run even if builds fail
 
@@ -1026,7 +1625,7 @@ jobs:
     - name: Determine build status
       id: status
       run: |
-        # Only Windows and macOS builds required
+        # Only Windows and macOS builds required (Linux is optional)
         if [ "${{ needs.build-windows.result }}" == "success" ] && \
            [ "${{ needs.build-macos.result }}" == "success" ]; then
           echo "status=✅ SUCCESS" >> $GITHUB_OUTPUT
@@ -1054,6 +1653,11 @@ jobs:
                 {
                   "title": "macOS",
                   "value": "${{ needs.build-macos.result }}",
+                  "short": true
+                },
+                {
+                  "title": "Linux",
+                  "value": "${{ needs.build-linux-x86_64.result }}",
                   "short": true
                 },
                 {

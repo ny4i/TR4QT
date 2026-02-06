@@ -283,7 +283,7 @@ QString CabrilloExporter::getCabrilloMode(ModeType mode) {
     case ModeType::FM:
         return "FM";
     default:
-        return "PH";
+        return "PH";  // Unknown/unsupported modes default to Phone
     }
 }
 

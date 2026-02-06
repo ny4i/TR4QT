@@ -89,6 +89,31 @@ bool HamlibRadio::connect(const RadioConfig& config) {
             break;
     }
 
+    // Configure serial handshake (only set if non-default, let Hamlib use rig defaults otherwise)
+    if (config.handshake > 0) {
+        switch (config.handshake) {
+            case 1: m_rig->state.rigport.parm.serial.handshake = RIG_HANDSHAKE_NONE; break;
+            case 2: m_rig->state.rigport.parm.serial.handshake = RIG_HANDSHAKE_XONXOFF; break;
+            case 3: m_rig->state.rigport.parm.serial.handshake = RIG_HANDSHAKE_HARDWARE; break;
+        }
+    }
+
+    // Configure DTR state (only set if non-default)
+    if (config.dtrState > 0) {
+        switch (config.dtrState) {
+            case 1: m_rig->state.rigport.parm.serial.dtr_state = RIG_SIGNAL_ON; break;
+            case 2: m_rig->state.rigport.parm.serial.dtr_state = RIG_SIGNAL_OFF; break;
+        }
+    }
+
+    // Configure RTS state (only set if non-default)
+    if (config.rtsState > 0) {
+        switch (config.rtsState) {
+            case 1: m_rig->state.rigport.parm.serial.rts_state = RIG_SIGNAL_ON; break;
+            case 2: m_rig->state.rigport.parm.serial.rts_state = RIG_SIGNAL_OFF; break;
+        }
+    }
+
     // Configure CI-V address for Icom radios
     if (config.civAddress > 0) {
         char civAddr[16];

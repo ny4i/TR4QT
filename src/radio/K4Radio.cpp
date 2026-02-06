@@ -131,6 +131,7 @@ void K4Radio::onSocketConnected()
 
     // Enable full async updates including S-meter
     enableAIMode(4);    // AI4 = all async updates including S-meter
+    sendCommand("ER1");   // Enable error/status message reporting
     sendCommand("TM1");   // Enable temperature/power/SWR monitoring
     sendCommand("SMH1");  // Enable S-meter in dBm format
 
@@ -194,10 +195,17 @@ void K4Radio::sendCommand(const QString& cmd, VFO vfo)
         fullCmd += ';';
     }
 
-    LOG_TRACE("K4Radio", QString("TX: %1").arg(fullCmd.trimmed()));
+    LOG_DEBUG("K4Radio", QString("TX: %1 (socket state: %2)")
+              .arg(fullCmd.trimmed())
+              .arg(m_socket->state()));
 
-    m_socket->write(fullCmd.toLatin1());
+    qint64 bytesWritten = m_socket->write(fullCmd.toLatin1());
     m_socket->flush();
+
+    if (bytesWritten != fullCmd.length()) {
+        LOG_ERROR("K4Radio", QString("Write failed: wrote %1 of %2 bytes")
+                  .arg(bytesWritten).arg(fullCmd.length()));
+    }
 }
 
 // ============================================================================
@@ -210,7 +218,7 @@ void K4Radio::onReadyRead()
     if (m_socket->bytesAvailable() > 0) {
         QByteArray data = m_socket->readAll();
         QString dataStr = QString::fromLatin1(data);
-        LOG_TRACE("K4Radio", QString("onReadyRead: received %1 bytes: '%2'")
+        LOG_DEBUG("K4Radio", QString("RX raw: %1 bytes: '%2'")
                   .arg(data.size()).arg(dataStr));
         m_receiveBuffer += dataStr;
 
@@ -223,13 +231,13 @@ void K4Radio::onReadyRead()
 
             if (!message.isEmpty()) {
                 messageCount++;
-                LOG_TRACE("K4Radio", QString("RX [%1]: %2;").arg(messageCount).arg(message));
+                LOG_DEBUG("K4Radio", QString("RX [%1]: %2;").arg(messageCount).arg(message));
                 processMessage(message);
             }
         }
 
         if (!m_receiveBuffer.isEmpty()) {
-            LOG_TRACE("K4Radio", QString("Incomplete message in buffer: '%1'").arg(m_receiveBuffer));
+            LOG_DEBUG("K4Radio", QString("Incomplete message in buffer: '%1'").arg(m_receiveBuffer));
         }
     }
 }
@@ -262,19 +270,31 @@ void K4Radio::processMessage(const QString& message)
         // Auto Information mode confirmation
         LOG_INFO("K4Radio", QString("AI mode set to %1").arg(data));
     }
-    else if (command == "FA") {
-        // Frequency VFO A
+    else if (command == "FA" || command == "FI") {
+        // Frequency (FA/FI for VFO A, FA$/FI$ for VFO B via AI mode)
+        // The vfo variable is already set based on $ suffix detection above
         bool ok;
         freq_t freq = data.toLongLong(&ok);
-        if (ok && freq != m_state.frequencyA) {
-            m_state.frequencyA = freq;
-            m_state.bandA = frequencyToBand(freq);
-            emit frequencyChanged(freq, VFO::VFO_A);
-            emit stateUpdated(m_state);
+        if (ok) {
+            if (vfo == VFO::VFO_A && freq != m_state.frequencyA) {
+                m_state.frequencyA = freq;
+                m_state.bandA = frequencyToBand(freq);
+                emit frequencyChanged(freq, VFO::VFO_A);
+                emit stateUpdated(m_state);
+                LOG_DEBUG("K4Radio", QString("VFO A frequency updated: %1 Hz (%2)")
+                          .arg(freq).arg(command));
+            } else if (vfo == VFO::VFO_B && freq != m_state.frequencyB) {
+                m_state.frequencyB = freq;
+                m_state.bandB = frequencyToBand(freq);
+                emit frequencyChanged(freq, VFO::VFO_B);
+                emit stateUpdated(m_state);
+                LOG_DEBUG("K4Radio", QString("VFO B frequency updated: %1 Hz (%2$)")
+                          .arg(freq).arg(command));
+            }
         }
     }
     else if (command == "FB") {
-        // Frequency VFO B
+        // Frequency VFO B (explicit FB command, not $ suffix)
         bool ok;
         freq_t freq = data.toLongLong(&ok);
         if (ok && freq != m_state.frequencyB) {
@@ -624,6 +644,26 @@ void K4Radio::processMessage(const QString& message)
         if (subRx != m_state.subRxEnabled) {
             m_state.subRxEnabled = subRx;
             emit stateUpdated(m_state);
+        }
+    }
+    else if (command == "ER") {
+        // Error/status message format: ERxx:message text here;
+        // Example: ER43:KPA1500 Status: standby;
+        // Parse code and message, emit signal for UI display
+        int colonPos = data.indexOf(':');
+        if (colonPos > 0) {
+            bool ok;
+            int code = data.left(colonPos).toInt(&ok);
+            if (ok) {
+                QString statusMessage = data.mid(colonPos + 1);
+                LOG_INFO("K4Radio", QString("Status message ER%1: %2").arg(code).arg(statusMessage));
+                emit statusMessageReceived(code, statusMessage);
+            } else {
+                LOG_WARN("K4Radio", QString("Invalid ER code format: %1").arg(data));
+            }
+        } else {
+            // ER without colon might be enable/disable response (ER0 or ER1)
+            LOG_DEBUG("K4Radio", QString("ER response: %1").arg(data));
         }
     }
     else {

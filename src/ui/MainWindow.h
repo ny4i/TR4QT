@@ -59,9 +59,11 @@
 #include "../services/RotatorService.h"
 #include "../services/MaintenanceService.h"
 #include "../services/InputHandlerService.h"
+#include "../services/StatusNotifier.h"
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
+#include "helpers/WindowActivationHelper.h"
 #include "../controllers/ImportExportManager.h"
 #include "../controllers/DownloadManager.h"
 #include "../controllers/RadioManager.h"
@@ -96,6 +98,9 @@ class StatisticsWindow;
 class FunctionKeysWindow;
 class GraylineMapDialog;
 class AmplifierControlWindow;
+#ifdef PANADAPTER_ENABLED
+class PanadapterWindow;
+#endif
 class UdpBroadcastManager;
 class WebServer;
 class CountryFileDownloader;
@@ -169,6 +174,7 @@ private slots:
     void onShowWorldMap();          // Show World Map (DXCC)
     void onShowGraylineMap();       // Show Grayline propagation map
     void onShowAmplifierControl();  // Show amplifier control window
+    void onShowPanadapter();        // Show K4 panadapter/waterfall window
     void onSwapMultView();          // TODO: Implement swap multiplier view
     void onMissingMultsReport();    // TODO: Implement missing mults report
 
@@ -289,6 +295,7 @@ private:
     void updateRadioStatusGrid();
     void raiseAllWindows(QWidget* activatedWindow = nullptr);
     void setStatusMessage(const QString& message);  // Set status and log it
+    void onStatusChanged(const QString& message, TR4QT::StatusStyle style);  // Handle StatusNotifier events
     void updateWindowMenuCheckmarks();  // Update checkmarks for open windows
 
     // Contest management
@@ -426,10 +433,16 @@ private:
     NativeMapViewer* m_worldMapViewer;
     GraylineMapDialog* m_graylineMapDialog;
     AmplifierControlWindow* m_amplifierControlWindow;
+#ifdef PANADAPTER_ENABLED
+    PanadapterWindow* m_panadapterWindow = nullptr;
+#endif
 
     // Window visibility tracking (for reliable save during shutdown)
     // Qt's isVisible() can return false during SIGTERM handling, so we track state ourselves
     bool m_amplifierControlWindowVisible{false};
+#ifdef PANADAPTER_ENABLED
+    bool m_panadapterWindowVisible{false};
+#endif
     bool m_radioControlWindowVisible{false};
     bool m_radio2ControlWindowVisible{false};
 
@@ -480,9 +493,10 @@ private:
     MenuManager* m_menuManager;                          // Qt parent-managed
     std::unique_ptr<SettingsManager> m_settingsManager;  // No Qt parent, owned
     WindowManager* m_windowManager;                      // Qt parent-managed
+    WindowActivationHelper* m_windowActivationHelper;    // Qt parent-managed (Issue #76)
 
     // Controllers
-    ImportExportManager* m_importExportManager;          // Qt parent-managed
+    std::unique_ptr<ImportExportManager> m_importExportManager;  // RAII-managed (not QObject)
     DownloadManager* m_downloadManager;                  // Qt parent-managed
     RadioManager* m_radioManager;                        // Qt parent-managed
     BandSwitchingManager* m_bandSwitchingManager;        // Qt parent-managed
@@ -497,7 +511,7 @@ private:
     RotatorService* m_rotatorService{nullptr};
 
     // Maintenance service (log clearing, backups)
-    MaintenanceService* m_maintenanceService;
+    std::unique_ptr<MaintenanceService> m_maintenanceService;  // RAII-managed (not QObject)
 
     // Input handler service (keyboard handling for CW, mode switching)
     InputHandlerService* m_inputHandler;

@@ -73,6 +73,7 @@ signals:
     void pttChanged(bool transmitting);
     void errorOccurred(const QString& error);
     void radioModelChanged(const QString& model);
+    void statusMessageReceived(int code, const QString& message);  // K4 ER command status
 
     // DEBUG: Test signal to verify signal/slot mechanism
     void debugTestSignal(int testValue);

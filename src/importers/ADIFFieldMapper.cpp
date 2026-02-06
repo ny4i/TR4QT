@@ -305,7 +305,7 @@ QDateTime ADIFFieldMapper::parseDateTime(const QString& date, const QString& tim
         return QDateTime();
     }
 
-    return QDateTime(qdate, qtime, QTimeZone::UTC);
+    return QDateTime(qdate, qtime, Qt::UTC);
 }
 
 BandType ADIFFieldMapper::parseBand(const QString& bandStr) {
@@ -398,7 +398,7 @@ void ADIFFieldMapper::validateQSO(const QSO& qso, int recordNumber) {
     // Validate timestamp is reasonable (not in future, not before amateur radio existed)
     if (qso.timestamp.isValid()) {
         QDateTime now = QDateTime::currentDateTimeUtc();
-        QDateTime firstQSO(QDate(1900, 1, 1), QTime(0, 0, 0), QTimeZone::UTC);
+        QDateTime firstQSO(QDate(1900, 1, 1), QTime(0, 0, 0), Qt::UTC);
 
         if (qso.timestamp > now) {
             ADIFValidationError error;

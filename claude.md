@@ -741,13 +741,14 @@ Changes:
 
 Before creating release tags (triggers GitHub Actions builds):
 
-1. **Qt Module Sync**: CMakeLists.txt Qt components must match `.github/workflows/build.yml` modules (except base: Core, Gui, Widgets, Network, Sql, PrintSupport, Concurrent, Test, OpenGL, Xml)
-2. **CI Passed**: `gh run list --limit 3` shows ✓ for both macOS and Windows
-3. **Version Bumped**: `grep APP_VERSION src/core/Constants.h` matches commit message
-4. **Tests Pass**: `cmake --build build && cd build && ctest --output-on-failure`
-5. **Clean Tree**: `git status` shows no uncommitted changes
-6. **Create Tag**: `git tag -a vX.Y.Z -m "Release vX.Y.Z - Description" && git push origin vX.Y.Z`
-7. **Monitor**: `gh run watch` until both platforms succeed
+1. **Runner Status**: `./scripts/check-runners.sh` shows all runners healthy
+2. **Qt Module Sync**: CMakeLists.txt Qt components must match `.github/workflows/build.yml` modules (except base: Core, Gui, Widgets, Network, Sql, PrintSupport, Concurrent, Test, OpenGL, Xml)
+3. **CI Passed**: `gh run list --limit 3` shows ✓ for macOS, Windows, and Linux
+4. **Version Bumped**: `grep APP_VERSION src/core/Constants.h` matches commit message
+5. **Tests Pass**: `cmake --build build && cd build && ctest --output-on-failure`
+6. **Clean Tree**: `git status` shows no uncommitted changes
+7. **Create Tag**: `git tag -a vX.Y.Z -m "Release vX.Y.Z - Description" && git push origin vX.Y.Z`
+8. **Monitor**: `gh run watch` until all platforms succeed
 
 ## Common Patterns
 

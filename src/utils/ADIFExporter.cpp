@@ -128,6 +128,7 @@ QString ADIFExporter::formatQSO(const QSO& qso, const QString& contestId) {
     case ModeType::FT4:   adifMode = "MFSK";  adifSubmode = "FT4";  break;
     case ModeType::DATA:  adifMode = "DATA";  break;
     case ModeType::DATAR: adifMode = "DATA";  adifSubmode = "DATA-R"; break;
+    case ModeType::None:  adifMode = "SSB";   break;  // Lossy: unknown mode defaults to SSB for ADIF/LoTW compatibility
     default:              adifMode = modeToString(qso.mode); break;
     }
     stream << formatField("MODE", adifMode);
