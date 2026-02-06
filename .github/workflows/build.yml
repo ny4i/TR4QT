@@ -189,11 +189,13 @@ jobs:
         cp "$QT_BIN/Qt6Svg.dll" "$DEST/"
         cp "$QT_BIN/Qt6Xml.dll" "$DEST/"
         cp "$QT_BIN/Qt6Qml.dll" "$DEST/"
+        cp "$QT_BIN/Qt6QmlMeta.dll" "$DEST/"
+        cp "$QT_BIN/Qt6QmlModels.dll" "$DEST/"
+        cp "$QT_BIN/Qt6QmlWorkerScript.dll" "$DEST/"
         cp "$QT_BIN/Qt6Quick.dll" "$DEST/"
         cp "$QT_BIN/Qt6QuickWidgets.dll" "$DEST/"
         cp "$QT_BIN/Qt6ShaderTools.dll" "$DEST/"
         cp "$QT_BIN/Qt6OpenGL.dll" "$DEST/"
-        cp "$QT_BIN/Qt6QmlModels.dll" "$DEST/"
 
         # Copy Qt plugins
         echo "Copying Qt plugins..."
