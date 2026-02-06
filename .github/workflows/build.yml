@@ -60,7 +60,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
       with:
-        clean: true
+        clean: false  # Preserve build/ directory for incremental builds
         fetch-depth: 2  # Need HEAD~1 for incremental build detection
 
     - name: Smart clean (incremental builds)
@@ -704,6 +704,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
       with:
+        clean: false  # Preserve build/ directory for incremental builds
         fetch-depth: 2  # Need HEAD~1 for incremental build detection
 
     - name: Smart clean (incremental builds)
