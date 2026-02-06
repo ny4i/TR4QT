@@ -877,9 +877,14 @@ jobs:
           ln -sf usr/share/icons/hicolor/256x256/apps/tr4qt.png appdir/.DirIcon 2>/dev/null || true
 
         echo "=== Creating AppImage with linuxdeploy (no Qt plugin) ==="
-        # Download linuxdeploy (NOT the Qt plugin)
-        wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-        chmod +x linuxdeploy-x86_64.AppImage
+        # Clean up old AppImages from previous builds (incremental build leaves these behind)
+        rm -f TR4QT*.AppImage
+
+        # Download linuxdeploy if not already cached
+        if [ ! -f linuxdeploy-x86_64.AppImage ]; then
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+        fi
 
         export LD_LIBRARY_PATH="${{ env.QT_ROOT_DIR }}/lib:${{ env.HAMLIB_ROOT }}/lib:$LD_LIBRARY_PATH"
 
@@ -892,7 +897,7 @@ jobs:
 
         # Rename to include version
         VERSION=$(grep 'APP_VERSION' src/core/Constants.h | cut -d'"' -f2)
-        mv TR4QT*.AppImage TR4QT-${VERSION}-x86_64.AppImage
+        mv TR4QT-x86_64.AppImage TR4QT-${VERSION}-x86_64.AppImage
 
         echo "=== AppImage created ==="
         ls -lh TR4QT-*.AppImage
