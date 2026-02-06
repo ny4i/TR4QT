@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.63";  // Allow unknown mode logging + serial handshake/DTR/RTS settings
+constexpr const char* APP_VERSION = "3.40.64";  // Fix missing Qt6 QML DLLs on Windows + CI improvements
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
