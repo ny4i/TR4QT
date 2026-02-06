@@ -1,5 +1,18 @@
 # TR4QT Source Files
 
+# Check Qt version and GuiPrivate availability for panadapter support
+# QQuickRhiItem requires Qt 6.6+ AND Qt6::GuiPrivate (private headers)
+if(Qt6_VERSION VERSION_GREATER_EQUAL "6.6.0" AND Qt6GuiPrivate_FOUND)
+    set(PANADAPTER_SUPPORTED TRUE)
+    message(STATUS "Panadapter: ENABLED (Qt ${Qt6_VERSION} >= 6.6.0, GuiPrivate found)")
+elseif(NOT Qt6_VERSION VERSION_GREATER_EQUAL "6.6.0")
+    set(PANADAPTER_SUPPORTED FALSE)
+    message(STATUS "Panadapter: DISABLED (Qt ${Qt6_VERSION} < 6.6.0, QQuickRhiItem not available)")
+else()
+    set(PANADAPTER_SUPPORTED FALSE)
+    message(STATUS "Panadapter: DISABLED (Qt6::GuiPrivate not found - install qt6-base-private-dev)")
+endif()
+
 # Create object library for core components (enables testing without full app linking)
 # This library contains radio control, logging, and other testable components
 add_library(tr4qt_core OBJECT
@@ -182,6 +195,7 @@ set(SOURCES
     services/MaintenanceService.cpp
     services/InputHandlerService.cpp
     services/QSOSearchService.cpp
+    services/StatusNotifier.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
     ui/models/QSOTableModel.cpp
@@ -189,6 +203,7 @@ set(SOURCES
     ui/managers/SettingsManager.cpp
     ui/managers/MenuManager.cpp
     ui/managers/WindowManager.cpp
+    ui/helpers/WindowActivationHelper.cpp
     ui/dialogs/PreferencesDialog.cpp
     ui/dialogs/OperatorDialog.cpp
     ui/dialogs/ContestChooserDialog.cpp
@@ -225,6 +240,18 @@ set(SOURCES
     ui/plots/qcustomplot.cpp
     3rdparty/miniz/miniz.cpp
 )
+
+# Conditionally add panadapter sources (requires Qt 6.6+)
+if(PANADAPTER_SUPPORTED)
+    list(APPEND SOURCES
+        ui/windows/PanadapterWindow.cpp
+        panadapter/PanadapterDataModel.cpp
+        panadapter/renderers/QmlPanadapterRenderer.cpp
+        panadapter/WaterfallImageProvider.cpp
+        panadapter/WaterfallRhiItem.cpp
+        radio/K4PanadapterReader.cpp
+    )
+endif()
 
 set(HEADERS
     core/Types.h
@@ -312,6 +339,7 @@ set(HEADERS
     ui/managers/SettingsManager.h
     ui/managers/MenuManager.h
     ui/managers/WindowManager.h
+    ui/helpers/WindowActivationHelper.h
     ui/dialogs/PreferencesDialog.h
     ui/dialogs/OperatorDialog.h
     ui/dialogs/ContestChooserDialog.h
@@ -347,6 +375,20 @@ set(HEADERS
     ui/plots/qcustomplot.h
 )
 
+# Conditionally add panadapter headers (requires Qt 6.6+)
+if(PANADAPTER_SUPPORTED)
+    list(APPEND HEADERS
+        ui/windows/PanadapterWindow.h
+        panadapter/PanadapterTypes.h
+        panadapter/PanadapterDataModel.h
+        panadapter/IPanadapterRenderer.h
+        panadapter/renderers/QmlPanadapterRenderer.h
+        panadapter/WaterfallImageProvider.h
+        panadapter/WaterfallRhiItem.h
+        radio/K4PanadapterReader.h
+    )
+endif()
+
 # Set icon file for macOS
 set(MACOSX_ICON_FILE "${CMAKE_SOURCE_DIR}/resources/icons/tr4qt.icns")
 
@@ -365,8 +407,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.37"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.37"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.63"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.63"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
@@ -387,6 +429,18 @@ else()
     )
 endif()
 
+# Compile GLSL shaders for waterfall QRhi rendering (only if panadapter supported)
+if(PANADAPTER_SUPPORTED)
+    # qt_add_shaders generates .qsb files for all supported backends (Metal, Vulkan, D3D, GLSL)
+    qt_add_shaders(tr4qt "waterfall_shaders"
+        PREFIX "/"
+        BASE "${CMAKE_SOURCE_DIR}/resources"
+        FILES
+            ${CMAKE_SOURCE_DIR}/resources/shaders/waterfall.vert
+            ${CMAKE_SOURCE_DIR}/resources/shaders/waterfall.frag
+    )
+endif()
+
 # Link Qt6 libraries, tr4qt_core object library, and qtkeychain
 target_link_libraries(tr4qt PRIVATE
     tr4qt_core  # Core components (radio, logging, types)
@@ -400,8 +454,17 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::SerialPort
     Qt6::Svg
     Qt6::Xml
+    Qt6::Quick
+    Qt6::QuickWidgets
+    Qt6::Qml
     qt6keychain  # Secure credential storage (macOS Keychain, Windows Credential Manager)
 )
+
+# Conditionally link Qt6::GuiPrivate for panadapter (QRhi requires it)
+if(PANADAPTER_SUPPORTED)
+    target_link_libraries(tr4qt PRIVATE Qt6::GuiPrivate)
+    target_compile_definitions(tr4qt PRIVATE PANADAPTER_ENABLED=1)
+endif()
 
 # Note: Qt6::EntryPoint is not needed for console applications
 # Windows builds as console app due to Qt 6.10.1 MinGW compatibility issues

@@ -145,10 +145,14 @@ if [ -n "$UI_FILES" ]; then
 fi
 
 # Check 5: Dangerous pointer dereference without nullptr check
-if echo "$STAGED_FILES" | xargs grep -nE '\*[a-zA-Z_][a-zA-Z0-9_]*\s*\(' 2>/dev/null | grep -v "if.*!=" | grep -v "if.*==" | grep -v "Q_ASSERT" | head -3; then
+# Exclude: function return type declarations (e.g., "QWidget *parentWidget()")
+POINTER_DEREF=$(echo "$STAGED_FILES" | xargs grep -nE '\*[a-zA-Z_][a-zA-Z0-9_]*\s*\(' 2>/dev/null | grep -v "if.*!=" | grep -v "if.*==" | grep -v "Q_ASSERT" | grep -v "virtual.*\*" | grep -v "^\s*[A-Z].*\*.*().*;" | head -3)
+if [ -n "$POINTER_DEREF" ]; then
     echo ""
     echo "⚠️  WARNING: Found pointer dereference - ensure nullptr check exists"
     echo "(Showing first 3 occurrences)"
+    echo ""
+    echo "$POINTER_DEREF"
     echo ""
     WARNINGS=$((WARNINGS + 1))
 fi
@@ -209,11 +213,14 @@ fi
 
 # Check 10: Magic numbers (literal numbers in code)
 # This is aggressive, so we only warn about obvious cases
-if echo "$STAGED_FILES" | xargs grep -nE '\.(setMaximumWidth|setMinimumWidth|setMaximumHeight|setMinimumHeight|setFixedWidth|setFixedHeight)\([0-9]+\)' 2>/dev/null | head -5; then
+MAGIC_NUMBERS=$(echo "$STAGED_FILES" | xargs grep -nE '\.(setMaximumWidth|setMinimumWidth|setMaximumHeight|setMinimumHeight|setFixedWidth|setFixedHeight)\([0-9]+\)' 2>/dev/null | head -5)
+if [ -n "$MAGIC_NUMBERS" ]; then
     echo ""
     echo "⚠️  WARNING: Found magic numbers in widget sizing"
     echo "Consider using named constants or calculating from fontMetrics()"
     echo "(Showing first 5 occurrences)"
+    echo ""
+    echo "$MAGIC_NUMBERS"
     echo ""
     WARNINGS=$((WARNINGS + 1))
 fi

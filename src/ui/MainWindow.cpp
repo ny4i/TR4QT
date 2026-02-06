@@ -35,6 +35,10 @@
 #include "widgets/MultiplierWidget.h"
 #include "statistics/StatisticsWindow.h"
 #include "windows/AmplifierControlWindow.h"
+#ifdef PANADAPTER_ENABLED
+#include "windows/PanadapterWindow.h"
+#endif
+#include "../radio/RadioFactory.h"
 #include "widgets/QSOSearchPanel.h"
 #include "NativeMapViewer.h"
 #include "../network/UdpBroadcastManager.h"
@@ -140,6 +144,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_worldMapViewer(nullptr)
     , m_graylineMapDialog(nullptr)
     , m_amplifierControlWindow(nullptr)
+    // m_panadapterWindow initialized in header (conditionally compiled)
     , m_qsosThisHour(0)
     , m_qsosSinceLastIntegrityCheck(0)
     , m_hasActiveContest(false)
@@ -159,6 +164,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_menuManager(nullptr)
     , m_settingsManager(nullptr)
     , m_windowManager(nullptr)
+    , m_windowActivationHelper(nullptr)
     , m_importExportManager(nullptr)
     , m_downloadManager(nullptr)
     , m_radioManager(nullptr)
@@ -199,7 +205,7 @@ MainWindow::MainWindow(QWidget* parent)
     LOG_DEBUG("MainWindow", "ScoreCalculationService created");
 
     // Create MaintenanceService (clear log, backup workflows)
-    m_maintenanceService = new MaintenanceService(this);
+    m_maintenanceService = std::make_unique<MaintenanceService>(this);
     LOG_DEBUG("MainWindow", "MaintenanceService created");
 
     // Create QSOQueryService (Phase 13 extraction)
@@ -227,6 +233,7 @@ MainWindow::MainWindow(QWidget* parent)
     m_bandSwitchingManager = new BandSwitchingManager(this);
     m_cwMessageManager = std::make_unique<CWMessageManager>(CWMessageManager::Config{m_radio, nullptr});  // Contest set later
     m_windowManager = new WindowManager(this);
+    m_windowActivationHelper = new WindowActivationHelper(this, this);
     m_settingsManager = std::make_unique<SettingsManager>();
     LOG_DEBUG("MainWindow", "Controllers and UI managers created");
 
@@ -280,7 +287,7 @@ MainWindow::MainWindow(QWidget* parent)
     importExportConfig.currentContestDbId = m_currentContestDbId;
     importExportConfig.currentContestName = m_currentContest.contestName;
     importExportConfig.hasActiveContest = m_hasActiveContest;
-    m_importExportManager = new ImportExportManager(importExportConfig, this);
+    m_importExportManager = std::make_unique<ImportExportManager>(importExportConfig, this);
     LOG_DEBUG("MainWindow", "ImportExportManager created");
 
     // Initialize web server with current operator (only if explicitly set)
@@ -444,6 +451,8 @@ MainWindow::MainWindow(QWidget* parent)
     QTimer::singleShot(1000, this, [this]() {
         AppSettings& settings = AppSettings::instance();
         QString gridSquare = settings.getMyGridSquare();
+        LOG_INFO("MainWindow", QString("Grid square check at 1s delay: value='%1', isEmpty=%2")
+            .arg(gridSquare).arg(gridSquare.isEmpty()));
 
         if (gridSquare.isEmpty()) {
             QMessageBox::StandardButton reply = DialogHelper::question(
@@ -595,6 +604,7 @@ void MainWindow::createMenuBar() {
     config.onShowWorldMap = [this]() { onShowWorldMap(); };
     config.onShowGraylineMap = [this]() { onShowGraylineMap(); };
     config.onShowAmplifierControl = [this]() { onShowAmplifierControl(); };
+    config.onShowPanadapter = [this]() { onShowPanadapter(); };
     config.onSwapMultView = [this]() { onSwapMultView(); };
     config.onMissingMultsReport = [this]() { onMissingMultsReport(); };
     
@@ -1233,6 +1243,10 @@ void MainWindow::loadSettings() {
             this, &MainWindow::applyTheme);
     applyTheme();
 
+    // Connect to StatusNotifier for centralized status messages (Issue #75)
+    connect(&StatusNotifier::instance(), &StatusNotifier::statusChanged,
+            this, &MainWindow::onStatusChanged);
+
     // Geometry restoration is now handled in showEvent()
 }
 
@@ -1365,6 +1379,19 @@ void MainWindow::restoreChildWindows(const WindowGeometry& geometry) {
     } else {
         LOG_DEBUG("MainWindow", "NOT restoring Amplifier Control window (was hidden on exit)");
     }
+
+#ifdef PANADAPTER_ENABLED
+    // Panadapter window
+    if (geometry.panadapterVisible) {
+        LOG_DEBUG("MainWindow", "Restoring Panadapter window (was visible on exit)");
+        onShowPanadapter();
+        if (m_panadapterWindow && !geometry.panadapterGeometry.isEmpty()) {
+            m_panadapterWindow->restoreGeometry(geometry.panadapterGeometry);
+        }
+    } else {
+        LOG_DEBUG("MainWindow", "NOT restoring Panadapter window (was hidden on exit)");
+    }
+#endif
 }
 
 void MainWindow::saveSettings() {
@@ -1430,6 +1457,15 @@ void MainWindow::saveSettings() {
     geometry.amplifierControlVisible = m_amplifierControlWindowVisible;
     LOG_DEBUG("MainWindow", QString("Amplifier window tracked visibility: %1").arg(m_amplifierControlWindowVisible));
 
+#ifdef PANADAPTER_ENABLED
+    // Panadapter window
+    if (m_panadapterWindow) {
+        geometry.panadapterGeometry = m_panadapterWindow->saveGeometry();
+    }
+    geometry.panadapterVisible = m_panadapterWindowVisible;
+    LOG_DEBUG("MainWindow", QString("Panadapter window tracked visibility: %1").arg(m_panadapterWindowVisible));
+#endif
+
     // Debug logging for window visibility
     LOG_DEBUG("MainWindow", QString("Saving window visibility - DXCluster:%1 BandMap:%2 RadioCtrl:%3 Radio2Ctrl:%4 Mult:%5 Stats:%6 Sections:%7 States:%8 Grayline:%9 AmpCtrl:%10")
         .arg(geometry.dxClusterVisible)
@@ -1459,8 +1495,15 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         return;
     }
 
+    // TIMING: Start shutdown timer right after user confirms
+    QElapsedTimer shutdownTimer;
+    shutdownTimer.start();
+    LOG_INFO("MainWindow", "SHUTDOWN TIMING: User confirmed exit, starting shutdown sequence");
+
     // Save settings BEFORE closing windows (so visibility state is correct)
     saveSettings();
+    LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Settings saved (%1ms elapsed)")
+             .arg(shutdownTimer.elapsed()));
 
     // Save band map spots to database before closing
     if (m_bandMapWindow) {
@@ -1503,6 +1546,22 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         m_statisticsWindow->close();
         LOG_DEBUG("MainWindow", QString("Statistics window closed (%1ms)").arg(closeTimer.restart()));
     }
+    if (m_amplifierControlWindow) {
+        LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Closing Amplifier Control window... (%1ms elapsed)")
+                 .arg(shutdownTimer.elapsed()));
+        m_amplifierControlWindow->close();
+        LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Amplifier Control window closed (%1ms, total %2ms)")
+                 .arg(closeTimer.restart()).arg(shutdownTimer.elapsed()));
+    }
+#ifdef PANADAPTER_ENABLED
+    if (m_panadapterWindow) {
+        LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Closing Panadapter window... (%1ms elapsed)")
+                 .arg(shutdownTimer.elapsed()));
+        m_panadapterWindow->close();
+        LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Panadapter window closed (%1ms, total %2ms)")
+                 .arg(closeTimer.restart()).arg(shutdownTimer.elapsed()));
+    }
+#endif
 
     // Disconnect radios before closing and wait for completion
     // CRITICAL: Must allow disconnect packets to be sent before app exits
@@ -1523,6 +1582,9 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     }
 
     event->accept();
+
+    LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Shutdown complete, total time: %1ms")
+             .arg(shutdownTimer.elapsed()));
 
     // Ensure application quits
     QApplication::quit();
@@ -1593,15 +1655,12 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
 }
 
 bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
-#ifdef Q_OS_MAC
-    // macOS: Bring all windows to front when app is activated (if setting enabled)
-    if (event->type() == QEvent::ApplicationActivate) {
-        if (AppSettings::instance().getShowAllWindowsOnActivate()) {
-            LOG_DEBUG("MainWindow", "ApplicationActivate received - raising all windows");
-            raiseAllWindows();
-        }
+    // Delegate window activation events to WindowActivationHelper (Issue #76)
+    // Handles: ApplicationActivate (macOS), WindowActivate on tracked child windows
+    // Note: Check for null - eventFilter can be called during construction before helper is created
+    if (m_windowActivationHelper && m_windowActivationHelper->handleEvent(obj, event)) {
+        return true;
     }
-#endif
 
     // Delegate keyboard events to InputHandlerService
     if (event->type() == QEvent::KeyPress) {
@@ -1627,21 +1686,6 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
         return false;
     }
 
-    // Catch WindowActivate events on any of our windows
-    if (event->type() == QEvent::WindowActivate) {
-        QWidget* widget = qobject_cast<QWidget*>(obj);
-        if (widget && widget->isWindow()) {
-            // Only raise windows when one of the CHILD windows is activated
-            if (widget == m_dxClusterWindow ||
-                widget == m_bandMapWindow ||
-                widget == m_radioControlWindow ||
-                widget == m_multiplierWindow ||
-                widget == m_statisticsWindow) {
-                raiseAllWindows(widget);
-            }
-        }
-    }
-
     // Radio Control window show/hide: Toggle detailed rig info (S-meter, temperature)
     if (obj == m_radioControlWindow) {
         if (event->type() == QEvent::Show) {
@@ -1663,28 +1707,8 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
 }
 
 void MainWindow::raiseAllWindows(QWidget* activatedWindow) {
-    // Raise ALL top-level windows belonging to this application.
-    // This is more robust than tracking individual windows, as windows
-    // may be created lazily and WindowManager config may be stale.
-    //
-    // Order matters: raise all windows first, then re-raise the window
-    // the user clicked on so it stays on top (not buried under MainWindow).
-    const auto topLevelWidgets = QApplication::topLevelWidgets();
-    for (QWidget* widget : topLevelWidgets) {
-        if (widget && widget->isVisible() && !widget->isMinimized() && widget != activatedWindow) {
-            widget->raise();
-        }
-    }
-
-    // Re-raise the clicked window last so it stays in front
-    if (activatedWindow && activatedWindow->isVisible()) {
-        activatedWindow->raise();
-        activatedWindow->activateWindow();
-    } else {
-        // No specific window activated (e.g., ApplicationActivate) — activate MainWindow
-        raise();
-        activateWindow();
-    }
+    // Delegate to WindowActivationHelper (Issue #76)
+    m_windowActivationHelper->raiseAllWindows(activatedWindow);
 }
 
 void MainWindow::setStatusMessage(const QString& message) {
@@ -1699,6 +1723,34 @@ void MainWindow::setStatusMessage(const QString& message) {
     }
     m_statusLabel->setText(displayMessage);
     m_statusLabel->setToolTip(message);  // Full message in tooltip
+}
+
+void MainWindow::onStatusChanged(const QString& message, TR4QT::StatusStyle style) {
+    // Apply style based on event type
+    switch (style) {
+        case TR4QT::StatusStyle::Warning:
+            m_statusLabel->setStyleSheet("color: orange; font-weight: bold;");
+            break;
+        case TR4QT::StatusStyle::Error:
+            m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
+                .arg(ThemeManager::instance().colorName(ColorRole::DupeText)));
+            break;
+        case TR4QT::StatusStyle::Success:
+            m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
+                .arg(ThemeManager::instance().colorName(ColorRole::ConnectedStatus)));
+            break;
+        case TR4QT::StatusStyle::Highlight:
+            m_statusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
+                .arg(ThemeManager::instance().colorName(ColorRole::MultiplierText)));
+            break;
+        case TR4QT::StatusStyle::Normal:
+        default:
+            m_statusLabel->setStyleSheet("");
+            break;
+    }
+
+    // Use existing setStatusMessage for the actual display
+    setStatusMessage(message);
 }
 
 void MainWindow::onRadioConfigure() {
@@ -1834,6 +1886,7 @@ void MainWindow::onPreferences() {
         oldConfig = settings.getActiveRadioConfig();
     }
     bool oldAutoConnect = settings.getRadioAutoConnect();
+    QString oldStationProfile = settings.getActiveStationProfile();
 
     PreferencesDialog dialog(this);
     dialog.setRadioConnected(m_radioConnected);
@@ -1863,6 +1916,10 @@ void MainWindow::onPreferences() {
         m_hamPrivileges = std::make_unique<HamRadioPrivileges>(licenseClass);
         LOG_DEBUG("MainWindow", QString("License class updated to: %1").arg(licenseClassStr));
 
+        // Check if station profile changed
+        QString newStationProfile = settings.getActiveStationProfile();
+        bool stationProfileChanged = (oldStationProfile != newStationProfile);
+
         // Check if radio settings actually changed
         bool radioSettingsChanged = false;
         if (settings.hasAnyRadioConfig()) {
@@ -1884,17 +1941,64 @@ void MainWindow::onPreferences() {
             radioSettingsChanged = true;  // Config was removed
         }
 
+        // Station profile change requires reconnection
+        if (stationProfileChanged) {
+            radioSettingsChanged = true;
+            LOG_INFO("MainWindow", QString("Station profile changed from '%1' to '%2'")
+                     .arg(oldStationProfile, newStationProfile));
+        }
+
         // Only ask to reconnect if radio settings actually changed
         if (radioSettingsChanged && m_radioConnected) {
+            QString message = stationProfileChanged
+                ? QString("Station profile changed to '%1'. Reconnect to use the new radios?").arg(newStationProfile)
+                : "Radio settings have changed. Reconnect to apply new settings?";
+
             QMessageBox::StandardButton reply = DialogHelper::question(
-                this, "Reconnect Radio?",
-                "Radio settings have changed. Reconnect to apply new settings?",
+                this, "Reconnect Radio?", message,
                 QMessageBox::Yes | QMessageBox::No);
 
             if (reply == QMessageBox::Yes) {
                 onRadioDisconnect();
                 QTimer::singleShot(UITiming::RECONNECT_DELAY_MS, this, &MainWindow::onRadioConnect);
             }
+        }
+
+        // Update amplifier menu state and initialize service if newly enabled
+        bool amplifierEnabled = settings.getAmplifierEnabled();
+        m_menuManager->amplifierControlAction()->setEnabled(amplifierEnabled);
+
+        // Initialize amplifier service if enabled but not yet created
+        if (amplifierEnabled && !m_amplifierService) {
+            LOG_INFO("MainWindow", "Amplifier enabled in preferences - initializing service");
+            int modelId = settings.getAmplifierModel();
+            QString connectionType = settings.getAmplifierConnectionType();
+            QString port = settings.getAmplifierPort();
+            int baudRate = settings.getAmplifierBaudRate();
+
+            AmplifierConfig config;
+            config.hamlibModelId = modelId;
+            config.connectionType = connectionType;
+            config.port = port;
+            config.baudRate = baudRate;
+            config.pollIntervalMs = settings.getAmplifierPollInterval();
+
+            // Determine amplifier type
+            int amplifierType;
+            const int AMP_MODEL_ELECRAFT_KPA1500 = 1201;
+            if (connectionType == "direct" && modelId == AMP_MODEL_ELECRAFT_KPA1500) {
+                amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::KPA1500_DIRECT);
+            } else {
+                amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::HAMLIB);
+            }
+
+            // Create amplifier controller (manages device in worker thread)
+            m_amplifierController = new AmplifierController(this);
+
+            // Create amplifier service (business logic layer)
+            m_amplifierService = new AmplifierService(m_amplifierController, this);
+
+            LOG_DEBUG("MainWindow", "Amplifier controller and service initialized from preferences");
         }
 
         // TODO: Reload contest settings if changed
@@ -3338,6 +3442,14 @@ void MainWindow::updateWindowMenuCheckmarks() {
     if (ampAction) {
         ampAction->setChecked(m_amplifierControlWindow && m_amplifierControlWindow->isVisible());
     }
+
+#ifdef PANADAPTER_ENABLED
+    // Panadapter action
+    QAction* panadapterAction = m_menuManager->panadapterAction();
+    if (panadapterAction) {
+        panadapterAction->setChecked(m_panadapterWindow && m_panadapterWindow->isVisible());
+    }
+#endif
 }
 
 void MainWindow::applyFontSettings() {
@@ -3896,6 +4008,9 @@ void MainWindow::onShowDXCluster() {
                     }
                 });
 
+        // Track window for activation behavior (Issue #76)
+        m_windowActivationHelper->trackWindow(m_dxClusterWindow);
+
         // Update WindowManager config with new window
         if (m_windowManager) {
             WindowManager::Config config;
@@ -3955,6 +4070,9 @@ void MainWindow::onShowBandMap() {
                     m_callsignEntry->setText(callsign);
                     m_callsignEntry->setFocus();
                 });
+
+        // Track window for activation behavior (Issue #76)
+        m_windowActivationHelper->trackWindow(m_bandMapWindow);
     }
 
     // Send current band to Band Map (works for new window or restored window)
@@ -3991,11 +4109,23 @@ void MainWindow::onShowRadioControl() {
             m_radioControlWindow->setMaxPower(m_radio->maxPowerWatts());
         }
 
-        // Connect mode change requests
+        // Connect mode change requests (supports manual override when radio can't set mode)
         connect(m_radioControlWindow, &RadioControlWidget::modeChangeRequested,
                 this, [this](ModeType mode) {
-                    LOG_INFO("MainWindow", QString("Mode change requested from radio control: %1").arg(static_cast<int>(mode)));
-                    m_radio->setMode(mode, VFO::VFO_A);
+                    LOG_INFO("MainWindow", QString("Mode change requested from radio control: %1").arg(modeToString(mode)));
+
+                    // Always update local state (enables manual override for radios that don't support mode setting)
+                    m_currentState.modeA = mode;
+
+                    // Update the RadioControlWidget display immediately
+                    if (m_radioControlWindow) {
+                        m_radioControlWindow->updateRadioState(m_currentState);
+                    }
+
+                    // Try to set on radio if connected (may fail silently for unsupported radios)
+                    if (m_radio && m_radio->isConnected()) {
+                        m_radio->setMode(mode, VFO::VFO_A);
+                    }
                 });
 
         // Connect CW speed change requests
@@ -4024,6 +4154,10 @@ void MainWindow::onShowRadioControl() {
                     m_radio->setSplit(enabled, VFO::VFO_B);
                 });
 
+        // Connect radio status messages (K4 ER command) to status display
+        connect(m_radio, &RadioController::statusMessageReceived,
+                m_radioControlWindow, &RadioControlWidget::showStatusMessage);
+
         // Connect close/hide event to disable detailed rig info
         connect(m_radioControlWindow, &QWidget::destroyed, this, [this]() {
             // Window destroyed - disable detailed rig info polling
@@ -4047,6 +4181,9 @@ void MainWindow::onShowRadioControl() {
                       .arg(static_cast<int>(m_currentState.bandA)));
             m_radioControlWindow->updateRadioState(m_currentState);
         }
+
+        // Track window for activation behavior (Issue #76)
+        m_windowActivationHelper->trackWindow(m_radioControlWindow);
     }
     m_radioControlWindow->show();
     m_radioControlWindow->raise();
@@ -4090,11 +4227,25 @@ void MainWindow::onShowRadio2Control() {
             m_radio2ControlWindow->setMaxPower(radio2->maxPowerWatts());
         }
 
-        // Connect mode change requests
+        // Connect mode change requests (supports manual override when radio can't set mode)
         connect(m_radio2ControlWindow, &RadioControlWidget::modeChangeRequested,
                 this, [this, radio2](ModeType mode) {
-                    LOG_INFO("MainWindow", QString("Mode change requested from Radio 2 control: %1").arg(static_cast<int>(mode)));
-                    if (radio2) radio2->setMode(mode, VFO::VFO_A);
+                    LOG_INFO("MainWindow", QString("Mode change requested from Radio 2 control: %1").arg(modeToString(mode)));
+
+                    // Update the RadioControlWidget display immediately for manual override
+                    if (m_radio2ControlWindow) {
+                        RadioState state;
+                        if (radio2) {
+                            state = radio2->getCurrentState();
+                        }
+                        state.modeA = mode;
+                        m_radio2ControlWindow->updateRadioState(state);
+                    }
+
+                    // Try to set on radio if connected (may fail silently for unsupported radios)
+                    if (radio2 && radio2->isConnected()) {
+                        radio2->setMode(mode, VFO::VFO_A);
+                    }
                 });
 
         // Connect CW speed change requests
@@ -4150,6 +4301,9 @@ void MainWindow::onShowMultipliers() {
         m_multiplierWindow->setWindowTitle("Multipliers");
         m_multiplierWindow->setWindowFlags(Qt::Window);
         m_multiplierWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Track window for activation behavior (Issue #76)
+        m_windowActivationHelper->trackWindow(m_multiplierWindow);
     }
     m_multiplierWindow->show();
     m_multiplierWindow->raise();
@@ -4163,6 +4317,9 @@ void MainWindow::onShowStatistics() {
         m_statisticsWindow->setWindowTitle("Statistics");
         m_statisticsWindow->setWindowFlags(Qt::Window);
         m_statisticsWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Track window for activation behavior (Issue #76)
+        m_windowActivationHelper->trackWindow(m_statisticsWindow);
     }
 
     // Always reload contest data when showing the window to ensure fresh data
@@ -4303,6 +4460,58 @@ void MainWindow::onShowAmplifierControl() {
     // Visibility will be saved in MainWindow::saveSettings() on exit
     updateWindowMenuCheckmarks();
 }
+
+#ifdef PANADAPTER_ENABLED
+void MainWindow::onShowPanadapter() {
+    // Create and show panadapter window
+    if (!m_panadapterWindow) {
+        m_panadapterWindow = new PanadapterWindow(this);
+        m_panadapterWindow->setWindowFlags(Qt::Window);
+        m_panadapterWindow->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Position offset from main window (first time)
+        QPoint offset(UIPositioning::WINDOW_INITIAL_OFFSET, UIPositioning::WINDOW_INITIAL_OFFSET);
+        m_panadapterWindow->move(this->pos() + offset);
+
+        // Connect frequency click to tune radio
+        connect(m_panadapterWindow, &PanadapterWindow::frequencyClicked, this,
+                [this](qint64 freqHz, int vfo) {
+            // Tune the radio to the clicked frequency
+            if (m_radio && m_radio->isConnected()) {
+                VFO targetVfo = (vfo == 0) ? VFO::VFO_A : VFO::VFO_B;
+                m_radio->setFrequency(static_cast<freq_t>(freqHz), targetVfo);
+            }
+        });
+
+        // Connect destroyed signal to clear pointer
+        connect(m_panadapterWindow, &QWidget::destroyed, this, [this]() {
+            m_panadapterWindow = nullptr;
+            m_panadapterWindowVisible = false;
+        });
+
+        // Connect windowClosed signal to track when user manually closes window
+        connect(m_panadapterWindow, &PanadapterWindow::windowClosed, this, [this]() {
+            m_panadapterWindowVisible = false;
+            updateWindowMenuCheckmarks();
+        });
+
+        // Auto-connect to K4 panadapter if available
+        m_panadapterWindow->connectToK4();
+    }
+
+    m_panadapterWindow->show();
+    m_panadapterWindow->raise();
+    m_panadapterWindow->activateWindow();
+    m_panadapterWindowVisible = true;
+    updateWindowMenuCheckmarks();
+}
+#else
+void MainWindow::onShowPanadapter() {
+    DialogHelper::information(this, "Panadapter Not Available",
+        "Panadapter requires Qt 6.6 or later.\n\n"
+        "This build was compiled with an older Qt version.");
+}
+#endif
 
 // Window menu placeholder implementations
 void MainWindow::onSwapMultView() {

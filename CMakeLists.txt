@@ -40,7 +40,18 @@ find_package(Qt6 REQUIRED COMPONENTS
     Svg
     Xml
     Test
+    Quick
+    QuickWidgets
+    Qml
+    ShaderTools
 )
+
+# Find Qt6 private modules for QRhi (required for WaterfallRhiItem panadapter)
+# GuiPrivate may not be available on all platforms (e.g., Debian without qt6-base-private-dev)
+find_package(Qt6 COMPONENTS GuiPrivate QUIET)
+if(NOT Qt6GuiPrivate_FOUND)
+    message(STATUS "Qt6::GuiPrivate not found - panadapter will be disabled")
+endif()
 
 # qtkeychain - Secure credential storage (macOS Keychain, Windows Credential Manager)
 # Built from source via FetchContent for zero deployment overhead (static link)

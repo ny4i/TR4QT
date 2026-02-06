@@ -7,6 +7,132 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.40.62] - 2026-02-04
+
+### Added
+- **StatusNotifier Service** (Issue #75): Centralized status bar messaging
+  - `StatusEvent` enum with 50+ event types for all status messages
+  - `StatusStyle` enum for consistent styling (Normal, Warning, Error, Success, Highlight)
+  - MainWindow subscribes via signal/slot - domain code no longer touches UI directly
+- **WindowActivationHelper** (Issue #76): Extracted window activation logic from MainWindow
+  - Manages window z-order and "raise all windows" behavior
+  - Tracks child windows (DXCluster, BandMap, RadioControl, Multiplier, Statistics)
+  - Handles ApplicationActivate (macOS) and WindowActivate events
+- **Post-Release Script**: `scripts/post-release.sh` automates macOS notarization and Pi builds
+- **macOS Notarization**: Hardened runtime enabled in `macos-bundle.sh` for Apple notarization
+
+### Fixed
+- **Linux Segfault**: Null check for WindowActivationHelper in eventFilter
+  - Crash occurred when eventFilter was called during MainWindow construction
+
+## [3.40.60] - 2026-02-04
+
+### Added
+- **Manual Mode Override**: Click mode label in Radio Control window to set mode manually
+  - Works even when radio doesn't report supported modes via Hamlib
+  - Fallback list: CW, CW-R, USB, LSB, RTTY, RTTY-R, DATA, DATA-R, FM, AM
+  - Supports both Radio 1 and Radio 2 (SO2R)
+- **Custom Baud Rate Support**: Enter any baud rate for non-standard radios
+  - New "Custom" option in baud rate dropdown with text entry field
+  - Supports rates from 300 to 5,000,000 (for high-speed 3Mbaud radios)
+  - Preset options now include 3000000
+
+## [3.40.59] - 2026-02-04
+
+### Changed
+- **RAII Smart Pointers**: Converted MaintenanceService and ImportExportManager to `std::unique_ptr`
+- **Enum-Based Error Fields**: Replaced string-matching error handling with enums in QSOLogger
+  - Preparation for future internationalization (i18n) support
+  - Field focus logic no longer depends on error message text
+
+## [3.40.58] - 2026-02-04
+
+### Added
+- **Linux x86_64 AppImage**: Native Linux desktop support
+  - Self-hosted Proxmox runner for CI builds
+  - Manual Qt deployment (linuxdeploy too unreliable)
+- **Linux ARM64 AppImage**: Support for Raspberry Pi 4/5/400
+  - Build script and CI template for ARM64 builds
+  - Uses Bookworm chroot for glibc 2.36 compatibility
+  - Native C wrapper binary for proper architecture detection
+- **Wiki Documentation**: Added user guides
+  - "Running TR4QT for the First Time" - complete setup guide
+  - "Raspberry Pi ARM64 Build" - build environment documentation
+
+### Changed
+- **Qt 6.4 Compatibility**: Changed `QTimeZone::UTC` to `Qt::UTC` for older Qt versions
+  - Affected files: `ADIFFieldMapper.cpp`, `test_adif_import.cpp`
+- **Panadapter Optional**: Feature disabled on Qt < 6.6 (Raspberry Pi builds)
+
+## [3.40.57] - 2026-02-03
+
+### Fixed
+- **Alt+O Shortcut Conflict on Windows**: Fixed keyboard shortcut conflicts for TR4W compatibility
+  - Alt+O and other Alt shortcuts no longer conflict with Windows menu accelerators
+
+## [3.40.56] - 2026-02-02
+
+### Changed
+- **KPA1500 Pre-flight Check**: Added exponential backoff for connection reliability
+  - Improves connection stability when amplifier is slow to respond
+
+## [3.40.55] - 2026-02-01
+
+### Added
+- **GPU-Accelerated Waterfall Display**: New QRhi-based rendering for K4 panadapter
+  - Independent reference level controls for each VFO
+  - Hardware-accelerated rendering for smooth display
+  - Requires Qt 6.6+ (disabled on older Qt)
+
+## [3.40.52] - 2026-02-01
+
+### Added
+- **Gradient LUT for Meters**: Visual improvements for analog-style displays
+  - S-meter uses gradient lookup table for smooth color transitions
+  - Power meter gradient display
+  - Amplifier SWR display with gradient coloring
+
+## [3.40.51] - 2026-01-31
+
+### Fixed
+- **QSettings Stuck-in-Group Bug**: Fixed settings corruption issue
+  - Added RAII scope guards to ensure `endGroup()` always called
+  - Prevents settings from being written to wrong groups
+
+## [3.40.49] - 2026-01-31
+
+### Added
+- **K4 Panadapter/Waterfall Display**: Real-time spectrum display for Elecraft K4
+  - QImage-based ImageProvider for efficient rendering
+  - Displays both VFO A and VFO B spectrum data
+
+## [3.40.44] - 2026-01-31
+
+### Changed
+- **RadioEditDialog Refactoring**: Reorganized dialog flow for better UX
+  - Connection Type (Serial/Network) is now the first question
+  - Serial mode: Shows serial port settings → Model selection → CI-V only for Icom radios
+  - Network mode: Shows Interface Type selector (Hamlib/K4 Direct/Icom Direct) → contextual fields
+  - Model selection hidden for K4 Direct (auto-selected)
+  - Icom credentials only shown for Icom Direct
+  - Status filters (Stable/Beta/Alpha) only shown for Hamlib interface
+
+### Added
+- **Radio Discovery Selection Dialog**: When multiple radios found on network
+  - Shows dropdown to select which radio to configure
+  - Displays "(already configured)" for radios in use by other profiles
+  - Works for both K4 and Icom discovery
+- **Station Profile Reconnect Prompt**: When switching station profiles
+  - Detects when active profile changes in preferences
+  - Prompts "Station profile changed to 'X'. Reconnect to use the new radios?"
+  - Automatically disconnects old radios and connects new ones if user confirms
+
+### Fixed
+- **Pre-commit Hook False Positives**: Fixed checks 5 and 10 that showed warnings even with no matches
+  - Pointer dereference check now properly captures output before testing
+  - Magic numbers check now properly captures output before testing
+  - Added exclusions for function return type declarations
+
 ## [3.40.16] - 2026-01-29
 
 ### Fixed

@@ -97,6 +97,8 @@ void RadioController::connectRadioSignals() {
             this, &RadioController::pttChanged);
     connect(m_radio, &RadioInterface::errorOccurred,
             this, &RadioController::errorOccurred);
+    connect(m_radio, &RadioInterface::statusMessageReceived,
+            this, &RadioController::statusMessageReceived);
 
     // Clean up radio when thread finishes
     connect(&m_workerThread, &QThread::finished,

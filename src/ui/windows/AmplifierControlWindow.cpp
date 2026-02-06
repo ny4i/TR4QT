@@ -940,8 +940,8 @@ void AmplifierControlWindow::updateSwrMeter(float swr) {
         const QString& ledId = swrLedIds[i];
 
         if (i < ledsToLight) {
-            // Get LED color from panel controller based on SWR level
-            QColor color = m_panelController->getSwrMeterColor(swr);
+            // Get LED color from gradient LUT based on position (green→yellow→red)
+            QColor color = m_panelController->getSwrLedColor(i, numLeds);
             m_svgPanel->setLedOn(ledId, color);
         } else {
             m_svgPanel->setLedOff(ledId);

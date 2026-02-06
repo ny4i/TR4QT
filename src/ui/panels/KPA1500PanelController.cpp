@@ -238,4 +238,63 @@ QColor KPA1500PanelController::getSwrMeterColor(float swr) const {
     }
 }
 
+QColor KPA1500PanelController::getSwrLedColor(int ledIndex, int totalLeds) const {
+    // Gradient LUT for SWR meter: green → yellow → red
+    // 10 LEDs: 1-3 green, 4-6 yellow-ish, 7-10 orange to red
+    if (totalLeds <= 1) return QColor(LedColors::GREEN);
+
+    // Pre-computed gradient for 10 LEDs (the KPA1500 standard)
+    static const QColor SWR_GRADIENT_LUT[] = {
+        QColor(0, 200, 0),      // LED 1: Dark green (SWR ~1.0-1.4)
+        QColor(0, 255, 0),      // LED 2: Bright green
+        QColor(100, 255, 0),    // LED 3: Yellow-green (SWR ~1.4-1.8)
+        QColor(180, 255, 0),    // LED 4: Lime
+        QColor(220, 220, 0),    // LED 5: Yellow (SWR ~1.8-2.2)
+        QColor(255, 200, 0),    // LED 6: Golden yellow
+        QColor(255, 150, 0),    // LED 7: Orange (SWR ~2.2-3.0)
+        QColor(255, 100, 0),    // LED 8: Red-orange
+        QColor(255, 50, 0),     // LED 9: Red-orange (SWR ~3.0-4.0)
+        QColor(255, 0, 0),      // LED 10: Bright red (SWR > 4.0)
+    };
+
+    // Handle different LED counts by interpolating
+    if (totalLeds == 10) {
+        return SWR_GRADIENT_LUT[qBound(0, ledIndex, 9)];
+    }
+
+    // For other LED counts, use the base class interpolation
+    return IAmplifierPanelController::getSwrLedColor(ledIndex, totalLeds);
+}
+
+QColor KPA1500PanelController::getPowerLedColor(int ledIndex, int totalLeds) const {
+    // Gradient LUT for power meter: green → yellow → orange → red
+    // Power meter on KPA1500 has ~31 LEDs but SVG IDs not yet renamed
+    if (totalLeds <= 1) return QColor(LedColors::GREEN);
+
+    float proportion = static_cast<float>(ledIndex) / (totalLeds - 1);
+
+    // More gradual transition than default:
+    // 0-50%: green to yellow-green (safe operating range)
+    // 50-75%: yellow-green to orange (moderate power)
+    // 75-100%: orange to red (high power)
+    int r, g;
+    if (proportion < 0.5f) {
+        // Green to Yellow-green (0-50% power)
+        float t = proportion * 2.0f;
+        r = static_cast<int>(180 * t);
+        g = 200 + static_cast<int>(55 * t);  // 200 → 255
+    } else if (proportion < 0.75f) {
+        // Yellow-green to Orange (50-75% power)
+        float t = (proportion - 0.5f) * 4.0f;
+        r = 180 + static_cast<int>(75 * t);  // 180 → 255
+        g = 255 - static_cast<int>(105 * t); // 255 → 150
+    } else {
+        // Orange to Red (75-100% power)
+        float t = (proportion - 0.75f) * 4.0f;
+        r = 255;
+        g = static_cast<int>(150 * (1.0f - t));  // 150 → 0
+    }
+    return QColor(r, g, 0);
+}
+
 } // namespace TR4QT

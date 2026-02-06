@@ -39,6 +39,9 @@ struct RadioConfig {
     int dataBits{8};            // Serial data bits (5, 6, 7, 8) - default 8
     int stopBits{1};            // Serial stop bits (1, 2) - default 1
     int parity{0};              // Serial parity (0=None, 1=Odd, 2=Even) - default None
+    int handshake{0};           // Serial handshake (0=Default, 1=None, 2=XON/XOFF, 3=Hardware RTS/CTS)
+    int dtrState{0};            // DTR line state (0=Default, 1=On, 2=Off)
+    int rtsState{0};            // RTS line state (0=Default, 1=On, 2=Off)
     int civAddress{0};          // CI-V address (for Icom radios)
     int pollInterval{5000};     // Polling interval in ms (5s slow fallback; transceive provides instant updates)
     int radioType{0};           // RadioFactory::RadioType (0=Hamlib, 1=K4_DIRECT, 2=ICOM_DIRECT, -1=Auto)
@@ -241,6 +244,7 @@ signals:
     void connectionStatusChanged(bool connected);
     void errorOccurred(const QString& error);
     void stateUpdated(const RadioState& state);
+    void statusMessageReceived(int code, const QString& message);  // Radio status/error messages (K4 ER command)
 };
 
 } // namespace TR4QT

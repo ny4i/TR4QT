@@ -23,6 +23,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QFrame>
+#include <QTimer>
 #include "../../radio/RadioInterface.h"
 
 namespace TR4QT {
@@ -79,6 +80,12 @@ public:
      * Set radio controller reference (for mode menu)
      */
     void setRadioController(RadioController* controller);
+
+    /**
+     * Display a status message from the radio (K4 ER command)
+     * Message auto-clears after a few seconds
+     */
+    void showStatusMessage(int code, const QString& message);
 
 signals:
     /**
@@ -153,6 +160,10 @@ private:
     bool m_isActive{false};  // Active radio indicator for SO2R
     RadioState m_currentState;
     RadioController* m_radioController{nullptr};  // Reference to radio controller (for mode menu)
+
+    // Status message display (K4 ER command)
+    QLabel* m_statusLabel{nullptr};
+    QTimer* m_statusClearTimer{nullptr};
 };
 
 } // namespace TR4QT
