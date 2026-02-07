@@ -461,12 +461,46 @@ jobs:
 
   build-macos:
     name: macOS
-    runs-on: macos-latest
+    runs-on: [self-hosted, macOS, ARM64]
     if: github.event_name != 'workflow_dispatch' || inputs.build_macos == true
+
+    # Self-hosted runner has Qt 6.10.1 and Hamlib pre-installed via Homebrew
+    env:
+      QT_ROOT_DIR: /opt/homebrew/opt/qt@6
+      HAMLIB_ROOT: /opt/homebrew/opt/hamlib
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        clean: false  # Preserve build/ directory for incremental builds
+        fetch-depth: 2  # Need HEAD~1 for incremental build detection
+
+    - name: Smart clean (incremental builds)
+      run: |
+        # Self-hosted runners keep build dir between runs for fast incremental builds.
+        # Force clean rebuild when build system changes or on release tags.
+        FORCE_CLEAN=false
+
+        # Always clean for release/tag builds (safety first)
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          echo "Tag build - forcing clean rebuild"
+          FORCE_CLEAN=true
+        # Clean if CMake config changed
+        elif git diff HEAD~1 --name-only 2>/dev/null | grep -qE '(CMakeLists\.txt|\.cmake)'; then
+          echo "Build system changed - forcing clean rebuild"
+          FORCE_CLEAN=true
+        # Clean if no previous build exists
+        elif [ ! -d build ]; then
+          echo "No previous build - clean build"
+          FORCE_CLEAN=true
+        else
+          echo "Incremental build (only recompiling changed files)"
+        fi
+
+        if [ "$FORCE_CLEAN" = true ]; then
+          rm -rf build || true
+        fi
 
     - name: Validate Qt Module Consistency
       run: |
@@ -475,35 +509,25 @@ jobs:
         echo ""
         bash scripts/validate-qt-modules.sh
 
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v4
-      with:
-        version: ${{ env.QT_VERSION }}
-        host: mac
-        target: desktop
-        modules: 'qtwebsockets qthttpserver qtserialport qtshadertools'  # shadertools for QRhi waterfall (Qt Quick/QML is in base)
-        cache: true
-
-    - name: Install Other Dependencies
+    - name: Verify Pre-installed Tools
       run: |
-        brew install libusb
-
-    - name: Build Hamlib from source (unsigned)
-      run: |
-        curl -L -o hamlib.tar.gz "https://github.com/Hamlib/Hamlib/releases/download/${{ env.HAMLIB_VERSION }}/hamlib-${{ env.HAMLIB_VERSION }}.tar.gz"
-        tar -xzf hamlib.tar.gz
-        cd hamlib-${{ env.HAMLIB_VERSION }}
-        ./configure --prefix=$HOME/hamlib-unsigned --disable-static
-        make -j$(sysctl -n hw.ncpu)
-        make install
-        echo "HAMLIB_ROOT=$HOME/hamlib-unsigned" >> $GITHUB_ENV
+        echo "=== Verifying Pre-installed Build Tools ==="
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+        echo "Qt: ${{ env.QT_ROOT_DIR }}"
+        ls "${{ env.QT_ROOT_DIR }}/lib/QtCore.framework" || { echo "ERROR: Qt not found"; exit 1; }
+        echo "Hamlib: ${{ env.HAMLIB_ROOT }}"
+        ls "${{ env.HAMLIB_ROOT }}/lib/libhamlib.dylib" || { echo "ERROR: Hamlib not found"; exit 1; }
+        echo "CMake: $(cmake --version | head -1)"
+        echo "create-dmg: $(create-dmg --version)"
+        echo "✓ All pre-installed tools verified"
 
     - name: Configure CMake
       run: |
+        eval "$(/opt/homebrew/bin/brew shellenv)"
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}" \
-          -DHAMLIB_ROOT="$HOME/hamlib-unsigned"
+          -DHAMLIB_ROOT="${{ env.HAMLIB_ROOT }}"
 
     - name: Validate Versions
       run: |
@@ -525,21 +549,25 @@ jobs:
         echo "✓ Qt version validated"
 
     - name: Build
-      run: cmake --build build --config Release -j$(sysctl -n hw.ncpu)
+      run: |
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+        cmake --build build --config Release -j$(sysctl -n hw.ncpu)
 
     - name: Run Tests
       run: |
+        eval "$(/opt/homebrew/bin/brew shellenv)"
         cd build
         ctest --output-on-failure -C Release
       continue-on-error: true
 
     - name: Create App Bundle
       run: |
+        eval "$(/opt/homebrew/bin/brew shellenv)"
         cd build/src
 
-        # Copy unsigned Hamlib dylib into the app bundle
+        # Copy Hamlib dylib into the app bundle
         mkdir -p tr4qt.app/Contents/Frameworks
-        cp $HOME/hamlib-unsigned/lib/libhamlib.*.dylib tr4qt.app/Contents/Frameworks/ || true
+        cp ${{ env.HAMLIB_ROOT }}/lib/libhamlib.*.dylib tr4qt.app/Contents/Frameworks/ || true
 
         # Bundle Qt frameworks and plugins with macdeployqt
         ${{ env.QT_ROOT_DIR }}/bin/macdeployqt tr4qt.app -verbose=2
@@ -547,19 +575,18 @@ jobs:
         # CRITICAL: Copy TLS plugins (macdeployqt doesn't bundle these reliably)
         echo "Copying TLS plugins..."
         mkdir -p tr4qt.app/Contents/PlugIns/tls
-        if [ -d "${{ env.QT_ROOT_DIR }}/plugins/tls" ]; then
-          cp ${{ env.QT_ROOT_DIR }}/plugins/tls/*.dylib tr4qt.app/Contents/PlugIns/tls/ || true
+        if [ -d "${{ env.QT_ROOT_DIR }}/share/qt/plugins/tls" ]; then
+          cp ${{ env.QT_ROOT_DIR }}/share/qt/plugins/tls/*.dylib tr4qt.app/Contents/PlugIns/tls/ || true
         fi
         echo "TLS plugins copied:"
         ls -lh tr4qt.app/Contents/PlugIns/tls/ || echo "No TLS plugins found"
 
-        # Copy any missing Homebrew dependencies (if needed)
-        # These may not be needed with install-qt-action, but keep as fallback
+        # Copy any missing Homebrew dependencies
         if [ -f "/opt/homebrew/opt/brotli/lib/libbrotlicommon.1.dylib" ]; then
           cp /opt/homebrew/opt/brotli/lib/libbrotlicommon.1.dylib tr4qt.app/Contents/Frameworks/ || true
         fi
-        if [ -d "/opt/homebrew/opt/qtbase/lib/QtDBus.framework" ]; then
-          cp -R /opt/homebrew/opt/qtbase/lib/QtDBus.framework tr4qt.app/Contents/Frameworks/ || true
+        if [ -d "/opt/homebrew/opt/qt@6/lib/QtDBus.framework" ]; then
+          cp -R /opt/homebrew/opt/qt@6/lib/QtDBus.framework tr4qt.app/Contents/Frameworks/ || true
         fi
         if [ -f "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" ]; then
           cp /opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib tr4qt.app/Contents/Frameworks/ || true
@@ -583,44 +610,108 @@ jobs:
 
         if [ -f "tr4qt.app/Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus" ]; then
           install_name_tool -id "@rpath/QtDBus.framework/Versions/A/QtDBus" tr4qt.app/Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus
-          # Fix QtDBus dependency on libdbus to use @rpath instead of absolute path
           install_name_tool -change "/opt/homebrew/opt/dbus/lib/libdbus-1.3.dylib" "@rpath/libdbus-1.3.dylib" tr4qt.app/Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus
         fi
 
         # Update executable to look for libraries in @rpath
         install_name_tool -add_rpath "@executable_path/../Frameworks" tr4qt.app/Contents/MacOS/tr4qt || true
 
-        # Sign everything with ad-hoc signatures
-        # Sign all dylibs in Frameworks
-        for lib in tr4qt.app/Contents/Frameworks/*.dylib; do
-          if [ -f "$lib" ]; then
-            codesign -s - -f "$lib"
-          fi
-        done
+    - name: Code Sign and Notarize
+      env:
+        APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+        MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      run: |
+        cd build/src
 
-        # Sign all Qt frameworks
-        for framework in tr4qt.app/Contents/Frameworks/*.framework; do
-          if [ -d "$framework" ]; then
-            codesign -s - -f "$framework"
-          fi
-        done
+        # Check if we have signing credentials
+        if [ -z "$MACOS_CERTIFICATE" ] || [ -z "$APPLE_DEVELOPER_ID" ]; then
+          echo "⚠ No signing credentials - using ad-hoc signing"
 
-        # Sign all plugins
-        find tr4qt.app/Contents/PlugIns -name "*.dylib" -exec codesign -s - -f {} \;
+          # Ad-hoc sign all components
+          for lib in tr4qt.app/Contents/Frameworks/*.dylib; do
+            [ -f "$lib" ] && codesign -s - -f "$lib"
+          done
+          for framework in tr4qt.app/Contents/Frameworks/*.framework; do
+            [ -d "$framework" ] && codesign -s - -f "$framework"
+          done
+          find tr4qt.app/Contents/PlugIns -name "*.dylib" -exec codesign -s - -f {} \;
+          codesign -s - -f tr4qt.app/Contents/MacOS/tr4qt
+          codesign -s - -f tr4qt.app
 
-        # Sign the executable
-        codesign -s - -f tr4qt.app/Contents/MacOS/tr4qt
+          echo "✓ Ad-hoc signing complete (app will show Gatekeeper warning)"
+        else
+          echo "=== Setting up code signing ==="
 
-        # Sign the entire app bundle
-        codesign -s - -f tr4qt.app
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-        # Create DMG manually with hdiutil (macdeployqt -dmg breaks signatures)
-        # Extract version from Constants.h for filename
+          # Import certificate
+          echo $MACOS_CERTIFICATE | base64 --decode > certificate.p12
+          security import certificate.p12 -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+          rm certificate.p12
+
+          echo "=== Code signing with Developer ID ==="
+          SIGN_ID="Developer ID Application: $APPLE_DEVELOPER_ID ($APPLE_TEAM_ID)"
+
+          # Sign all components with hardened runtime
+          for lib in tr4qt.app/Contents/Frameworks/*.dylib; do
+            [ -f "$lib" ] && codesign --force --options runtime --sign "$SIGN_ID" "$lib"
+          done
+          for framework in tr4qt.app/Contents/Frameworks/*.framework; do
+            [ -d "$framework" ] && codesign --force --options runtime --sign "$SIGN_ID" "$framework"
+          done
+          find tr4qt.app/Contents/PlugIns -name "*.dylib" -exec codesign --force --options runtime --sign "$SIGN_ID" {} \;
+          codesign --force --options runtime --sign "$SIGN_ID" tr4qt.app/Contents/MacOS/tr4qt
+          codesign --force --options runtime --sign "$SIGN_ID" tr4qt.app
+
+          # Verify signature
+          codesign --verify --deep --strict tr4qt.app
+          echo "✓ Code signing complete"
+
+          echo "=== Notarizing app ==="
+          # Create zip for notarization
+          ditto -c -k --keepParent tr4qt.app tr4qt.zip
+
+          # Submit for notarization
+          xcrun notarytool submit tr4qt.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          rm tr4qt.zip
+          echo "✓ Notarization complete"
+        fi
+
+        # Create DMG
         VERSION=$(grep 'APP_VERSION' ../../src/core/Constants.h | cut -d'"' -f2)
         mkdir -p dmg-contents
         cp -R tr4qt.app dmg-contents/
         hdiutil create -volname "TR4QT" -srcfolder dmg-contents -ov -format UDZO "TR4QT-${VERSION}-macOS.dmg"
         rm -rf dmg-contents
+
+        # Notarize and staple the DMG if we have credentials
+        if [ -n "$MACOS_CERTIFICATE" ] && [ -n "$APPLE_DEVELOPER_ID" ]; then
+          echo "=== Notarizing DMG ==="
+          xcrun notarytool submit "TR4QT-${VERSION}-macOS.dmg" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          # Staple the notarization ticket to the DMG
+          xcrun stapler staple "TR4QT-${VERSION}-macOS.dmg"
+          echo "✓ DMG notarization and stapling complete"
+        fi
 
     - name: Verify App Bundle Contents
       working-directory: build/src
