@@ -531,12 +531,13 @@ jobs:
 
     - name: Validate Versions
       run: |
+        eval "$(/opt/homebrew/bin/brew shellenv)"
         echo "=== Version Validation ==="
         echo "Expected Qt: ${{ env.QT_VERSION }}"
         echo "Expected Hamlib: ${{ env.HAMLIB_VERSION }}"
 
-        # Check Qt version from CMake
-        QT_ACTUAL=$(grep -r "Qt6Core" build/CMakeCache.txt | grep -oE '6\.[0-9]+\.[0-9]+' | head -1)
+        # Get Qt version from qmake6 (works with Homebrew)
+        QT_ACTUAL=$(qmake6 --version | grep "Using Qt" | sed 's/.*version //' | awk '{print $1}')
         echo "Detected Qt: $QT_ACTUAL"
 
         if [ "$QT_ACTUAL" != "${{ env.QT_VERSION }}" ]; then
