@@ -669,18 +669,25 @@ jobs:
           security find-identity -v -p codesigning $KEYCHAIN_PATH
 
           echo "=== Code signing with Developer ID ==="
-          SIGN_ID="Developer ID Application: $APPLE_DEVELOPER_ID ($APPLE_TEAM_ID)"
+          # Extract SHA-1 hash from keychain (more reliable than name matching in daemon context)
+          SIGN_HASH=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | head -1 | awk '{print $2}')
+          echo "Using signing identity: $SIGN_HASH"
 
-          # Sign all components with hardened runtime (--keychain required for daemon context)
+          if [ -z "$SIGN_HASH" ]; then
+            echo "ERROR: No signing identity found in keychain"
+            exit 1
+          fi
+
+          # Sign all components with hardened runtime
           for lib in tr4qt.app/Contents/Frameworks/*.dylib; do
-            [ -f "$lib" ] && codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_ID" "$lib"
+            [ -f "$lib" ] && codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_HASH" "$lib"
           done
           for framework in tr4qt.app/Contents/Frameworks/*.framework; do
-            [ -d "$framework" ] && codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_ID" "$framework"
+            [ -d "$framework" ] && codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_HASH" "$framework"
           done
-          find tr4qt.app/Contents/PlugIns -name "*.dylib" -exec codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_ID" {} \;
-          codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_ID" tr4qt.app/Contents/MacOS/tr4qt
-          codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_ID" tr4qt.app
+          find tr4qt.app/Contents/PlugIns -name "*.dylib" -exec codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_HASH" {} \;
+          codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_HASH" tr4qt.app/Contents/MacOS/tr4qt
+          codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_HASH" tr4qt.app
 
           # Verify signature
           codesign --verify --deep --strict tr4qt.app
