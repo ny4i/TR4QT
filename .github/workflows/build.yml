@@ -659,15 +659,14 @@ jobs:
           security import certificate.p12 -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          # Set keychain search list (daemon context has no login.keychain-db)
-          security default-keychain -s $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
+          # Set keychain search list (daemon context — no default-keychain, no login.keychain-db)
+          security list-keychain -d user -s $KEYCHAIN_PATH $(security list-keychain -d user | tr -d '"' | tr '\n' ' ')
           rm certificate.p12
 
           # Verify certificate is accessible
-          security find-identity -v -p codesigning
           echo "Keychain search list:"
           security list-keychain -d user
+          security find-identity -v -p codesigning $KEYCHAIN_PATH
 
           echo "=== Code signing with Developer ID ==="
           SIGN_ID="Developer ID Application: $APPLE_DEVELOPER_ID ($APPLE_TEAM_ID)"
