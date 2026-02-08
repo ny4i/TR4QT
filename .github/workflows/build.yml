@@ -623,15 +623,14 @@ jobs:
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         APPLE_ID: ${{ secrets.APPLE_ID }}
         APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-        MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-        MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
       run: |
         cd build/src
 
-        # Check if we have signing credentials
-        if [ -z "$MACOS_CERTIFICATE" ] || [ -z "$APPLE_DEVELOPER_ID" ]; then
-          echo "⚠ No signing credentials - using ad-hoc signing"
+        # Find signing identity in System.keychain (pre-installed on runner)
+        SIGN_HASH=$(security find-identity -v -p codesigning /Library/Keychains/System.keychain | head -1 | awk '{print $2}')
+
+        if [ -z "$SIGN_HASH" ] || [ -z "$APPLE_DEVELOPER_ID" ]; then
+          echo "⚠ No signing identity found - using ad-hoc signing"
 
           # Ad-hoc sign all components
           for lib in tr4qt.app/Contents/Frameworks/*.dylib; do
@@ -646,48 +645,19 @@ jobs:
 
           echo "✓ Ad-hoc signing complete (app will show Gatekeeper warning)"
         else
-          echo "=== Setting up code signing ==="
-
-          # Create temporary keychain
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-
-          # Import certificate
-          echo $MACOS_CERTIFICATE | base64 --decode > certificate.p12
-          security import certificate.p12 -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-
-          # Set keychain search list (daemon context — no default-keychain, no login.keychain-db)
-          security list-keychain -d user -s $KEYCHAIN_PATH $(security list-keychain -d user | tr -d '"' | tr '\n' ' ')
-          rm certificate.p12
-
-          # Verify certificate is accessible
-          echo "Keychain search list:"
-          security list-keychain -d user
-          security find-identity -v -p codesigning $KEYCHAIN_PATH
-
           echo "=== Code signing with Developer ID ==="
-          # Extract SHA-1 hash from keychain (more reliable than name matching in daemon context)
-          SIGN_HASH=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | head -1 | awk '{print $2}')
           echo "Using signing identity: $SIGN_HASH"
 
-          if [ -z "$SIGN_HASH" ]; then
-            echo "ERROR: No signing identity found in keychain"
-            exit 1
-          fi
-
-          # Sign all components with hardened runtime
+          # Sign all components with hardened runtime (cert is in System.keychain)
           for lib in tr4qt.app/Contents/Frameworks/*.dylib; do
-            [ -f "$lib" ] && codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_HASH" "$lib"
+            [ -f "$lib" ] && codesign --force --options runtime --sign "$SIGN_HASH" "$lib"
           done
           for framework in tr4qt.app/Contents/Frameworks/*.framework; do
-            [ -d "$framework" ] && codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_HASH" "$framework"
+            [ -d "$framework" ] && codesign --force --options runtime --sign "$SIGN_HASH" "$framework"
           done
-          find tr4qt.app/Contents/PlugIns -name "*.dylib" -exec codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_HASH" {} \;
-          codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_HASH" tr4qt.app/Contents/MacOS/tr4qt
-          codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_HASH" tr4qt.app
+          find tr4qt.app/Contents/PlugIns -name "*.dylib" -exec codesign --force --options runtime --sign "$SIGN_HASH" {} \;
+          codesign --force --options runtime --sign "$SIGN_HASH" tr4qt.app/Contents/MacOS/tr4qt
+          codesign --force --options runtime --sign "$SIGN_HASH" tr4qt.app
 
           # Verify signature
           codesign --verify --deep --strict tr4qt.app
