@@ -103,25 +103,64 @@ Cross-platform Qt/C++ port of TR4W (Delphi contest logger) with centralized radi
 
 ## Requirements
 
-- Qt6 (6.5+)
-- Hamlib (4.0+)
-- CMake (3.16+)
+- Qt 6.5+ (with modules: Core, Widgets, Sql, Network, HttpServer, SerialPort, Svg, Xml, Quick, Qml, ShaderTools, PrintSupport, Concurrent)
+- Hamlib 4.0+
+- CMake 3.16+
 - C++17 compiler
 
-## Building
+## Building from Source
+
+### Linux (Ubuntu/Debian)
 
 ```bash
-mkdir build
-cd build
-cmake ..
-make
+# Install build tools
+sudo apt install build-essential cmake git
+
+# Install Qt6 development packages
+sudo apt install qt6-base-dev qt6-base-private-dev \
+    qt6-httpserver-dev qt6-serialport-dev qt6-svg-dev \
+    qt6-declarative-dev qt6-shadertools-dev \
+    libqt6sql6-sqlite
+
+# Install Hamlib
+sudo apt install libhamlib-dev
+
+# Build
+git clone https://github.com/ny4i/TR4QT.git
+cd TR4QT
+cmake -B build
+cmake --build build -j$(nproc)
 ```
+
+### macOS (Homebrew)
+
+```bash
+brew install qt@6 hamlib cmake
+cmake -B build
+cmake --build build -j$(sysctl -n hw.ncpu)
+```
+
+### Windows (MinGW)
+
+See `docs/windows-deployment.md` for detailed Windows build instructions.
 
 ## Running
 
 ```bash
+# Linux
 ./build/src/tr4qt
+
+# macOS
+./build/src/tr4qt.app/Contents/MacOS/tr4qt
 ```
+
+## Pre-built Downloads
+
+Pre-built binaries are available from [Releases](https://github.com/ny4i/TR4QT/releases):
+- **macOS**: `.dmg` (signed and notarized)
+- **Windows**: `.exe` installer or `.zip` portable
+- **Linux x86_64**: `.AppImage`
+- **Raspberry Pi (ARM64)**: `.AppImage`
 
 ## Architecture
 
