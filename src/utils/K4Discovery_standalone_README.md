@@ -68,7 +68,7 @@ struct K4RadioInfo {
     QString ipAddress;    // IP address (e.g., "192.168.1.100")
     QString serialNumber; // Serial number (e.g., "278")
 
-    QString hostname() const; // Returns "K4-SN00278.local" format
+    QString hostname() const; // Returns "K4-SN12345.local" format
 };
 ```
 

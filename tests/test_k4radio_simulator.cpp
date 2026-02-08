@@ -281,8 +281,22 @@ void TestK4RadioSimulator::initTestCase() {
     Logger& logger = Logger::instance();
     logger.setLogLevel(LogLevel::Debug);
 
-    // Path to simulator (adjust if needed)
-    m_simulatorPath = "/Users/toms/projects/hamlib/build/simelecraftk4";
+    // Path to simulator - set HAMLIB_SIMULATOR_PATH env var, or it searches common locations
+    m_simulatorPath = qEnvironmentVariable("HAMLIB_SIMULATOR_PATH");
+    if (m_simulatorPath.isEmpty()) {
+        // Search common locations
+        const QStringList searchPaths = {
+            QDir::homePath() + "/projects/hamlib/build/simelecraftk4",
+            "/usr/local/bin/simelecraftk4",
+            "/opt/homebrew/bin/simelecraftk4",
+        };
+        for (const QString& path : searchPaths) {
+            if (QFile::exists(path)) {
+                m_simulatorPath = path;
+                break;
+            }
+        }
+    }
 
     // Check simulator exists
     m_simulatorAvailable = QFile::exists(m_simulatorPath);

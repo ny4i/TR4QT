@@ -13,7 +13,7 @@ On Windows, the application experiences UI freezing with screen flashing and "No
 From `WindowsFlashingNotResponding.log`:
 
 1. Application starts normally (line 1)
-2. Amplifier connects successfully (line 226): `Connected to KPA1500 at 192.168.73.109:1500`
+2. Amplifier connects successfully (line 226): `Connected to KPA1500 at <amplifier-ip>:1500`
 3. Amplifier control window initializes (line 304-331)
 4. **Log cuts off abruptly during LCD positioning** (line 332) - suggests UI event loop stalled
 
@@ -219,7 +219,7 @@ Possible explanations for platform differences:
 ## References
 
 - Working example: `src/radio/RadioController.h` and `.cpp`
-- Log file: `C:\Users\toms\AppData\Local\TR4QT\logs\WindowsFlashingNotResponding.log`
+- Log file: `%LOCALAPPDATA%\TR4QT\logs\WindowsFlashingNotResponding.log`
 - Date discovered: 2026-01-29
 - Platforms affected: Windows (primarily), possibly Linux (untested)
 - Platform unaffected: macOS (masks the issue due to different I/O characteristics)

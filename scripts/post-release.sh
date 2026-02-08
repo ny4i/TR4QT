@@ -63,7 +63,11 @@ echo "==> Creating DMG..."
 hdiutil create -volname "TR4QT" -srcfolder build/src/tr4qt.app -ov -format UDZO "$DMG_NAME"
 
 echo "==> Signing DMG..."
-codesign --force --sign "Developer ID Application: Thomas Schaefer (N3397MADHZ)" "$DMG_NAME"
+if [ -z "$SIGNING_IDENTITY" ]; then
+    echo "ERROR: SIGNING_IDENTITY environment variable not set."
+    exit 1
+fi
+codesign --force --sign "$SIGNING_IDENTITY" "$DMG_NAME"
 
 echo "==> Submitting for notarization (this may take a few minutes)..."
 xcrun notarytool submit "$DMG_NAME" --keychain-profile "TR4QT" --wait

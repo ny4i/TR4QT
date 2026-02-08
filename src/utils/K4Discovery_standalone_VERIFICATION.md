@@ -29,22 +29,22 @@ K4Discovery Standalone - Compilation Test
 Starting K4 discovery (3 second timeout)...
 
 K4Discovery: Starting K4 radio discovery...
-K4Discovery: Sending discovery via interface "vlan1" ( "192.168.73.168" )
-K4Discovery: Bound socket to "192.168.73.168" : 57548 for interface "vlan1"
-K4Discovery: Sent 6 bytes from "192.168.73.168" : 57548 to "192.168.73.255" : 9100 via "vlan1"
-K4Discovery: Sent discovery messages on 35 network interface(s)
+K4Discovery: Sending discovery via interface "eth0" ( "192.168.1.100" )
+K4Discovery: Bound socket to "192.168.1.100" : 57548 for interface "eth0"
+K4Discovery: Sent 6 bytes from "192.168.1.100" : 57548 to "192.168.1.255" : 9100 via "eth0"
+K4Discovery: Sent discovery messages on 3 network interface(s)
 
-K4Discovery: onReadyRead() triggered on socket "192.168.73.168" : 57548
-K4Discovery: Received 26 bytes from "192.168.73.108" : 9100
-K4Discovery: Found K4 serial "278" at "192.168.73.108" ( "K4-SN00278.local" )
+K4Discovery: onReadyRead() triggered on socket "192.168.1.100" : 57548
+K4Discovery: Received 26 bytes from "192.168.1.50" : 9100
+K4Discovery: Found K4 serial "12345" at "192.168.1.50" ( "K4-SN12345.local" )
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Found K4 Radio:
   Type:       "k4"
   Index:      0
-  IP:         "192.168.73.108"
-  Serial:     "278"
-  Hostname:   "K4-SN00278.local"
+  IP:         "192.168.1.50"
+  Serial:     "12345"
+  Hostname:   "K4-SN12345.local"
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Discovery complete. Found 1 K4 radio(s).
