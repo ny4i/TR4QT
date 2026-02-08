@@ -55,6 +55,9 @@ qrc_*.cpp
 cty.dat
 *.pcap
 *.pcapng
+pcap/
+result.txt
+words.txt
 
 # Exception: Allow test fixtures
 !tests/fixtures/*.adi
