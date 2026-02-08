@@ -555,10 +555,12 @@ jobs:
         cmake --build build --config Release -j$(sysctl -n hw.ncpu)
 
     - name: Run Tests
+      env:
+        QT_QPA_PLATFORM: offscreen
       run: |
         eval "$(/opt/homebrew/bin/brew shellenv)"
         cd build
-        ctest --output-on-failure -C Release
+        ctest --output-on-failure -C Release --timeout 60
       continue-on-error: true
 
     - name: Create App Bundle
