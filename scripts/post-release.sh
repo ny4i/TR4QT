@@ -1,7 +1,7 @@
 #!/bin/bash
 # Post-CI Release Script
-# Builds, signs, notarizes macOS DMG and builds Pi AppImage,
-# then uploads both to the GitHub release.
+# Builds Raspberry Pi ARM64 AppImage and uploads to the GitHub release.
+# macOS and Windows builds are handled by CI runners automatically.
 #
 # Usage: ./scripts/post-release.sh [version]
 #   version: e.g., v3.40.62 (auto-detected from Constants.h if omitted)
@@ -44,61 +44,11 @@ if ! gh release view "$VERSION" > /dev/null 2>&1; then
 fi
 
 # ============================================================
-# STEP 1: macOS - Build, sign, notarize, upload
+# Raspberry Pi ARM64 AppImage
 # ============================================================
 echo ""
 echo "============================================================"
-echo "  STEP 1: macOS DMG (signed + notarized)"
-echo "============================================================"
-
-DMG_NAME="TR4QT-${VERSION}-macOS.dmg"
-
-echo "==> Building app bundle..."
-cmake --build build --target tr4qt
-
-echo "==> Running macos-bundle.sh (sign with hardened runtime)..."
-./scripts/macos-bundle.sh
-
-echo "==> Creating DMG..."
-hdiutil create -volname "TR4QT" -srcfolder build/src/tr4qt.app -ov -format UDZO "$DMG_NAME"
-
-echo "==> Signing DMG..."
-if [ -z "$SIGNING_IDENTITY" ]; then
-    echo "ERROR: SIGNING_IDENTITY environment variable not set."
-    exit 1
-fi
-codesign --force --sign "$SIGNING_IDENTITY" "$DMG_NAME"
-
-echo "==> Submitting for notarization (this may take a few minutes)..."
-xcrun notarytool submit "$DMG_NAME" --keychain-profile "TR4QT" --wait
-
-echo "==> Stapling notarization ticket..."
-xcrun stapler staple "$DMG_NAME"
-
-echo "==> Verifying notarization..."
-if spctl -a -t open --context context:primary-signature -v "$DMG_NAME" 2>&1 | grep -q "accepted"; then
-    echo "    ✓ Notarization verified"
-else
-    echo "    ✗ WARNING: Notarization verification failed"
-fi
-
-echo "==> Uploading macOS DMG to release..."
-gh release upload "$VERSION" "$DMG_NAME" --clobber
-
-echo "    ✓ macOS DMG uploaded"
-
-# Remove CI-built unsigned DMG if present
-CI_DMG="TR4QT-${VERSION}-macOS-unsigned.dmg"
-if gh release view "$VERSION" --json assets --jq '.assets[].name' | grep -q "^TR4QT-${VERSION}-macOS.dmg$"; then
-    echo "    (replaced CI-built DMG with notarized version)"
-fi
-
-# ============================================================
-# STEP 2: Raspberry Pi ARM64 AppImage
-# ============================================================
-echo ""
-echo "============================================================"
-echo "  STEP 2: Raspberry Pi ARM64 AppImage"
+echo "  Raspberry Pi ARM64 AppImage"
 echo "============================================================"
 
 PI_APPIMAGE="TR4QT-${VERSION}-aarch64.AppImage"
