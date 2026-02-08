@@ -671,16 +671,16 @@ jobs:
           echo "=== Code signing with Developer ID ==="
           SIGN_ID="Developer ID Application: $APPLE_DEVELOPER_ID ($APPLE_TEAM_ID)"
 
-          # Sign all components with hardened runtime
+          # Sign all components with hardened runtime (--keychain required for daemon context)
           for lib in tr4qt.app/Contents/Frameworks/*.dylib; do
-            [ -f "$lib" ] && codesign --force --options runtime --sign "$SIGN_ID" "$lib"
+            [ -f "$lib" ] && codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_ID" "$lib"
           done
           for framework in tr4qt.app/Contents/Frameworks/*.framework; do
-            [ -d "$framework" ] && codesign --force --options runtime --sign "$SIGN_ID" "$framework"
+            [ -d "$framework" ] && codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_ID" "$framework"
           done
-          find tr4qt.app/Contents/PlugIns -name "*.dylib" -exec codesign --force --options runtime --sign "$SIGN_ID" {} \;
-          codesign --force --options runtime --sign "$SIGN_ID" tr4qt.app/Contents/MacOS/tr4qt
-          codesign --force --options runtime --sign "$SIGN_ID" tr4qt.app
+          find tr4qt.app/Contents/PlugIns -name "*.dylib" -exec codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_ID" {} \;
+          codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_ID" tr4qt.app/Contents/MacOS/tr4qt
+          codesign --force --options runtime --keychain $KEYCHAIN_PATH --sign "$SIGN_ID" tr4qt.app
 
           # Verify signature
           codesign --verify --deep --strict tr4qt.app
