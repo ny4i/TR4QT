@@ -132,7 +132,7 @@ make
 
 ## Reference
 
-Based on TR4W (Delphi) at `/Users/toms/projects/TR4W/`
+Based on [TR4W](http://tr4w.net/) (Delphi)
 
 ## Acknowledgments
 

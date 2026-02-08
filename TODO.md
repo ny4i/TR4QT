@@ -90,7 +90,7 @@ Implement a `CredentialStore` class using QtKeychain library, similar to QLog's 
 3. Add migration flag to prevent re-migration
 
 **Reference Implementation**:
-- QLog: `/Users/toms/projects/qlog/core/CredentialStore.{h,cpp}`
+- QLog: `core/CredentialStore.{h,cpp}` (see https://github.com/foldynl/QLog)
 - QtKeychain docs: https://github.com/frankosterfeld/qtkeychain
 
 **Affected Files**:

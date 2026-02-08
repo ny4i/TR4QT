@@ -50,7 +50,7 @@ Any PR that modifies `.github/workflows/` files should be scrutinized. Malicious
 ## Current Status
 
 - **Repository**: TR4QT (public)
-- **Self-hosted runner**: linux-ci-build (Proxmox VM)
+- **Self-hosted runner**: linux-ci-build (VM)
 - **Risk level**: Low (single maintainer, no external PRs yet)
 - **Action needed**: Implement mitigations before accepting first external PR
 

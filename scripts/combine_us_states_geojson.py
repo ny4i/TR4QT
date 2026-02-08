@@ -99,7 +99,9 @@ def combine_states(input_dir, output_file):
 
 if __name__ == "__main__":
     input_dir = os.path.expanduser("~/projects/world-geojson/states/usa")
-    output_file = "/Users/toms/projects/TR4QT/resources/us_states.geojson"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_dir = os.path.dirname(script_dir)
+    output_file = os.path.join(project_dir, "resources", "us_states.geojson")
 
     success = combine_states(input_dir, output_file)
     sys.exit(0 if success else 1)

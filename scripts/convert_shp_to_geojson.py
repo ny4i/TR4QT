@@ -115,8 +115,11 @@ def convert_shapefiles_to_geojson(shapes_dir, output_file):
         return False
 
 if __name__ == "__main__":
-    shapes_dir = "/Users/toms/projects/n1mm_view/shapes"
-    output_file = "/Users/toms/projects/TR4QT/resources/arrl_sections.geojson"
+    # Adjust these paths for your local environment
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_dir = os.path.dirname(script_dir)
+    shapes_dir = os.path.join(os.path.expanduser("~"), "projects", "n1mm_view", "shapes")
+    output_file = os.path.join(project_dir, "resources", "arrl_sections.geojson")
 
     # Create resources directory if it doesn't exist
     os.makedirs(os.path.dirname(output_file), exist_ok=True)

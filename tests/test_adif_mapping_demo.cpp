@@ -59,7 +59,7 @@ private slots:
         qDebug().noquote() << QString("APP_N1MM_CONTINENT:2 = \"NA\"  → qso.continent           = \"%1\"").arg(qso.continent);
         qDebug().noquote() << QString("APP_N1MM_ISRUNQSO:1 = \"0\"    → qso.isRunQSO            = %1").arg(qso.isRunQSO ? "true" : "false");
         qDebug().noquote() << QString("APP_N1MM_POINTS:1 = \"1\"      → qso.qsoPoints           = %1").arg(qso.qsoPoints);
-        qDebug().noquote() << QString("OPERATOR:6 = \"KA4IOX\"        → qso.operatorCall        = \"%1\"").arg(qso.operatorCall);
+        qDebug().noquote() << QString("OPERATOR:6 = \"AA1ZZZ\"        → qso.operatorCall        = \"%1\"").arg(qso.operatorCall);
         qDebug() << "";
 
         qDebug() << "Fields NOT in ADIF (set by importer):";

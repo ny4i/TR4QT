@@ -210,7 +210,7 @@ Plan complete, implementation ready to start
 - [ ] `src/CMakeLists.txt` - Add source files
 - [ ] `tests/CMakeLists.txt` - Add test executable
 
-**Reference**: `/Users/toms/.claude/plans/curried-weaving-donut.md` (Florida QSO Party plan)
+**Reference**: Claude plan file (Florida QSO Party plan)
 
 ---
 
@@ -370,7 +370,7 @@ Comprehensive 12-section implementation plan created, covering:
 
 **Impact**: TR4W-level sophistication
 
-**Reference**: `/Users/toms/.claude/plans/wild-scribbling-shore.md` (Exchange Enhancement plan)
+**Reference**: Claude plan file (Exchange Enhancement plan)
 
 ---
 
@@ -481,7 +481,7 @@ Font family "Monospace" hard-coded in multiple places.
 - [ ] Test shutdown persistence
 - [ ] Test spot aging colors
 
-**Reference**: `/Users/toms/.claude/plans/federated-brewing-simon.md` (Spot persistence plan)
+**Reference**: Claude plan file (Spot persistence plan)
 
 ---
 
@@ -707,4 +707,4 @@ For detailed implementation plans, see:
 - `REFACTORING_STATUS.md` - Code quality improvements
 - `BACKUP_INTEGRATION_TODO.md` - Backup settings UI
 - `TODO_MAPS.md` - Geographic map features
-- `/Users/toms/.claude/plans/*.md` - Detailed plan files
+- Claude plan files - Detailed implementation plans (local only)

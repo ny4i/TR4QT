@@ -105,8 +105,11 @@ def combine_sections(shapes_dir, output_dir):
 
 
 def main():
-    shapes_dir = "/Users/toms/projects/n1mm_view/shapes"
-    output_dir = "/Users/toms/projects/TR4QT/resources/shp/multi_section_states"
+    # Adjust these paths for your local environment
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_dir = os.path.dirname(script_dir)
+    shapes_dir = os.path.join(os.path.expanduser("~"), "projects", "n1mm_view", "shapes")
+    output_dir = os.path.join(project_dir, "resources", "shp", "multi_section_states")
 
     if not os.path.isdir(shapes_dir):
         print(f"ERROR: Source directory not found: {shapes_dir}")

@@ -49,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Linux x86_64 AppImage**: Native Linux desktop support
-  - Self-hosted Proxmox runner for CI builds
+  - Self-hosted runner for CI builds
   - Manual Qt deployment (linuxdeploy too unreliable)
 - **Linux ARM64 AppImage**: Support for Raspberry Pi 4/5/400
   - Build script and CI template for ARM64 builds

@@ -192,7 +192,7 @@ void TestThemeManager::testColor_TR4WDefault_VfoBackground() {
 ### Run All Tests
 
 ```bash
-cd /Users/toms/projects/TR4QT
+cd /path/to/TR4QT
 cmake -S . -B build
 cd build
 make
@@ -201,7 +201,7 @@ ctest
 
 **Expected output:**
 ```
-Test project /Users/toms/projects/TR4QT/build
+Test project /path/to/TR4QT/build
     Start 1: test_logformatter
 1/7 Test #1: test_logformatter ................   Passed    0.10 sec
     Start 2: test_types
@@ -328,7 +328,7 @@ QTEST_MAIN(TestNewFeature)
 
 ### 2. Update CMakeLists.txt
 
-Add to `/Users/toms/projects/TR4QT/tests/CMakeLists.txt`:
+Add to `tests/CMakeLists.txt`:
 
 ```cmake
 add_tr4qt_test(test_newfeature
@@ -508,8 +508,7 @@ If you need to test private methods, consider:
 
 - **Qt Test Documentation**: https://doc.qt.io/qt-6/qtest-overview.html
 - **CTest Documentation**: https://cmake.org/cmake/help/latest/manual/ctest.1.html
-- **Implementation Plan**: `/Users/toms/.claude/plans/composed-twirling-quilt.md`
-- **TR4QT Source**: `/Users/toms/projects/TR4QT/src/`
+- **TR4QT Source**: `src/`
 
 ## Contributing
 

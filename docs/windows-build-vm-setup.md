@@ -1,4 +1,4 @@
-# Windows Build VM Setup (Proxmox)
+# Windows Build VM Setup
 
 For local Windows builds/testing when GitHub CI isn't enough.
 
@@ -11,7 +11,7 @@ For local Windows builds/testing when GitHub CI isn't enough.
 
 ## Installation Steps
 
-### 1. Create Windows VM in Proxmox
+### 1. Create Windows VM
 
 - Use Windows 11 ISO
 - Enable VirtIO drivers for better performance

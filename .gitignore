@@ -67,3 +67,14 @@ words.txt
 # Claude Code local settings (user-specific)
 .claude/settings.local.json
 test_export.adi
+
+# Build artifacts and binary distributions
+*.dmg
+*.AppImage
+dist/
+Screenshot*.jpg
+Screenshot*.png
+
+# Personal contest configs and settings
+settings/tr4w.ini
+**/ARRL-FD*
