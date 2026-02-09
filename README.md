@@ -118,7 +118,8 @@ sudo apt install build-essential cmake git
 
 # Install Qt6 development packages
 sudo apt install qt6-base-dev qt6-base-private-dev \
-    qt6-httpserver-dev qt6-serialport-dev qt6-svg-dev \
+    qt6-websockets-dev qt6-httpserver-dev \
+    qt6-serialport-dev qt6-svg-dev \
     qt6-declarative-dev qt6-shadertools-dev \
     libqt6sql6-sqlite
 
