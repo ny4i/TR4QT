@@ -123,8 +123,8 @@ sudo apt install qt6-base-dev qt6-base-private-dev \
     qt6-declarative-dev qt6-shadertools-dev \
     libqt6sql6-sqlite
 
-# Install Hamlib
-sudo apt install libhamlib-dev
+# Install Hamlib and other dependencies
+sudo apt install libhamlib-dev libsecret-1-dev
 
 # Build
 git clone https://github.com/ny4i/TR4QT.git
