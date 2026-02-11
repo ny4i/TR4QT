@@ -1680,9 +1680,9 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
         }
     }
 
-    // Clear callsign warning when exchange field gets focus
+    // Clear status message when exchange field gets focus
     if (event->type() == QEvent::FocusIn && obj == m_exchangeEntry) {
-        statusBar()->clearMessage();
+        setStatusMessage("Ready");
         return false;
     }
 
@@ -2521,7 +2521,7 @@ void MainWindow::onCallsignChanged(const QString& callsign) {
         m_needsDisplayWidget->clear();
         m_scpMatchesLabel->setText("");  // Clear but keep visible to prevent layout shift
         m_stationInfoLabel->setText("");  // Clear station info when callsign cleared
-        statusBar()->clearMessage();  // Clear any status messages
+        setStatusMessage("Ready");  // Clear any status messages
         return;
     }
 
@@ -5097,13 +5097,10 @@ void MainWindow::onCTYUpdateAvailable(int currentVersion, int latestVersion, con
     // Store latest version for saving after download
     m_latestCTYVersion = latestVersion;
 
-    // Show persistent status bar message (showMessage overlays and persists)
-    // Keep it short to avoid overlap with permanent widgets on right side
-    QString message = QString("⚠ CTY-%1 available (Alt+O)")
+    // Show CTY update notification via the standard status label
+    QString message = QString("CTY-%1 available (Alt+O)")
         .arg(latestVersion);
-
-    // Use showMessage for persistent notification that won't be overwritten
-    statusBar()->showMessage(message);
+    onStatusChanged(message, TR4QT::StatusStyle::Warning);
 }
 
 void MainWindow::onCTYDownloadCompleted(bool success) {

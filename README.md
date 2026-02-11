@@ -178,7 +178,7 @@ Based on [TR4W](http://tr4w.net/) (Delphi)
 
 Thanks to [n1mm_view](https://github.com/n1kdo/n1mm_view) for the use of the ARRL section shapefiles.
 
-Special thanks to the developers of [wfview](https://gitlab.com/eliggett/wfview) for their pioneering work on Icom network protocol implementation and [QLog](https://github.com/foldynl/QLog) for their Qt-based amateur radio logging applications. Their open-source projects provided valuable reference material and inspiration for TR4QT's Icom network support and the gridline display respectively.
+Special thanks to Mike AI5QK for the inspiring work on [QK4](https://github.com/mikeg-dal/QK4), to the developers of [wfview](https://gitlab.com/eliggett/wfview) for their pioneering work on Icom network protocol implementation and [QLog](https://github.com/foldynl/QLog) for their Qt-based amateur radio logging applications. Their open-source projects provided valuable reference material and inspiration for TR4QT's Icom network support and the gridline display respectively.
 
 ## License
 

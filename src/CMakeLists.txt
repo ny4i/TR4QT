@@ -249,6 +249,7 @@ if(PANADAPTER_SUPPORTED)
         panadapter/renderers/QmlPanadapterRenderer.cpp
         panadapter/WaterfallImageProvider.cpp
         panadapter/WaterfallRhiItem.cpp
+        panadapter/SpectrumRhiItem.cpp
         radio/K4PanadapterReader.cpp
     )
 endif()
@@ -385,6 +386,7 @@ if(PANADAPTER_SUPPORTED)
         panadapter/renderers/QmlPanadapterRenderer.h
         panadapter/WaterfallImageProvider.h
         panadapter/WaterfallRhiItem.h
+        panadapter/SpectrumRhiItem.h
         radio/K4PanadapterReader.h
     )
 endif()
@@ -407,8 +409,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.66"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.66"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.67"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.67"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
@@ -438,6 +440,8 @@ if(PANADAPTER_SUPPORTED)
         FILES
             ${CMAKE_SOURCE_DIR}/resources/shaders/waterfall.vert
             ${CMAKE_SOURCE_DIR}/resources/shaders/waterfall.frag
+            ${CMAKE_SOURCE_DIR}/resources/shaders/spectrum.vert
+            ${CMAKE_SOURCE_DIR}/resources/shaders/spectrum.frag
     )
 endif()
 
@@ -505,6 +509,17 @@ if(APPLE AND NOT DEFINED ENV{CI})
         COMMAND ${CMAKE_SOURCE_DIR}/scripts/macos-bundle.sh
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Running macOS app bundling script..."
+        VERBATIM
+    )
+
+    # Re-sign the entire app bundle after bundling frameworks.
+    # macOS Tahoe (26.x) rejects loading frameworks whose ad-hoc signature
+    # differs from the main binary's (SIGABRT: "different Team IDs").
+    # Using Developer ID keeps a stable identity so macOS Keychain doesn't
+    # prompt for credentials on every rebuild.
+    add_custom_command(TARGET tr4qt POST_BUILD
+        COMMAND codesign --force --deep --sign "Developer ID Application" $<TARGET_BUNDLE_DIR:tr4qt>
+        COMMENT "Re-signing app bundle (macOS Tahoe Team ID fix)"
         VERBATIM
     )
 endif()

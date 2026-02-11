@@ -15,19 +15,6 @@ Rectangle {
     id: root
     color: "#1a1a1a"
 
-    // Frame rate limiter for spectrum canvas only (waterfall uses ImageProvider)
-    Timer {
-        id: spectrumRepaintTimer
-        interval: 50  // ~20fps for spectrum
-        repeat: false
-        onTriggered: {
-            if (spectrumCanvas.needsRepaint) {
-                spectrumCanvas.needsRepaint = false;
-                spectrumCanvas.requestPaint();
-            }
-        }
-    }
-
     // Waterfall refresh timer - throttle image updates (fallback only, not used with QRhi)
     Timer {
         id: waterfallRefreshTimer
@@ -53,89 +40,39 @@ Rectangle {
         anchors.fill: parent
         spacing: 0
 
-        // Spectrum display (line graph) - keep as Canvas, it's lightweight
+        // Spectrum display - GPU-accelerated gradient fill with glow effect
         Rectangle {
             id: spectrumArea
             width: parent.width
             height: 150
             color: "#0a0a0a"
 
-            Canvas {
-                id: spectrumCanvas
+            // GPU-rendered spectrum using QQuickRhiItem
+            SpectrumRhiItem {
+                id: spectrumRhiItem
                 anchors.fill: parent
-                anchors.margins: 2
 
-                property var samples: panadapter ? panadapter.samples : []
-                property bool needsRepaint: false
-
-                onSamplesChanged: {
-                    needsRepaint = true;
-                    if (!spectrumRepaintTimer.running) {
-                        spectrumRepaintTimer.start();
-                    }
-                }
-
-                onPaint: {
-                    var ctx = getContext("2d");
-                    ctx.clearRect(0, 0, width, height);
-
-                    if (!samples || samples.length === 0) return;
-
-                    var noiseFloor = panadapter ? panadapter.noiseFloor : -130;
-                    var refLevel = panadapter ? panadapter.refLevel : 0;
-                    var minDb = Math.min(Math.max(noiseFloor, -150), -100) - 8 + refLevel;
-                    var maxDb = -20 + refLevel;
-                    var dbRange = maxDb - minDb;
-
-                    // Draw grid lines
-                    ctx.strokeStyle = "#333333";
-                    ctx.lineWidth = 1;
-                    for (var i = 0; i <= 4; i++) {
-                        var y = height * i / 4;
-                        ctx.beginPath();
-                        ctx.moveTo(0, y);
-                        ctx.lineTo(width, y);
-                        ctx.stroke();
-                    }
-
-                    // Draw spectrum line
-                    ctx.strokeStyle = "#00ff00";
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-
-                    var step = samples.length / width;
-                    for (var x = 0; x < width; x++) {
-                        var sampleIndex = Math.floor(x * step);
-                        if (sampleIndex >= samples.length) sampleIndex = samples.length - 1;
-
-                        var db = samples[sampleIndex];
-                        var normalized = (db - minDb) / dbRange;
-                        normalized = Math.max(0, Math.min(1, normalized));
-                        var yPos = height * (1 - normalized);
-
-                        if (x === 0) {
-                            ctx.moveTo(x, yPos);
-                        } else {
-                            ctx.lineTo(x, yPos);
-                        }
-                    }
-                    ctx.stroke();
-
-                    // Draw center line
-                    ctx.strokeStyle = "#ff0000";
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(width / 2, 0);
-                    ctx.lineTo(width / 2, height);
-                    ctx.stroke();
-                }
+                refLevel: panadapter ? panadapter.refLevel : 0
+                noiseFloor: panadapter ? panadapter.noiseFloor : -130
 
                 Connections {
                     target: panadapter
                     function onSamplesChanged() {
-                        spectrumCanvas.samples = panadapter.samples;
+                        if (!panadapter.paused) {
+                            spectrumRhiItem.updateSpectrum(panadapter.samples);
+                        }
                     }
                 }
+            }
+
+            // Center frequency marker (overlay on spectrum)
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 1
+                color: "#ff0000"
+                opacity: 0.7
             }
 
             // DX Spot labels overlay

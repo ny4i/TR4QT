@@ -18,6 +18,7 @@
 
 #include "QmlPanadapterRenderer.h"
 #include "../WaterfallRhiItem.h"
+#include "../SpectrumRhiItem.h"
 #include "../../logging/LogMacros.h"
 #include <QQmlEngine>
 #include <QtMath>
@@ -69,8 +70,9 @@ void QmlPanadapterRenderer::initialize()
     // Register image provider with QML engine (must be done before setSource)
     m_quickWidget->engine()->addImageProvider("waterfall", m_waterfallProvider);
 
-    // Register WaterfallRhiItem QML type for GPU-accelerated rendering
+    // Register RHI QML types for GPU-accelerated rendering
     qmlRegisterType<WaterfallRhiItem>("TR4QT.Panadapter", 1, 0, "WaterfallRhiItem");
+    qmlRegisterType<SpectrumRhiItem>("TR4QT.Panadapter", 1, 0, "SpectrumRhiItem");
 
     // Register data provider with QML context
     m_quickWidget->rootContext()->setContextProperty("panadapter", m_provider);

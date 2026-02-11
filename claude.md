@@ -932,6 +932,7 @@ Detailed deployment documentation is in the `docs/` folder:
 ### macOS
 - Qt::ALT maps to Option, Qt::CTRL maps to Command
 - Paths use `~/Library/Application Support/TR4QT/`
+- **Developer ID certificate**: `Developer ID Application: Thomas Schaefer (N3397MADHZ)` is installed in the local keychain. Local builds are signed with `"Developer ID Application"` via a POST_BUILD step in `src/CMakeLists.txt`. This gives a stable identity so macOS Keychain doesn't prompt for stored credentials (e.g., radio passwords) on every rebuild. **Never use ad-hoc signing (`--sign -`)** for local dev builds — it generates a new identity each time, breaking Keychain access.
 
 ### Windows
 - Paths use `%LOCALAPPDATA%\TR4QT\`
