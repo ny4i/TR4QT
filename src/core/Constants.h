@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.40.65";  // CI infrastructure: self-hosted runners on isolated VLAN
+constexpr const char* APP_VERSION = "3.40.66";  // S-meter: smooth gradient bar with peak hold animation
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

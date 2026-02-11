@@ -20,70 +20,46 @@
 #define SMETERWIDGET_H
 
 #include <QWidget>
+#include <QTimer>
 #include "../../radio/RadioInterface.h"
 
 namespace TR4QT {
 
 /**
- * S-Meter Widget - Displays received signal strength with discrete bars
+ * S-Meter Widget - Smooth gradient bar with peak hold animation
  *
- * Shows signal levels as discrete bars (S1-S9, +20, +40, +60):
- * - 9 bars for S1 through S9 (baseline signal strength)
- * - 3 bars for +20, +40, +60 dB over S9 (strong signals)
+ * Displays signal strength (RX) or forward power (TX) as a smooth
+ * horizontal gradient bar with peak hold indicator, inspired by QK4.
  *
- * Supports both Icom (CI-V S-meter values 0-255) and K4 (direct S-meter 0-30).
- * Values are mapped to S-units:
- * - Icom: 0-120 → S0-S9 (13.3 per S-unit), 121-241 → +20/+40/+60 (40 per 20dB)
- * - K4:   0-18 → S0-S9 (2 per S-unit), 19-30 → +20/+40/+60 (4 per 20dB)
+ * Supports dBm, Icom CI-V (0-255), and K4 (0-30) input formats.
+ * Raw values are mapped to a continuous fill ratio (0.0-1.0) for
+ * smooth rendering. Peak hold marker decays slower than the main bar.
  *
- * Design principles:
- * - No magic numbers: all dimensions derived from font metrics
- * - No magic colors: all colors from ThemeManager
- * - Discrete bar visualization (not continuous gradient)
+ * Layout:
+ *   [Label] [============ gradient bar ============]
+ *            1   3   5   7   9  +20  +40  +60
  */
 class SMeterWidget : public QWidget {
     Q_OBJECT
 
 public:
     explicit SMeterWidget(QWidget* parent = nullptr);
-    ~SMeterWidget() override = default;
+    ~SMeterWidget() override;
 
-    /**
-     * Update S-meter with new signal strength value
-     * @param rawValue Raw S-meter value from radio (0-255 for Icom, 0-30 for K4)
-     */
     void setValue(int rawValue);
-
-    /**
-     * Update from radio state (auto-switches between RX and TX modes)
-     * @param state Current radio state (checks isTransmitting, powerOutput, signalStrength)
-     */
     void updateFromRadioState(const RadioState& state);
-
-    /**
-     * Clear display (no signal)
-     */
     void clear();
 
-    /**
-     * Get current raw value
-     */
     int value() const { return m_rawValue; }
-
-    /**
-     * Set maximum power for TX meter scale
-     * @param maxWatts Maximum power in watts (default 150W for radios, 1500W for amplifiers)
-     */
     void setMaxPower(int maxWatts);
 
-    // Size hints for layout
     QSize minimumSizeHint() const override;
     QSize sizeHint() const override;
 
     /**
      * Convert raw S-meter value to S-unit level (0-12)
      * 0 = no signal, 1-9 = S1-S9, 10 = +20, 11 = +40, 12 = +60
-     * (Public for testing)
+     * (Public for testing — unchanged from discrete bar version)
      */
     int rawToSUnit(int rawValue) const;
 
@@ -91,41 +67,48 @@ protected:
     void paintEvent(QPaintEvent* event) override;
 
 private:
+    double rawToRatio(int rawValue) const;
+    double powerToRatio(int powerTenths) const;
 
     /**
-     * Convert power (tenths of watts) to power level (0-12 bars)
-     * Scale: 0-150W → 0-12 bars (12.5W per bar)
+     * Update display/peak state for a new target ratio.
+     * Handles instant rise, peak hold update, and timer start.
      */
-    int powerToLevel(int powerTenths) const;
+    void updateDisplayState(double newTargetRatio);
 
-    /**
-     * Get label for S-unit level
-     */
-    QString sUnitLabel(int sUnit) const;
+    void drawMeterBar(QPainter& painter, const QRect& barRect,
+                      const QRect& scaleRect) const;
 
-    /**
-     * Get label for power level
-     */
-    QString powerLabel(int level) const;
-
-    /**
-     * Apply current theme colors
-     */
     void applyTheme();
 
-    bool m_isTxMode{false}; // TX mode (show power) vs RX mode (show S-meter)
-    int m_rawValue;         // Raw value from radio (0-255 or 0-30)
-    int m_currentSUnit;     // Current S-unit level (0-12)
-    int m_powerWatts;       // Current power output in watts (for display)
-    int m_currentPowerLevel; // Current power bar level (0-12)
-    int m_maxPowerWatts{150}; // Maximum power for scale (150W radio default, 1500W for amplifier)
+private slots:
+    void decayValues();
+
+private:
+    bool m_isTxMode{false};
+    int m_rawValue{0};
+    int m_maxPowerWatts{150};
+
+    // Smooth display values
+    double m_targetRatio{0.0};     // Where the bar should be (set instantly on new value)
+    double m_displayRatio{0.0};    // Current rendered position (decays toward target)
+    double m_peakRatio{0.0};       // Peak hold marker position
+    int m_peakHoldTicks{0};        // Countdown before peak starts decaying
+    QTimer* m_decayTimer{nullptr};
+
+    // Animation constants
+    static constexpr int DECAY_INTERVAL_MS = 50;
+    static constexpr double DECAY_RATE = 0.10;         // Main bar decay per tick
+    static constexpr double PEAK_DECAY_RATE = 0.05;    // Peak decays slower
+    static constexpr int PEAK_HOLD_TICKS = 10;         // 500ms hold at 50ms interval
+    static constexpr double RATIO_EPSILON = 0.001;     // Minimum detectable ratio change
+    static constexpr double PEAK_VISIBILITY_GAP = 0.01; // Peak must lead display by this much to draw
 
     // Layout dimensions (derived from font metrics in constructor)
-    int m_barWidth;         // Width of each discrete bar
-    int m_barHeight;        // Height of each S-meter bar
-    int m_barSpacing;       // Spacing between bars
-    int m_labelHeight;      // Height for label text
-    int m_totalHeight;      // Total widget height
+    int m_labelBoxWidth;   // Width of the "S" / "Po" label box on the left
+    int m_barHeight;       // Height of the gradient bar
+    int m_scaleHeight;     // Height of scale labels below bar
+    int m_totalHeight;     // Total widget height
 };
 
 } // namespace TR4QT

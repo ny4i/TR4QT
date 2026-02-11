@@ -21,6 +21,7 @@
 #include <QPainter>
 #include <QFont>
 #include <QFontMetrics>
+#include <QLinearGradient>
 
 namespace TR4QT {
 
@@ -42,83 +43,133 @@ namespace SMeterConstants {
 
     // S-unit levels
     constexpr int NUM_S_UNITS = 9;      // S1 through S9
-    constexpr int NUM_OVER_UNITS = 3;   // +20, +40, +60
-    constexpr int TOTAL_BARS = NUM_S_UNITS + NUM_OVER_UNITS;  // 12 total bars
+    constexpr int TOTAL_BARS = 12;      // S1-S9 + 20/+40/+60
 
-    // Gradient LUT for S-meter (RX mode): green → yellow → red
-    // Classic analog meter coloring for signal strength indication
-    const QColor S_METER_LUT[TOTAL_BARS] = {
-        // S1-S6: Green gradient (weak to moderate signals)
-        QColor(0, 180, 0),      // S1 - dark green
-        QColor(0, 200, 0),      // S2
-        QColor(0, 220, 0),      // S3
-        QColor(0, 240, 0),      // S4
-        QColor(50, 255, 0),     // S5
-        QColor(100, 255, 0),    // S6 - yellow-green
+    // dBm reference levels (ITU-R S-meter calibration)
+    constexpr int DB_PER_S_UNIT = 6;    // Each S-unit = 6 dB (ITU-R standard)
+    constexpr int DBM_S0 = -127;        // S0 threshold (noise floor)
+    constexpr int DBM_S1 = DBM_S0 + DB_PER_S_UNIT;       // -121 dBm
+    constexpr int DBM_S3 = DBM_S0 + (DB_PER_S_UNIT * 3); // -109 dBm
+    constexpr int DBM_S5 = DBM_S0 + (DB_PER_S_UNIT * 5); // -97 dBm
+    constexpr int DBM_S7 = DBM_S0 + (DB_PER_S_UNIT * 7); // -85 dBm
+    constexpr int DBM_S9 = -73;         // S9 threshold (industry standard)
+    constexpr int DBM_S9_PLUS_20 = -53; // S9+20dB
+    constexpr int DBM_S9_PLUS_40 = -33; // S9+40dB
+    constexpr int DBM_S9_PLUS_60 = -13; // S9+60dB (maximum)
 
-        // S7-S9: Yellow gradient (good signal strength)
-        QColor(180, 255, 0),    // S7 - lime
-        QColor(220, 220, 0),    // S8 - yellow
-        QColor(255, 180, 0),    // S9 - orange-yellow
+    constexpr int DBM_FLOOR = DBM_S0;
+    constexpr int DBM_CEILING = DBM_S9_PLUS_60;
+    constexpr int DBM_RANGE = DBM_CEILING - DBM_FLOOR;  // 114 dB span
 
-        // +20/+40/+60: Red gradient (strong signals / potential overload)
-        QColor(255, 100, 0),    // +20 - orange-red
-        QColor(255, 50, 0),     // +40 - red-orange
-        QColor(255, 0, 0),      // +60 - bright red
+    // Layout constants
+    constexpr int LABEL_FONT_SIZE = 8;
+    constexpr int SCALE_FONT_SIZE = 7;
+    constexpr int LABEL_BOX_H_PADDING = 6;  // Horizontal padding inside label box
+    constexpr int LABEL_BOX_V_PADDING = 2;  // Vertical padding inside label box
+    constexpr int BAR_LABEL_GAP = 3;        // Gap between label box and bar
+    constexpr int BAR_SCALE_GAP = 2;        // Gap between bar and scale labels
+    constexpr int OUTER_MARGIN = 2;         // Outer widget margin
+    constexpr int TRACK_CORNER_RADIUS = 3;  // Rounded corners for track/bar
+    constexpr int BAR_FILL_INSET = 1;       // Pixels between track border and gradient fill
+    constexpr int PEAK_LINE_WIDTH = 2;
+
+    // Widget size hints
+    constexpr int PREFERRED_WIDTH = 300;
+    constexpr int MIN_WIDTH = 150;
+    constexpr int MIN_TRACK_WIDTH = 10;
+
+    // Gradient color stops (green → yellow → orange → red)
+    struct GradientStop {
+        double position;
+        QColor color;
     };
 
-    // Gradient LUT for power meter (TX mode): green → yellow → orange → red
-    // Indicates safe operating range through high power levels
-    const QColor POWER_METER_LUT[TOTAL_BARS] = {
-        // 0-50% power: Green gradient (safe operating range)
-        QColor(0, 200, 0),      // ~8% - dark green
-        QColor(0, 220, 0),      // ~17%
-        QColor(0, 240, 0),      // ~25%
-        QColor(50, 255, 0),     // ~33%
-        QColor(100, 255, 0),    // ~42% - yellow-green
-        QColor(150, 255, 0),    // ~50% - lime
-
-        // 50-75% power: Yellow gradient (moderate power)
-        QColor(200, 255, 0),    // ~58%
-        QColor(230, 230, 0),    // ~67% - yellow
-        QColor(255, 200, 0),    // ~75% - golden
-
-        // 75-100% power: Orange to Red gradient (high power)
-        QColor(255, 150, 0),    // ~83% - orange
-        QColor(255, 80, 0),     // ~92% - red-orange
-        QColor(255, 0, 0),      // 100% - bright red (max power)
+    const GradientStop RX_GRADIENT[] = {
+        {0.00, QColor(0, 200, 0)},     // Green (weak signals)
+        {0.30, QColor(100, 255, 0)},   // Yellow-green
+        {0.45, QColor(220, 220, 0)},   // Yellow
+        {0.60, QColor(255, 180, 0)},   // Orange
+        {0.75, QColor(255, 100, 0)},   // Orange-red (S9 area)
+        {1.00, QColor(255, 0, 0)},     // Red (S9+60)
     };
+    constexpr int RX_GRADIENT_COUNT = sizeof(RX_GRADIENT) / sizeof(RX_GRADIENT[0]);
+
+    const GradientStop TX_GRADIENT[] = {
+        {0.00, QColor(0, 200, 0)},     // Green (low power)
+        {0.35, QColor(100, 255, 0)},   // Yellow-green
+        {0.50, QColor(220, 220, 0)},   // Yellow (mid power)
+        {0.70, QColor(255, 180, 0)},   // Orange
+        {0.85, QColor(255, 80, 0)},    // Orange-red
+        {1.00, QColor(255, 0, 0)},     // Red (max power)
+    };
+    constexpr int TX_GRADIENT_COUNT = sizeof(TX_GRADIENT) / sizeof(TX_GRADIENT[0]);
+
+    // TX power scale label positions (0%, 25%, 50%, 75%, 100%)
+    constexpr double TX_LABEL_POSITIONS[] = {0.0, 0.25, 0.5, 0.75, 1.0};
+    constexpr int TX_LABEL_COUNT = sizeof(TX_LABEL_POSITIONS) / sizeof(TX_LABEL_POSITIONS[0]);
+
+    // RX scale labels: S-unit dBm values and display text
+    struct ScaleLabel {
+        int dbm;
+        const char* text;
+    };
+
+    const ScaleLabel RX_SCALE_LABELS[] = {
+        {DBM_S1,         "1"},
+        {DBM_S3,         "3"},
+        {DBM_S5,         "5"},
+        {DBM_S7,         "7"},
+        {DBM_S9,         "9"},
+        {DBM_S9_PLUS_20, "+20"},
+        {DBM_S9_PLUS_40, "+40"},
+        {DBM_S9_PLUS_60, "+60"},
+    };
+    constexpr int RX_SCALE_LABEL_COUNT = sizeof(RX_SCALE_LABELS) / sizeof(RX_SCALE_LABELS[0]);
+}
+
+// Helper: convert dBm value to fill ratio (0.0-1.0)
+static double dbmToRatio(int dbm) {
+    if (dbm <= SMeterConstants::DBM_FLOOR) return 0.0;
+    if (dbm >= SMeterConstants::DBM_CEILING) return 1.0;
+    return static_cast<double>(dbm - SMeterConstants::DBM_FLOOR) / SMeterConstants::DBM_RANGE;
 }
 
 SMeterWidget::SMeterWidget(QWidget* parent)
     : QWidget(parent)
-    , m_isTxMode(false)
-    , m_rawValue(0)
-    , m_currentSUnit(0)
-    , m_powerWatts(0)
-    , m_currentPowerLevel(0)
 {
-    // Derive all dimensions from font metrics (no magic numbers)
+    // Derive all dimensions from font metrics
     QFont labelFont;
-    labelFont.setPointSize(8);
-    QFontMetrics fm(labelFont);
+    labelFont.setPointSize(SMeterConstants::LABEL_FONT_SIZE);
+    labelFont.setBold(true);
+    QFontMetrics labelFm(labelFont);
 
-    // Bar dimensions derived from font size
-    m_labelHeight = fm.height();
-    m_barHeight = m_labelHeight * 2;       // Bars are 2x label height
-    m_barSpacing = fm.height() / 4;        // Spacing is 1/4 label height
+    QFont scaleFont;
+    scaleFont.setPointSize(SMeterConstants::SCALE_FONT_SIZE);
+    QFontMetrics scaleFm(scaleFont);
 
-    // Bar width must accommodate widest label ("+20", "+40", "+60")
-    // Add small padding so labels don't touch
-    int widestLabelWidth = fm.horizontalAdvance("+60");
-    m_barWidth = widestLabelWidth + (fm.height() / 8);  // Add 1/8 label height as padding
+    // Label box width: widest label ("Po") + padding
+    int labelTextWidth = labelFm.horizontalAdvance("Po");
+    m_labelBoxWidth = labelTextWidth + (SMeterConstants::LABEL_BOX_H_PADDING * 2);
 
-    // Total height = labels + bars + margins
-    m_totalHeight = m_labelHeight + m_barSpacing + m_barHeight + m_barSpacing;
+    // Bar height: proportional to label font
+    m_barHeight = labelFm.height() + (SMeterConstants::LABEL_BOX_V_PADDING * 2);
+
+    // Scale labels height
+    m_scaleHeight = scaleFm.height();
+
+    // Total: margin + bar + gap + scale + margin
+    m_totalHeight = SMeterConstants::OUTER_MARGIN + m_barHeight +
+                    SMeterConstants::BAR_SCALE_GAP + m_scaleHeight +
+                    SMeterConstants::OUTER_MARGIN;
 
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setMinimumHeight(m_totalHeight);
     setMaximumHeight(m_totalHeight);
+
+    // Decay timer for smooth animation
+    m_decayTimer = new QTimer(this);
+    m_decayTimer->setInterval(DECAY_INTERVAL_MS);
+    connect(m_decayTimer, &QTimer::timeout, this, &SMeterWidget::decayValues);
 
     // Connect to theme changes
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
@@ -126,184 +177,201 @@ SMeterWidget::SMeterWidget(QWidget* parent)
     applyTheme();
 }
 
-void SMeterWidget::setValue(int rawValue) {
-    if (m_rawValue != rawValue) {
-        m_rawValue = rawValue;
-        m_currentSUnit = rawToSUnit(rawValue);
-        update();  // Trigger repaint
+SMeterWidget::~SMeterWidget() = default;
+
+void SMeterWidget::updateDisplayState(double newTargetRatio) {
+    m_targetRatio = newTargetRatio;
+
+    // Instant rise, slow decay
+    if (m_targetRatio > m_displayRatio) {
+        m_displayRatio = m_targetRatio;
     }
+
+    // Update peak hold
+    if (m_targetRatio > m_peakRatio) {
+        m_peakRatio = m_targetRatio;
+        m_peakHoldTicks = PEAK_HOLD_TICKS;
+    }
+
+    // Start decay timer if not already running
+    if (!m_decayTimer->isActive()) {
+        m_decayTimer->start();
+    }
+
+    update();
+}
+
+void SMeterWidget::setValue(int rawValue) {
+    if (m_rawValue == rawValue) {
+        return;
+    }
+    m_rawValue = rawValue;
+    updateDisplayState(rawToRatio(rawValue));
 }
 
 void SMeterWidget::updateFromRadioState(const RadioState& state) {
     bool wasTxMode = m_isTxMode;
     m_isTxMode = state.isTransmitting;
-    bool needsUpdate = false;
 
-    if (m_isTxMode) {
-        // TX mode: display forward power
-        int powerTenths = state.powerOutput;
-        int newPowerWatts = powerTenths / 10;
-        int newPowerLevel = powerToLevel(powerTenths);
-
-        if (m_powerWatts != newPowerWatts || m_currentPowerLevel != newPowerLevel) {
-            m_powerWatts = newPowerWatts;
-            m_currentPowerLevel = newPowerLevel;
-            needsUpdate = true;
-        }
-    } else {
-        // RX mode: display S-meter
-        if (m_rawValue != state.signalStrength) {
-            m_rawValue = state.signalStrength;
-            m_currentSUnit = rawToSUnit(state.signalStrength);
-            needsUpdate = true;
-        }
+    if (wasTxMode != m_isTxMode) {
+        // Mode changed — reset display state for clean transition
+        m_displayRatio = 0.0;
+        m_peakRatio = 0.0;
+        m_peakHoldTicks = 0;
     }
 
-    // Repaint if mode changed or values updated
-    if (wasTxMode != m_isTxMode || needsUpdate) {
-        update();
+    if (m_isTxMode) {
+        double newTarget = powerToRatio(state.powerOutput);
+        if (qAbs(m_targetRatio - newTarget) > RATIO_EPSILON || wasTxMode != m_isTxMode) {
+            updateDisplayState(newTarget);
+        }
+    } else {
+        if (m_rawValue != state.signalStrength || wasTxMode != m_isTxMode) {
+            m_rawValue = state.signalStrength;
+            updateDisplayState(rawToRatio(state.signalStrength));
+        }
     }
 }
 
 void SMeterWidget::clear() {
-    setValue(0);
+    m_rawValue = 0;
     m_isTxMode = false;
-    m_powerWatts = 0;
-    m_currentPowerLevel = 0;
+    m_targetRatio = 0.0;
+    m_displayRatio = 0.0;
+    m_peakRatio = 0.0;
+    m_peakHoldTicks = 0;
+    m_decayTimer->stop();
+    update();
 }
 
 void SMeterWidget::setMaxPower(int maxWatts) {
     if (m_maxPowerWatts != maxWatts) {
         m_maxPowerWatts = maxWatts;
-        // Recalculate power level with new scale
         if (m_isTxMode) {
-            int powerTenths = m_powerWatts * 10;
-            m_currentPowerLevel = powerToLevel(powerTenths);
             update();
         }
     }
 }
 
-int SMeterWidget::rawToSUnit(int rawValue) const {
-    // Detect format: dBm (negative or zero) vs raw Icom/K4 (positive)
-    // Note: 0 dBm is an extremely strong signal (S9+60+), so include 0 in dBm handling
+double SMeterWidget::rawToRatio(int rawValue) const {
+    // dBm format (negative or zero)
     if (rawValue <= 0) {
-        // dBm format (K4 with SMH1; enabled, or calculated values)
-        // S0 = -127 dBm, S9 = -73 dBm (6 dB per S-unit)
-        // Above S9: -53 dBm = +20, -33 dBm = +40, -13 dBm = +60
-        constexpr int S0_DBM = -127;
-        constexpr int S9_DBM = -73;
-        constexpr int S9_PLUS_20_DBM = -53;
-        constexpr int S9_PLUS_40_DBM = -33;
-        constexpr int S9_PLUS_60_DBM = -13;
-
-        if (rawValue <= S0_DBM) {
-            return 0;  // No signal
-        } else if (rawValue <= S9_DBM) {
-            // S1-S9: each S-unit is 6 dB
-            int sUnit = ((rawValue - S0_DBM) / 6) + 1;
-            return qBound(1, sUnit, SMeterConstants::NUM_S_UNITS);
-        } else if (rawValue < S9_PLUS_20_DBM) {
-            // Above S9 but below S9+20: still display as S9
-            return 9;
-        } else if (rawValue < S9_PLUS_40_DBM) {
-            return 10;  // S9+20 through S9+39 dB
-        } else if (rawValue < S9_PLUS_60_DBM) {
-            return 11;  // S9+40 through S9+59 dB
-        } else {
-            return 12;  // S9+60 and above
-        }
+        return dbmToRatio(rawValue);
     }
 
     // Positive values: auto-detect Icom vs K4 based on value range
+    if (rawValue <= SMeterConstants::K4_S9_PLUS_60) {
+        return qBound(0.0, static_cast<double>(rawValue) / SMeterConstants::K4_S9_PLUS_60, 1.0);
+    }
+    return qBound(0.0, static_cast<double>(rawValue) / SMeterConstants::ICOM_S9_PLUS_60, 1.0);
+}
+
+double SMeterWidget::powerToRatio(int powerTenths) const {
+    int maxPowerTenths = m_maxPowerWatts * 10;
+    if (powerTenths <= 0 || maxPowerTenths <= 0) {
+        return 0.0;
+    }
+    return qBound(0.0, static_cast<double>(powerTenths) / maxPowerTenths, 1.0);
+}
+
+int SMeterWidget::rawToSUnit(int rawValue) const {
+    // Unchanged from discrete bar version — used by tests
+    if (rawValue <= 0) {
+        if (rawValue <= SMeterConstants::DBM_S0) {
+            return 0;
+        } else if (rawValue <= SMeterConstants::DBM_S9) {
+            int sUnit = ((rawValue - SMeterConstants::DBM_S0) / SMeterConstants::DB_PER_S_UNIT) + 1;
+            return qBound(1, sUnit, SMeterConstants::NUM_S_UNITS);
+        } else if (rawValue < SMeterConstants::DBM_S9_PLUS_20) {
+            return 9;
+        } else if (rawValue < SMeterConstants::DBM_S9_PLUS_40) {
+            return 10;
+        } else if (rawValue < SMeterConstants::DBM_S9_PLUS_60) {
+            return 11;
+        } else {
+            return 12;
+        }
+    }
+
     bool isK4 = (rawValue <= SMeterConstants::K4_S9_PLUS_60);
 
     if (isK4) {
-        // K4 mapping (0-30 segments)
         if (rawValue <= SMeterConstants::K4_S0) {
-            return 0;  // No signal
+            return 0;
         } else if (rawValue <= SMeterConstants::K4_S9) {
-            // S1-S9: linear mapping
             int sUnit = (rawValue * SMeterConstants::NUM_S_UNITS) / SMeterConstants::K4_S9;
             return qBound(1, sUnit, SMeterConstants::NUM_S_UNITS);
         } else if (rawValue <= SMeterConstants::K4_S9_PLUS_20) {
-            return 10;  // +20dB
+            return 10;
         } else if (rawValue <= SMeterConstants::K4_S9_PLUS_40) {
-            return 11;  // +40dB
+            return 11;
         } else {
-            return 12;  // +60dB
+            return 12;
         }
     } else {
-        // Icom mapping (0-255)
         if (rawValue <= SMeterConstants::ICOM_S0) {
-            return 0;  // No signal
+            return 0;
         } else if (rawValue <= SMeterConstants::ICOM_S9) {
-            // S1-S9: linear mapping
             int sUnit = (rawValue * SMeterConstants::NUM_S_UNITS) / SMeterConstants::ICOM_S9;
             return qBound(1, sUnit, SMeterConstants::NUM_S_UNITS);
         } else if (rawValue <= SMeterConstants::ICOM_S9_PLUS_20) {
-            return 10;  // +20dB
+            return 10;
         } else if (rawValue <= SMeterConstants::ICOM_S9_PLUS_40) {
-            return 11;  // +40dB
+            return 11;
         } else {
-            return 12;  // +60dB
+            return 12;
         }
     }
 }
 
-int SMeterWidget::powerToLevel(int powerTenths) const {
-    // Convert power (tenths of watts) to bar level (0-12)
-    // Scale: 0-maxPowerWatts → 0-12 bars
-    // Default: 150W for radios, 1500W for KPA1500 amplifier
-    int maxPowerTenths = m_maxPowerWatts * 10;
-    constexpr int BARS = SMeterConstants::TOTAL_BARS;
-
-    if (powerTenths <= 0) {
-        return 0;
-    } else if (powerTenths >= maxPowerTenths) {
-        return BARS;
-    } else {
-        // Linear mapping: 0-maxPowerWatts → 0-12 bars
-        return (powerTenths * BARS) / maxPowerTenths;
-    }
-}
-
-QString SMeterWidget::sUnitLabel(int sUnit) const {
-    if (sUnit == 0) {
-        return "S0";
-    } else if (sUnit <= 9) {
-        return QString("S%1").arg(sUnit);
-    } else if (sUnit == 10) {
-        return "+20";
-    } else if (sUnit == 11) {
-        return "+40";
-    } else if (sUnit == 12) {
-        return "+60";
-    }
-    return "";
-}
-
-QString SMeterWidget::powerLabel(int level) const {
-    // Power labels scale with max power
-    // Level 0 = 0W, 12 = maxPowerWatts (evenly distributed)
-    int watts = (level * m_maxPowerWatts) / SMeterConstants::TOTAL_BARS;
-    return QString::number(watts);
-}
-
 void SMeterWidget::applyTheme() {
-    update();  // Repaint with new theme colors
+    update();
+}
+
+void SMeterWidget::decayValues() {
+    bool needsUpdate = false;
+
+    // Decay display ratio toward target
+    if (m_displayRatio > m_targetRatio + RATIO_EPSILON) {
+        m_displayRatio -= DECAY_RATE;
+        if (m_displayRatio < m_targetRatio) {
+            m_displayRatio = m_targetRatio;
+        }
+        needsUpdate = true;
+    }
+
+    // Peak hold countdown, then decay
+    if (m_peakRatio > RATIO_EPSILON) {
+        if (m_peakHoldTicks > 0) {
+            --m_peakHoldTicks;
+        } else {
+            m_peakRatio -= PEAK_DECAY_RATE;
+            if (m_peakRatio < 0.0) {
+                m_peakRatio = 0.0;
+            }
+            needsUpdate = true;
+        }
+    }
+
+    // Stop timer when everything has settled
+    bool displaySettled = qAbs(m_displayRatio - m_targetRatio) < RATIO_EPSILON;
+    bool peakSettled = m_peakRatio < RATIO_EPSILON && m_peakHoldTicks == 0;
+
+    if (displaySettled && peakSettled) {
+        m_decayTimer->stop();
+    }
+
+    if (needsUpdate) {
+        update();
+    }
 }
 
 QSize SMeterWidget::sizeHint() const {
-    // Width accommodates all bars + spacing
-    int totalWidth = (SMeterConstants::TOTAL_BARS * m_barWidth) +
-                     ((SMeterConstants::TOTAL_BARS - 1) * m_barSpacing) +
-                     (m_barSpacing * 2);  // Left/right margins
-    return QSize(totalWidth, m_totalHeight);
+    return QSize(SMeterConstants::PREFERRED_WIDTH, m_totalHeight);
 }
 
 QSize SMeterWidget::minimumSizeHint() const {
-    return sizeHint();  // Fixed size based on font metrics
+    return QSize(SMeterConstants::MIN_WIDTH, m_totalHeight);
 }
 
 void SMeterWidget::paintEvent(QPaintEvent* event) {
@@ -313,81 +381,137 @@ void SMeterWidget::paintEvent(QPaintEvent* event) {
     painter.setRenderHint(QPainter::Antialiasing);
 
     ThemeManager& theme = ThemeManager::instance();
-
-    // Get colors from theme
-    QColor textColor = theme.color(ColorRole::PrimaryText);
     QColor borderColor = theme.color(ColorRole::BorderColor);
-    QColor barInactiveColor = theme.color(ColorRole::SecondaryText);  // Gray for inactive bars
 
-    // Setup fonts
+    // --- Label box (left side: "S" for RX, "Po" for TX) ---
     QFont labelFont;
-    labelFont.setPointSize(8);
+    labelFont.setPointSize(SMeterConstants::LABEL_FONT_SIZE);
+    labelFont.setBold(true);
+    QFontMetrics labelFm(labelFont);
+
+    QString meterLabel = m_isTxMode ? "Po" : "S";
+    int labelBoxX = SMeterConstants::OUTER_MARGIN;
+    int labelBoxY = SMeterConstants::OUTER_MARGIN;
+    QRect labelBoxRect(labelBoxX, labelBoxY, m_labelBoxWidth, m_barHeight);
+
+    // Dark background for label box
+    painter.setPen(borderColor);
+    painter.setBrush(QColor(40, 40, 40));
+    painter.drawRoundedRect(labelBoxRect, SMeterConstants::TRACK_CORNER_RADIUS,
+                            SMeterConstants::TRACK_CORNER_RADIUS);
+
+    // Label text (white on dark)
     painter.setFont(labelFont);
-    QFontMetrics fm(labelFont);
+    painter.setPen(Qt::white);
+    int labelTextX = labelBoxRect.x() + (labelBoxRect.width() - labelFm.horizontalAdvance(meterLabel)) / 2;
+    int labelTextY = labelBoxRect.y() + (labelBoxRect.height() + labelFm.ascent() - labelFm.descent()) / 2;
+    painter.drawText(labelTextX, labelTextY, meterLabel);
 
-    // Calculate layout dynamically based on available width
-    const int horizontalMargin = fm.height() / 2;  // Margin on left/right
-    const int availableWidth = width() - (2 * horizontalMargin);
-    const int totalSpacing = (SMeterConstants::TOTAL_BARS - 1) * m_barSpacing;
-    const int barWidth = (availableWidth - totalSpacing) / SMeterConstants::TOTAL_BARS;
+    // --- Track (the bar area, right of label box) ---
+    int trackX = labelBoxRect.right() + SMeterConstants::BAR_LABEL_GAP;
+    int trackY = labelBoxY;
+    int trackWidth = width() - trackX - SMeterConstants::OUTER_MARGIN;
+    QRect trackRect(trackX, trackY, trackWidth, m_barHeight);
 
-    // Ensure minimum bar width for readability
-    const int minBarWidth = fm.horizontalAdvance("W");
-    if (barWidth < minBarWidth) {
-        return;  // Widget too narrow to display properly
+    if (trackWidth < SMeterConstants::MIN_TRACK_WIDTH) {
+        return;  // Widget too narrow
     }
 
-    int startX = horizontalMargin;
-    int labelY = m_labelHeight;
-    int barY = labelY + m_barSpacing;
+    // Draw track background (dark)
+    painter.setPen(borderColor);
+    painter.setBrush(QColor(30, 30, 30));
+    painter.drawRoundedRect(trackRect, SMeterConstants::TRACK_CORNER_RADIUS,
+                            SMeterConstants::TRACK_CORNER_RADIUS);
 
-    // Draw each bar (RX: S1-S9/+20/+40/+60, TX: 0-150W in 12 bars)
-    for (int i = 0; i < SMeterConstants::TOTAL_BARS; ++i) {
-        int level = i + 1;  // Level 1-12
-        int x = startX + (i * (barWidth + m_barSpacing));
+    // --- Scale labels area ---
+    QRect scaleRect(trackX, trackRect.bottom() + SMeterConstants::BAR_SCALE_GAP,
+                    trackWidth, m_scaleHeight);
 
-        // Draw labels
-        if (m_isTxMode) {
-            // TX mode: show power labels (0W, 25W, 50W, 75W, 100W, 125W, 150W)
-            // Show labels at bars: 0, 2, 4, 6, 8, 10, 12
-            bool showLabel = (i == 0) || (i == 2) || (i == 4) || (i == 6) ||
-                             (i == 8) || (i == 10) || (i == 11);
-            if (showLabel) {
-                QString label = powerLabel(level);
-                int textWidth = fm.horizontalAdvance(label);
-                painter.setPen(textColor);
-                painter.drawText(x + (barWidth - textWidth) / 2, labelY, label);
+    drawMeterBar(painter, trackRect, scaleRect);
+}
+
+void SMeterWidget::drawMeterBar(QPainter& painter, const QRect& trackRect,
+                                const QRect& scaleRect) const {
+    ThemeManager& theme = ThemeManager::instance();
+    QColor textColor = theme.color(ColorRole::PrimaryText);
+
+    // Inner bar area (inset from track border)
+    constexpr int INSET = SMeterConstants::BAR_FILL_INSET;
+    QRect barArea(trackRect.x() + INSET, trackRect.y() + INSET,
+                  trackRect.width() - (INSET * 2), trackRect.height() - (INSET * 2));
+
+    // --- Gradient fill up to m_displayRatio ---
+    if (m_displayRatio > RATIO_EPSILON) {
+        int fillWidth = static_cast<int>(barArea.width() * m_displayRatio);
+        if (fillWidth > 0) {
+            QRect fillRect(barArea.x(), barArea.y(), fillWidth, barArea.height());
+
+            // Build gradient from stops
+            QLinearGradient gradient(barArea.x(), 0, barArea.right(), 0);
+            const auto& stops = m_isTxMode ? SMeterConstants::TX_GRADIENT : SMeterConstants::RX_GRADIENT;
+            int stopCount = m_isTxMode ? SMeterConstants::TX_GRADIENT_COUNT : SMeterConstants::RX_GRADIENT_COUNT;
+
+            for (int i = 0; i < stopCount; ++i) {
+                gradient.setColorAt(stops[i].position, stops[i].color);
             }
 
-            // Draw bar (filled if power >= this level)
-            // Use gradient LUT - each bar gets its own color from the gradient
-            QRect barRect(x, barY, barWidth, m_barHeight);
-            bool isActive = (m_currentPowerLevel >= level);
+            painter.save();
+            painter.setClipRect(fillRect);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(gradient);
+            int cornerRadius = SMeterConstants::TRACK_CORNER_RADIUS - INSET;
+            painter.drawRoundedRect(barArea, cornerRadius, cornerRadius);
+            painter.restore();
+        }
+    }
 
-            QColor barColor = isActive ? SMeterConstants::POWER_METER_LUT[i] : barInactiveColor;
-            painter.setPen(borderColor);
-            painter.setBrush(barColor);
-            painter.drawRect(barRect);
-        } else {
-            // RX mode: show S-meter labels (S1, S3, S5, S7, S9, +20, +40, +60)
-            bool showLabel = (i == 0) || (i == 2) || (i == 4) || (i == 6) ||
-                             (i == 8) || (i == 9) || (i == 10) || (i == 11);
-            if (showLabel) {
-                QString label = sUnitLabel(level);
-                int textWidth = fm.horizontalAdvance(label);
-                painter.setPen(textColor);
-                painter.drawText(x + (barWidth - textWidth) / 2, labelY, label);
-            }
+    // --- Peak indicator (thin white vertical line) ---
+    if (m_peakRatio > m_displayRatio + PEAK_VISIBILITY_GAP) {
+        int peakX = barArea.x() + static_cast<int>(barArea.width() * m_peakRatio);
+        peakX = qBound(barArea.x(), peakX, barArea.right());
 
-            // Draw bar (filled if signal >= this S-unit)
-            // Use gradient LUT - each bar gets its own color from the gradient
-            QRect barRect(x, barY, barWidth, m_barHeight);
-            bool isActive = (m_currentSUnit >= level);
+        painter.setPen(QPen(Qt::white, SMeterConstants::PEAK_LINE_WIDTH));
+        painter.drawLine(peakX, barArea.y() + 1, peakX, barArea.bottom() - 1);
+    }
 
-            QColor barColor = isActive ? SMeterConstants::S_METER_LUT[i] : barInactiveColor;
-            painter.setPen(borderColor);
-            painter.setBrush(barColor);
-            painter.drawRect(barRect);
+    // --- Scale labels and tick marks below the bar ---
+    QFont scaleFont;
+    scaleFont.setPointSize(SMeterConstants::SCALE_FONT_SIZE);
+    painter.setFont(scaleFont);
+    QFontMetrics scaleFm(scaleFont);
+
+    if (m_isTxMode) {
+        for (int i = 0; i < SMeterConstants::TX_LABEL_COUNT; ++i) {
+            double pos = SMeterConstants::TX_LABEL_POSITIONS[i];
+            int watts = static_cast<int>(pos * m_maxPowerWatts);
+            QString label = QString::number(watts);
+            int x = barArea.x() + static_cast<int>(barArea.width() * pos);
+
+            // Tick mark on track bottom edge
+            painter.setPen(QPen(textColor, 1));
+            painter.drawLine(x, trackRect.bottom() - 2, x, trackRect.bottom());
+
+            // Label below
+            int textWidth = scaleFm.horizontalAdvance(label);
+            int textX = x - textWidth / 2;
+            textX = qBound(scaleRect.x(), textX, scaleRect.right() - textWidth);
+            painter.drawText(textX, scaleRect.y() + scaleFm.ascent(), label);
+        }
+    } else {
+        for (int i = 0; i < SMeterConstants::RX_SCALE_LABEL_COUNT; ++i) {
+            double pos = dbmToRatio(SMeterConstants::RX_SCALE_LABELS[i].dbm);
+            int x = barArea.x() + static_cast<int>(barArea.width() * pos);
+
+            // Tick mark
+            painter.setPen(QPen(textColor, 1));
+            painter.drawLine(x, trackRect.bottom() - 2, x, trackRect.bottom());
+
+            // Label
+            QString label = QString::fromLatin1(SMeterConstants::RX_SCALE_LABELS[i].text);
+            int textWidth = scaleFm.horizontalAdvance(label);
+            int textX = x - textWidth / 2;
+            textX = qBound(scaleRect.x(), textX, scaleRect.right() - textWidth);
+            painter.drawText(textX, scaleRect.y() + scaleFm.ascent(), label);
         }
     }
 }
