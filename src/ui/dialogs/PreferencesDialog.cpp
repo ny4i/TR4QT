@@ -35,6 +35,10 @@
 #include "../../contests/ContestRegistry.h"
 #include "../../radio/HamlibRadio.h"
 #include "../../amplifiers/AmplifierFactory.h"
+#include "../../keyers/KeyerConfig.h"
+#include "../../keyers/HaliKeySerialDevice.h"
+#include "../../keyers/HaliKeyMidiDevice.h"
+#include "../../keyers/KeyerFactory.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -1461,8 +1465,17 @@ QWidget* PreferencesDialog::createCWSettingsTab() {
     cwTab->setAutoFillBackground(true);
     QVBoxLayout* layout = new QVBoxLayout(cwTab);
 
+    // === CW General Settings ===
     QGroupBox* cwGroup = new QGroupBox("CW / Morse Settings", this);
     QFormLayout* formLayout = new QFormLayout(cwGroup);
+
+    // Keying source
+    m_cwKeyingSourceCombo = new QComboBox(this);
+    m_cwKeyingSourceCombo->addItem("Radio (KY command)", 0);
+    m_cwKeyingSourceCombo->addItem("External Keyer", 1);
+    m_cwKeyingSourceCombo->setToolTip("Radio: Send CW via Hamlib KY command\n"
+                                       "External Keyer: Use WinKeyer or paddle keyer");
+    formLayout->addRow("Keying Source:", m_cwKeyingSourceCombo);
 
     // Morse Speed
     m_morseWpmSpin = new QSpinBox(this);
@@ -1493,10 +1506,135 @@ QWidget* PreferencesDialog::createCWSettingsTab() {
     m_serialNumberWidthSpin->setToolTip("Number of digits for serial numbers\n(0 = no padding, 3 = \"002\", 4 = \"0002\")");
     formLayout->addRow("Serial Width:", m_serialNumberWidthSpin);
 
+    // Iambic mode
+    QHBoxLayout* iambicLayout = new QHBoxLayout();
+    m_iambicARadio = new QRadioButton("Iambic A", this);
+    m_iambicBRadio = new QRadioButton("Iambic B", this);
+    m_iambicBRadio->setChecked(true);
+    m_iambicARadio->setToolTip("Release stops sending immediately");
+    m_iambicBRadio->setToolTip("Squeeze release completes one more alternate element");
+    iambicLayout->addWidget(m_iambicARadio);
+    iambicLayout->addWidget(m_iambicBRadio);
+    iambicLayout->addStretch();
+    formLayout->addRow("Iambic Mode:", iambicLayout);
+
+    // Paddle swap
+    m_keyerPaddleSwapCheck = new QCheckBox("Swap dit/dah paddles", this);
+    m_keyerPaddleSwapCheck->setToolTip("Swap the dit and dah paddle inputs");
+    formLayout->addRow("", m_keyerPaddleSwapCheck);
+
     layout->addWidget(cwGroup);
+
+    // === Keyer Hardware Settings ===
+    QGroupBox* keyerGroup = new QGroupBox("CW Keyer Hardware", this);
+    QFormLayout* keyerLayout = new QFormLayout(keyerGroup);
+
+    // Enable keyer
+    m_keyerEnabledCheck = new QCheckBox("Enable external CW keyer", this);
+    m_keyerEnabledCheck->setToolTip("Enable connection to an external CW keyer device");
+    keyerLayout->addRow("", m_keyerEnabledCheck);
+
+    // Device type
+    m_keyerDeviceTypeCombo = new QComboBox(this);
+    m_keyerDeviceTypeCombo->addItem("WinKeyer", static_cast<int>(KeyerDeviceType::WinKeyer));
+    m_keyerDeviceTypeCombo->addItem("HaliKey (Serial)", static_cast<int>(KeyerDeviceType::HaliKeySerial));
+    m_keyerDeviceTypeCombo->addItem("HaliKey (MIDI)", static_cast<int>(KeyerDeviceType::HaliKeyMidi));
+    m_keyerDeviceTypeCombo->setToolTip("WinKeyer: K1EL hardware Morse generator\n"
+                                        "HaliKey (Serial): Paddle input via serial CTS/DSR\n"
+                                        "HaliKey (MIDI): Paddle input via MIDI Note On/Off");
+    connect(m_keyerDeviceTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onKeyerDeviceTypeChanged);
+    keyerLayout->addRow("Device Type:", m_keyerDeviceTypeCombo);
+
+    // Port selection with refresh button
+    QHBoxLayout* portLayout = new QHBoxLayout();
+    m_keyerPortCombo = new QComboBox(this);
+    m_keyerPortCombo->setEditable(true);
+    m_keyerPortCombo->setToolTip("Serial port or MIDI device name");
+    m_keyerRefreshPortsButton = new QPushButton("Refresh", this);
+    m_keyerRefreshPortsButton->setMaximumWidth(80);
+    connect(m_keyerRefreshPortsButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onRefreshKeyerPorts);
+    portLayout->addWidget(m_keyerPortCombo, 1);
+    portLayout->addWidget(m_keyerRefreshPortsButton);
+    keyerLayout->addRow("Port:", portLayout);
+
+    // Auto-connect
+    m_keyerAutoConnectCheck = new QCheckBox("Auto-connect on startup", this);
+    m_keyerAutoConnectCheck->setToolTip("Automatically connect to keyer when TR4QT starts");
+    keyerLayout->addRow("", m_keyerAutoConnectCheck);
+
+    // MIDI-specific settings (hidden unless HaliKey MIDI selected)
+    m_midiSettingsWidget = new QWidget(this);
+    QFormLayout* midiLayout = new QFormLayout(m_midiSettingsWidget);
+    midiLayout->setContentsMargins(0, 0, 0, 0);
+
+    m_ditNoteSpin = new QSpinBox(this);
+    m_ditNoteSpin->setRange(0, 127);
+    m_ditNoteSpin->setValue(20);
+    m_ditNoteSpin->setToolTip("MIDI note number for dit paddle (default: 20)");
+    midiLayout->addRow("Dit Note:", m_ditNoteSpin);
+
+    m_dahNoteSpin = new QSpinBox(this);
+    m_dahNoteSpin->setRange(0, 127);
+    m_dahNoteSpin->setValue(21);
+    m_dahNoteSpin->setToolTip("MIDI note number for dah paddle (default: 21)");
+    midiLayout->addRow("Dah Note:", m_dahNoteSpin);
+
+    keyerLayout->addRow("", m_midiSettingsWidget);
+    m_midiSettingsWidget->hide();  // Hidden unless MIDI type selected
+
+    layout->addWidget(keyerGroup);
+
+    // Informational label
+    QLabel* infoLabel = new QLabel(
+        "WinKeyer generates Morse in hardware from text macros. "
+        "HaliKey provides paddle input for the software iambic keyer, "
+        "which sends key-down/key-up commands to the radio via CAT.",
+        this
+    );
+    infoLabel->setWordWrap(true);
+    infoLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; }");
+    layout->addWidget(infoLabel);
+
     layout->addStretch();
 
+    // Populate ports for current device type
+    onRefreshKeyerPorts();
+
     return cwTab;
+}
+
+void PreferencesDialog::onKeyerDeviceTypeChanged(int index) {
+    Q_UNUSED(index);
+    int deviceType = m_keyerDeviceTypeCombo->currentData().toInt();
+
+    // Show/hide MIDI settings
+    bool isMidi = (deviceType == static_cast<int>(KeyerDeviceType::HaliKeyMidi));
+    m_midiSettingsWidget->setVisible(isMidi);
+
+    // Refresh port list for new device type
+    onRefreshKeyerPorts();
+}
+
+void PreferencesDialog::onRefreshKeyerPorts() {
+    m_keyerPortCombo->clear();
+
+    int deviceType = m_keyerDeviceTypeCombo->currentData().toInt();
+
+    if (deviceType == static_cast<int>(KeyerDeviceType::HaliKeyMidi)) {
+        // Enumerate MIDI input devices
+        QStringList midiDevices = HaliKeyMidiDevice::availableMidiInputs();
+        for (const QString& device : midiDevices) {
+            m_keyerPortCombo->addItem(device);
+        }
+    } else {
+        // Enumerate serial ports
+        QStringList serialPorts = HaliKeySerialDevice::availablePorts();
+        for (const QString& port : serialPorts) {
+            m_keyerPortCombo->addItem(port);
+        }
+    }
 }
 
 QWidget* PreferencesDialog::createWebServerTab() {
@@ -1749,6 +1887,28 @@ void PreferencesDialog::loadSettings() {
         }
     }
 
+    // CW Settings tab
+    m_morseWpmSpin->setValue(settings.getMorseWPM());
+    m_morseWpmIncrementSpin->setValue(settings.getMorseWPMIncrement());
+    m_cutNumbersEnabledCheck->setChecked(settings.getCutNumbersEnabled());
+    m_serialNumberWidthSpin->setValue(settings.getSerialNumberWidth());
+    m_cwKeyingSourceCombo->setCurrentIndex(settings.getCWKeyingSource());
+    m_iambicARadio->setChecked(settings.getKeyerIambicMode() == 0);
+    m_iambicBRadio->setChecked(settings.getKeyerIambicMode() != 0);
+    m_keyerPaddleSwapCheck->setChecked(settings.getKeyerPaddleSwap());
+
+    // Keyer hardware settings
+    m_keyerEnabledCheck->setChecked(settings.getKeyerEnabled());
+    int keyerTypeIndex = m_keyerDeviceTypeCombo->findData(settings.getKeyerDeviceType());
+    if (keyerTypeIndex >= 0) {
+        m_keyerDeviceTypeCombo->setCurrentIndex(keyerTypeIndex);
+    }
+    onRefreshKeyerPorts();  // Populate port list first
+    m_keyerPortCombo->setCurrentText(settings.getKeyerPortName());
+    m_keyerAutoConnectCheck->setChecked(settings.getKeyerAutoConnect());
+    m_ditNoteSpin->setValue(settings.getKeyerDitNote());
+    m_dahNoteSpin->setValue(settings.getKeyerDahNote());
+
     // Logging tab
     int logLevelIndex = m_logLevelCombo->findData(static_cast<int>(settings.getLogLevel()));
     if (logLevelIndex >= 0) {
@@ -1900,6 +2060,23 @@ void PreferencesDialog::saveSettings() {
     ThemeType selectedTheme = static_cast<ThemeType>(themeIndex);
     theme.setTheme(selectedTheme);
     theme.saveToSettings();
+
+    // CW Settings tab
+    settings.setMorseWPM(m_morseWpmSpin->value());
+    settings.setMorseWPMIncrement(m_morseWpmIncrementSpin->value());
+    settings.setCutNumbersEnabled(m_cutNumbersEnabledCheck->isChecked());
+    settings.setSerialNumberWidth(m_serialNumberWidthSpin->value());
+    settings.setCWKeyingSource(m_cwKeyingSourceCombo->currentData().toInt());
+    settings.setKeyerIambicMode(m_iambicBRadio->isChecked() ? 1 : 0);
+    settings.setKeyerPaddleSwap(m_keyerPaddleSwapCheck->isChecked());
+
+    // Keyer hardware settings
+    settings.setKeyerEnabled(m_keyerEnabledCheck->isChecked());
+    settings.setKeyerDeviceType(m_keyerDeviceTypeCombo->currentData().toInt());
+    settings.setKeyerPortName(m_keyerPortCombo->currentText());
+    settings.setKeyerAutoConnect(m_keyerAutoConnectCheck->isChecked());
+    settings.setKeyerDitNote(m_ditNoteSpin->value());
+    settings.setKeyerDahNote(m_dahNoteSpin->value());
 
     // Logging tab
     LogLevel logLevel = static_cast<LogLevel>(m_logLevelCombo->currentData().toInt());

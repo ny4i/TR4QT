@@ -64,6 +64,10 @@ public slots:
     void enableXIT(bool enable, VFO vfo = VFO::VFO_A);
     void setSplit(bool enable, VFO txVfo = VFO::VFO_B);
 
+    // CW keying via PTT (for software iambic keyer paddle input)
+    void sendKeyDown();
+    void sendKeyUp();
+
 signals:
     // Status signals (emitted from worker thread, safe to connect to UI)
     void connectionStatusChanged(bool connected);

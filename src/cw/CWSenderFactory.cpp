@@ -19,12 +19,14 @@
 #include "CWSenderFactory.h"
 #include "CWSender.h"
 #include "HamlibCWSender.h"
+#include "KeyerCWSender.h"
 #include "../logging/LogMacros.h"
 
 namespace TR4QT {
 
 CWSender* CWSenderFactory::create(Backend backend,
                                   RadioController* radio,
+                                  KeyerController* keyer,
                                   QObject* parent) {
     switch (backend) {
         case Backend::Hamlib:
@@ -34,9 +36,12 @@ CWSender* CWSenderFactory::create(Backend backend,
             }
             return new HamlibCWSender(radio, parent);
 
-        case Backend::Winkeyer:
-            LOG_WARN("CWSenderFactory", "Winkeyer backend not yet implemented");
-            return nullptr;
+        case Backend::KeyerDevice:
+            if (!keyer) {
+                LOG_ERROR("CWSenderFactory", "KeyerController required for KeyerDevice backend");
+                return nullptr;
+            }
+            return new KeyerCWSender(keyer, parent);
 
         case Backend::Simulated:
             LOG_WARN("CWSenderFactory", "Simulated backend not yet implemented");
@@ -50,23 +55,25 @@ CWSender* CWSenderFactory::create(Backend backend,
 
 CWSender* CWSenderFactory::create(const QString& backendName,
                                   RadioController* radio,
+                                  KeyerController* keyer,
                                   QObject* parent) {
-    return create(stringToBackend(backendName), radio, parent);
+    return create(stringToBackend(backendName), radio, keyer, parent);
 }
 
 QString CWSenderFactory::backendToString(Backend backend) {
     switch (backend) {
-        case Backend::Hamlib:    return "hamlib";
-        case Backend::Winkeyer:  return "winkeyer";
-        case Backend::Simulated: return "simulated";
-        default:                 return "unknown";
+        case Backend::Hamlib:      return "hamlib";
+        case Backend::KeyerDevice: return "keyer";
+        case Backend::Simulated:   return "simulated";
+        default:                    return "unknown";
     }
 }
 
 CWSenderFactory::Backend CWSenderFactory::stringToBackend(const QString& name) {
     QString lower = name.toLower();
     if (lower == "hamlib")    return Backend::Hamlib;
-    if (lower == "winkeyer")  return Backend::Winkeyer;
+    if (lower == "keyer")     return Backend::KeyerDevice;
+    if (lower == "winkeyer")  return Backend::KeyerDevice;  // Legacy alias
     if (lower == "simulated") return Backend::Simulated;
     return Backend::Hamlib;  // Default
 }

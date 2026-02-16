@@ -53,7 +53,7 @@ SendMorseDialog::SendMorseDialog(RadioController* radio, QWidget* parent)
     m_macroButtons.resize(MACRO_COUNT);
 
     // Create CW sender using factory
-    m_cwSender = CWSenderFactory::create(CWSenderFactory::Backend::Hamlib, radio, this);
+    m_cwSender = CWSenderFactory::create(CWSenderFactory::Backend::Hamlib, radio, nullptr, this);
     if (m_cwSender) {
         connect(m_cwSender, &CWSender::stateChanged, this, &SendMorseDialog::onCWSenderStateChanged);
         connect(m_cwSender, &CWSender::transmissionComplete, this, &SendMorseDialog::onTransmissionComplete);

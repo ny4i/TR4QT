@@ -1390,6 +1390,135 @@ int AppSettings::getSerialNumberWidth() const {
     return m_settings.value("CW/serialNumberWidth", 3).toInt();  // Default: 3 digits (e.g., "002")
 }
 
+// CW Keyer Hardware settings
+void AppSettings::setKeyerDeviceType(int type) {
+    m_settings.setValue("Keyer/deviceType", type);
+    m_settings.sync();
+}
+
+int AppSettings::getKeyerDeviceType() const {
+    return m_settings.value("Keyer/deviceType", 0).toInt();
+}
+
+void AppSettings::setKeyerPortName(const QString& port) {
+    m_settings.setValue("Keyer/portName", port);
+    m_settings.sync();
+}
+
+QString AppSettings::getKeyerPortName() const {
+    return m_settings.value("Keyer/portName", "").toString();
+}
+
+void AppSettings::setKeyerPaddleSwap(bool swap) {
+    m_settings.setValue("Keyer/paddleSwap", swap);
+    m_settings.sync();
+}
+
+bool AppSettings::getKeyerPaddleSwap() const {
+    return m_settings.value("Keyer/paddleSwap", false).toBool();
+}
+
+void AppSettings::setKeyerIambicMode(int mode) {
+    m_settings.setValue("Keyer/iambicMode", mode);
+    m_settings.sync();
+}
+
+int AppSettings::getKeyerIambicMode() const {
+    return m_settings.value("Keyer/iambicMode", 1).toInt();  // Default: IambicB
+}
+
+void AppSettings::setKeyerDitNote(int note) {
+    m_settings.setValue("Keyer/ditNote", note);
+    m_settings.sync();
+}
+
+int AppSettings::getKeyerDitNote() const {
+    return m_settings.value("Keyer/ditNote", 20).toInt();
+}
+
+void AppSettings::setKeyerDahNote(int note) {
+    m_settings.setValue("Keyer/dahNote", note);
+    m_settings.sync();
+}
+
+int AppSettings::getKeyerDahNote() const {
+    return m_settings.value("Keyer/dahNote", 21).toInt();
+}
+
+void AppSettings::setKeyerEnabled(bool enabled) {
+    m_settings.setValue("Keyer/enabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getKeyerEnabled() const {
+    return m_settings.value("Keyer/enabled", false).toBool();
+}
+
+void AppSettings::setKeyerAutoConnect(bool autoConnect) {
+    m_settings.setValue("Keyer/autoConnect", autoConnect);
+    m_settings.sync();
+}
+
+bool AppSettings::getKeyerAutoConnect() const {
+    return m_settings.value("Keyer/autoConnect", false).toBool();
+}
+
+void AppSettings::setCWKeyingSource(int source) {
+    m_settings.setValue("CW/keyingSource", source);
+    m_settings.sync();
+}
+
+int AppSettings::getCWKeyingSource() const {
+    return m_settings.value("CW/keyingSource", 0).toInt();  // Default: Radio (KY command)
+}
+
+// Sidetone settings
+void AppSettings::setSidetonePitch(int hz) {
+    m_settings.setValue("Keyer/sidetonePitch", hz);
+    m_settings.sync();
+}
+
+int AppSettings::getSidetonePitch() const {
+    return m_settings.value("Keyer/sidetonePitch", 600).toInt();
+}
+
+void AppSettings::setSidetoneVolume(int percent) {
+    m_settings.setValue("Keyer/sidetoneVolume", percent);
+    m_settings.sync();
+}
+
+int AppSettings::getSidetoneVolume() const {
+    return m_settings.value("Keyer/sidetoneVolume", 50).toInt();
+}
+
+// WinKeyer extended settings
+void AppSettings::setWinKeyerWeighting(int weight) {
+    m_settings.setValue("Keyer/winKeyerWeighting", weight);
+    m_settings.sync();
+}
+
+int AppSettings::getWinKeyerWeighting() const {
+    return m_settings.value("Keyer/winKeyerWeighting", 50).toInt();
+}
+
+void AppSettings::setWinKeyerLeadIn(int time) {
+    m_settings.setValue("Keyer/winKeyerLeadIn", time);
+    m_settings.sync();
+}
+
+int AppSettings::getWinKeyerLeadIn() const {
+    return m_settings.value("Keyer/winKeyerLeadIn", 0).toInt();
+}
+
+void AppSettings::setWinKeyerTailTime(int time) {
+    m_settings.setValue("Keyer/winKeyerTailTime", time);
+    m_settings.sync();
+}
+
+int AppSettings::getWinKeyerTailTime() const {
+    return m_settings.value("Keyer/winKeyerTailTime", 0).toInt();
+}
+
 void AppSettings::setMyCallsign(const QString& callsign) {
     m_settings.setValue("Station/callsign", callsign.toUpper());
     m_settings.sync();

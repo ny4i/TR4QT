@@ -98,6 +98,8 @@ class StatisticsWindow;
 class FunctionKeysWindow;
 class GraylineMapDialog;
 class AmplifierControlWindow;
+class KeyerController;
+class IambicKeyer;
 #ifdef PANADAPTER_ENABLED
 class PanadapterWindow;
 #endif
@@ -188,6 +190,7 @@ private slots:
     void onWKMode();                // TODO: Implement WinKeyer re-initialization
     void onSendMorse();             // Send morse code dialog
     void onEditCWMessages();        // Edit CW messages (F1-F12 templates)
+    void onShowKeyerSetup();        // CW Keyer setup/diagnostic dialog
     void onShowFunctionKeysRef();   // Show function keys reference window
     void onBackupLog();             // TODO: Implement backup log
     void onToggleWebServer();       // Start/stop web server
@@ -505,6 +508,8 @@ private:
     // Hardware controllers (run devices in worker threads to prevent UI freezing - Issue #69)
     AmplifierController* m_amplifierController{nullptr};
     RotatorController* m_rotatorController{nullptr};
+    KeyerController* m_keyerController{nullptr};
+    IambicKeyer* m_iambicKeyer{nullptr};
 
     // Hardware control services (business logic layer)
     AmplifierService* m_amplifierService{nullptr};

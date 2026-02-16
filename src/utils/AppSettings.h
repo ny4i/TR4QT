@@ -276,6 +276,42 @@ public:
     void setSerialNumberWidth(int width);  // 0-4 leading zeros
     int getSerialNumberWidth() const;      // Default: 3 (e.g., "002")
 
+    // CW Keyer Hardware settings
+    void setKeyerDeviceType(int type);         // KeyerDeviceType enum value
+    int getKeyerDeviceType() const;            // Default: 0 (WinKeyer)
+    void setKeyerPortName(const QString& port);
+    QString getKeyerPortName() const;
+    void setKeyerPaddleSwap(bool swap);
+    bool getKeyerPaddleSwap() const;
+    void setKeyerIambicMode(int mode);         // 0=IambicA, 1=IambicB
+    int getKeyerIambicMode() const;            // Default: 1 (IambicB)
+    void setKeyerDitNote(int note);
+    int getKeyerDitNote() const;               // Default: 20
+    void setKeyerDahNote(int note);
+    int getKeyerDahNote() const;               // Default: 21
+    void setKeyerEnabled(bool enabled);
+    bool getKeyerEnabled() const;
+    void setKeyerAutoConnect(bool autoConnect);
+    bool getKeyerAutoConnect() const;
+
+    // CW Keying Source: 0=Radio (KY command), 1=External Keyer
+    void setCWKeyingSource(int source);
+    int getCWKeyingSource() const;             // Default: 0 (Radio)
+
+    // Sidetone settings
+    void setSidetonePitch(int hz);
+    int getSidetonePitch() const;              // Default: 600 Hz
+    void setSidetoneVolume(int percent);
+    int getSidetoneVolume() const;             // Default: 50%
+
+    // WinKeyer extended settings
+    void setWinKeyerWeighting(int weight);
+    int getWinKeyerWeighting() const;          // Default: 50 (normal)
+    void setWinKeyerLeadIn(int time);
+    int getWinKeyerLeadIn() const;             // Default: 0 (x10ms)
+    void setWinKeyerTailTime(int time);
+    int getWinKeyerTailTime() const;           // Default: 0 (x10ms)
+
     // Station information
     void setMyCallsign(const QString& callsign);
     QString getMyCallsign() const;

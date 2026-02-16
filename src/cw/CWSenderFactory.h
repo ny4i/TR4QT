@@ -28,6 +28,7 @@ namespace TR4QT {
 
 class CWSender;
 class RadioController;
+class KeyerController;
 
 /**
  * Factory for creating CW sender instances
@@ -40,9 +41,9 @@ class RadioController;
 class CWSenderFactory {
 public:
     enum class Backend {
-        Hamlib,     // Default: Use Hamlib via RadioController
-        Winkeyer,   // Future: Use Winkeyer serial device
-        Simulated   // Future: For testing
+        Hamlib,        // Default: Use Hamlib via RadioController
+        KeyerDevice,   // External keyer (WinKeyer) via KeyerController
+        Simulated      // For testing
     };
 
     /**
@@ -55,6 +56,7 @@ public:
      */
     static CWSender* create(Backend backend,
                            RadioController* radio = nullptr,
+                           KeyerController* keyer = nullptr,
                            QObject* parent = nullptr);
 
     /**
@@ -67,6 +69,7 @@ public:
      */
     static CWSender* create(const QString& backendName,
                            RadioController* radio = nullptr,
+                           KeyerController* keyer = nullptr,
                            QObject* parent = nullptr);
 
     /**

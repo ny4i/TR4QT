@@ -135,8 +135,17 @@ set(SOURCES
     importers/ADIFFieldMapper.cpp
     importers/ADIFImporter.cpp
     cw/HamlibCWSender.cpp
+    cw/KeyerCWSender.cpp
     cw/CWSenderFactory.cpp
     cw/CWTemplateEngine.cpp
+    keyers/KeyerController.cpp
+    keyers/KeyerFactory.cpp
+    keyers/WinKeyerDevice.cpp
+    keyers/HaliKeySerialDevice.cpp
+    keyers/HaliKeyMidiDevice.cpp
+    keyers/IambicKeyer.cpp
+    audio/SidetoneGenerator.cpp
+    3rdparty/rtmidi/RtMidi.cpp
     contests/QSOPartyContestBase.cpp
     contests/ARRLDXContest.cpp
     contests/ARRLDXBase.cpp
@@ -219,6 +228,7 @@ set(SOURCES
     ui/dialogs/GraylineMapDialog.cpp
     ui/dialogs/SO2RConfigDialog.cpp
     ui/dialogs/RadioEditDialog.cpp
+    ui/dialogs/KeyerSetupDialog.cpp
     ui/widgets/BandSummaryGrid.cpp
     ui/widgets/BandMapWidget.cpp
     ui/widgets/CivAddressWidget.cpp
@@ -305,8 +315,18 @@ set(HEADERS
     importers/ADIFImporter.h
     cw/CWSender.h
     cw/HamlibCWSender.h
+    cw/KeyerCWSender.h
     cw/CWSenderFactory.h
     cw/CWTemplateEngine.h
+    keyers/ICWKeyerDevice.h
+    keyers/KeyerConfig.h
+    keyers/KeyerController.h
+    keyers/KeyerFactory.h
+    keyers/WinKeyerDevice.h
+    keyers/HaliKeySerialDevice.h
+    keyers/HaliKeyMidiDevice.h
+    keyers/IambicKeyer.h
+    audio/SidetoneGenerator.h
     contests/ARRLDXContest.h
     contests/ARRLRTTYRoundupContest.h
     contests/ARRLSweepstakesContest.h
@@ -355,6 +375,7 @@ set(HEADERS
     ui/dialogs/QSOSearchDialog.h
     ui/dialogs/SO2RConfigDialog.h
     ui/dialogs/RadioEditDialog.h
+    ui/dialogs/KeyerSetupDialog.h
     ui/widgets/BandSummaryGrid.h
     ui/widgets/BandMapWidget.h
     ui/widgets/CivAddressWidget.h
@@ -409,8 +430,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.40.67"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.40.67"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.42.69"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.42.69"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
@@ -458,6 +479,7 @@ target_link_libraries(tr4qt PRIVATE
     Qt6::SerialPort
     Qt6::Svg
     Qt6::Xml
+    Qt6::Multimedia
     Qt6::Quick
     Qt6::QuickWidgets
     Qt6::Qml
@@ -488,6 +510,34 @@ if(APPLE)
     target_link_libraries(tr4qt PRIVATE "-framework SystemConfiguration")
 endif()
 
+# RtMidi platform-specific configuration (for HaliKey MIDI support)
+if(APPLE)
+    target_compile_definitions(tr4qt PRIVATE __MACOSX_CORE__)
+    target_link_libraries(tr4qt PRIVATE
+        "-framework CoreMIDI"
+        "-framework CoreAudio"
+        "-framework CoreFoundation"
+    )
+elseif(WIN32)
+    target_compile_definitions(tr4qt PRIVATE __WINDOWS_MM__)
+    target_link_libraries(tr4qt PRIVATE winmm)
+else()
+    target_compile_definitions(tr4qt PRIVATE __LINUX_ALSA__)
+    # Linux: libasound2-dev required for ALSA MIDI
+    find_package(PkgConfig)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(ALSA alsa)
+        if(ALSA_FOUND)
+            target_include_directories(tr4qt PRIVATE ${ALSA_INCLUDE_DIRS})
+            target_link_libraries(tr4qt PRIVATE ${ALSA_LIBRARIES})
+        else()
+            target_link_libraries(tr4qt PRIVATE asound)
+        endif()
+    else()
+        target_link_libraries(tr4qt PRIVATE asound)
+    endif()
+endif()
+
 # Set include directories
 target_include_directories(tr4qt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -495,10 +545,13 @@ target_include_directories(tr4qt PRIVATE
     ${qtkeychain_BINARY_DIR}
 )
 
-# Suppress deprecation warnings for third-party qcustomplot.cpp
+# Suppress deprecation warnings for third-party code
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
     set_source_files_properties(ui/plots/qcustomplot.cpp PROPERTIES
         COMPILE_FLAGS "-Wno-deprecated-declarations"
+    )
+    set_source_files_properties(3rdparty/rtmidi/RtMidi.cpp PROPERTIES
+        COMPILE_FLAGS "-Wno-deprecated-declarations -Wno-unused-parameter"
     )
 endif()
 

@@ -46,6 +46,9 @@
 #include "../controllers/ImportExportManager.h"
 #include "../controllers/CWMessageManager.h"
 #include "../controllers/BandSwitchingManager.h"
+#include "../keyers/KeyerController.h"
+#include "../keyers/IambicKeyer.h"
+#include "dialogs/KeyerSetupDialog.h"
 #include "../amplifiers/AmplifierFactory.h"
 #include "../rotator/RotatorFactory.h"
 #include "../core/Constants.h"
@@ -596,6 +599,7 @@ void MainWindow::createMenuBar() {
     config.onShowRadio2Control = [this]() { onShowRadio2Control(); };
     config.onSendMorse = [this]() { onSendMorse(); };
     config.onEditCWMessages = [this]() { onEditCWMessages(); };
+    config.onShowKeyerSetup = [this]() { onShowKeyerSetup(); };
     config.onShowFunctionKeysRef = [this]() { onShowFunctionKeysRef(); };
     config.onShowMultipliers = [this]() { onShowMultipliers(); };
     config.onShowStatistics = [this]() { onShowStatistics(); };
@@ -1218,6 +1222,19 @@ void MainWindow::initializeHardwareServices() {
 
         LOG_DEBUG("MainWindow", "Rotator controller and service initialized (worker thread)");
     }
+
+    // --- CW Keyer Controller + Iambic Keyer ---
+    m_keyerController = new KeyerController(this);
+    m_iambicKeyer = new IambicKeyer(this);
+    m_iambicKeyer->setWpm(settings.getMorseWPM());
+    m_iambicKeyer->setMode(settings.getKeyerIambicMode() == 0
+                           ? IambicMode::IambicA : IambicMode::IambicB);
+
+    // Feed paddle state from keyer controller to iambic keyer
+    connect(m_keyerController, &KeyerController::paddleStateChanged,
+            m_iambicKeyer, &IambicKeyer::updatePaddleState);
+
+    LOG_DEBUG("MainWindow", "Keyer controller and iambic keyer initialized");
 }
 
 void MainWindow::loadSettings() {
@@ -4560,6 +4577,11 @@ void MainWindow::onEditCWMessages() {
     CWMessageEditorDialog dialog(m_radio, m_activeContest.get(), this);
     dialog.exec();
     LOG_DEBUG("MainWindow", "CW Messages Editor closed");
+}
+
+void MainWindow::onShowKeyerSetup() {
+    KeyerSetupDialog dialog(m_keyerController, m_iambicKeyer, m_radio, this);
+    dialog.exec();
 }
 
 void MainWindow::handleFunctionKey(int fKey, bool ctrlPressed, bool altPressed) {

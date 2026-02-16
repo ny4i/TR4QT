@@ -39,6 +39,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     SerialPort
     Svg
     Xml
+    Multimedia
     Test
     Quick
     QuickWidgets

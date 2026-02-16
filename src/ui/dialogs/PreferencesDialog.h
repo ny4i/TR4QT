@@ -127,6 +127,10 @@ private slots:
     void onRotatorConnectionTypeChanged(int index);
     void onTestRotatorConnection();
 
+    // Keyer slots
+    void onKeyerDeviceTypeChanged(int index);
+    void onRefreshKeyerPorts();
+
 protected:
     void showEvent(QShowEvent* event) override;
     void hideEvent(QHideEvent* event) override;
@@ -213,6 +217,20 @@ private:
     QSpinBox* m_morseWpmIncrementSpin;
     QCheckBox* m_cutNumbersEnabledCheck;
     QSpinBox* m_serialNumberWidthSpin;
+
+    // CW Keyer widgets
+    QCheckBox* m_keyerEnabledCheck;
+    QComboBox* m_keyerDeviceTypeCombo;
+    QComboBox* m_keyerPortCombo;
+    QPushButton* m_keyerRefreshPortsButton;
+    QCheckBox* m_keyerPaddleSwapCheck;
+    QRadioButton* m_iambicARadio;
+    QRadioButton* m_iambicBRadio;
+    QCheckBox* m_keyerAutoConnectCheck;
+    QComboBox* m_cwKeyingSourceCombo;
+    QWidget* m_midiSettingsWidget;   // Container for MIDI-specific settings
+    QSpinBox* m_ditNoteSpin;
+    QSpinBox* m_dahNoteSpin;
 
     // Amplifier widgets (enhanced for Hamlib support)
     QCheckBox* m_amplifierEnabledCheck;

@@ -103,6 +103,7 @@ public:
         std::function<void()> onShowRadio2Control;
         std::function<void()> onSendMorse;
         std::function<void()> onEditCWMessages;
+        std::function<void()> onShowKeyerSetup;
         std::function<void()> onShowFunctionKeysRef;
         std::function<void()> onShowMultipliers;
         std::function<void()> onShowStatistics;

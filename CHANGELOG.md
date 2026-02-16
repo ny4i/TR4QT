@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.42.69] - 2026-02-15
+
+### Added
+- **CW Keyer Setup Dialog**: Diagnostic/setup dialog for verifying keyer hardware before contest operation
+  - Live paddle indicators (green/black) showing dit/dah state in real-time
+  - Software sidetone via Qt Multimedia (QAudioSink, float32 mono 48kHz)
+  - Raised cosine envelope ramps (5ms) for click-free tone transitions
+  - Sidetone-only practice mode (no radio keying)
+  - Speed, volume, and pitch sliders with live adjustment
+  - Iambic Mode A/B selection and paddle swap
+  - WinKeyer extended commands: weighting (10-90), lead-in time, tail time
+  - WinKeyer settings section shown only when WinKeyer is connected
+  - Settings persist via AppSettings on dialog close
+  - Accessible from Window > CW Keyer Setup menu
+
+## [3.41.68] - 2026-02-15
+
+### Added
+- **CW Keyer Support**: External keyer hardware backends for CW operation
+  - **WinKeyer** (K1EL serial protocol): Hardware Morse generation from text, speed pot tracking, echo-back, XOFF flow control
+  - **HaliKey Serial**: Paddle input via serial CTS/DSR pin polling with 3-read debounce
+  - **HaliKey MIDI**: Paddle input via MIDI Note On/Off with configurable note mapping (RtMidi vendored)
+  - **Software Iambic Keyer**: Mode A/B state machine with alternation latching, squeeze completion, safety timeout
+  - **KeyerController**: Worker thread pattern (follows RadioController) for all keyer hardware I/O
+  - **ICWKeyerDevice**: Abstract interface for keyer device implementations
+  - **KeyerCWSender**: CWSender implementation delegating to external keyer for macro sending
+  - **CWSenderFactory**: Extended with KeyerDevice backend
+  - **RadioController**: Added sendKeyDown/sendKeyUp for CAT keying from iambic keyer
+  - **Settings**: Full keyer configuration in AppSettings (device type, port, iambic mode, paddle swap, MIDI notes)
+  - **Preferences UI**: CW Settings tab enhanced with keyer hardware configuration section
+
 ## [3.40.62] - 2026-02-04
 
 ### Added

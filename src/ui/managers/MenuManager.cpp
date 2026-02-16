@@ -389,6 +389,9 @@ void MenuManager::createWindowMenu(QMenuBar* menuBar, const Config& config) {
     editCWMessagesAction->setShortcut(QKeySequence("Alt+M"));
     connect(editCWMessagesAction, &QAction::triggered, this, config.onEditCWMessages);
 
+    QAction* keyerSetupAction = windowMenu->addAction("CW &Keyer Setup...");
+    connect(keyerSetupAction, &QAction::triggered, this, config.onShowKeyerSetup);
+
     QAction* functionKeysAction = windowMenu->addAction("&Function Keys Reference");
     functionKeysAction->setShortcut(QKeySequence("Ctrl+F1"));
     connect(functionKeysAction, &QAction::triggered, this, config.onShowFunctionKeysRef);

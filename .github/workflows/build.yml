@@ -196,6 +196,7 @@ jobs:
         cp "$QT_BIN/Qt6QuickWidgets.dll" "$DEST/"
         cp "$QT_BIN/Qt6ShaderTools.dll" "$DEST/"
         cp "$QT_BIN/Qt6OpenGL.dll" "$DEST/"
+        cp "$QT_BIN/Qt6Multimedia.dll" "$DEST/"
 
         # Copy Qt plugins
         echo "Copying Qt plugins..."
@@ -823,6 +824,7 @@ jobs:
     continue-on-error: true  # Don't fail the workflow if Linux build fails
 
     # Self-hosted runner has Qt 6.10.1 at /opt/Qt and Hamlib at /opt/hamlib pre-installed
+    # NOTE: Runner also needs libasound2-dev installed for MIDI support (RtMidi/ALSA)
     env:
       QT_ROOT_DIR: /opt/Qt/6.10.1/gcc_64
       HAMLIB_ROOT: /opt/hamlib

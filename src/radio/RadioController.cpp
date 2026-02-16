@@ -511,4 +511,14 @@ void RadioController::setSplit(bool enable, VFO txVfo) {
     emit requestSetSplit(enable, txVfo);
 }
 
+void RadioController::sendKeyDown() {
+    // Key the transmitter via PTT for CW keying (used by software iambic keyer)
+    emit requestSetPTT(true);
+}
+
+void RadioController::sendKeyUp() {
+    // Un-key the transmitter (used by software iambic keyer)
+    emit requestSetPTT(false);
+}
+
 } // namespace TR4QT
