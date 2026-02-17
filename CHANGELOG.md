@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.43.72] - 2026-02-17
+
+### Fixed
+- **CW Speed Ping-Pong Crash**: HamlibCWSender::setWpm() called setCWSpeed() back to radio, creating infinite feedback loop with CWService::syncCWSpeedFromRadio()
+- **RadioController Deadlock**: Release mutex before emit in stateUpdated/connectionStatusChanged lambdas to prevent cross-thread deadlock
+- **RadioController maxPowerWatts()**: Cache value at connect time instead of using BlockingQueuedConnection (which deadlocked when called from main thread)
+- **K4 QRP Power Display**: PC command returns 3-char absolute watts (e.g. PC005 = 5W) with no range character despite documentation. QRP mode now inferred from power <= 10W for correct TM power interpretation
+- **DTR/RTS CW Timing Jitter**: MorseEncoder + serial port now run in dedicated QThread::HighPriority worker thread instead of main UI thread
+- **DTR/RTS Worker Thread Init**: Member QTimers don't move with moveToThread(); create QTimer-using objects in QThread::started init() slot, not constructor
+- **DTR Glitch on Serial Open/Close**: Replaced QSerialPort with native Windows CreateFile/EscapeCommFunction (and Linux ioctl) for DTR/RTS control to eliminate unwanted key-down pulse
+- **COM Port Sharing Conflict**: SendMorseDialog now borrows CWSender from CWService instead of creating its own (was causing "Access is denied" on shared COM port)
+
+### Changed
+- **K4 Direct Protocol**: AI mode changed from 4 to 5 per K4 requirements
+- **Log Verbosity**: High-frequency radio messages (RX data, TM updates, processMessage) reduced from DEBUG to TRACE
+- **Q_INVOKABLE**: Added to maxPowerWatts() in all radio interface classes (HamlibRadio, IcomRadio, IC7760Radio, IC9700Radio, K4Radio)
+
+### Added
+- **COM Port Friendly Names**: DTR/RTS port dropdown shows Windows Device Manager names (e.g. "K4 Serial Port PC1 (COM5)") via Windows Setup API (SPDRP_FRIENDLYNAME), sorted alphabetically, preserves selection on refresh
+- **Native Serial Port API**: Windows uses CreateFile + EscapeCommFunction for DTR/RTS keying; Linux/macOS uses open + ioctl. Future-proof for shared CAT+keying port (K4 Direct over serial)
+
 ## [3.42.69] - 2026-02-15
 
 ### Added
