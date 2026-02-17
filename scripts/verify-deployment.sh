@@ -109,6 +109,7 @@ check_file "Qt6Quick.dll" "Qt Quick" true
 check_file "Qt6QuickWidgets.dll" "Qt Quick Widgets" true
 check_file "Qt6ShaderTools.dll" "Qt Shader Tools" true
 check_file "Qt6OpenGL.dll" "Qt OpenGL" true
+check_file "Qt6Multimedia.dll" "Qt Multimedia" true
 echo ""
 
 echo "=== Qt Plugins ==="

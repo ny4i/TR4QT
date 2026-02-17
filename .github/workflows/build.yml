@@ -859,6 +859,18 @@ jobs:
           rm -rf build || true
         fi
 
+    - name: Install missing Qt modules
+      run: |
+        # Qt6Multimedia is required but not in the base aqtinstall.
+        # Install it if not already present.
+        if [ ! -d "${{ env.QT_ROOT_DIR }}/lib/cmake/Qt6Multimedia" ]; then
+          echo "Installing Qt6Multimedia module..."
+          pip3 install aqtinstall
+          aqt install-qt linux desktop ${{ env.QT_VERSION }} --outputdir /opt/Qt --modules qtmultimedia
+        else
+          echo "Qt6Multimedia already installed"
+        fi
+
     - name: Configure CMake
       run: |
         cmake -B build \
@@ -936,7 +948,7 @@ jobs:
         # Core Qt libraries
         for lib in Core Gui Widgets Network Sql HttpServer WebSockets PrintSupport \
                    Concurrent SerialPort Svg Xml Qml Quick QuickWidgets \
-                   ShaderTools OpenGL QmlModels DBus XcbQpa; do
+                   ShaderTools OpenGL QmlModels Multimedia DBus XcbQpa; do
           if [ -f "$QT_LIB/libQt6${lib}.so.6" ]; then
             cp -L "$QT_LIB/libQt6${lib}.so.6" "$DEST_LIB/"
             echo "  Copied libQt6${lib}.so.6"
