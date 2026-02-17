@@ -865,8 +865,10 @@ jobs:
         # Install it if not already present.
         if [ ! -d "${{ env.QT_ROOT_DIR }}/lib/cmake/Qt6Multimedia" ]; then
           echo "Installing Qt6Multimedia module..."
-          pip3 install aqtinstall
-          aqt install-qt linux desktop ${{ env.QT_VERSION }} --outputdir /opt/Qt --modules qtmultimedia
+          python3 -m venv /tmp/aqt-venv
+          /tmp/aqt-venv/bin/pip install aqtinstall
+          /tmp/aqt-venv/bin/aqt install-qt linux desktop ${{ env.QT_VERSION }} --outputdir /opt/Qt --modules qtmultimedia
+          rm -rf /tmp/aqt-venv
         else
           echo "Qt6Multimedia already installed"
         fi
