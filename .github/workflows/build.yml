@@ -859,6 +859,18 @@ jobs:
           rm -rf build || true
         fi
 
+    - name: Install system dependencies
+      run: |
+        # libpulse-dev: Required by Qt6Multimedia (PulseAudio backend on Linux)
+        # Without this, linking fails with "undefined reference to pa_*" symbols
+        if ! dpkg -s libpulse-dev >/dev/null 2>&1; then
+          echo "Installing libpulse-dev for Qt6Multimedia..."
+          sudo apt-get update -qq
+          sudo apt-get install -y libpulse-dev
+        else
+          echo "libpulse-dev already installed"
+        fi
+
     - name: Install missing Qt modules
       run: |
         # Qt6Multimedia is required but not in the base aqtinstall.
