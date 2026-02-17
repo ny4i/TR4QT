@@ -53,7 +53,7 @@ public:
     bool supportsTransceive() const override { return true; }
     bool supportsVfoB() const override { return true; }
     bool supportsScope() const override { return true; }
-    int maxPowerWatts() const override { return 100; }  // IC-9700 is 100W radio
+    Q_INVOKABLE int maxPowerWatts() const override { return 100; }  // IC-9700 is 100W radio
 };
 
 } // namespace TR4QT

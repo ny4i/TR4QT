@@ -105,6 +105,7 @@ private:
     RadioState m_lastState;
     bool m_connected;
     QString m_radioModel;
+    int m_cachedMaxPower{100};  // Cached at connect time (static capability, never changes)
     std::atomic<bool> m_shutdownRequested{false};  // Signal to worker thread during shutdown
 };
 

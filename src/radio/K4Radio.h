@@ -97,7 +97,7 @@ public:
 
     // Radio capabilities
     bool supportsDiscreteBandCommand() const override;
-    int maxPowerWatts() const override { return 110; }  // K4 is 110W radio (100W + 10W headroom)
+    Q_INVOKABLE int maxPowerWatts() const override { return 110; }  // K4 is 110W radio (100W + 10W headroom)
 
     // Radio information
     Q_INVOKABLE QList<ModeType> getSupportedModes() const;
@@ -132,6 +132,7 @@ private:
     QTimer* m_cwTimer{nullptr};
     bool m_cwInProgress{false};
     bool m_collectDetailedRigInfo{false};  // Control S-meter, temperature polling
+    bool m_isQrpMode{false};  // QRP power range from PC command (L=true, H=false)
 
     // K4 protocol helpers
     void sendCommand(const QString& cmd, VFO vfo = VFO::VFO_A);

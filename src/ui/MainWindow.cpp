@@ -4548,7 +4548,8 @@ void MainWindow::onSendMorse() {
         return;
     }
 
-    SendMorseDialog dialog(m_radio, this);
+    CWSender* sender = m_cwService ? m_cwService->sender() : nullptr;
+    SendMorseDialog dialog(m_radio, sender, this);
     dialog.exec();
 }
 

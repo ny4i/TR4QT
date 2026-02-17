@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.43.71";  // DTR/RTS CW keying, CWSender abstraction in CWService
+constexpr const char* APP_VERSION = "3.43.72";  // Fix deadlocks, Q_INVOKABLE, QRP power, AI5
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

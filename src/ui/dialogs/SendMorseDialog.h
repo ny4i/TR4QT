@@ -46,7 +46,7 @@ class SendMorseDialog : public QDialog {
     Q_OBJECT
 
 public:
-    explicit SendMorseDialog(RadioController* radio, QWidget* parent = nullptr);
+    explicit SendMorseDialog(RadioController* radio, CWSender* externalSender = nullptr, QWidget* parent = nullptr);
     ~SendMorseDialog() override = default;
 
     // Default macro definitions (label, CW text)

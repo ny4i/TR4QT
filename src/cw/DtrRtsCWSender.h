@@ -20,26 +20,72 @@
 #define DTRRTS_CWSENDER_H
 
 #include "CWSender.h"
-
-class QSerialPort;
+#include <QThread>
 
 namespace TR4QT {
 
 class MorseEncoder;
 
+// Internal worker that owns MorseEncoder + serial port handle in a dedicated thread.
+// Uses native API (CreateFile/EscapeCommFunction on Windows) to avoid QSerialPort's
+// DTR glitch on open/close.
+class DtrRtsWorker : public QObject {
+    Q_OBJECT
+public:
+    enum class Pin { DTR = 0, RTS = 1 };
+
+    explicit DtrRtsWorker(const QString& portName, Pin pin);
+    ~DtrRtsWorker() override;
+
+    bool isPortOpen() const { return m_portOpen; }
+
+public slots:
+    void init();  // Must be called AFTER moveToThread (creates timers on correct thread)
+    void doSend(const QString& text, int wpm);
+    void doStop();
+    void doKeyDown();
+    void doKeyUp();
+
+signals:
+    void initialized(bool portOpen);
+    void sendingStarted(const QString& text);
+    void sendingComplete();
+    void sendingStopped();
+    void portError(const QString& error);
+
+private slots:
+    void onEncoderKeyDown();
+    void onEncoderKeyUp();
+    void onEncoderFinished();
+
+private:
+    void setKeyLine(bool active);
+    bool openPort();
+    void closePort();
+
+    QString m_portName;
+    Pin m_pin;
+    MorseEncoder* m_encoder = nullptr;
+    void* m_portHandle = nullptr;  // Native serial port handle (HANDLE on Windows)
+    bool m_portOpen = false;
+};
+
 /**
  * CW sender implementation using DTR/RTS serial port line toggling.
  *
- * Uses a SEPARATE serial port (not the radio's CAT port). Owns a QSerialPort
- * and toggles DTR or RTS directly. Connect a USB-serial adapter to the radio's
- * key jack.
+ * Uses a SEPARATE serial port (not the radio's CAT port). Connect a USB-serial
+ * adapter to the radio's key jack.
  *
- * Hamlib does NOT support DTR/RTS CW keying, so the radio's CAT port cannot
- * be shared for this purpose. A dedicated serial port is always required.
+ * On Windows, uses native CreateFile/EscapeCommFunction to open the port
+ * WITHOUT raising DTR (avoids QSerialPort's DTR glitch on open/close).
+ * On other platforms, falls back to QSerialPort.
  *
- * For text-based CW (F-key messages), uses MorseEncoder to convert text
- * into timed key events. For paddle keying (IambicKeyer), provides
- * direct keyDown()/keyUp() slots.
+ * Future: for K4 Direct over serial (shared CAT + keying port), the worker
+ * can borrow an already-open QSerialPort from the radio controller instead
+ * of opening its own.
+ *
+ * All timing-critical operations run in a dedicated high-priority worker
+ * thread for jitter-free CW timing.
  *
  * Pin selection (DTR or RTS) is configurable.
  */
@@ -79,19 +125,22 @@ public slots:
     void keyDown();
     void keyUp();
 
+signals:
+    // Internal signals to dispatch to worker thread
+    void requestSend(const QString& text, int wpm);
+    void requestStop();
+    void requestKeyDown();
+    void requestKeyUp();
+
 private slots:
-    void onEncoderKeyDown();
-    void onEncoderKeyUp();
-    void onEncoderFinished();
+    void onWorkerSendingStarted(const QString& text);
+    void onWorkerSendingComplete();
+    void onWorkerSendingStopped();
+    void onWorkerPortError(const QString& error);
 
 private:
-    void setKeyLine(bool active);
-    bool openPort();
-    void closePort();
-
-    Config m_config;
-    MorseEncoder* m_encoder;              // Owned, for text-to-morse conversion
-    QSerialPort* m_serialPort = nullptr;  // Owned, separate keying port
+    QThread m_workerThread;
+    DtrRtsWorker* m_worker = nullptr;
     State m_state = State::Idle;
     int m_wpm = 25;
     bool m_portOpen = false;

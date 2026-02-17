@@ -130,7 +130,7 @@ void K4Radio::onSocketConnected()
     LOG_INFO("K4Radio", QString("Connected to K4 at %1:%2").arg(m_host).arg(m_port));
 
     // Enable full async updates including S-meter
-    enableAIMode(4);    // AI4 = all async updates including S-meter
+    enableAIMode(5);    // AI5 = all async updates including S-meter and PC
     sendCommand("ER1");   // Enable error/status message reporting
     sendCommand("TM1");   // Enable temperature/power/SWR monitoring
     sendCommand("SMH1");  // Enable S-meter in dBm format
@@ -218,7 +218,7 @@ void K4Radio::onReadyRead()
     if (m_socket->bytesAvailable() > 0) {
         QByteArray data = m_socket->readAll();
         QString dataStr = QString::fromLatin1(data);
-        LOG_DEBUG("K4Radio", QString("RX raw: %1 bytes: '%2'")
+        LOG_TRACE("K4Radio", QString("RX raw: %1 bytes: '%2'")
                   .arg(data.size()).arg(dataStr));
         m_receiveBuffer += dataStr;
 
@@ -231,7 +231,7 @@ void K4Radio::onReadyRead()
 
             if (!message.isEmpty()) {
                 messageCount++;
-                LOG_DEBUG("K4Radio", QString("RX [%1]: %2;").arg(messageCount).arg(message));
+                LOG_TRACE("K4Radio", QString("RX [%1]: %2;").arg(messageCount).arg(message));
                 processMessage(message);
             }
         }
@@ -431,6 +431,18 @@ void K4Radio::processMessage(const QString& message)
             emit stateUpdated(m_state);
         }
     }
+    else if (command == "PC") {
+        // Power Control: PCnnn; where nnn=power in watts (absolute)
+        // QRP mode: power <= 10W (TM reports tenths of watts)
+        // QRO mode: power > 10W (TM reports watts)
+        bool ok;
+        int powerWatts = data.left(3).toInt(&ok);
+        if (ok) {
+            m_isQrpMode = (powerWatts <= 10);
+            LOG_DEBUG("K4Radio", QString("PC: power=%1W (QRP=%2)")
+                .arg(powerWatts).arg(m_isQrpMode));
+        }
+    }
     else if (command == "TM") {
         // Power/ALC/SWR monitoring (format: TMaaabbbcccddd;)
         // aaa = ALC (bars 0-7), bbb = CMP (dB), ccc = FWD power (watts), ddd = SWR (tenths)
@@ -444,17 +456,16 @@ void K4Radio::processMessage(const QString& message)
 
             int power = data.mid(6, 3).toInt(&ok);
             if (ok) {
-                // Power is in watts (QRO mode) or tenths of watts (QRP mode)
-                // Store as tenths of watts for consistency with PO command
-                // TODO: Detect QRP mode and multiply by 10 if needed
-                m_state.powerOutput = power * 10;  // Assume QRO mode (watts → tenths)
+                // QRO mode: power is in watts, convert to tenths for PO consistency
+                // QRP mode: power is already in tenths of watts
+                m_state.powerOutput = m_isQrpMode ? power : power * 10;
             }
 
             int swr = data.mid(9, 3).toInt(&ok);
             if (ok) m_state.swr = swr;
 
             emit stateUpdated(m_state);
-            LOG_DEBUG("K4Radio", QString("TM: ALC=%1 bars, CMP=%2 dB, FWD=%3W, SWR=%4")
+            LOG_TRACE("K4Radio", QString("TM: ALC=%1 bars, CMP=%2 dB, FWD=%3W, SWR=%4")
                 .arg(alc).arg(cmp).arg(power).arg(swr / 10.0, 0, 'f', 1));
         }
     }
@@ -954,6 +965,9 @@ void K4Radio::queryInitialState()
     sendCommand("MD", VFO::VFO_B);  // MD$ for VFO B mode (uses $ suffix)
     sendCommand("DT", VFO::VFO_B);  // DT$ for VFO B data sub-mode (uses $ suffix)
     // Note: IF command only works for current VFO, no VFO B version
+
+    // Query power control (QRP/QRO mode detection)
+    sendCommand("PC");
 
     // Query radio ID to confirm K4
     sendCommand("ID");

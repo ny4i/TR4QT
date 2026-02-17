@@ -38,6 +38,9 @@ RadioController::RadioController(QObject* parent)
               .arg(m_radio ? "valid" : "NULL")
               .arg(reinterpret_cast<quintptr>(QThread::currentThread())));
 
+    // Cache max power BEFORE moveToThread (safe - just reads a constant, no I/O)
+    m_cachedMaxPower = m_radio->maxPowerWatts();
+
     // Move to worker thread (QTimer moves with it as a child object)
     m_radio->moveToThread(&m_workerThread);
 
@@ -65,27 +68,37 @@ void RadioController::connectRadioSignals() {
             this, [this](bool connected) {
                 LOG_DEBUG("RadioController", QString("Received connectionStatusChanged: %1").arg(connected ? "true" : "false"));
 
-                QMutexLocker locker(&m_stateMutex);
-                m_connected = connected;
+                {
+                    QMutexLocker locker(&m_stateMutex);
+                    m_connected = connected;
 
-                if (!connected) {
-                    m_radioModel.clear();
+                    if (!connected) {
+                        m_radioModel.clear();
+                    }
                 }
-
+                // CRITICAL: Emit AFTER releasing mutex to prevent deadlock
+                // Downstream slots may call isConnected()/getCurrentState() which lock m_stateMutex
                 emit connectionStatusChanged(connected);
             });
 
     connect(m_radio, &RadioInterface::stateUpdated,
             this, [this](const RadioState& state) {
-                QMutexLocker locker(&m_stateMutex);
-                m_lastState = state;
+                QString newModel;
+                {
+                    QMutexLocker locker(&m_stateMutex);
+                    m_lastState = state;
 
-                // Update cached radio model from state
-                if (!state.radioModel.isEmpty() && m_radioModel != state.radioModel) {
-                    m_radioModel = state.radioModel;
-                    emit radioModelChanged(m_radioModel);
+                    // Update cached radio model from state
+                    if (!state.radioModel.isEmpty() && m_radioModel != state.radioModel) {
+                        m_radioModel = state.radioModel;
+                        newModel = m_radioModel;
+                    }
                 }
-
+                // CRITICAL: Emit AFTER releasing mutex to prevent deadlock
+                // Downstream slots may call isConnected()/getCurrentState() which lock m_stateMutex
+                if (!newModel.isEmpty()) {
+                    emit radioModelChanged(newModel);
+                }
                 emit stateUpdated(state);
             });
 
@@ -227,6 +240,9 @@ void RadioController::recreateRadio(int radioType, const RadioConfig& config) {
     // Create new radio with RadioFactory
     m_radio = RadioFactory::createRadio(factoryType, config);
 
+    // Cache max power BEFORE moveToThread (safe - just reads a constant, no I/O)
+    m_cachedMaxPower = m_radio->maxPowerWatts();
+
     // Move to worker thread
     m_radio->moveToThread(&m_workerThread);
 
@@ -304,15 +320,9 @@ QString RadioController::getRadioModel() const {
 }
 
 int RadioController::maxPowerWatts() const {
-    // Call into worker thread to get max power (thread-safe)
-    int maxPower = 100;  // Default fallback
-    if (m_radio) {
-        // Use blocking queued connection to safely call across threads
-        QMetaObject::invokeMethod(m_radio, "maxPowerWatts",
-                                 Qt::BlockingQueuedConnection,
-                                 Q_RETURN_ARG(int, maxPower));
-    }
-    return maxPower;
+    // Return cached value - no mutex needed, only written on main thread
+    // (in constructor and recreateRadio, both before moveToThread)
+    return m_cachedMaxPower;
 }
 
 QList<ModeType> RadioController::getSupportedModes() const {

@@ -65,7 +65,48 @@
 #include <QTreeWidget>
 #include <QHeaderView>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <setupapi.h>
+#include <devguid.h>
+#endif
+
 namespace TR4QT {
+
+#ifdef Q_OS_WIN
+// Get COM port friendly names from Windows Setup API (matches Device Manager names).
+// Returns map of portName ("COM5") → friendlyName ("K4 Serial Port PC1 (COM5)").
+static QMap<QString, QString> getWindowsPortFriendlyNames()
+{
+    QMap<QString, QString> result;
+
+    HDEVINFO hDevInfo = SetupDiGetClassDevsW(
+        &GUID_DEVCLASS_PORTS, NULL, NULL, DIGCF_PRESENT);
+
+    if (hDevInfo == INVALID_HANDLE_VALUE) return result;
+
+    SP_DEVINFO_DATA devInfoData;
+    devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+
+    for (DWORD i = 0; SetupDiEnumDeviceInfo(hDevInfo, i, &devInfoData); i++) {
+        WCHAR friendlyName[256] = {0};
+        if (SetupDiGetDeviceRegistryPropertyW(hDevInfo, &devInfoData,
+                SPDRP_FRIENDLYNAME, NULL,
+                reinterpret_cast<PBYTE>(friendlyName), sizeof(friendlyName), NULL)) {
+            QString name = QString::fromWCharArray(friendlyName);
+            // Extract port name from friendly name, e.g. "K4 Serial Port PC1 (COM5)" → "COM5"
+            QRegularExpression rx("\\((COM\\d+)\\)");
+            auto match = rx.match(name);
+            if (match.hasMatch()) {
+                result[match.captured(1)] = name;
+            }
+        }
+    }
+
+    SetupDiDestroyDeviceInfoList(hDevInfo);
+    return result;
+}
+#endif
 
 PreferencesDialog::PreferencesDialog(QWidget* parent)
     : QDialog(parent)
@@ -1682,11 +1723,42 @@ void PreferencesDialog::onCWKeyingSourceChanged(int index) {
 }
 
 void PreferencesDialog::onRefreshDtrRtsPorts() {
+    // Remember current selection so refresh doesn't lose it
+    QString previousPort = m_dtrRtsPortCombo->currentData().toString();
+
     m_dtrRtsPortCombo->clear();
     const auto ports = QSerialPortInfo::availablePorts();
+
+    // Build list of (displayText, portName) pairs, then sort by display text
+    QList<QPair<QString, QString>> items;
+
+#ifdef Q_OS_WIN
+    // Use Windows Setup API to get Device Manager friendly names
+    QMap<QString, QString> friendlyNames = getWindowsPortFriendlyNames();
     for (const auto& port : ports) {
-        m_dtrRtsPortCombo->addItem(port.portName());
+        QString displayText = friendlyNames.value(port.portName(), port.portName());
+        items.append({displayText, port.portName()});
     }
+#else
+    for (const auto& port : ports) {
+        QString displayText = port.description().isEmpty()
+            ? port.portName()
+            : QString("%1 (%2)").arg(port.description(), port.portName());
+        items.append({displayText, port.portName()});
+    }
+#endif
+
+    std::sort(items.begin(), items.end(), [](const auto& a, const auto& b) {
+        return a.first.compare(b.first, Qt::CaseInsensitive) < 0;
+    });
+
+    for (const auto& item : items) {
+        m_dtrRtsPortCombo->addItem(item.first, item.second);
+    }
+
+    // Restore previous selection
+    int idx = m_dtrRtsPortCombo->findData(previousPort);
+    if (idx >= 0) m_dtrRtsPortCombo->setCurrentIndex(idx);
 }
 
 QWidget* PreferencesDialog::createWebServerTab() {
@@ -1951,7 +2023,8 @@ void PreferencesDialog::loadSettings() {
 
     // DTR/RTS settings
     onRefreshDtrRtsPorts();
-    m_dtrRtsPortCombo->setCurrentText(settings.getDtrRtsPortName());
+    int dtrPortIndex = m_dtrRtsPortCombo->findData(settings.getDtrRtsPortName());
+    if (dtrPortIndex >= 0) m_dtrRtsPortCombo->setCurrentIndex(dtrPortIndex);
     int dtrPinIndex = m_dtrRtsPinCombo->findData(settings.getDtrRtsPin());
     if (dtrPinIndex >= 0) m_dtrRtsPinCombo->setCurrentIndex(dtrPinIndex);
     onCWKeyingSourceChanged(m_cwKeyingSourceCombo->currentIndex());
@@ -2130,7 +2203,7 @@ void PreferencesDialog::saveSettings() {
     settings.setKeyerPaddleSwap(m_keyerPaddleSwapCheck->isChecked());
 
     // DTR/RTS settings
-    settings.setDtrRtsPortName(m_dtrRtsPortCombo->currentText());
+    settings.setDtrRtsPortName(m_dtrRtsPortCombo->currentData().toString());
     settings.setDtrRtsPin(m_dtrRtsPinCombo->currentData().toInt());
 
     // Keyer hardware settings

@@ -44,7 +44,7 @@ const char* SendMorseDialog::DEFAULT_MACRO_TEXTS[MACRO_COUNT] = {
     "NR?", "?", "EE", "TEST"
 };
 
-SendMorseDialog::SendMorseDialog(RadioController* radio, QWidget* parent)
+SendMorseDialog::SendMorseDialog(RadioController* radio, CWSender* externalSender, QWidget* parent)
     : QDialog(parent)
     , m_radio(radio)
     , m_cwSender(nullptr)
@@ -52,8 +52,15 @@ SendMorseDialog::SendMorseDialog(RadioController* radio, QWidget* parent)
 {
     m_macroButtons.resize(MACRO_COUNT);
 
-    // Create CW sender using factory
-    m_cwSender = CWSenderFactory::create(CWSenderFactory::Backend::Hamlib, radio, nullptr, this);
+    // Use external sender from CWService if provided (avoids COM port conflicts
+    // when DTR/RTS sender already has the port open)
+    if (externalSender) {
+        m_cwSender = externalSender;
+        LOG_INFO("SendMorseDialog", QString("Using CWService sender: %1").arg(externalSender->backendName()));
+    } else {
+        m_cwSender = CWSenderFactory::create(CWSenderFactory::Backend::Hamlib, radio, nullptr, this);
+        LOG_INFO("SendMorseDialog", "Using CAT (Hamlib) keying (fallback)");
+    }
     if (m_cwSender) {
         connect(m_cwSender, &CWSender::stateChanged, this, &SendMorseDialog::onCWSenderStateChanged);
         connect(m_cwSender, &CWSender::transmissionComplete, this, &SendMorseDialog::onTransmissionComplete);

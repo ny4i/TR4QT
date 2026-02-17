@@ -75,10 +75,11 @@ void HamlibCWSender::setWpm(int wpm) {
         m_wpm = wpm;
     }
 
-    // Update radio CW speed
-    if (m_radio && m_radio->isConnected()) {
-        m_radio->setCWSpeed(wpm);
-    }
+    // NOTE: Do NOT send setCWSpeed to radio here.
+    // This method is called from CWService::syncCWSpeedFromRadio() which creates
+    // a feedback loop: radio→stateUpdated→CWService→setWpm→setCWSpeed→radio→...
+    // The radio speed is set explicitly in send() before each transmission,
+    // and user-initiated speed changes go directly via RadioController::setCWSpeed().
 
     emit wpmChanged(wpm);
 }

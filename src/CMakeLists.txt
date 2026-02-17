@@ -434,8 +434,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.43.71"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.43.71"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.43.72"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.43.72"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
@@ -524,7 +524,7 @@ if(APPLE)
     )
 elseif(WIN32)
     target_compile_definitions(tr4qt PRIVATE __WINDOWS_MM__)
-    target_link_libraries(tr4qt PRIVATE winmm)
+    target_link_libraries(tr4qt PRIVATE winmm setupapi)
 else()
     target_compile_definitions(tr4qt PRIVATE __LINUX_ALSA__)
     # Linux: libasound2-dev required for ALSA MIDI

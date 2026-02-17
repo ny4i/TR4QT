@@ -104,7 +104,7 @@ public:
 
     // Radio capabilities
     bool supportsDiscreteBandCommand() const override;
-    int maxPowerWatts() const override;
+    Q_INVOKABLE int maxPowerWatts() const override;
 
     // Capability checking
     bool supportsCWSending() const;  // Check if radio supports rig_send_morse

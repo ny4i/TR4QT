@@ -115,7 +115,7 @@ public:
     virtual bool supportsTransceive() const = 0;
     virtual bool supportsVfoB() const = 0;
     virtual bool supportsScope() const = 0;
-    virtual int maxPowerWatts() const = 0;  // Maximum TX power rating (200W for IC-7760, 100W for IC-9700)
+    Q_INVOKABLE virtual int maxPowerWatts() const = 0;  // Maximum TX power rating (200W for IC-7760, 100W for IC-9700)
 
     // Radio information
     Q_INVOKABLE QList<ModeType> getSupportedModes() const;
