@@ -294,9 +294,15 @@ public:
     void setKeyerAutoConnect(bool autoConnect);
     bool getKeyerAutoConnect() const;
 
-    // CW Keying Source: 0=Radio (KY command), 1=External Keyer
+    // CW Keying Source: 0=Radio (KY command), 1=External Keyer, 2=DTR/RTS
     void setCWKeyingSource(int source);
     int getCWKeyingSource() const;             // Default: 0 (Radio)
+
+    // DTR/RTS CW keying settings (always uses a separate dedicated serial port)
+    void setDtrRtsPortName(const QString& port);
+    QString getDtrRtsPortName() const;         // Default: "" (no port configured)
+    void setDtrRtsPin(int pin);
+    int getDtrRtsPin() const;                  // Default: 0 (DTR), 1=RTS
 
     // Sidetone settings
     void setSidetonePitch(int hz);

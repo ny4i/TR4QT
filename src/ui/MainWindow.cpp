@@ -44,7 +44,7 @@
 #include "../network/UdpBroadcastManager.h"
 #include "../network/WebServer.h"
 #include "../controllers/ImportExportManager.h"
-#include "../controllers/CWMessageManager.h"
+#include "../services/CWService.h"
 #include "../controllers/BandSwitchingManager.h"
 #include "../keyers/KeyerController.h"
 #include "../keyers/IambicKeyer.h"
@@ -172,7 +172,6 @@ MainWindow::MainWindow(QWidget* parent)
     , m_downloadManager(nullptr)
     , m_radioManager(nullptr)
     , m_bandSwitchingManager(nullptr)
-    , m_cwMessageManager(nullptr)
     , m_amplifierService(nullptr)
     , m_rotatorService(nullptr)
     , m_qsoTableModel(new QSOTableModel(this))
@@ -234,7 +233,7 @@ MainWindow::MainWindow(QWidget* parent)
     m_radioManager = new RadioManager(this);
     m_radio = m_radioManager->radioController();  // Get RadioController from RadioManager
     m_bandSwitchingManager = new BandSwitchingManager(this);
-    m_cwMessageManager = std::make_unique<CWMessageManager>(CWMessageManager::Config{m_radio, nullptr});  // Contest set later
+    m_cwService = new CWService(CWService::Config{m_radio}, this);
     m_windowManager = new WindowManager(this);
     m_windowActivationHelper = new WindowActivationHelper(this, this);
     m_settingsManager = std::make_unique<SettingsManager>();
@@ -389,9 +388,9 @@ MainWindow::MainWindow(QWidget* parent)
                 if (m_radio2ControlWindow) {
                     m_radio2ControlWindow->setActive(radioIndex == 1);
                 }
-                // Update CW message manager for per-radio message repeat
-                if (m_cwMessageManager) {
-                    m_cwMessageManager->setActiveRadioIndex(radioIndex);
+                // Update CW service for per-radio message repeat
+                if (m_cwService) {
+                    m_cwService->setActiveRadioIndex(radioIndex);
                 }
                 // Update UDP broadcast manager for correct focusRadioNr/activeRadioNr
                 if (m_udpBroadcastManager) {
@@ -483,6 +482,16 @@ MainWindow::MainWindow(QWidget* parent)
             LOG_INFO("MainWindow", "Auto-Send is disabled at startup");
         }
     });
+
+    // Restore main window geometry immediately (before show())
+    // Must happen AFTER all layout-changing operations (setupUI, reopenLastContest)
+    // but BEFORE main.cpp calls show(). This prevents the race condition where
+    // deferred layout recalculation overrides geometry set by a post-show timer.
+    // NOTE: Only restoreGeometry here, NOT restoreState(). restoreState() can hide
+    // the menu bar if called before the window is shown. State is restored in showEvent.
+    if (!m_pendingGeometry.mainWindowGeometry.isNull()) {
+        restoreGeometry(m_pendingGeometry.mainWindowGeometry);
+    }
 }
 
 MainWindow::~MainWindow() {
@@ -1223,18 +1232,9 @@ void MainWindow::initializeHardwareServices() {
         LOG_DEBUG("MainWindow", "Rotator controller and service initialized (worker thread)");
     }
 
-    // --- CW Keyer Controller + Iambic Keyer ---
-    m_keyerController = new KeyerController(this);
-    m_iambicKeyer = new IambicKeyer(this);
-    m_iambicKeyer->setWpm(settings.getMorseWPM());
-    m_iambicKeyer->setMode(settings.getKeyerIambicMode() == 0
-                           ? IambicMode::IambicA : IambicMode::IambicB);
-
-    // Feed paddle state from keyer controller to iambic keyer
-    connect(m_keyerController, &KeyerController::paddleStateChanged,
-            m_iambicKeyer, &IambicKeyer::updatePaddleState);
-
-    LOG_DEBUG("MainWindow", "Keyer controller and iambic keyer initialized");
+    // --- CW Keyer ---
+    // KeyerController + IambicKeyer are owned by CWService (created earlier)
+    LOG_DEBUG("MainWindow", "Keyer controller and iambic keyer initialized (via CWService)");
 }
 
 void MainWindow::loadSettings() {
@@ -1270,23 +1270,15 @@ void MainWindow::loadSettings() {
 void MainWindow::showEvent(QShowEvent* event) {
     QMainWindow::showEvent(event);
 
-    // Only restore geometry once, on first show
     if (!m_geometryRestored) {
         m_geometryRestored = true;
-
-        // Use a short delay to ensure the window is fully laid out
-        // This fires after the event loop processes the show event
-        const int GEOMETRY_RESTORE_DELAY_MS = 50;
-        QTimer::singleShot(GEOMETRY_RESTORE_DELAY_MS, this, [this]() {
-            // Restore main window geometry first
-            if (!m_pendingGeometry.mainWindowGeometry.isNull()) {
-                LOG_DEBUG("MainWindow", "Restoring main window geometry (from showEvent)");
-                restoreGeometry(m_pendingGeometry.mainWindowGeometry);
-            }
+        // Main window geometry already restored in constructor (before show).
+        // restoreState (toolbars/docks) and child windows need the event loop running.
+        const int CHILD_WINDOW_RESTORE_DELAY_MS = 50;
+        QTimer::singleShot(CHILD_WINDOW_RESTORE_DELAY_MS, this, [this]() {
             if (!m_pendingGeometry.mainWindowState.isNull()) {
                 restoreState(m_pendingGeometry.mainWindowState);
             }
-            // Then restore child windows
             restoreChildWindows(m_pendingGeometry);
         });
     }
@@ -1690,7 +1682,7 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
         context.exchangeEntry = m_exchangeEntry;
         context.callsignEmpty = m_callsignEntry->text().isEmpty();
         context.inSPMode = (m_operatingMode == OperatingMode::SP);
-        context.lastCWMessage = m_lastCWMessage;
+        context.lastCWMessage = m_cwService ? m_cwService->getLastCWMessage() : QString();
 
         if (m_inputHandler->handleKeyPress(keyEvent, context)) {
             return true;
@@ -2205,14 +2197,9 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
         checkAutoSP(state.frequencyA);
     }
 
-    // Sync CW speed from radio to program settings (when in CW mode)
-    static int lastCwSpeed = 0;
-    if ((state.modeA == ModeType::CW || state.modeA == ModeType::CWR) && state.cwSpeed > 0) {
-        if (state.cwSpeed != lastCwSpeed) {
-            AppSettings::instance().setMorseWPM(state.cwSpeed);
-            lastCwSpeed = state.cwSpeed;
-            LOG_DEBUG("MainWindow", QString("Synced CW speed from radio: %1 WPM").arg(state.cwSpeed));
-        }
+    // Sync CW speed from radio to program settings (delegated to CWService)
+    if (m_cwService) {
+        m_cwService->syncCWSpeedFromRadio(state);
     }
 
     // Update radio status grid with new state
@@ -2516,13 +2503,9 @@ void MainWindow::updateUIAfterQSOLogged(const QSO& qso, const QSOLoggingService:
     m_qsosSinceLastIntegrityCheck = result.postLoggingActions.contains("Integrity check passed") ||
                                     result.postLoggingActions.contains("Integrity check FAILED") ? 0 : m_qsosSinceLastIntegrityCheck + 1;
 
-    // Auto-send QSL message after logging
-    bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
-    bool autoSendEnabled = m_autoSendCWAction->isChecked();
-    if (isCWMode && m_radioConnected && m_radio && autoSendEnabled) {
-        QString qslMessage = AppSettings::instance().getQSLCWMessage();
-        sendCWMessage(qslMessage);
-        LOG_DEBUG("MainWindow", QString("Auto-sent QSL message: %1").arg(qslMessage));
+    // Auto-send QSL message after logging (delegated to CWService)
+    if (m_cwService && m_radioConnected) {
+        m_cwService->autoSendQSLMessage(buildCWInput(), m_autoSendCWAction->isChecked());
     }
 
     // Clear entry fields and update displays
@@ -2758,21 +2741,9 @@ void MainWindow::onCallsignEnterPressed() {
     // Auto-populate exchange based on callsign
     autoPopulateExchange(callsign);
 
-    // Auto-send CW message when in CW mode (if enabled)
-    bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
-    bool autoSendEnabled = m_autoSendCWAction->isChecked();  // Check actual action state
-    if (isCWMode && m_radioConnected && m_radio && autoSendEnabled) {
-        if (m_operatingMode == OperatingMode::SP) {
-            // S&P mode: Send your exchange after entering callsign
-            QString messageTemplate = AppSettings::instance().getSPCWExchange();
-            sendCWMessage(messageTemplate);
-            LOG_DEBUG("MainWindow", QString("Auto-sent S&P exchange: %1").arg(messageTemplate));
-        } else {
-            // CQ mode: Send your exchange after entering their callsign
-            QString messageTemplate = AppSettings::instance().getCQCWExchange();
-            sendCWMessage(messageTemplate);
-            LOG_DEBUG("MainWindow", QString("Auto-sent CQ exchange: %1").arg(messageTemplate));
-        }
+    // Auto-send CW exchange (delegated to CWService)
+    if (m_cwService && m_radioConnected) {
+        m_cwService->autoSendExchange(buildCWInput(), m_autoSendCWAction->isChecked());
     }
 
     // Move focus to exchange field
@@ -3755,6 +3726,9 @@ void MainWindow::resetContestState() {
         if (m_dxClusterWindow) {
             m_dxClusterWindow->setActiveContest(nullptr, -1);
         }
+        if (m_cwService) {
+            m_cwService->setContest(nullptr);
+        }
     }
 }
 
@@ -3825,6 +3799,11 @@ void MainWindow::createContestServices(const ActivateContestResult& result) {
         importExportConfig.assisted = m_currentContest.assisted;
         m_importExportManager->updateConfig(importExportConfig);
         LOG_DEBUG("MainWindow", "ImportExportManager updated for contest");
+    }
+
+    // Update CW service with active contest (for exchange substitution)
+    if (m_cwService) {
+        m_cwService->setContest(m_activeContest.get());
     }
 }
 
@@ -4580,58 +4559,43 @@ void MainWindow::onEditCWMessages() {
 }
 
 void MainWindow::onShowKeyerSetup() {
-    KeyerSetupDialog dialog(m_keyerController, m_iambicKeyer, m_radio, this);
+    KeyerSetupDialog dialog(m_cwService->keyerController(), m_cwService->iambicKeyer(), m_radio, this);
     dialog.exec();
 }
 
 void MainWindow::handleFunctionKey(int fKey, bool ctrlPressed, bool altPressed) {
-    if (!m_cwMessageManager) {
-        LOG_ERROR("MainWindow", "CWMessageManager is null");
+    if (!m_cwService) {
+        LOG_ERROR("MainWindow", "CWService is null");
         return;
     }
 
-    // Build input context
-    CWMessageManager::Input input;
-    input.callsign = m_callsignEntry->text();
-    input.qsoNumber = m_nextSerialNumber;
-    input.radioState = m_currentState;
-    input.operatingMode = m_operatingMode;
+    CWService::Result result = m_cwService->sendFunctionKey(fKey, ctrlPressed, altPressed, buildCWInput());
 
-    // Delegate to CWMessageManager
-    CWMessageManager::Result result = m_cwMessageManager->sendFunctionKey(fKey, ctrlPressed, altPressed, input);
-
-    // Update status and last CW message
     if (!result.statusMessage.isEmpty()) {
         setStatusMessage(result.statusMessage);
-    }
-    if (result.success && !result.cwTextSent.isEmpty()) {
-        m_lastCWMessage = result.cwTextSent;
     }
 }
 
 void MainWindow::sendCWMessage(const QString& messageTemplate) {
-    if (!m_cwMessageManager) {
-        LOG_ERROR("MainWindow", "CWMessageManager is null");
+    if (!m_cwService) {
+        LOG_ERROR("MainWindow", "CWService is null");
         return;
     }
 
-    // Build input context
-    CWMessageManager::Input input;
+    CWService::Result result = m_cwService->sendCWMessage(messageTemplate, buildCWInput());
+
+    if (!result.statusMessage.isEmpty()) {
+        setStatusMessage(result.statusMessage);
+    }
+}
+
+CWService::Input MainWindow::buildCWInput() const {
+    CWService::Input input;
     input.callsign = m_callsignEntry->text();
     input.qsoNumber = m_nextSerialNumber;
     input.radioState = m_currentState;
     input.operatingMode = m_operatingMode;
-
-    // Delegate to CWMessageManager
-    CWMessageManager::Result result = m_cwMessageManager->sendCWMessage(messageTemplate, input);
-
-    // Update status and last CW message
-    if (!result.statusMessage.isEmpty()) {
-        setStatusMessage(result.statusMessage);
-    }
-    if (result.success && !result.cwTextSent.isEmpty()) {
-        m_lastCWMessage = result.cwTextSent;
-    }
+    return input;
 }
 
 void MainWindow::onShowFunctionKeysRef() {
@@ -4856,7 +4820,7 @@ void MainWindow::onCommandFromWeb(const CommandWebRequest& request, CommandWebRe
     // Dispatch command
     if (request.command == "send-cw") {
         // Check for CW support
-        if (!m_cwMessageManager) {
+        if (!m_cwService) {
             response->success = false;
             response->error = "CW messaging not available";
             return;

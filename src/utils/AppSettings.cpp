@@ -1472,6 +1472,25 @@ int AppSettings::getCWKeyingSource() const {
     return m_settings.value("CW/keyingSource", 0).toInt();  // Default: Radio (KY command)
 }
 
+// DTR/RTS CW keying settings
+void AppSettings::setDtrRtsPortName(const QString& port) {
+    m_settings.setValue("CW/dtrRtsPort", port);
+    m_settings.sync();
+}
+
+QString AppSettings::getDtrRtsPortName() const {
+    return m_settings.value("CW/dtrRtsPort", "").toString();
+}
+
+void AppSettings::setDtrRtsPin(int pin) {
+    m_settings.setValue("CW/dtrRtsPin", pin);
+    m_settings.sync();
+}
+
+int AppSettings::getDtrRtsPin() const {
+    return m_settings.value("CW/dtrRtsPin", 0).toInt();  // Default: DTR
+}
+
 // Sidetone settings
 void AppSettings::setSidetonePitch(int hz) {
     m_settings.setValue("Keyer/sidetonePitch", hz);

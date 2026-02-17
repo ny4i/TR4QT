@@ -20,6 +20,7 @@
 #include "CWSender.h"
 #include "HamlibCWSender.h"
 #include "KeyerCWSender.h"
+#include "DtrRtsCWSender.h"
 #include "../logging/LogMacros.h"
 
 namespace TR4QT {
@@ -43,6 +44,10 @@ CWSender* CWSenderFactory::create(Backend backend,
             }
             return new KeyerCWSender(keyer, parent);
 
+        case Backend::DtrRts:
+            LOG_WARN("CWSenderFactory", "Use createDtrRts() with explicit config for DTR/RTS backend");
+            return nullptr;
+
         case Backend::Simulated:
             LOG_WARN("CWSenderFactory", "Simulated backend not yet implemented");
             return nullptr;
@@ -51,6 +56,11 @@ CWSender* CWSenderFactory::create(Backend backend,
             LOG_ERROR("CWSenderFactory", "Unknown backend type");
             return nullptr;
     }
+}
+
+CWSender* CWSenderFactory::createDtrRts(const DtrRtsCWSender::Config& config,
+                                         QObject* parent) {
+    return new DtrRtsCWSender(config, parent);
 }
 
 CWSender* CWSenderFactory::create(const QString& backendName,
@@ -64,6 +74,7 @@ QString CWSenderFactory::backendToString(Backend backend) {
     switch (backend) {
         case Backend::Hamlib:      return "hamlib";
         case Backend::KeyerDevice: return "keyer";
+        case Backend::DtrRts:      return "dtrrts";
         case Backend::Simulated:   return "simulated";
         default:                    return "unknown";
     }
@@ -74,6 +85,7 @@ CWSenderFactory::Backend CWSenderFactory::stringToBackend(const QString& name) {
     if (lower == "hamlib")    return Backend::Hamlib;
     if (lower == "keyer")     return Backend::KeyerDevice;
     if (lower == "winkeyer")  return Backend::KeyerDevice;  // Legacy alias
+    if (lower == "dtrrts")    return Backend::DtrRts;
     if (lower == "simulated") return Backend::Simulated;
     return Backend::Hamlib;  // Default
 }

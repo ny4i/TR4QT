@@ -136,6 +136,8 @@ set(SOURCES
     importers/ADIFImporter.cpp
     cw/HamlibCWSender.cpp
     cw/KeyerCWSender.cpp
+    cw/DtrRtsCWSender.cpp
+    cw/MorseEncoder.cpp
     cw/CWSenderFactory.cpp
     cw/CWTemplateEngine.cpp
     keyers/KeyerController.cpp
@@ -183,7 +185,6 @@ set(SOURCES
     controllers/ImportExportManager.cpp
     controllers/RadioManager.cpp
     controllers/DownloadManager.cpp
-    controllers/CWMessageManager.cpp
     controllers/BandSwitchingManager.cpp
     controllers/KPA1500UdpPoller.cpp
     controllers/AmplifierController.cpp
@@ -204,6 +205,7 @@ set(SOURCES
     services/MaintenanceService.cpp
     services/InputHandlerService.cpp
     services/QSOSearchService.cpp
+    services/CWService.cpp
     services/StatusNotifier.cpp
     ui/MainWindow.cpp
     ui/NativeMapViewer.cpp
@@ -316,6 +318,9 @@ set(HEADERS
     cw/CWSender.h
     cw/HamlibCWSender.h
     cw/KeyerCWSender.h
+    cw/DtrRtsCWSender.h
+    cw/MorseTable.h
+    cw/MorseEncoder.h
     cw/CWSenderFactory.h
     cw/CWTemplateEngine.h
     keyers/ICWKeyerDevice.h
@@ -349,7 +354,6 @@ set(HEADERS
     controllers/ImportExportManager.h
     controllers/RadioManager.h
     controllers/DownloadManager.h
-    controllers/CWMessageManager.h
     controllers/BandSwitchingManager.h
     controllers/AmplifierController.h
     controllers/RotatorController.h
@@ -430,8 +434,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.42.69"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.42.69"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.43.71"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.43.71"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

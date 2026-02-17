@@ -68,7 +68,7 @@
 #include "../controllers/DownloadManager.h"
 #include "../controllers/RadioManager.h"
 #include "../controllers/BandSwitchingManager.h"
-#include "../controllers/CWMessageManager.h"
+#include "../services/CWService.h"
 #include "../controllers/AmplifierController.h"
 #include "../controllers/RotatorController.h"
 #include "controllers/PlaceholderActions.h"
@@ -98,8 +98,6 @@ class StatisticsWindow;
 class FunctionKeysWindow;
 class GraylineMapDialog;
 class AmplifierControlWindow;
-class KeyerController;
-class IambicKeyer;
 #ifdef PANADAPTER_ENABLED
 class PanadapterWindow;
 #endif
@@ -348,9 +346,10 @@ private:
     // Sent exchange helpers
     QString substituteSentExchangeTemplate(const QString& templateStr, int serialNumber, const QString& rst) const;
 
-    // TR4W-style CW messaging
+    // TR4W-style CW messaging (delegates to CWService)
     void handleFunctionKey(int fKey, bool ctrlPressed, bool altPressed);
     void sendCWMessage(const QString& messageTemplate);
+    CWService::Input buildCWInput() const;
 
     // UI Components
     QLabel* m_statusLabel;
@@ -503,13 +502,11 @@ private:
     DownloadManager* m_downloadManager;                  // Qt parent-managed
     RadioManager* m_radioManager;                        // Qt parent-managed
     BandSwitchingManager* m_bandSwitchingManager;        // Qt parent-managed
-    std::unique_ptr<CWMessageManager> m_cwMessageManager;  // No Qt parent, owned
+    CWService* m_cwService{nullptr};                        // Qt parent-managed
 
     // Hardware controllers (run devices in worker threads to prevent UI freezing - Issue #69)
     AmplifierController* m_amplifierController{nullptr};
     RotatorController* m_rotatorController{nullptr};
-    KeyerController* m_keyerController{nullptr};
-    IambicKeyer* m_iambicKeyer{nullptr};
 
     // Hardware control services (business logic layer)
     AmplifierService* m_amplifierService{nullptr};
@@ -544,9 +541,6 @@ private:
     // Operating mode (CQ vs S&P)
     OperatingMode m_operatingMode;
     QLabel* m_operatingModeLabel;  // Visual indicator
-
-    // CW messaging
-    QString m_lastCWMessage;  // Last CW message sent (for = key repeat)
 
     // AUTO S&P VFO tracking
     freq_t m_lastFrequency;

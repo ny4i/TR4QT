@@ -26,6 +26,7 @@ SidetoneGenerator::SidetoneGenerator(QObject* parent)
     : QObject(parent)
 {
     m_sampleBuffer.resize(BUFFER_SAMPLES);
+    m_pushTimer.setTimerType(Qt::PreciseTimer);
     connect(&m_pushTimer, &QTimer::timeout, this, &SidetoneGenerator::pushSamples);
 }
 
@@ -55,7 +56,7 @@ void SidetoneGenerator::start() {
     m_audioSink = std::make_unique<QAudioSink>(defaultDevice, format);
     m_audioSink->setVolume(m_volumePercent / 100.0);
 
-    // Set a large buffer (200ms) to absorb timer jitter
+    // Set a small buffer (40ms) for low-latency CW keying
     const int bufferBytes = BUFFER_SAMPLES * static_cast<int>(sizeof(float));
     m_audioSink->setBufferSize(bufferBytes);
 
@@ -116,8 +117,16 @@ void SidetoneGenerator::keyDown() {
     // Start push timer on-demand (avoids App Nap hang when idle)
     if (!m_pushTimer.isActive() && m_audioOutput) {
         m_silentTickCount = 0;
-        pushSamples();  // Pre-fill buffer to avoid initial underrun
-        m_pushTimer.start(PUSH_INTERVAL_MS);
+        // Flush stale silence from audio buffer to minimize keyDown→audible latency.
+        // Without this, queued silence samples play before the new tone.
+        if (m_audioSink) {
+            m_audioSink->reset();
+            m_audioOutput = m_audioSink->start();
+        }
+        if (m_audioOutput) {
+            pushSamples();  // Pre-fill buffer with tone
+            m_pushTimer.start(PUSH_INTERVAL_MS);
+        }
     }
 }
 

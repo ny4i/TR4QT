@@ -37,10 +37,10 @@ namespace TR4QT {
  * Generates a sine wave tone with raised-cosine envelope ramps to avoid clicks.
  * Used by KeyerSetupDialog for practice mode and paddle feedback.
  *
- * Uses push mode with aggressive buffering:
- * - QAudioSink configured with 200ms buffer (9600 samples)
- * - QTimer fires every 10ms and fills ALL available buffer space
- * - This tolerates timer jitter up to ~190ms without underrun
+ * Uses push mode with low-latency buffering:
+ * - QAudioSink configured with 40ms buffer (1920 samples)
+ * - QTimer fires every 5ms with PreciseTimer and fills available buffer space
+ * - Low latency is critical for real-time CW keying (dit at 25WPM = 48ms)
  *
  * Envelope state machine:
  *   Silent -> RampUp -> Sustain -> RampDown -> Silent
@@ -79,10 +79,10 @@ private:
     // Audio format constants
     static constexpr int SAMPLE_RATE = 48000;
     static constexpr int RAMP_SAMPLES = 240;          // 5ms at 48kHz (click-free transitions)
-    static constexpr int PUSH_INTERVAL_MS = 10;        // Timer interval
-    static constexpr int BUFFER_DURATION_MS = 200;     // Audio sink buffer size
-    static constexpr int BUFFER_SAMPLES = SAMPLE_RATE * BUFFER_DURATION_MS / 1000;  // 9600
-    static constexpr int IDLE_STOP_TICKS = BUFFER_DURATION_MS / PUSH_INTERVAL_MS;  // 20 ticks to flush buffer
+    static constexpr int PUSH_INTERVAL_MS = 5;         // Timer interval (5ms for low-latency keying)
+    static constexpr int BUFFER_DURATION_MS = 40;      // Audio sink buffer size (low latency for CW keying)
+    static constexpr int BUFFER_SAMPLES = SAMPLE_RATE * BUFFER_DURATION_MS / 1000;  // 1920
+    static constexpr int IDLE_STOP_TICKS = BUFFER_DURATION_MS / PUSH_INTERVAL_MS;  // 8 ticks to flush buffer
 
     // Envelope state
     EnvelopeState m_envelopeState = EnvelopeState::Silent;

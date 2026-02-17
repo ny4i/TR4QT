@@ -130,6 +130,8 @@ private slots:
     // Keyer slots
     void onKeyerDeviceTypeChanged(int index);
     void onRefreshKeyerPorts();
+    void onCWKeyingSourceChanged(int index);
+    void onRefreshDtrRtsPorts();
 
 protected:
     void showEvent(QShowEvent* event) override;
@@ -231,6 +233,12 @@ private:
     QWidget* m_midiSettingsWidget;   // Container for MIDI-specific settings
     QSpinBox* m_ditNoteSpin;
     QSpinBox* m_dahNoteSpin;
+
+    // DTR/RTS keying widgets
+    QGroupBox* m_dtrRtsGroup;
+    QComboBox* m_dtrRtsPortCombo;
+    QPushButton* m_dtrRtsRefreshPortsButton;
+    QComboBox* m_dtrRtsPinCombo;
 
     // Amplifier widgets (enhanced for Hamlib support)
     QCheckBox* m_amplifierEnabledCheck;

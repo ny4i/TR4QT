@@ -39,6 +39,7 @@
 #include "../../keyers/HaliKeySerialDevice.h"
 #include "../../keyers/HaliKeyMidiDevice.h"
 #include "../../keyers/KeyerFactory.h"
+#include <QSerialPortInfo>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -1473,8 +1474,12 @@ QWidget* PreferencesDialog::createCWSettingsTab() {
     m_cwKeyingSourceCombo = new QComboBox(this);
     m_cwKeyingSourceCombo->addItem("Radio (KY command)", 0);
     m_cwKeyingSourceCombo->addItem("External Keyer", 1);
+    m_cwKeyingSourceCombo->addItem("DTR/RTS", 2);
     m_cwKeyingSourceCombo->setToolTip("Radio: Send CW via Hamlib KY command\n"
-                                       "External Keyer: Use WinKeyer or paddle keyer");
+                                       "External Keyer: Use WinKeyer or paddle keyer\n"
+                                       "DTR/RTS: Toggle serial port line for CW keying");
+    connect(m_cwKeyingSourceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onCWKeyingSourceChanged);
     formLayout->addRow("Keying Source:", m_cwKeyingSourceCombo);
 
     // Morse Speed
@@ -1586,11 +1591,39 @@ QWidget* PreferencesDialog::createCWSettingsTab() {
 
     layout->addWidget(keyerGroup);
 
+    // === DTR/RTS Keying Settings ===
+    m_dtrRtsGroup = new QGroupBox("DTR/RTS Keying", this);
+    QFormLayout* dtrLayout = new QFormLayout(m_dtrRtsGroup);
+
+    // Port selection with refresh
+    QHBoxLayout* dtrPortLayout = new QHBoxLayout();
+    m_dtrRtsPortCombo = new QComboBox(this);
+    m_dtrRtsPortCombo->setEditable(true);
+    m_dtrRtsPortCombo->setToolTip("Serial port for DTR/RTS CW keying\n"
+                                   "(separate from radio CAT port)");
+    m_dtrRtsRefreshPortsButton = new QPushButton("Refresh", this);
+    m_dtrRtsRefreshPortsButton->setMaximumWidth(80);
+    connect(m_dtrRtsRefreshPortsButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onRefreshDtrRtsPorts);
+    dtrPortLayout->addWidget(m_dtrRtsPortCombo, 1);
+    dtrPortLayout->addWidget(m_dtrRtsRefreshPortsButton);
+    dtrLayout->addRow("Port:", dtrPortLayout);
+
+    // Pin selection (DTR or RTS)
+    m_dtrRtsPinCombo = new QComboBox(this);
+    m_dtrRtsPinCombo->addItem("DTR", 0);
+    m_dtrRtsPinCombo->addItem("RTS", 1);
+    m_dtrRtsPinCombo->setToolTip("Which serial port line to toggle for CW keying");
+    dtrLayout->addRow("Keying Pin:", m_dtrRtsPinCombo);
+
+    layout->addWidget(m_dtrRtsGroup);
+
     // Informational label
     QLabel* infoLabel = new QLabel(
         "WinKeyer generates Morse in hardware from text macros. "
         "HaliKey provides paddle input for the software iambic keyer, "
-        "which sends key-down/key-up commands to the radio via CAT.",
+        "which sends key-down/key-up commands to the radio via CAT. "
+        "DTR/RTS uses a separate USB-serial adapter connected to the radio's key jack.",
         this
     );
     infoLabel->setWordWrap(true);
@@ -1601,6 +1634,10 @@ QWidget* PreferencesDialog::createCWSettingsTab() {
 
     // Populate ports for current device type
     onRefreshKeyerPorts();
+    onRefreshDtrRtsPorts();
+
+    // Show/hide DTR/RTS group based on keying source
+    onCWKeyingSourceChanged(m_cwKeyingSourceCombo->currentIndex());
 
     return cwTab;
 }
@@ -1634,6 +1671,21 @@ void PreferencesDialog::onRefreshKeyerPorts() {
         for (const QString& port : serialPorts) {
             m_keyerPortCombo->addItem(port);
         }
+    }
+}
+
+void PreferencesDialog::onCWKeyingSourceChanged(int index) {
+    Q_UNUSED(index);
+    int source = m_cwKeyingSourceCombo->currentData().toInt();
+    // Show DTR/RTS settings only when DTR/RTS keying source is selected
+    m_dtrRtsGroup->setVisible(source == 2);
+}
+
+void PreferencesDialog::onRefreshDtrRtsPorts() {
+    m_dtrRtsPortCombo->clear();
+    const auto ports = QSerialPortInfo::availablePorts();
+    for (const auto& port : ports) {
+        m_dtrRtsPortCombo->addItem(port.portName());
     }
 }
 
@@ -1897,6 +1949,13 @@ void PreferencesDialog::loadSettings() {
     m_iambicBRadio->setChecked(settings.getKeyerIambicMode() != 0);
     m_keyerPaddleSwapCheck->setChecked(settings.getKeyerPaddleSwap());
 
+    // DTR/RTS settings
+    onRefreshDtrRtsPorts();
+    m_dtrRtsPortCombo->setCurrentText(settings.getDtrRtsPortName());
+    int dtrPinIndex = m_dtrRtsPinCombo->findData(settings.getDtrRtsPin());
+    if (dtrPinIndex >= 0) m_dtrRtsPinCombo->setCurrentIndex(dtrPinIndex);
+    onCWKeyingSourceChanged(m_cwKeyingSourceCombo->currentIndex());
+
     // Keyer hardware settings
     m_keyerEnabledCheck->setChecked(settings.getKeyerEnabled());
     int keyerTypeIndex = m_keyerDeviceTypeCombo->findData(settings.getKeyerDeviceType());
@@ -2069,6 +2128,10 @@ void PreferencesDialog::saveSettings() {
     settings.setCWKeyingSource(m_cwKeyingSourceCombo->currentData().toInt());
     settings.setKeyerIambicMode(m_iambicBRadio->isChecked() ? 1 : 0);
     settings.setKeyerPaddleSwap(m_keyerPaddleSwapCheck->isChecked());
+
+    // DTR/RTS settings
+    settings.setDtrRtsPortName(m_dtrRtsPortCombo->currentText());
+    settings.setDtrRtsPin(m_dtrRtsPinCombo->currentData().toInt());
 
     // Keyer hardware settings
     settings.setKeyerEnabled(m_keyerEnabledCheck->isChecked());

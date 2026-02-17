@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.42.69";  // CW Keyer Setup dialog with software sidetone, WinKeyer extended commands
+constexpr const char* APP_VERSION = "3.43.71";  // DTR/RTS CW keying, CWSender abstraction in CWService
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

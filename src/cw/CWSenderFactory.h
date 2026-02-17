@@ -21,6 +21,7 @@
 
 #include <memory>
 #include <QString>
+#include "DtrRtsCWSender.h"
 
 class QObject;  // Forward declaration
 
@@ -35,7 +36,8 @@ class KeyerController;
  *
  * Supports different backends:
  * - "hamlib": Uses Hamlib rig_send_morse (default)
- * - "winkeyer": Uses Winkeyer hardware (future)
+ * - "keyer": Uses external keyer hardware (WinKeyer)
+ * - "dtrrts": Uses DTR/RTS serial line toggling
  * - "simulated": For testing without hardware (future)
  */
 class CWSenderFactory {
@@ -43,6 +45,7 @@ public:
     enum class Backend {
         Hamlib,        // Default: Use Hamlib via RadioController
         KeyerDevice,   // External keyer (WinKeyer) via KeyerController
+        DtrRts,        // DTR/RTS serial line keying
         Simulated      // For testing
     };
 
@@ -51,6 +54,7 @@ public:
      *
      * @param backend The backend to use
      * @param radio The radio controller (required for Hamlib backend)
+     * @param keyer The keyer controller (required for KeyerDevice backend)
      * @param parent QObject parent for memory management
      * @return Pointer to the created CW sender, or nullptr on failure
      */
@@ -60,12 +64,13 @@ public:
                            QObject* parent = nullptr);
 
     /**
+     * Create a DTR/RTS CW sender with explicit configuration
+     */
+    static CWSender* createDtrRts(const DtrRtsCWSender::Config& config,
+                                  QObject* parent = nullptr);
+
+    /**
      * Create a CW sender by backend name
-     *
-     * @param backendName "hamlib", "winkeyer", or "simulated"
-     * @param radio The radio controller (required for Hamlib backend)
-     * @param parent QObject parent for memory management
-     * @return Pointer to the created CW sender, or nullptr on failure
      */
     static CWSender* create(const QString& backendName,
                            RadioController* radio = nullptr,
