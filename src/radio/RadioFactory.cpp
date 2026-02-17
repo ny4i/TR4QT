@@ -134,7 +134,7 @@ bool RadioFactory::supportsRadioModel(RadioType type, int hamlibModelId)
                 3081,  // IC-9700 (alternative Hamlib ID)
                 3078,  // IC-7610
                 3071,  // IC-7600
-                3074,  // IC-7300MK2
+                3094,  // IC-7300MK2
                 3087,  // IC-705
                 3095,  // IC-R8600
                 3075,  // IC-7850/7851
@@ -165,12 +165,12 @@ RadioFactory::RadioType RadioFactory::recommendedTypeForModel(int hamlibModelId)
 
     // Recommend Icom Direct for supported Icom network radios
     int icomNetworkModels[] = {
-        4032,  // IC-905
+        3090,  // IC-905
         3077,  // IC-9700
         3081,  // IC-9700 (alternative Hamlib ID)
         3078,  // IC-7610
         3071,  // IC-7600
-        3074,  // IC-7300MK2
+        3094,  // IC-7300MK2
         3087,  // IC-705
         3095,  // IC-R8600
         3091,  // IC-7850

@@ -18,8 +18,8 @@ This document specifies the required versions of dependencies for TR4QT developm
   - Local development uses Qt 6.10.1 - CI must match to ensure identical binaries
 
 ### Hamlib
-- **Version**: `4.6.5`
-- **Rationale**: Latest stable release with K4 support
+- **Version**: `4.7.0`
+- **Rationale**: Latest stable release (2026-02-15). Adds IC-7300MK2 (model 3094), fixes IC-905 model ID. Requires corrected model IDs in TR4QT code.
 
 ## Platform-Specific Notes
 
@@ -63,7 +63,8 @@ When updating dependency versions:
 
 | TR4QT Version | Qt Version | Hamlib Version | Notes |
 |---------------|------------|----------------|-------|
-| 3.31.11+      | 6.10.1     | 4.6.5          | Fixed version parity between Windows/macOS |
+| 3.43.73+      | 6.10.1     | 4.7.0          | Hamlib 4.7.0 upgrade, IC-7300MK2/IC-905 model ID fixes |
+| 3.31.11-3.43.72 | 6.10.1   | 4.6.5          | Fixed version parity between Windows/macOS |
 | 3.31.0-3.31.10| 6.7.2 (macOS)<br>6.10.1 (Windows) | 4.6.5 | **BROKEN**: Version mismatch caused QSO grid issues |
 | < 3.31.0      | 6.7.2      | 4.5.x          | Legacy versions |
 

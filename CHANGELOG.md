@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.43.73] - 2026-02-17
+
+### Changed
+- **Hamlib Upgrade**: 4.6.5 → 4.7.0 (released 2026-02-15)
+
+### Fixed
+- **IC-905 Model ID**: Fixed wrong Hamlib model ID (4032 → 3090) in `recommendedTypeForModel()` — was inconsistent with `supportsRadioModel()` which already had the correct ID
+- **IC-7300MK2 Model ID**: Updated model ID from 3074 to 3094 to match Hamlib 4.7.0's `RIG_MODEL_IC7300MK2` definition across RadioFactory, RadioPreflightHelper
+
 ## [3.43.72] - 2026-02-17
 
 ### Fixed

@@ -224,7 +224,7 @@ bool RadioPreflightHelper::radioSpecificPreflight(rig_model_t radioModel, const 
         case 3081:  // IC-9700 (alternative Hamlib ID)
         case 3078:  // IC-7610
         case 3071:  // IC-7600
-        case 3074:  // IC-7300MK2
+        case 3094:  // IC-7300MK2
         case 3087:  // IC-705
         case 3095:  // IC-R8600
         case 3075:  // IC-7850/7851

@@ -35,7 +35,7 @@ on:
 
 env:
   QT_VERSION: '6.10.1'
-  HAMLIB_VERSION: '4.6.5'
+  HAMLIB_VERSION: '4.7.0'
   # VirusTotal: max malicious detections before blocking release.
   # Unsigned MinGW/NSIS builds typically trigger 1-3 heuristic false positives.
   # Tighten to 1 or 0 after code-signing is implemented.
