@@ -481,6 +481,13 @@ void RadioController::setCWSpeed(int wpm) {
     emit requestSetCWSpeed(wpm);
 }
 
+void RadioController::setDetailedRigInfoEnabled(bool enabled) {
+    if (!m_radio) return;
+    QMetaObject::invokeMethod(m_radio, [this, enabled]() {
+        m_radio->setDetailedRigInfoEnabled(enabled);
+    }, Qt::QueuedConnection);
+}
+
 int RadioController::getCWSpeed() const {
     // Call synchronously since we need the return value
     int wpm = 0;

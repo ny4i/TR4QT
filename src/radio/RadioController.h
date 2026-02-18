@@ -60,6 +60,7 @@ public slots:
     void getCWSpeedRange(int& minWpm, int& maxWpm) const;
     void stopCW();
     bool waitForMorseComplete();
+    void setDetailedRigInfoEnabled(bool enabled);
     void enableRIT(bool enable, VFO vfo = VFO::VFO_A);
     void enableXIT(bool enable, VFO vfo = VFO::VFO_A);
     void setSplit(bool enable, VFO txVfo = VFO::VFO_B);

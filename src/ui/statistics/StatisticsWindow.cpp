@@ -242,6 +242,25 @@ void StatisticsWindow::loadHistory(const QVector<RateCalculator::QsoRecord>& rec
     m_rateDisplay->updateHistory(history);
 }
 
+void StatisticsWindow::loadHistoryFromQSOs(const QList<QSO>& qsos) {
+    const QString DEFAULT_STATION_ID = "RADIO1";
+
+    QVector<RateCalculator::QsoRecord> records;
+    records.reserve(qsos.size());
+    for (const QSO& qso : qsos) {
+        RateCalculator::QsoRecord record;
+        record.timestamp = qso.timestamp;
+        record.band = qso.band;
+        record.mode = qso.mode;
+        record.operatorCall = qso.operatorCall;
+        record.stationId = DEFAULT_STATION_ID;
+        record.qsoPoints = qso.qsoPoints;
+        record.isDupe = qso.isDupe;
+        records.append(record);
+    }
+    loadHistory(records);
+}
+
 void StatisticsWindow::clearStats() {
     m_rateCalculator->clear();
     m_bandModel->clear();

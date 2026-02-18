@@ -111,7 +111,7 @@ public:
 
     // Detailed rig info control (S-meter, temperature)
     // Only collect when Radio Control window is visible to reduce unnecessary polling
-    void setDetailedRigInfoEnabled(bool enabled);
+    void setDetailedRigInfoEnabled(bool enabled) override;
     bool isDetailedRigInfoEnabled() const { return m_collectDetailedRigInfo; }
 
 private slots:

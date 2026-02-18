@@ -67,7 +67,6 @@
 #include "../utils/LOTWUserDownloader.h"
 #include "../utils/SCPDownloader.h"
 #include "../utils/GeographicUtils.h"
-#include "../radio/K4Radio.h"
 #include "../utils/PathManager.h"
 #include "../data/Database.h"
 #include "../data/QSORepository.h"
@@ -1608,50 +1607,11 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event) {
-    // PgUp: Increase WPM by configurable increment
-    if (event->key() == Qt::Key_PageUp) {
-        // Only allow CW speed change in CW mode with radio connected
-        bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
-        if (!isCWMode || !m_radioConnected) {
-            setStatusMessage("CW speed adjust requires CW mode and radio connection");
-            event->accept();
-            return;
-        }
-
+    // PgUp/PgDown: Adjust CW speed via CWService
+    if (event->key() == Qt::Key_PageUp || event->key() == Qt::Key_PageDown) {
         int increment = AppSettings::instance().getMorseWPMIncrement();
-        int currentWpm = m_currentState.cwSpeed;  // Read from radio's actual speed
-        const int MAX_WPM = 100;  // K4 maximum
-        int newWpm = qMin(currentWpm + increment, MAX_WPM);
-
-        // Send to radio - display will update when radio responds via stateUpdated
-        m_radio->setCWSpeed(newWpm);
-
-        setStatusMessage(QString("CW Speed: %1 WPM").arg(newWpm));
-        LOG_DEBUG("MainWindow", QString("WPM increased to %1 (PgUp)").arg(newWpm));
-        event->accept();
-        return;
-    }
-
-    // PgDown: Decrease WPM by configurable increment
-    if (event->key() == Qt::Key_PageDown) {
-        // Only allow CW speed change in CW mode with radio connected
-        bool isCWMode = (m_currentState.modeA == ModeType::CW || m_currentState.modeA == ModeType::CWR);
-        if (!isCWMode || !m_radioConnected) {
-            setStatusMessage("CW speed adjust requires CW mode and radio connection");
-            event->accept();
-            return;
-        }
-
-        int increment = AppSettings::instance().getMorseWPMIncrement();
-        int currentWpm = m_currentState.cwSpeed;  // Read from radio's actual speed
-        const int MIN_WPM = 8;  // K4 minimum
-        int newWpm = qMax(currentWpm - increment, MIN_WPM);
-
-        // Send to radio - display will update when radio responds via stateUpdated
-        m_radio->setCWSpeed(newWpm);
-
-        setStatusMessage(QString("CW Speed: %1 WPM").arg(newWpm));
-        LOG_DEBUG("MainWindow", QString("WPM decreased to %1 (PgDn)").arg(newWpm));
+        int delta = (event->key() == Qt::Key_PageUp) ? increment : -increment;
+        m_cwService->adjustWPM(m_currentState, delta);
         event->accept();
         return;
     }
@@ -1707,15 +1667,11 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
     if (obj == m_radioControlWindow) {
         if (event->type() == QEvent::Show) {
             if (m_radio && m_radioConnected) {
-                if (K4Radio* k4 = qobject_cast<K4Radio*>(m_radio)) {
-                    k4->setDetailedRigInfoEnabled(true);
-                }
+                m_radio->setDetailedRigInfoEnabled(true);
             }
         } else if (event->type() == QEvent::Hide) {
             if (m_radio && m_radioConnected) {
-                if (K4Radio* k4 = qobject_cast<K4Radio*>(m_radio)) {
-                    k4->setDetailedRigInfoEnabled(false);
-                }
+                m_radio->setDetailedRigInfoEnabled(false);
             }
         }
     }
@@ -3708,21 +3664,8 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
         m_statisticsWindow->clearStats();
         m_statisticsWindow->setContestStartTime(contestInfo.startDate);
 
-        // Convert QSOs to rate calculator records
-        QVector<RateCalculator::QsoRecord> records;
-        records.reserve(result.loadedQSOs.size());
-        for (const QSO& qso : result.loadedQSOs) {
-            RateCalculator::QsoRecord record;
-            record.timestamp = qso.timestamp;
-            record.band = qso.band;
-            record.mode = qso.mode;
-            record.operatorCall = qso.operatorCall.isEmpty() ?
-                AppSettings::instance().getCurrentOperator() : qso.operatorCall;
-            record.stationId = "RADIO1";  // Historical QSOs don't have station ID
-            records.append(record);
-        }
-        m_statisticsWindow->loadHistory(records);
-        LOG_DEBUG("MainWindow", QString("Loaded %1 QSOs into Statistics window").arg(records.size()));
+        m_statisticsWindow->loadHistoryFromQSOs(result.loadedQSOs);
+        LOG_DEBUG("MainWindow", QString("Loaded %1 QSOs into Statistics window").arg(result.loadedQSOs.size()));
     }
 
     updateScoreDisplay();
@@ -3747,7 +3690,7 @@ void MainWindow::activateContest(const ContestInfo& contestInfo) {
 
     // Step 8: Set default band/mode if radio not connected
     if (!m_radioConnected) {
-        setDefaultBandModeForContest(contestInfo);
+        setDefaultBandModeForContest();
     }
 
     // Step 9: Final setup - recalculate points and rebuild multipliers
@@ -3888,15 +3831,10 @@ void MainWindow::configureUIForContest(const ActivateContestResult& result) {
     }
 }
 
-void MainWindow::setDefaultBandModeForContest(const ContestInfo& contestInfo) {
-    // Set mode based on contest type
-    if (contestInfo.contestType.contains("CW")) {
-        m_currentState.modeA = ModeType::CW;
-    } else if (contestInfo.contestType.contains("SSB")) {
-        m_currentState.modeA = ModeType::USB;
-    } else {
-        m_currentState.modeA = ModeType::CW;  // Default for mixed mode
-    }
+void MainWindow::setDefaultBandModeForContest() {
+    // Use contest's declared mode; default to CW for mixed-mode contests
+    ModeType contestMode = m_activeContest ? m_activeContest->getContestMode() : ModeType::CW;
+    m_currentState.modeA = (contestMode == ModeType::None) ? ModeType::CW : contestMode;
 
     // Set default band (20M)
     m_currentState.bandA = BandType::Band20M;
@@ -4205,9 +4143,7 @@ void MainWindow::onShowRadioControl() {
         connect(m_radioControlWindow, &QWidget::destroyed, this, [this]() {
             // Window destroyed - disable detailed rig info polling
             if (m_radio && m_radioConnected) {
-                if (K4Radio* k4 = qobject_cast<K4Radio*>(m_radio)) {
-                    k4->setDetailedRigInfoEnabled(false);
-                }
+                m_radio->setDetailedRigInfoEnabled(false);
             }
             m_radioControlWindowVisible = false;  // Track closure
         });
@@ -4236,9 +4172,7 @@ void MainWindow::onShowRadioControl() {
 
     // Enable detailed rig info when window is shown
     if (m_radio && m_radioConnected) {
-        if (K4Radio* k4 = qobject_cast<K4Radio*>(m_radio)) {
-            k4->setDetailedRigInfoEnabled(true);
-        }
+        m_radio->setDetailedRigInfoEnabled(true);
     }
 }
 
@@ -4386,25 +4320,14 @@ void MainWindow::loadStatisticsWindowData() {
     m_statisticsWindow->setContestStartTime(m_currentContest.startDate);
 
     // Load all QSOs from the table model
-    QVector<RateCalculator::QsoRecord> records;
+    QList<QSO> qsos;
     int qsoCount = m_qsoTableModel->count();
-    records.reserve(qsoCount);
-
+    qsos.reserve(qsoCount);
     for (int i = 0; i < qsoCount; ++i) {
-        QSO qso = m_qsoTableModel->getQSO(i);
-        RateCalculator::QsoRecord record;
-        record.timestamp = qso.timestamp;
-        record.band = qso.band;
-        record.mode = qso.mode;
-        record.operatorCall = qso.operatorCall.isEmpty() ?
-            AppSettings::instance().getCurrentOperator() : qso.operatorCall;
-        record.stationId = "RADIO1";
-        record.qsoPoints = qso.qsoPoints;  // Points already calculated when QSO was logged
-        record.isDupe = qso.isDupe;
-        records.append(record);
+        qsos.append(m_qsoTableModel->getQSO(i));
     }
-    m_statisticsWindow->loadHistory(records);
-    LOG_DEBUG("MainWindow", QString("Loaded %1 QSOs into Statistics window").arg(records.size()));
+    m_statisticsWindow->loadHistoryFromQSOs(qsos);
+    LOG_DEBUG("MainWindow", QString("Loaded %1 QSOs into Statistics window").arg(qsoCount));
 
     // Also update scoring data - this populates Mults, Points, Score columns
     updateScoreDisplay();

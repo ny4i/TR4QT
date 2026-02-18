@@ -188,6 +188,10 @@ public slots:
     // Filter control
     virtual bool setFilterWidth(int width_hz) = 0;
 
+    // Detailed rig info (S-meter, temperature, etc.) - enable when monitoring window is visible
+    // Default no-op; radios that support detailed polling (e.g., K4) override this
+    virtual void setDetailedRigInfoEnabled(bool /*enabled*/) {}
+
 public:
     virtual bool isConnected() const = 0;
 

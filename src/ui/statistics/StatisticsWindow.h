@@ -30,6 +30,7 @@
 #include "RateCalculator.h"
 #include "RateDisplayWidget.h"
 #include "BandSummaryModel.h"
+#include "../../models/QSO.h"
 
 namespace TR4QT {
 
@@ -90,9 +91,15 @@ public:
                 const QString& stationId = QString());
 
     /**
-     * Load historical QSO data
+     * Load historical QSO data (pre-converted records)
      */
     void loadHistory(const QVector<RateCalculator::QsoRecord>& records);
+
+    /**
+     * Load historical QSO data directly from QSO list
+     * Handles conversion from QSO to RateCalculator::QsoRecord internally
+     */
+    void loadHistoryFromQSOs(const QList<QSO>& qsos);
 
     /**
      * Clear all statistics (e.g., when switching contests)

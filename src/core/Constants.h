@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.44.76";  // Add third-party dependency versions to About dialog
+constexpr const char* APP_VERSION = "3.45.77";  // Extract business logic leaks from MainWindow (#71)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

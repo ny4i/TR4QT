@@ -132,6 +132,17 @@ public:
      */
     Result autoSendExchange(const Input& input, bool autoSendEnabled);
 
+    // --- CW speed adjustment ---
+
+    /**
+     * Adjust WPM by delta (positive = increase, negative = decrease)
+     * Reads current speed from radio state, clamps to radio limits,
+     * sends new speed to radio. Emits statusMessage with result.
+     * @param radioState Current radio state (for current CW speed)
+     * @return true if adjustment was made, false if preconditions failed
+     */
+    bool adjustWPM(const RadioState& radioState, int delta);
+
     // --- CW speed sync (extracted from MainWindow::onRadioStateUpdated) ---
 
     /**

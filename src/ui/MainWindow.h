@@ -304,7 +304,7 @@ private:
     void resetContestState();  // Reset state and cleanup previous contest
     void createContestServices(const ActivateContestResult& result);  // Create services for contest
     void configureUIForContest(const ActivateContestResult& result);  // Configure UI components
-    void setDefaultBandModeForContest(const ContestInfo& contestInfo);  // Set defaults when radio disconnected
+    void setDefaultBandModeForContest();  // Set defaults when radio disconnected
     void updateExchangeFieldsForContest();
     void autoPopulateExchange(const QString& callsign);
     void reopenLastContest();

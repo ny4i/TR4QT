@@ -328,6 +328,37 @@ CWService::Result CWService::autoSendExchange(const Input& input, bool autoSendE
     return sendCWMessage(messageTemplate, input);
 }
 
+// --- CW speed adjustment ---
+
+bool CWService::adjustWPM(const RadioState& radioState, int delta)
+{
+    if (!m_config.radio || !m_config.radio->isConnected()) {
+        emit statusMessage("CW speed adjust requires radio connection");
+        return false;
+    }
+
+    if (!isCWMode(radioState.modeA)) {
+        emit statusMessage("CW speed adjust requires CW mode");
+        return false;
+    }
+
+    const int FALLBACK_MIN_WPM = 5;
+    const int FALLBACK_MAX_WPM = 60;
+    int minWpm = FALLBACK_MIN_WPM;
+    int maxWpm = FALLBACK_MAX_WPM;
+    m_config.radio->getCWSpeedRange(minWpm, maxWpm);
+
+    int currentWpm = radioState.cwSpeed;
+    int newWpm = qBound(minWpm, currentWpm + delta, maxWpm);
+
+    m_config.radio->setCWSpeed(newWpm);
+
+    const QString direction = (delta > 0) ? "increased" : "decreased";
+    emit statusMessage(QString("CW Speed: %1 WPM").arg(newWpm));
+    LOG_DEBUG("CWService", QString("WPM %1 to %2").arg(direction).arg(newWpm));
+    return true;
+}
+
 // --- CW speed sync ---
 
 void CWService::syncCWSpeedFromRadio(const RadioState& state)
