@@ -80,6 +80,9 @@
 #include "../services/QSOSearchService.h"
 #include "../contests/RSTValidator.h"
 #include "../cw/CWTemplateEngine.h"
+#include "../3rdparty/miniz/miniz.h"
+#include "../ui/plots/qcustomplot.h"
+#include <hamlib/rig.h>
 #include <QFile>
 #include <QFileInfo>
 #include <cmath>
@@ -1827,19 +1830,41 @@ void MainWindow::onRadioDisconnect() {
 }
 
 void MainWindow::onAbout() {
+    QString sqliteVersion = Database::instance().sqliteVersion();
+
+    // Qt compile vs runtime version
+    QString qtCompiled = QT_VERSION_STR;
+    QString qtRuntime = qVersion();
+    QString qtVersionStr = qtRuntime;
+    if (qtCompiled != qtRuntime) {
+        qtVersionStr = QString("%1 (runtime) / %2 (compiled)").arg(qtRuntime, qtCompiled);
+    }
+
     DialogHelper::about(this, "About TR4QT",
                        QString("<h2>%1 v%2</h2>"
                                "<p>Amateur Radio Contest Logger</p>"
                                "<p>Cross-platform Qt/C++ port of TR4W</p>"
-                               "<p><b>Phase 1 Development Build</b></p>"
-                               "<p>Features:</p>"
-                               "<ul>"
-                               "<li>Radio control via Hamlib</li>"
-                               "<li>Support for K4, IC-7610, IC-7760</li>"
-                               "<li>DXCC country lookup (cty.dat)</li>"
-                               "</ul>")
+                               "<p>&copy; 2026 Thomas M. Schaefer NY4I</p>"
+                               "<hr>"
+                               "<p><b>Components:</b></p>"
+                               "<table cellpadding='2'>"
+                               "<tr><td>Qt</td><td>%3</td></tr>"
+                               "<tr><td>Hamlib</td><td>%4</td></tr>"
+                               "<tr><td>SQLite</td><td>%5</td></tr>"
+                               "<tr><td>QCustomPlot</td><td>%6</td></tr>"
+                               "<tr><td>miniz</td><td>%7</td></tr>"
+                               "</table>"
+                               "<hr>"
+                               "<p>%8 - %9</p>")
                            .arg(APP_NAME)
-                           .arg(APP_VERSION));
+                           .arg(APP_VERSION)
+                           .arg(qtVersionStr)
+                           .arg(rig_version())
+                           .arg(sqliteVersion)
+                           .arg(QCUSTOMPLOT_VERSION_STR)
+                           .arg(MZ_VERSION)
+                           .arg(QSysInfo::prettyProductName())
+                           .arg(QSysInfo::currentCpuArchitecture()));
 }
 
 #ifdef ENABLE_PERFORMANCE_PROFILING

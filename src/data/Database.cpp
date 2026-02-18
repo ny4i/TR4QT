@@ -225,6 +225,14 @@ bool Database::isOpen() const {
     return m_db.isOpen();
 }
 
+QString Database::sqliteVersion() const {
+    QSqlQuery query(m_db);
+    if (query.exec("SELECT sqlite_version()") && query.next()) {
+        return query.value(0).toString();
+    }
+    return QString();
+}
+
 QSqlDatabase& Database::connection() {
     return m_db;
 }

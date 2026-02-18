@@ -74,6 +74,11 @@ public:
     bool isOpen() const;
 
     /**
+     * Get the SQLite engine version string (e.g. "3.45.1")
+     */
+    QString sqliteVersion() const;
+
+    /**
      * Get the Qt SQL database connection
      */
     QSqlDatabase& connection();
