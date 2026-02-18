@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.44.75] - 2026-02-18
+
+### Changed
+- **CW Input/Output Separation**: HaliKey (paddle input) and WinKeyer (CW output) are no longer conflated under a single KeyerDevice type
+  - CWOutputProfile now contains only output settings (Radio CAT, WinKeyer, DTR/RTS)
+  - New PaddleInputConfig struct for global paddle input settings (one HaliKey per station)
+  - CWOutputEditDialog simplified — shows only output-relevant fields per type
+  - CWService.configurePaddleInput() manages HaliKey connection from global config
+  - Settings migration automatically separates old flat config into input + output
+- **Keyer Setup → Paddle Test**: Renamed dialog and stripped configuration overlap
+  - Removed Keyer Mode (Iambic/Straight, Mode A/B), Swap Paddles, WinKeyer Settings — these now live exclusively in Preferences
+  - Kept diagnostic/practice controls: paddle indicators, sidetone, speed/volume/pitch
+  - Window menu: "CW Keyer Setup..." → "Paddle Test..."
+- **MIDI Note Numbers**: Removed user-exposed Dit Note / Dah Note spinboxes — hardcoded to match HaliKey firmware defaults (prevents misconfiguration)
+
+### Added
+- **CW Input Tab**: New "CW Input" sub-tab under Preferences → Hardware for paddle device configuration (None / HaliKey Serial / HaliKey MIDI), port selection, paddle swap
+- **Paddle Test Button**: "Paddle Test..." button in CW Input tab opens the Paddle Test dialog
+- **CW Input Settings Button**: "CW Input Settings..." button in Paddle Test dialog opens Preferences directly to the CW Input sub-tab
+- **PreferencesDialog.selectHardwareSubTab()**: Navigate directly to a specific Hardware sub-tab (Radio, Amplifier, Rotator, CW Output, CW Input)
+
 ## [3.43.73] - 2026-02-17
 
 ### Changed
