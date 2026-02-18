@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.45.77] - 2026-02-18
+
+### Changed
+- **Extract Business Logic from MainWindow** (#71): Moved 4 remaining logic leaks out of MainWindow (-108 lines)
+  - QSO→RateCalculator conversion moved to `StatisticsWindow::loadHistoryFromQSOs()`
+  - WPM adjust (PgUp/PgDn) moved to `CWService::adjustWPM()` with radio speed range query
+  - K4Radio downcasts replaced with `RadioController::setDetailedRigInfoEnabled()` virtual dispatch — fixes dead code where `qobject_cast<K4Radio*>` on a `RadioController*` always returned nullptr
+  - String-based mode defaulting replaced with `ContestBase::getContestMode()`
+
 ## [3.44.76] - 2026-02-18
 
 ### Added
