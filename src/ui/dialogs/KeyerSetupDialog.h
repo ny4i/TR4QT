@@ -23,10 +23,7 @@
 #include <QCheckBox>
 #include <QSlider>
 #include <QLabel>
-#include <QRadioButton>
-#include <QGroupBox>
 #include <QPushButton>
-#include <QSpinBox>
 
 namespace TR4QT {
 
@@ -36,13 +33,14 @@ class RadioController;
 class SidetoneGenerator;
 
 /**
- * CW Keyer Setup Dialog
+ * Paddle Test Dialog
  *
- * Diagnostic/setup dialog for verifying CW keyer hardware before contest operation.
- * Shows live paddle indicators, provides sidetone playback, and allows adjusting
- * keyer parameters (WPM, mode, WinKeyer settings).
+ * Diagnostic window for verifying CW paddle hardware before contest operation.
+ * Shows live paddle indicators, provides sidetone playback, and allows
+ * adjusting speed/volume/pitch for practice.
  *
- * This is NOT for contest operation - it's for hardware setup and verification.
+ * Configuration (keyer mode, paddle swap, WinKeyer settings) lives in
+ * Preferences — this dialog is purely for testing and practice.
  */
 class KeyerSetupDialog : public QDialog {
     Q_OBJECT
@@ -54,6 +52,12 @@ public:
                               QWidget* parent = nullptr);
     ~KeyerSetupDialog() override;
 
+signals:
+    /**
+     * Emitted when user clicks "CW Input Settings..." to open Preferences → Hardware → CW Input.
+     */
+    void openCWInputSettingsRequested();
+
 private slots:
     void onConnectClicked();
     void onDisconnectClicked();
@@ -63,18 +67,12 @@ private slots:
     void onVolumeSliderChanged(int value);
     void onPitchSliderChanged(int value);
     void onSidetoneOnlyToggled(bool checked);
-    void onKeyerModeChanged();
-    void onSwapPaddlesToggled(bool checked);
-    void onWeightingChanged(int value);
-    void onLeadInChanged(int value);
-    void onTailTimeChanged(int value);
 
 private:
     void setupUI();
     void loadSettings();
     void saveSettings();
     void updateConnectionUI(bool connected);
-    void updateWinKeyerVisibility();
 
     // Borrowed pointers (not owned)
     KeyerController* m_keyerController;
@@ -83,6 +81,9 @@ private:
 
     // Owned
     SidetoneGenerator* m_sidetone;
+
+    // Input device label
+    QLabel* m_inputDeviceLabel;
 
     // Paddle indicators
     QWidget* m_ditIndicator;
@@ -96,20 +97,6 @@ private:
     QLabel* m_volumeLabel;
     QSlider* m_pitchSlider;
     QLabel* m_pitchLabel;
-
-    // Keyer mode
-    QRadioButton* m_iambicRadio;
-    QRadioButton* m_straightKeyRadio;
-    QRadioButton* m_modeARadio;
-    QRadioButton* m_modeBRadio;
-    QCheckBox* m_swapPaddlesCheckbox;
-
-    // WinKeyer settings
-    QGroupBox* m_winKeyerGroup;
-    QSlider* m_weightingSlider;
-    QLabel* m_weightingLabel;
-    QSpinBox* m_leadInSpin;
-    QSpinBox* m_tailTimeSpin;
 
     // Buttons
     QPushButton* m_connectBtn;

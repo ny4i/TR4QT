@@ -22,6 +22,7 @@
 #include <QObject>
 #include <QString>
 #include "../core/Types.h"
+#include "../cw/CWOutputProfile.h"
 #include "../radio/RadioController.h"
 
 namespace TR4QT {
@@ -148,8 +149,22 @@ public:
     enum class OutputMode { CAT = 0, WinKeyer = 1, DtrRts = 2 };
 
     /**
-     * Switch CW output mode. Creates/destroys CWSender as needed.
-     * Call when user changes the CW output mode setting.
+     * Activate a CW output profile. Creates/destroys CWSender as needed.
+     * This is the primary method for switching CW output hardware.
+     * Called when station profile changes or user switches active radio.
+     */
+    void activateCWProfile(const CWOutputProfile& profile);
+
+    /**
+     * Configure paddle input device (global, not per-radio).
+     * Connects/disconnects HaliKey via KeyerController based on config.
+     * Called at startup and when user changes paddle settings.
+     */
+    void configurePaddleInput(const PaddleInputConfig& config);
+
+    /**
+     * Switch CW output mode (legacy). Creates/destroys CWSender as needed.
+     * Prefer activateCWProfile() for new code.
      */
     void setCWOutputMode(OutputMode mode);
     OutputMode cwOutputMode() const { return m_outputMode; }
@@ -193,9 +208,19 @@ private:
     QString getKeyName(int fKey, bool ctrlPressed, bool altPressed) const;
 
     /**
-     * Create the appropriate CWSender for the current output mode.
+     * Map CWSenderFactory::Backend to OutputMode for backward compat.
+     */
+    static OutputMode backendToOutputMode(CWSenderFactory::Backend backend);
+
+    /**
+     * Create the appropriate CWSender based on active profile or output mode.
      */
     void createSender();
+
+    /**
+     * Create CWSender from a CWOutputProfile.
+     */
+    void createSenderFromProfile(const CWOutputProfile& profile);
 
     /**
      * Destroy current sender and disconnect keyer wiring.
@@ -218,6 +243,7 @@ private:
     int m_activeRadioIndex = 0;
     int m_lastSyncedCWSpeed = 0;       // Track last synced speed to avoid redundant updates
     OutputMode m_outputMode = OutputMode::CAT;  // Default: CAT (Hamlib KY command)
+    CWOutputProfile m_activeProfile;           // Active CW output profile (if set via activateCWProfile)
 
     // Owned keyer hardware
     KeyerController* m_keyerController = nullptr;

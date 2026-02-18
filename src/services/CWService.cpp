@@ -51,9 +51,22 @@ CWService::CWService(const Config& config, QObject* parent)
     connect(m_keyerController, &KeyerController::paddleStateChanged,
             m_iambicKeyer, &IambicKeyer::updatePaddleState);
 
-    // Create CW sender based on current output mode setting
-    m_outputMode = static_cast<OutputMode>(settings.getCWKeyingSource());
-    createSender();
+    // Configure paddle input from global settings
+    PaddleInputConfig paddleConfig = settings.loadPaddleInputConfig();
+    configurePaddleInput(paddleConfig);
+
+    // Create CW sender: prefer profile system, fall back to flat settings
+    CWOutputProfile startupProfile = settings.getCWOutputProfileForRadio(0);
+    if (!startupProfile.name.isEmpty()) {
+        // Profile system: use CW output assigned to Radio 1
+        m_outputMode = backendToOutputMode(startupProfile.type);
+        m_activeProfile = startupProfile;
+        createSenderFromProfile(startupProfile);
+    } else {
+        // Legacy: use flat keying source setting
+        m_outputMode = static_cast<OutputMode>(settings.getCWKeyingSource());
+        createSender();
+    }
 
     // Wire iambic keyer to appropriate output
     wireKeyerToOutput();
@@ -68,6 +81,64 @@ CWService::~CWService()
 }
 
 // --- CW Output Mode ---
+
+void CWService::activateCWProfile(const CWOutputProfile& profile)
+{
+    LOG_INFO("CWService", QString("Activating CW profile: '%1' (type=%2)")
+             .arg(profile.name).arg(static_cast<int>(profile.type)));
+
+    // Disconnect keyer from old output
+    QObject::disconnect(m_iambicKeyer, &IambicKeyer::keyDown, nullptr, nullptr);
+    QObject::disconnect(m_iambicKeyer, &IambicKeyer::keyUp, nullptr, nullptr);
+
+    // Map profile type to OutputMode for backward compat
+    m_outputMode = backendToOutputMode(profile.type);
+
+    m_activeProfile = profile;
+
+    // Recreate sender from profile
+    destroySender();
+    createSenderFromProfile(profile);
+
+    // Rewire keyer to new output
+    wireKeyerToOutput();
+}
+
+void CWService::configurePaddleInput(const PaddleInputConfig& config)
+{
+    LOG_INFO("CWService", QString("Configuring paddle input: type=%1, port=%2")
+             .arg(static_cast<int>(config.deviceType)).arg(config.portName));
+
+    // Disconnect any existing keyer device
+    m_keyerController->disconnectKeyer();
+
+    if (config.deviceType == PaddleInputConfig::DeviceType::None) {
+        LOG_DEBUG("CWService", "No paddle input configured");
+        return;
+    }
+
+    // Build KeyerConfig from PaddleInputConfig
+    KeyerConfig keyerConfig;
+    switch (config.deviceType) {
+    case PaddleInputConfig::DeviceType::HaliKeySerial:
+        keyerConfig.type = KeyerDeviceType::HaliKeySerial;
+        break;
+    case PaddleInputConfig::DeviceType::HaliKeyMidi:
+        keyerConfig.type = KeyerDeviceType::HaliKeyMidi;
+        break;
+    default:
+        LOG_WARN("CWService", QString("Unknown paddle device type %1")
+                 .arg(static_cast<int>(config.deviceType)));
+        return;
+    }
+    keyerConfig.portName = config.portName;
+    keyerConfig.paddleSwap = config.paddleSwap;
+    keyerConfig.ditNoteNumber = CWProfileDefaults::MIDI_DIT_NOTE;
+    keyerConfig.dahNoteNumber = CWProfileDefaults::MIDI_DAH_NOTE;
+
+    // Connect the keyer device via KeyerController
+    m_keyerController->connectKeyer(keyerConfig);
+}
 
 void CWService::setCWOutputMode(OutputMode mode)
 {
@@ -320,6 +391,16 @@ QString CWService::getKeyName(int fKey, bool ctrlPressed, bool altPressed) const
     return keyName;
 }
 
+CWService::OutputMode CWService::backendToOutputMode(CWSenderFactory::Backend backend)
+{
+    switch (backend) {
+    case CWSenderFactory::Backend::Hamlib:      return OutputMode::CAT;
+    case CWSenderFactory::Backend::KeyerDevice: return OutputMode::WinKeyer;
+    case CWSenderFactory::Backend::DtrRts:      return OutputMode::DtrRts;
+    default:                                    return OutputMode::CAT;
+    }
+}
+
 void CWService::createSender()
 {
     auto& settings = AppSettings::instance();
@@ -355,6 +436,55 @@ void CWService::createSender()
     }
 }
 
+void CWService::createSenderFromProfile(const CWOutputProfile& profile)
+{
+    auto& settings = AppSettings::instance();
+
+    switch (profile.type) {
+    case CWSenderFactory::Backend::Hamlib:
+        m_sender = CWSenderFactory::create(CWSenderFactory::Backend::Hamlib,
+                                           m_config.radio, nullptr, this);
+        break;
+
+    case CWSenderFactory::Backend::KeyerDevice: {
+        // WinKeyer: auto-connect from profile port if specified
+        if (!profile.winKeyerPortName.isEmpty()) {
+            KeyerConfig winKeyerConfig;
+            winKeyerConfig.type = KeyerDeviceType::WinKeyer;
+            winKeyerConfig.portName = profile.winKeyerPortName;
+            winKeyerConfig.weighting = profile.weighting;
+            winKeyerConfig.leadInTime = profile.leadInTime;
+            winKeyerConfig.tailTime = profile.tailTime;
+            m_keyerController->connectKeyer(winKeyerConfig);
+        }
+        m_sender = CWSenderFactory::create(CWSenderFactory::Backend::KeyerDevice,
+                                           nullptr, m_keyerController, this);
+        break;
+    }
+
+    case CWSenderFactory::Backend::DtrRts: {
+        DtrRtsCWSender::Config dtrConfig;
+        dtrConfig.portName = profile.dtrRtsPortName;
+        dtrConfig.pin = profile.dtrRtsPin;
+        m_sender = CWSenderFactory::createDtrRts(dtrConfig, this);
+        break;
+    }
+
+    default:
+        m_sender = CWSenderFactory::create(CWSenderFactory::Backend::Hamlib,
+                                           m_config.radio, nullptr, this);
+        break;
+    }
+
+    if (m_sender) {
+        m_sender->setWpm(settings.getMorseWPM());
+        LOG_DEBUG("CWService", QString("Created CW sender from profile '%1': %2")
+                  .arg(profile.name).arg(m_sender->backendName()));
+    } else {
+        LOG_WARN("CWService", QString("Failed to create CW sender from profile '%1'").arg(profile.name));
+    }
+}
+
 void CWService::destroySender()
 {
     if (m_sender) {
@@ -373,18 +503,9 @@ void CWService::wireKeyerToOutput()
 
     switch (m_outputMode) {
     case OutputMode::CAT:
-        // IambicKeyer → RadioController PTT toggle (existing behavior)
-        if (m_config.radio) {
-            connect(m_iambicKeyer, &IambicKeyer::keyDown,
-                    m_config.radio, &RadioController::sendKeyDown);
-            connect(m_iambicKeyer, &IambicKeyer::keyUp,
-                    m_config.radio, &RadioController::sendKeyUp);
-        }
-        break;
-
     case OutputMode::WinKeyer:
-        // WinKeyer handles paddle directly in hardware - no software wiring needed.
-        // IambicKeyer is only used for HaliKey MIDI paddle → we still route to radio.
+        // WinKeyer handles text-sending in hardware but HaliKey paddle still
+        // routes via RadioController for key-down/key-up (same as CAT mode).
         if (m_config.radio) {
             connect(m_iambicKeyer, &IambicKeyer::keyDown,
                     m_config.radio, &RadioController::sendKeyDown);

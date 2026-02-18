@@ -26,6 +26,7 @@
 #include <QTimer>
 #include <QObject>
 #include "../radio/RadioInterface.h"
+#include "../cw/CWOutputProfile.h"
 #include "../logging/LogLevel.h"
 
 namespace TR4QT {
@@ -44,6 +45,8 @@ struct StationProfile {
     QString name;           ///< Profile name (e.g., "Contest Station", "Field Day")
     QString radio1Name;     ///< Name of radio assigned to Radio 1 slot (or empty)
     QString radio2Name;     ///< Name of radio assigned to Radio 2 slot (or empty)
+    QString cw1Name;        ///< Name of CW output profile assigned to Radio 1 (or empty)
+    QString cw2Name;        ///< Name of CW output profile assigned to Radio 2 (or empty)
     int defaultActive{0};   ///< 0 = Radio 1 is default active, 1 = Radio 2
     bool so2rEnabled{false};///< Enable SO2R (two-radio operation)
 };
@@ -140,6 +143,32 @@ public:
      * @return StationProfile if found, empty profile with empty name if not found
      */
     StationProfile getStationProfile(const QString& name) const;
+
+    // CW Output profiles (named CW hardware configurations)
+    void saveCWOutputProfiles(const QList<CWOutputProfile>& profiles);
+    QList<CWOutputProfile> loadCWOutputProfiles() const;
+    bool hasCWOutputProfiles() const;
+    void setActiveCWOutputProfile(const QString& profileName);
+    QString getActiveCWOutputProfile() const;
+
+    // Paddle input config (global, not per-radio)
+    void savePaddleInputConfig(const PaddleInputConfig& config);
+    PaddleInputConfig loadPaddleInputConfig() const;
+
+    /**
+     * Get a CW output profile by name
+     * @param name Profile name
+     * @return CWOutputProfile if found, empty profile with empty name if not found
+     */
+    CWOutputProfile getCWOutputProfile(const QString& name) const;
+
+    /**
+     * Get the resolved CW output profile for the currently active radio slot.
+     * Looks up the active station profile's cw1Name/cw2Name based on active radio index.
+     * @param radioIndex 0 = Radio 1, 1 = Radio 2
+     * @return CWOutputProfile for the given radio slot (empty name if none assigned)
+     */
+    CWOutputProfile getCWOutputProfileForRadio(int radioIndex) const;
 
     // Radio status filter (for preferences dropdown)
     void setShowStableRadios(bool show);
@@ -630,6 +659,15 @@ private:
      * Called automatically on first run after migrateToRadioProfiles().
      */
     void migrateToStationProfiles();
+
+    /**
+     * @brief Migrate flat CW keyer settings to CWOutputProfile system
+     *
+     * Reads existing getCWKeyingSource(), getKeyerDeviceType(), etc. and creates
+     * a "Default" CW output profile. Updates the active station profile's cw1Name.
+     * Called automatically on first run after migrateToStationProfiles().
+     */
+    void migrateToCWOutputProfiles();
 
     /**
      * @brief Migrate plain-text passwords from QSettings to OS-native credential store

@@ -18,6 +18,7 @@
 
 #include "PreferencesDialog.h"
 #include "RadioEditDialog.h"
+#include "CWOutputEditDialog.h"
 #include "../../utils/AppSettings.h"
 #include "../../utils/ThemeManager.h"
 #include "../../utils/DXClusterListDownloader.h"
@@ -59,7 +60,6 @@
 #include <QDir>
 #include <QProgressDialog>
 #include <QRegularExpression>
-#include <QSerialPortInfo>
 #include <QShowEvent>
 #include <QHideEvent>
 #include <QTreeWidget>
@@ -301,17 +301,16 @@ QWidget* PreferencesDialog::createHardwareTab() {
     QVBoxLayout* layout = new QVBoxLayout(hardwareTab);
 
     // Create tab widget for hardware sub-categories
-    QTabWidget* hardwareTabs = new QTabWidget(hardwareTab);
+    m_hardwareTabs = new QTabWidget(hardwareTab);
 
     // Add sub-tabs
-    hardwareTabs->addTab(createRadioSettingsWidget(), "Radio");
-    hardwareTabs->addTab(createAmplifierSettingsWidget(), "Amplifier");
-    hardwareTabs->addTab(createRotatorSettingsWidget(), "Rotator");
+    m_hardwareTabs->addTab(createRadioSettingsWidget(), "Radio");
+    m_hardwareTabs->addTab(createAmplifierSettingsWidget(), "Amplifier");
+    m_hardwareTabs->addTab(createRotatorSettingsWidget(), "Rotator");
+    m_hardwareTabs->addTab(createCWOutputSettingsWidget(), "CW Output");
+    m_hardwareTabs->addTab(createCWInputSettingsWidget(), "CW Input");
 
-    // Future hardware tabs (commented placeholders)
-    // hardwareTabs->addTab(createWinKeyerSettingsWidget(), "WinKeyer");
-
-    layout->addWidget(hardwareTabs);
+    layout->addWidget(m_hardwareTabs);
     return hardwareTab;
 }
 
@@ -428,6 +427,17 @@ QWidget* PreferencesDialog::createRadioSettingsWidget() {
     radio2Layout->addWidget(m_radio2AssignCombo, 1);
     radio2Layout->addWidget(m_radio2DefaultButton);
     assignmentLayout->addRow("Radio 2:", radio2Layout);
+
+    // CW Output assignment combos
+    m_cw1AssignCombo = new QComboBox(this);
+    m_cw1AssignCombo->setMinimumWidth(200);
+    m_cw1AssignCombo->setToolTip("CW output hardware to use with Radio 1");
+    assignmentLayout->addRow("CW Output 1:", m_cw1AssignCombo);
+
+    m_cw2AssignCombo = new QComboBox(this);
+    m_cw2AssignCombo->setMinimumWidth(200);
+    m_cw2AssignCombo->setToolTip("CW output hardware to use with Radio 2");
+    assignmentLayout->addRow("CW Output 2:", m_cw2AssignCombo);
 
     profilesLayout->addLayout(assignmentLayout);
 
@@ -654,6 +664,133 @@ QWidget* PreferencesDialog::createRotatorSettingsWidget() {
 
     layout->addStretch();
     return rotatorWidget;
+}
+
+QWidget* PreferencesDialog::createCWOutputSettingsWidget() {
+    QWidget* cwOutputWidget = new QWidget();
+    QVBoxLayout* layout = new QVBoxLayout(cwOutputWidget);
+
+    // === CW Output Profiles (hardware-specific, named configs) ===
+    QGroupBox* cwOutputGroup = new QGroupBox("CW Output Profiles", this);
+    QHBoxLayout* cwOutputLayout = new QHBoxLayout(cwOutputGroup);
+
+    // Profile list
+    m_cwOutputListWidget = new QListWidget(this);
+    m_cwOutputListWidget->setToolTip("Defined CW output configurations.\n"
+                                      "Assign these to radios in Station Profiles.");
+    connect(m_cwOutputListWidget, &QListWidget::itemDoubleClicked,
+            this, &PreferencesDialog::onCWOutputDoubleClicked);
+    cwOutputLayout->addWidget(m_cwOutputListWidget, 1);
+
+    // Add/Edit/Remove buttons
+    QVBoxLayout* cwButtonLayout = new QVBoxLayout();
+    m_addCWOutputButton = new QPushButton("+", this);
+    m_addCWOutputButton->setMaximumWidth(40);
+    m_addCWOutputButton->setToolTip("Add new CW output profile");
+    connect(m_addCWOutputButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onAddCWOutput);
+
+    m_removeCWOutputButton = new QPushButton("-", this);
+    m_removeCWOutputButton->setMaximumWidth(40);
+    m_removeCWOutputButton->setToolTip("Remove selected CW output profile");
+    connect(m_removeCWOutputButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onRemoveCWOutput);
+
+    m_editCWOutputButton = new QPushButton("Edit...", this);
+    m_editCWOutputButton->setToolTip("Edit selected CW output profile");
+    connect(m_editCWOutputButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onEditCWOutput);
+
+    cwButtonLayout->addWidget(m_addCWOutputButton);
+    cwButtonLayout->addWidget(m_removeCWOutputButton);
+    cwButtonLayout->addWidget(m_editCWOutputButton);
+    cwButtonLayout->addStretch();
+    cwOutputLayout->addLayout(cwButtonLayout);
+
+    layout->addWidget(cwOutputGroup);
+
+    // Informational label
+    QLabel* infoLabel = new QLabel(
+        "Define named CW output configurations here (WinKeyer, DTR/RTS, Radio CAT). "
+        "Assign them to Radio 1 / Radio 2 in Station Profiles. "
+        "Switching radios automatically switches CW output.",
+        this
+    );
+    infoLabel->setWordWrap(true);
+    infoLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; }");
+    layout->addWidget(infoLabel);
+
+    layout->addStretch();
+    return cwOutputWidget;
+}
+
+QWidget* PreferencesDialog::createCWInputSettingsWidget() {
+    QWidget* cwInputWidget = new QWidget();
+    QVBoxLayout* layout = new QVBoxLayout(cwInputWidget);
+
+    // === Paddle Input (global, one HaliKey per station) ===
+    QGroupBox* paddleGroup = new QGroupBox("Paddle Input", this);
+    QFormLayout* paddleLayout = new QFormLayout(paddleGroup);
+
+    // Device type
+    m_paddleDeviceCombo = new QComboBox(this);
+    m_paddleDeviceCombo->addItem("None", static_cast<int>(PaddleInputConfig::DeviceType::None));
+    m_paddleDeviceCombo->addItem("HaliKey (Serial)", static_cast<int>(PaddleInputConfig::DeviceType::HaliKeySerial));
+    m_paddleDeviceCombo->addItem("HaliKey (MIDI)", static_cast<int>(PaddleInputConfig::DeviceType::HaliKeyMidi));
+    m_paddleDeviceCombo->setToolTip(
+        "None: No external paddle input\n"
+        "HaliKey (Serial): Paddle input via serial CTS/DSR signals\n"
+        "HaliKey (MIDI): Paddle input via MIDI Note On/Off messages");
+    connect(m_paddleDeviceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PreferencesDialog::onPaddleDeviceChanged);
+    paddleLayout->addRow("Device:", m_paddleDeviceCombo);
+
+    // Port selection with refresh (hidden when None)
+    m_paddlePortWidget = new QWidget(this);
+    QHBoxLayout* paddlePortLayout = new QHBoxLayout(m_paddlePortWidget);
+    paddlePortLayout->setContentsMargins(0, 0, 0, 0);
+    m_paddlePortCombo = new QComboBox(this);
+    m_paddlePortCombo->setEditable(true);
+    m_paddlePortCombo->setToolTip("Serial port or MIDI device for paddle input");
+    m_paddleRefreshPortsButton = new QPushButton("Refresh", this);
+    m_paddleRefreshPortsButton->setMaximumWidth(80);
+    connect(m_paddleRefreshPortsButton, &QPushButton::clicked,
+            this, &PreferencesDialog::onRefreshPaddlePorts);
+    paddlePortLayout->addWidget(m_paddlePortCombo, 1);
+    paddlePortLayout->addWidget(m_paddleRefreshPortsButton);
+    paddleLayout->addRow("Port:", m_paddlePortWidget);
+    m_paddlePortWidget->hide();
+
+    // Paddle swap (hidden when None)
+    m_paddleSwapCheck = new QCheckBox("Swap dit/dah paddles", this);
+    m_paddleSwapCheck->setToolTip("Swap the dit and dah paddle signals");
+    paddleLayout->addRow("", m_paddleSwapCheck);
+    m_paddleSwapCheck->hide();
+
+    layout->addWidget(paddleGroup);
+
+    // Paddle Test button — opens live paddle test dialog
+    QPushButton* cwSetupButton = new QPushButton("Paddle Test...", this);
+    cwSetupButton->setToolTip("Open the Paddle Test window to verify paddle connection,\n"
+                               "view live paddle events, and practice with sidetone");
+    connect(cwSetupButton, &QPushButton::clicked, this, [this]() {
+        emit openKeyerSetupRequested();
+    });
+    layout->addWidget(cwSetupButton);
+
+    // Informational label
+    QLabel* infoLabel = new QLabel(
+        "Paddle input is global (one HaliKey per station). "
+        "Paddle presses route to whichever CW output is active. "
+        "In SO2R, switching radios switches the output but the same paddle stays connected.",
+        this
+    );
+    infoLabel->setWordWrap(true);
+    infoLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; }");
+    layout->addWidget(infoLabel);
+
+    layout->addStretch();
+    return cwInputWidget;
 }
 
 QWidget* PreferencesDialog::createDXClusterTab() {
@@ -1507,21 +1644,9 @@ QWidget* PreferencesDialog::createCWSettingsTab() {
     cwTab->setAutoFillBackground(true);
     QVBoxLayout* layout = new QVBoxLayout(cwTab);
 
-    // === CW General Settings ===
+    // === CW General Settings (global, not per-profile) ===
     QGroupBox* cwGroup = new QGroupBox("CW / Morse Settings", this);
     QFormLayout* formLayout = new QFormLayout(cwGroup);
-
-    // Keying source
-    m_cwKeyingSourceCombo = new QComboBox(this);
-    m_cwKeyingSourceCombo->addItem("Radio (KY command)", 0);
-    m_cwKeyingSourceCombo->addItem("External Keyer", 1);
-    m_cwKeyingSourceCombo->addItem("DTR/RTS", 2);
-    m_cwKeyingSourceCombo->setToolTip("Radio: Send CW via Hamlib KY command\n"
-                                       "External Keyer: Use WinKeyer or paddle keyer\n"
-                                       "DTR/RTS: Toggle serial port line for CW keying");
-    connect(m_cwKeyingSourceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &PreferencesDialog::onCWKeyingSourceChanged);
-    formLayout->addRow("Keying Source:", m_cwKeyingSourceCombo);
 
     // Morse Speed
     m_morseWpmSpin = new QSpinBox(this);
@@ -1564,201 +1689,150 @@ QWidget* PreferencesDialog::createCWSettingsTab() {
     iambicLayout->addStretch();
     formLayout->addRow("Iambic Mode:", iambicLayout);
 
-    // Paddle swap
-    m_keyerPaddleSwapCheck = new QCheckBox("Swap dit/dah paddles", this);
-    m_keyerPaddleSwapCheck->setToolTip("Swap the dit and dah paddle inputs");
-    formLayout->addRow("", m_keyerPaddleSwapCheck);
-
     layout->addWidget(cwGroup);
 
-    // === Keyer Hardware Settings ===
-    QGroupBox* keyerGroup = new QGroupBox("CW Keyer Hardware", this);
-    QFormLayout* keyerLayout = new QFormLayout(keyerGroup);
-
-    // Enable keyer
-    m_keyerEnabledCheck = new QCheckBox("Enable external CW keyer", this);
-    m_keyerEnabledCheck->setToolTip("Enable connection to an external CW keyer device");
-    keyerLayout->addRow("", m_keyerEnabledCheck);
-
-    // Device type
-    m_keyerDeviceTypeCombo = new QComboBox(this);
-    m_keyerDeviceTypeCombo->addItem("WinKeyer", static_cast<int>(KeyerDeviceType::WinKeyer));
-    m_keyerDeviceTypeCombo->addItem("HaliKey (Serial)", static_cast<int>(KeyerDeviceType::HaliKeySerial));
-    m_keyerDeviceTypeCombo->addItem("HaliKey (MIDI)", static_cast<int>(KeyerDeviceType::HaliKeyMidi));
-    m_keyerDeviceTypeCombo->setToolTip("WinKeyer: K1EL hardware Morse generator\n"
-                                        "HaliKey (Serial): Paddle input via serial CTS/DSR\n"
-                                        "HaliKey (MIDI): Paddle input via MIDI Note On/Off");
-    connect(m_keyerDeviceTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &PreferencesDialog::onKeyerDeviceTypeChanged);
-    keyerLayout->addRow("Device Type:", m_keyerDeviceTypeCombo);
-
-    // Port selection with refresh button
-    QHBoxLayout* portLayout = new QHBoxLayout();
-    m_keyerPortCombo = new QComboBox(this);
-    m_keyerPortCombo->setEditable(true);
-    m_keyerPortCombo->setToolTip("Serial port or MIDI device name");
-    m_keyerRefreshPortsButton = new QPushButton("Refresh", this);
-    m_keyerRefreshPortsButton->setMaximumWidth(80);
-    connect(m_keyerRefreshPortsButton, &QPushButton::clicked,
-            this, &PreferencesDialog::onRefreshKeyerPorts);
-    portLayout->addWidget(m_keyerPortCombo, 1);
-    portLayout->addWidget(m_keyerRefreshPortsButton);
-    keyerLayout->addRow("Port:", portLayout);
-
-    // Auto-connect
-    m_keyerAutoConnectCheck = new QCheckBox("Auto-connect on startup", this);
-    m_keyerAutoConnectCheck->setToolTip("Automatically connect to keyer when TR4QT starts");
-    keyerLayout->addRow("", m_keyerAutoConnectCheck);
-
-    // MIDI-specific settings (hidden unless HaliKey MIDI selected)
-    m_midiSettingsWidget = new QWidget(this);
-    QFormLayout* midiLayout = new QFormLayout(m_midiSettingsWidget);
-    midiLayout->setContentsMargins(0, 0, 0, 0);
-
-    m_ditNoteSpin = new QSpinBox(this);
-    m_ditNoteSpin->setRange(0, 127);
-    m_ditNoteSpin->setValue(20);
-    m_ditNoteSpin->setToolTip("MIDI note number for dit paddle (default: 20)");
-    midiLayout->addRow("Dit Note:", m_ditNoteSpin);
-
-    m_dahNoteSpin = new QSpinBox(this);
-    m_dahNoteSpin->setRange(0, 127);
-    m_dahNoteSpin->setValue(21);
-    m_dahNoteSpin->setToolTip("MIDI note number for dah paddle (default: 21)");
-    midiLayout->addRow("Dah Note:", m_dahNoteSpin);
-
-    keyerLayout->addRow("", m_midiSettingsWidget);
-    m_midiSettingsWidget->hide();  // Hidden unless MIDI type selected
-
-    layout->addWidget(keyerGroup);
-
-    // === DTR/RTS Keying Settings ===
-    m_dtrRtsGroup = new QGroupBox("DTR/RTS Keying", this);
-    QFormLayout* dtrLayout = new QFormLayout(m_dtrRtsGroup);
-
-    // Port selection with refresh
-    QHBoxLayout* dtrPortLayout = new QHBoxLayout();
-    m_dtrRtsPortCombo = new QComboBox(this);
-    m_dtrRtsPortCombo->setEditable(true);
-    m_dtrRtsPortCombo->setToolTip("Serial port for DTR/RTS CW keying\n"
-                                   "(separate from radio CAT port)");
-    m_dtrRtsRefreshPortsButton = new QPushButton("Refresh", this);
-    m_dtrRtsRefreshPortsButton->setMaximumWidth(80);
-    connect(m_dtrRtsRefreshPortsButton, &QPushButton::clicked,
-            this, &PreferencesDialog::onRefreshDtrRtsPorts);
-    dtrPortLayout->addWidget(m_dtrRtsPortCombo, 1);
-    dtrPortLayout->addWidget(m_dtrRtsRefreshPortsButton);
-    dtrLayout->addRow("Port:", dtrPortLayout);
-
-    // Pin selection (DTR or RTS)
-    m_dtrRtsPinCombo = new QComboBox(this);
-    m_dtrRtsPinCombo->addItem("DTR", 0);
-    m_dtrRtsPinCombo->addItem("RTS", 1);
-    m_dtrRtsPinCombo->setToolTip("Which serial port line to toggle for CW keying");
-    dtrLayout->addRow("Keying Pin:", m_dtrRtsPinCombo);
-
-    layout->addWidget(m_dtrRtsGroup);
-
-    // Informational label
-    QLabel* infoLabel = new QLabel(
-        "WinKeyer generates Morse in hardware from text macros. "
-        "HaliKey provides paddle input for the software iambic keyer, "
-        "which sends key-down/key-up commands to the radio via CAT. "
-        "DTR/RTS uses a separate USB-serial adapter connected to the radio's key jack.",
-        this
-    );
-    infoLabel->setWordWrap(true);
-    infoLabel->setStyleSheet("QLabel { color: gray; font-size: 10pt; }");
-    layout->addWidget(infoLabel);
-
     layout->addStretch();
-
-    // Populate ports for current device type
-    onRefreshKeyerPorts();
-    onRefreshDtrRtsPorts();
-
-    // Show/hide DTR/RTS group based on keying source
-    onCWKeyingSourceChanged(m_cwKeyingSourceCombo->currentIndex());
 
     return cwTab;
 }
 
-void PreferencesDialog::onKeyerDeviceTypeChanged(int index) {
-    Q_UNUSED(index);
-    int deviceType = m_keyerDeviceTypeCombo->currentData().toInt();
+void PreferencesDialog::onPaddleDeviceChanged(int /*index*/) {
+    auto deviceType = static_cast<PaddleInputConfig::DeviceType>(
+        m_paddleDeviceCombo->currentData().toInt());
+    bool isNone = (deviceType == PaddleInputConfig::DeviceType::None);
 
-    // Show/hide MIDI settings
-    bool isMidi = (deviceType == static_cast<int>(KeyerDeviceType::HaliKeyMidi));
-    m_midiSettingsWidget->setVisible(isMidi);
+    m_paddlePortWidget->setVisible(!isNone);
+    m_paddleSwapCheck->setVisible(!isNone);
 
-    // Refresh port list for new device type
-    onRefreshKeyerPorts();
+    if (!isNone) {
+        onRefreshPaddlePorts();
+    }
 }
 
-void PreferencesDialog::onRefreshKeyerPorts() {
-    m_keyerPortCombo->clear();
+void PreferencesDialog::onRefreshPaddlePorts() {
+    m_paddlePortCombo->clear();
 
-    int deviceType = m_keyerDeviceTypeCombo->currentData().toInt();
+    auto deviceType = static_cast<PaddleInputConfig::DeviceType>(
+        m_paddleDeviceCombo->currentData().toInt());
 
-    if (deviceType == static_cast<int>(KeyerDeviceType::HaliKeyMidi)) {
-        // Enumerate MIDI input devices
+    if (deviceType == PaddleInputConfig::DeviceType::HaliKeyMidi) {
         QStringList midiDevices = HaliKeyMidiDevice::availableMidiInputs();
         for (const QString& device : midiDevices) {
-            m_keyerPortCombo->addItem(device);
+            m_paddlePortCombo->addItem(device);
         }
     } else {
-        // Enumerate serial ports
         QStringList serialPorts = HaliKeySerialDevice::availablePorts();
         for (const QString& port : serialPorts) {
-            m_keyerPortCombo->addItem(port);
+            m_paddlePortCombo->addItem(port);
         }
     }
 }
 
-void PreferencesDialog::onCWKeyingSourceChanged(int index) {
-    Q_UNUSED(index);
-    int source = m_cwKeyingSourceCombo->currentData().toInt();
-    // Show DTR/RTS settings only when DTR/RTS keying source is selected
-    m_dtrRtsGroup->setVisible(source == 2);
+// === CW Output Profile Management Slots ===
+
+void PreferencesDialog::onAddCWOutput() {
+    CWOutputEditDialog dialog(this);
+    if (dialog.exec() == QDialog::Accepted) {
+        CWOutputProfile profile = dialog.getCWOutputProfile();
+        // Check for duplicate name
+        for (const CWOutputProfile& existing : m_cwOutputProfiles) {
+            if (existing.name == profile.name) {
+                DialogHelper::warning(this, "Duplicate Name",
+                    QString("A CW output profile named '%1' already exists.").arg(profile.name));
+                return;
+            }
+        }
+        m_cwOutputProfiles.append(profile);
+        refreshCWOutputList();
+        refreshCWAssignCombos();
+    }
 }
 
-void PreferencesDialog::onRefreshDtrRtsPorts() {
-    // Remember current selection so refresh doesn't lose it
-    QString previousPort = m_dtrRtsPortCombo->currentData().toString();
+void PreferencesDialog::onEditCWOutput() {
+    int row = m_cwOutputListWidget->currentRow();
+    if (row < 0 || row >= m_cwOutputProfiles.size()) return;
 
-    m_dtrRtsPortCombo->clear();
-    const auto ports = QSerialPortInfo::availablePorts();
+    CWOutputEditDialog dialog(m_cwOutputProfiles[row], this);
+    if (dialog.exec() == QDialog::Accepted) {
+        QString oldName = m_cwOutputProfiles[row].name;
+        m_cwOutputProfiles[row] = dialog.getCWOutputProfile();
 
-    // Build list of (displayText, portName) pairs, then sort by display text
-    QList<QPair<QString, QString>> items;
+        // Update station profile references if name changed
+        if (oldName != m_cwOutputProfiles[row].name) {
+            for (StationProfile& sp : m_stationProfiles) {
+                if (sp.cw1Name == oldName) sp.cw1Name = m_cwOutputProfiles[row].name;
+                if (sp.cw2Name == oldName) sp.cw2Name = m_cwOutputProfiles[row].name;
+            }
+        }
 
-#ifdef Q_OS_WIN
-    // Use Windows Setup API to get Device Manager friendly names
-    QMap<QString, QString> friendlyNames = getWindowsPortFriendlyNames();
-    for (const auto& port : ports) {
-        QString displayText = friendlyNames.value(port.portName(), port.portName());
-        items.append({displayText, port.portName()});
+        refreshCWOutputList();
+        refreshCWAssignCombos();
     }
-#else
-    for (const auto& port : ports) {
-        QString displayText = port.description().isEmpty()
-            ? port.portName()
-            : QString("%1 (%2)").arg(port.description(), port.portName());
-        items.append({displayText, port.portName()});
+}
+
+void PreferencesDialog::onRemoveCWOutput() {
+    int row = m_cwOutputListWidget->currentRow();
+    if (row < 0 || row >= m_cwOutputProfiles.size()) return;
+
+    QString name = m_cwOutputProfiles[row].name;
+    auto reply = DialogHelper::question(this, "Remove CW Output",
+        QString("Remove CW output profile '%1'?").arg(name));
+    if (reply != QMessageBox::Yes) return;
+
+    m_cwOutputProfiles.removeAt(row);
+
+    // Clear station profile references to removed profile
+    for (StationProfile& sp : m_stationProfiles) {
+        if (sp.cw1Name == name) sp.cw1Name.clear();
+        if (sp.cw2Name == name) sp.cw2Name.clear();
     }
-#endif
 
-    std::sort(items.begin(), items.end(), [](const auto& a, const auto& b) {
-        return a.first.compare(b.first, Qt::CaseInsensitive) < 0;
-    });
+    refreshCWOutputList();
+    refreshCWAssignCombos();
+}
 
-    for (const auto& item : items) {
-        m_dtrRtsPortCombo->addItem(item.first, item.second);
+void PreferencesDialog::onCWOutputDoubleClicked(QListWidgetItem* item) {
+    Q_UNUSED(item);
+    onEditCWOutput();
+}
+
+void PreferencesDialog::refreshCWOutputList() {
+    m_cwOutputListWidget->clear();
+    for (const CWOutputProfile& profile : m_cwOutputProfiles) {
+        m_cwOutputListWidget->addItem(profile.displayString());
+    }
+}
+
+void PreferencesDialog::refreshCWAssignCombos() {
+    // Remember current selections
+    QString cw1Selection = m_cw1AssignCombo->currentData().toString();
+    QString cw2Selection = m_cw2AssignCombo->currentData().toString();
+
+    m_cw1AssignCombo->blockSignals(true);
+    m_cw2AssignCombo->blockSignals(true);
+
+    m_cw1AssignCombo->clear();
+    m_cw2AssignCombo->clear();
+
+    // Add "(None)" option
+    m_cw1AssignCombo->addItem("(None)", "");
+    m_cw2AssignCombo->addItem("(None)", "");
+
+    // Add all defined CW output profiles
+    for (const CWOutputProfile& profile : m_cwOutputProfiles) {
+        m_cw1AssignCombo->addItem(profile.name, profile.name);
+        m_cw2AssignCombo->addItem(profile.name, profile.name);
     }
 
-    // Restore previous selection
-    int idx = m_dtrRtsPortCombo->findData(previousPort);
-    if (idx >= 0) m_dtrRtsPortCombo->setCurrentIndex(idx);
+    // Restore selections
+    int cw1Index = m_cw1AssignCombo->findData(cw1Selection);
+    if (cw1Index >= 0) m_cw1AssignCombo->setCurrentIndex(cw1Index);
+
+    int cw2Index = m_cw2AssignCombo->findData(cw2Selection);
+    if (cw2Index >= 0) m_cw2AssignCombo->setCurrentIndex(cw2Index);
+
+    m_cw1AssignCombo->blockSignals(false);
+    m_cw2AssignCombo->blockSignals(false);
 }
 
 QWidget* PreferencesDialog::createWebServerTab() {
@@ -1878,9 +1952,14 @@ void PreferencesDialog::loadSettings() {
         m_stationProfiles.append(defaultProfile);
     }
 
-    // Populate the radio list and assignment combos
+    // Load CW output profiles
+    m_cwOutputProfiles = settings.loadCWOutputProfiles();
+
+    // Populate the radio list, CW output list, and assignment combos
     refreshRadioList();
+    refreshCWOutputList();
     refreshRadioAssignCombos();
+    refreshCWAssignCombos();
     refreshStationProfileCombo();
 
     // Load the current station profile into UI
@@ -2011,35 +2090,21 @@ void PreferencesDialog::loadSettings() {
         }
     }
 
-    // CW Settings tab
+    // CW Settings tab (global settings, not per-profile)
     m_morseWpmSpin->setValue(settings.getMorseWPM());
     m_morseWpmIncrementSpin->setValue(settings.getMorseWPMIncrement());
     m_cutNumbersEnabledCheck->setChecked(settings.getCutNumbersEnabled());
     m_serialNumberWidthSpin->setValue(settings.getSerialNumberWidth());
-    m_cwKeyingSourceCombo->setCurrentIndex(settings.getCWKeyingSource());
     m_iambicARadio->setChecked(settings.getKeyerIambicMode() == 0);
     m_iambicBRadio->setChecked(settings.getKeyerIambicMode() != 0);
-    m_keyerPaddleSwapCheck->setChecked(settings.getKeyerPaddleSwap());
 
-    // DTR/RTS settings
-    onRefreshDtrRtsPorts();
-    int dtrPortIndex = m_dtrRtsPortCombo->findData(settings.getDtrRtsPortName());
-    if (dtrPortIndex >= 0) m_dtrRtsPortCombo->setCurrentIndex(dtrPortIndex);
-    int dtrPinIndex = m_dtrRtsPinCombo->findData(settings.getDtrRtsPin());
-    if (dtrPinIndex >= 0) m_dtrRtsPinCombo->setCurrentIndex(dtrPinIndex);
-    onCWKeyingSourceChanged(m_cwKeyingSourceCombo->currentIndex());
-
-    // Keyer hardware settings
-    m_keyerEnabledCheck->setChecked(settings.getKeyerEnabled());
-    int keyerTypeIndex = m_keyerDeviceTypeCombo->findData(settings.getKeyerDeviceType());
-    if (keyerTypeIndex >= 0) {
-        m_keyerDeviceTypeCombo->setCurrentIndex(keyerTypeIndex);
-    }
-    onRefreshKeyerPorts();  // Populate port list first
-    m_keyerPortCombo->setCurrentText(settings.getKeyerPortName());
-    m_keyerAutoConnectCheck->setChecked(settings.getKeyerAutoConnect());
-    m_ditNoteSpin->setValue(settings.getKeyerDitNote());
-    m_dahNoteSpin->setValue(settings.getKeyerDahNote());
+    // Paddle input config (global)
+    PaddleInputConfig paddleConfig = settings.loadPaddleInputConfig();
+    int paddleDeviceIndex = m_paddleDeviceCombo->findData(static_cast<int>(paddleConfig.deviceType));
+    if (paddleDeviceIndex >= 0) m_paddleDeviceCombo->setCurrentIndex(paddleDeviceIndex);
+    onPaddleDeviceChanged(0);  // Update visibility
+    m_paddlePortCombo->setCurrentText(paddleConfig.portName);
+    m_paddleSwapCheck->setChecked(paddleConfig.paddleSwap);
 
     // Logging tab
     int logLevelIndex = m_logLevelCombo->findData(static_cast<int>(settings.getLogLevel()));
@@ -2193,26 +2258,23 @@ void PreferencesDialog::saveSettings() {
     theme.setTheme(selectedTheme);
     theme.saveToSettings();
 
-    // CW Settings tab
+    // CW Settings tab (global settings)
     settings.setMorseWPM(m_morseWpmSpin->value());
     settings.setMorseWPMIncrement(m_morseWpmIncrementSpin->value());
     settings.setCutNumbersEnabled(m_cutNumbersEnabledCheck->isChecked());
     settings.setSerialNumberWidth(m_serialNumberWidthSpin->value());
-    settings.setCWKeyingSource(m_cwKeyingSourceCombo->currentData().toInt());
     settings.setKeyerIambicMode(m_iambicBRadio->isChecked() ? 1 : 0);
-    settings.setKeyerPaddleSwap(m_keyerPaddleSwapCheck->isChecked());
 
-    // DTR/RTS settings
-    settings.setDtrRtsPortName(m_dtrRtsPortCombo->currentData().toString());
-    settings.setDtrRtsPin(m_dtrRtsPinCombo->currentData().toInt());
+    // Paddle input config (global)
+    PaddleInputConfig paddleConfig;
+    paddleConfig.deviceType = static_cast<PaddleInputConfig::DeviceType>(
+        m_paddleDeviceCombo->currentData().toInt());
+    paddleConfig.portName = m_paddlePortCombo->currentText();
+    paddleConfig.paddleSwap = m_paddleSwapCheck->isChecked();
+    settings.savePaddleInputConfig(paddleConfig);
 
-    // Keyer hardware settings
-    settings.setKeyerEnabled(m_keyerEnabledCheck->isChecked());
-    settings.setKeyerDeviceType(m_keyerDeviceTypeCombo->currentData().toInt());
-    settings.setKeyerPortName(m_keyerPortCombo->currentText());
-    settings.setKeyerAutoConnect(m_keyerAutoConnectCheck->isChecked());
-    settings.setKeyerDitNote(m_ditNoteSpin->value());
-    settings.setKeyerDahNote(m_dahNoteSpin->value());
+    // CW Output Profiles (hardware-specific configs)
+    settings.saveCWOutputProfiles(m_cwOutputProfiles);
 
     // Logging tab
     LogLevel logLevel = static_cast<LogLevel>(m_logLevelCombo->currentData().toInt());
@@ -2274,6 +2336,17 @@ void PreferencesDialog::selectCategory(const QString& categoryName) {
     }
 }
 
+void PreferencesDialog::selectHardwareSubTab(const QString& subTabName) {
+    selectCategory("Hardware");
+    if (!m_hardwareTabs) return;
+    for (int i = 0; i < m_hardwareTabs->count(); ++i) {
+        if (m_hardwareTabs->tabText(i) == subTabName) {
+            m_hardwareTabs->setCurrentIndex(i);
+            return;
+        }
+    }
+}
+
 void PreferencesDialog::setRadioConnected(bool connected) {
     // Radio connection status is now managed per-radio in RadioEditDialog
     // This function is kept for API compatibility but is a no-op
@@ -2285,9 +2358,10 @@ void PreferencesDialog::onApply() {
 }
 
 void PreferencesDialog::onSO2REnabledChanged(bool enabled) {
-    // Enable/disable Radio 2 selection based on SO2R checkbox
+    // Enable/disable Radio 2 and CW 2 selection based on SO2R checkbox
     m_radio2AssignCombo->setEnabled(enabled);
     m_radio2DefaultButton->setEnabled(enabled);
+    m_cw2AssignCombo->setEnabled(enabled);
 
     // Auto-save the station profile (consistent with other fields)
     saveCurrentStationProfile();
@@ -2404,6 +2478,8 @@ void PreferencesDialog::onStationProfileChanged(int index) {
             if (p.name == m_currentEditingProfile) {
                 p.radio1Name = m_radio1AssignCombo->currentData().toString();
                 p.radio2Name = m_radio2AssignCombo->currentData().toString();
+                p.cw1Name = m_cw1AssignCombo->currentData().toString();
+                p.cw2Name = m_cw2AssignCombo->currentData().toString();
                 p.defaultActive = m_radio2DefaultButton->isChecked() ? 1 : 0;
                 p.so2rEnabled = m_so2rEnabledCheck->isChecked();
                 break;
@@ -2644,6 +2720,8 @@ void PreferencesDialog::loadStationProfileIntoUI(const QString& profileName) {
     // Block signals while loading to avoid triggering saves
     m_radio1AssignCombo->blockSignals(true);
     m_radio2AssignCombo->blockSignals(true);
+    m_cw1AssignCombo->blockSignals(true);
+    m_cw2AssignCombo->blockSignals(true);
     m_radio1DefaultButton->blockSignals(true);
     m_radio2DefaultButton->blockSignals(true);
     m_so2rEnabledCheck->blockSignals(true);
@@ -2656,6 +2734,14 @@ void PreferencesDialog::loadStationProfileIntoUI(const QString& profileName) {
     int radio2Index = m_radio2AssignCombo->findData(profile.radio2Name);
     m_radio2AssignCombo->setCurrentIndex(radio2Index >= 0 ? radio2Index : 0);
 
+    // Set CW Output 1 assignment
+    int cw1Index = m_cw1AssignCombo->findData(profile.cw1Name);
+    m_cw1AssignCombo->setCurrentIndex(cw1Index >= 0 ? cw1Index : 0);
+
+    // Set CW Output 2 assignment
+    int cw2Index = m_cw2AssignCombo->findData(profile.cw2Name);
+    m_cw2AssignCombo->setCurrentIndex(cw2Index >= 0 ? cw2Index : 0);
+
     // Set default active
     if (profile.defaultActive == 0) {
         m_radio1DefaultButton->setChecked(true);
@@ -2666,13 +2752,16 @@ void PreferencesDialog::loadStationProfileIntoUI(const QString& profileName) {
     // Set SO2R enabled
     m_so2rEnabledCheck->setChecked(profile.so2rEnabled);
 
-    // Update Radio 2 enabled state
+    // Update Radio 2 / CW 2 enabled state
     m_radio2AssignCombo->setEnabled(profile.so2rEnabled);
     m_radio2DefaultButton->setEnabled(profile.so2rEnabled);
+    m_cw2AssignCombo->setEnabled(profile.so2rEnabled);
 
     // Unblock signals
     m_radio1AssignCombo->blockSignals(false);
     m_radio2AssignCombo->blockSignals(false);
+    m_cw1AssignCombo->blockSignals(false);
+    m_cw2AssignCombo->blockSignals(false);
     m_radio1DefaultButton->blockSignals(false);
     m_radio2DefaultButton->blockSignals(false);
     m_so2rEnabledCheck->blockSignals(false);
@@ -2691,6 +2780,8 @@ void PreferencesDialog::saveCurrentStationProfile() {
         if (p.name == profileName) {
             p.radio1Name = m_radio1AssignCombo->currentData().toString();
             p.radio2Name = m_radio2AssignCombo->currentData().toString();
+            p.cw1Name = m_cw1AssignCombo->currentData().toString();
+            p.cw2Name = m_cw2AssignCombo->currentData().toString();
             p.defaultActive = m_radio2DefaultButton->isChecked() ? 1 : 0;
             p.so2rEnabled = m_so2rEnabledCheck->isChecked();
             break;

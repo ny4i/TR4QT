@@ -388,9 +388,14 @@ MainWindow::MainWindow(QWidget* parent)
                 if (m_radio2ControlWindow) {
                     m_radio2ControlWindow->setActive(radioIndex == 1);
                 }
-                // Update CW service for per-radio message repeat
+                // Update CW service for per-radio message repeat and CW profile switching
                 if (m_cwService) {
                     m_cwService->setActiveRadioIndex(radioIndex);
+                    // Switch CW output profile based on station profile assignment
+                    CWOutputProfile cwProfile = AppSettings::instance().getCWOutputProfileForRadio(radioIndex);
+                    if (!cwProfile.name.isEmpty()) {
+                        m_cwService->activateCWProfile(cwProfile);
+                    }
                 }
                 // Update UDP broadcast manager for correct focusRadioNr/activeRadioNr
                 if (m_udpBroadcastManager) {
@@ -1768,6 +1773,10 @@ void MainWindow::onRadioConfigure() {
     dialog.selectCategory("Radio");
     dialog.setRadioConnected(m_radioConnected);
 
+    // Connect CW Setup button to open KeyerSetupDialog
+    connect(&dialog, &PreferencesDialog::openKeyerSetupRequested,
+            this, &MainWindow::onShowKeyerSetup);
+
     if (dialog.exec() == QDialog::Accepted) {
         setStatusMessage("Radio configuration saved");
 
@@ -1909,6 +1918,10 @@ void MainWindow::onPreferences() {
                 }
             });
 
+    // Connect CW Setup button to open KeyerSetupDialog
+    connect(&dialog, &PreferencesDialog::openKeyerSetupRequested,
+            this, &MainWindow::onShowKeyerSetup);
+
     if (dialog.exec() == QDialog::Accepted) {
         setStatusMessage("Preferences saved");
 
@@ -1970,6 +1983,15 @@ void MainWindow::onPreferences() {
             if (reply == QMessageBox::Yes) {
                 onRadioDisconnect();
                 QTimer::singleShot(UITiming::RECONNECT_DELAY_MS, this, &MainWindow::onRadioConnect);
+            }
+        }
+
+        // Update CW output profile from (possibly changed) station profile
+        if (m_cwService) {
+            int activeRadio = m_radioManager ? m_radioManager->getActiveRadioIndex() : 0;
+            CWOutputProfile cwProfile = settings.getCWOutputProfileForRadio(activeRadio);
+            if (!cwProfile.name.isEmpty()) {
+                m_cwService->activateCWProfile(cwProfile);
             }
         }
 
@@ -4561,6 +4583,18 @@ void MainWindow::onEditCWMessages() {
 
 void MainWindow::onShowKeyerSetup() {
     KeyerSetupDialog dialog(m_cwService->keyerController(), m_cwService->iambicKeyer(), m_radio, this);
+
+    // Connect "CW Input Settings..." button to close this dialog and open Preferences → Hardware
+    connect(&dialog, &KeyerSetupDialog::openCWInputSettingsRequested, &dialog, &QDialog::accept);
+    connect(&dialog, &KeyerSetupDialog::openCWInputSettingsRequested, this, [this]() {
+        PreferencesDialog prefs(this);
+        prefs.selectHardwareSubTab("CW Input");
+        prefs.setRadioConnected(m_radioConnected);
+        connect(&prefs, &PreferencesDialog::openKeyerSetupRequested,
+                this, &MainWindow::onShowKeyerSetup);
+        prefs.exec();
+    }, Qt::QueuedConnection);
+
     dialog.exec();
 }
 

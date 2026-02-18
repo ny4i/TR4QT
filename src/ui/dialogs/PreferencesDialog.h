@@ -21,6 +21,7 @@
 
 #include <QDialog>
 #include <QStackedWidget>
+#include <QTabWidget>
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QComboBox>
@@ -31,6 +32,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include "../../radio/RadioInterface.h"
+#include "../../cw/CWOutputProfile.h"
 #include "../../utils/AppSettings.h"
 #include "../../utils/DXClusterListDownloader.h"
 
@@ -64,6 +66,12 @@ public:
     void selectCategory(const QString& categoryName);
 
     /**
+     * Select a specific sub-tab within Hardware category by name
+     * @param subTabName The sub-tab to show (e.g., "CW Input", "CW Output", "Radio")
+     */
+    void selectHardwareSubTab(const QString& subTabName);
+
+    /**
      * Set the radio connection status (disables Test Connection when connected)
      * @param connected true if radio is currently connected
      */
@@ -75,6 +83,12 @@ signals:
      */
     void lotwSettingsChanged();
 
+    /**
+     * Emitted when user clicks "Paddle Test..." button in CW Input tab.
+     * MainWindow connects this to open KeyerSetupDialog with live CWService objects.
+     */
+    void openKeyerSetupRequested();
+
 private slots:
     void onApply();
 
@@ -83,6 +97,12 @@ private slots:
     void onEditRadio();
     void onRemoveRadio();
     void onRadioDoubleClicked(QListWidgetItem* item);
+
+    // ===== CW Output Profile management slots =====
+    void onAddCWOutput();
+    void onEditCWOutput();
+    void onRemoveCWOutput();
+    void onCWOutputDoubleClicked(QListWidgetItem* item);
 
     // ===== Station Profile management slots =====
     void onStationProfileChanged(int index);
@@ -127,11 +147,9 @@ private slots:
     void onRotatorConnectionTypeChanged(int index);
     void onTestRotatorConnection();
 
-    // Keyer slots
-    void onKeyerDeviceTypeChanged(int index);
-    void onRefreshKeyerPorts();
-    void onCWKeyingSourceChanged(int index);
-    void onRefreshDtrRtsPorts();
+    // Paddle input slots
+    void onPaddleDeviceChanged(int index);
+    void onRefreshPaddlePorts();
 
 protected:
     void showEvent(QShowEvent* event) override;
@@ -148,6 +166,8 @@ private:
     QWidget* createRadioSettingsWidget();
     QWidget* createAmplifierSettingsWidget();
     QWidget* createRotatorSettingsWidget();
+    QWidget* createCWOutputSettingsWidget();
+    QWidget* createCWInputSettingsWidget();
     QWidget* createDXClusterTab();
     QWidget* createSCPTab();
     QWidget* createUDPBroadcastTab();
@@ -162,7 +182,9 @@ private:
 
     // Helper methods
     void refreshRadioList();           // Refresh My Radios list
+    void refreshCWOutputList();        // Refresh CW Output Profiles list
     void refreshRadioAssignCombos();   // Refresh Radio 1/Radio 2 assignment dropdowns
+    void refreshCWAssignCombos();      // Refresh CW 1/CW 2 assignment dropdowns
     void refreshStationProfileCombo(); // Refresh station profile dropdown
     void loadStationProfileIntoUI(const QString& profileName);  // Load profile settings into UI
     void saveCurrentStationProfile();  // Save current UI state to profile
@@ -214,31 +236,31 @@ private:
     // Checkbox for auto-connect on startup
     QCheckBox* m_autoConnectCheck;
 
-    // CW Settings (kept here, not moved to RadioEditDialog)
+    // CW General Settings (global, not per-profile)
     QSpinBox* m_morseWpmSpin;
     QSpinBox* m_morseWpmIncrementSpin;
     QCheckBox* m_cutNumbersEnabledCheck;
     QSpinBox* m_serialNumberWidthSpin;
-
-    // CW Keyer widgets
-    QCheckBox* m_keyerEnabledCheck;
-    QComboBox* m_keyerDeviceTypeCombo;
-    QComboBox* m_keyerPortCombo;
-    QPushButton* m_keyerRefreshPortsButton;
-    QCheckBox* m_keyerPaddleSwapCheck;
     QRadioButton* m_iambicARadio;
     QRadioButton* m_iambicBRadio;
-    QCheckBox* m_keyerAutoConnectCheck;
-    QComboBox* m_cwKeyingSourceCombo;
-    QWidget* m_midiSettingsWidget;   // Container for MIDI-specific settings
-    QSpinBox* m_ditNoteSpin;
-    QSpinBox* m_dahNoteSpin;
 
-    // DTR/RTS keying widgets
-    QGroupBox* m_dtrRtsGroup;
-    QComboBox* m_dtrRtsPortCombo;
-    QPushButton* m_dtrRtsRefreshPortsButton;
-    QComboBox* m_dtrRtsPinCombo;
+    // Paddle Input (global, not per-profile)
+    QComboBox* m_paddleDeviceCombo;
+    QComboBox* m_paddlePortCombo;
+    QPushButton* m_paddleRefreshPortsButton;
+    QCheckBox* m_paddleSwapCheck;
+    QWidget* m_paddlePortWidget;            // Container for port row (hidden when None)
+
+    // ===== CW Output Profiles Section =====
+    QListWidget* m_cwOutputListWidget;
+    QPushButton* m_addCWOutputButton;
+    QPushButton* m_removeCWOutputButton;
+    QPushButton* m_editCWOutputButton;
+    QList<CWOutputProfile> m_cwOutputProfiles;  // Cache of CW output profiles
+
+    // ===== CW Assignment in Station Profiles =====
+    QComboBox* m_cw1AssignCombo;      // CW output assigned to Radio 1
+    QComboBox* m_cw2AssignCombo;      // CW output assigned to Radio 2
 
     // Amplifier widgets (enhanced for Hamlib support)
     QCheckBox* m_amplifierEnabledCheck;
@@ -356,6 +378,9 @@ private:
     // Sidebar navigation widgets
     QListWidget* m_categoryList;
     QStackedWidget* m_settingsStack;
+
+    // Hardware sub-tab widget (for selectHardwareSubTab)
+    QTabWidget* m_hardwareTabs = nullptr;
 };
 
 } // namespace TR4QT

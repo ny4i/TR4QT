@@ -140,6 +140,7 @@ AppSettings::AppSettings()
     migrateLegacyPaths();
     migrateToRadioProfiles();
     migrateToStationProfiles();
+    migrateToCWOutputProfiles();
 
     // Verify settings integrity on startup
     if (!verifySettingsIntegrity()) {
@@ -860,6 +861,8 @@ void AppSettings::saveStationProfiles(const QList<StationProfile>& profiles) {
             m_settings.setValue("name", profiles[i].name);
             m_settings.setValue("radio1Name", profiles[i].radio1Name);
             m_settings.setValue("radio2Name", profiles[i].radio2Name);
+            m_settings.setValue("cw1Name", profiles[i].cw1Name);
+            m_settings.setValue("cw2Name", profiles[i].cw2Name);
             m_settings.setValue("defaultActive", profiles[i].defaultActive);
             m_settings.setValue("so2rEnabled", profiles[i].so2rEnabled);
         }
@@ -885,6 +888,8 @@ QList<StationProfile> AppSettings::loadStationProfiles() const {
         profile.name = m_settings.value("name").toString();
         profile.radio1Name = m_settings.value("radio1Name").toString();
         profile.radio2Name = m_settings.value("radio2Name").toString();
+        profile.cw1Name = m_settings.value("cw1Name").toString();
+        profile.cw2Name = m_settings.value("cw2Name").toString();
         profile.defaultActive = m_settings.value("defaultActive", 0).toInt();
         profile.so2rEnabled = m_settings.value("so2rEnabled", false).toBool();
         profiles.append(profile);
@@ -913,6 +918,199 @@ StationProfile AppSettings::getStationProfile(const QString& name) const {
     }
     // Not found - return empty profile
     return StationProfile();
+}
+
+// === CW Output Profiles ===
+
+void AppSettings::saveCWOutputProfiles(const QList<CWOutputProfile>& profiles) {
+    {
+        QSettingsGroupGuard groupGuard(m_settings, "CWOutputProfiles");
+        m_settings.remove("Profiles");  // Clear old entries
+
+        QSettingsWriteArrayGuard arrayGuard(m_settings, "Profiles");
+        for (int i = 0; i < profiles.size(); ++i) {
+            m_settings.setArrayIndex(i);
+            m_settings.setValue("name", profiles[i].name);
+            m_settings.setValue("type", static_cast<int>(profiles[i].type));
+            // WinKeyer settings (type == KeyerDevice)
+            m_settings.setValue("winKeyerPortName", profiles[i].winKeyerPortName);
+            m_settings.setValue("weighting", profiles[i].weighting);
+            m_settings.setValue("leadInTime", profiles[i].leadInTime);
+            m_settings.setValue("tailTime", profiles[i].tailTime);
+            // DTR/RTS settings
+            m_settings.setValue("dtrRtsPortName", profiles[i].dtrRtsPortName);
+            m_settings.setValue("dtrRtsPin", static_cast<int>(profiles[i].dtrRtsPin));
+        }
+    }
+    m_settings.sync();
+
+    LOG_DEBUG("AppSettings", QString("Saved %1 CW output profile(s)").arg(profiles.size()));
+}
+
+QList<CWOutputProfile> AppSettings::loadCWOutputProfiles() const {
+    QList<CWOutputProfile> profiles;
+
+    ensureCleanSettingsState(m_settings);
+
+    QSettingsGroupGuard groupGuard(m_settings, "CWOutputProfiles");
+    QSettingsArrayGuard arrayGuard(m_settings, "Profiles");
+
+    for (int i = 0; i < arrayGuard.size(); ++i) {
+        m_settings.setArrayIndex(i);
+        CWOutputProfile profile;
+        profile.name = m_settings.value("name").toString();
+        profile.type = static_cast<CWSenderFactory::Backend>(m_settings.value("type", 0).toInt());
+        // WinKeyer settings — try new key first, fall back to legacy keyerPortName
+        profile.winKeyerPortName = m_settings.value("winKeyerPortName").toString();
+        if (profile.winKeyerPortName.isEmpty()) {
+            profile.winKeyerPortName = m_settings.value("keyerPortName").toString();
+        }
+        profile.weighting = m_settings.value("weighting", 50).toInt();
+        profile.leadInTime = m_settings.value("leadInTime", 0).toInt();
+        profile.tailTime = m_settings.value("tailTime", 0).toInt();
+        // DTR/RTS settings
+        profile.dtrRtsPortName = m_settings.value("dtrRtsPortName").toString();
+        profile.dtrRtsPin = static_cast<DtrRtsCWSender::Pin>(m_settings.value("dtrRtsPin", 0).toInt());
+        profiles.append(profile);
+    }
+
+    return profiles;
+}
+
+bool AppSettings::hasCWOutputProfiles() const {
+    ensureCleanSettingsState(m_settings);
+    QSettingsGroupGuard groupGuard(m_settings, "CWOutputProfiles");
+    QSettingsArrayGuard arrayGuard(m_settings, "Profiles");
+    return arrayGuard.size() > 0;
+}
+
+void AppSettings::setActiveCWOutputProfile(const QString& profileName) {
+    m_settings.setValue("CWOutputProfiles/activeProfile", profileName);
+    m_settings.sync();
+}
+
+QString AppSettings::getActiveCWOutputProfile() const {
+    return m_settings.value("CWOutputProfiles/activeProfile",
+                            CWProfileDefaults::DEFAULT_PROFILE_NAME).toString();
+}
+
+CWOutputProfile AppSettings::getCWOutputProfile(const QString& name) const {
+    QList<CWOutputProfile> profiles = loadCWOutputProfiles();
+    for (const CWOutputProfile& profile : profiles) {
+        if (profile.name == name) {
+            return profile;
+        }
+    }
+    return CWOutputProfile();
+}
+
+CWOutputProfile AppSettings::getCWOutputProfileForRadio(int radioIndex) const {
+    QString activeStationName = getActiveStationProfile();
+    StationProfile station = getStationProfile(activeStationName);
+    if (station.name.isEmpty()) return CWOutputProfile();
+
+    QString cwProfileName = (radioIndex == 0) ? station.cw1Name : station.cw2Name;
+    if (cwProfileName.isEmpty()) return CWOutputProfile();
+
+    return getCWOutputProfile(cwProfileName);
+}
+
+void AppSettings::migrateToCWOutputProfiles() {
+    // Only migrate if no CW output profiles exist yet
+    if (hasCWOutputProfiles()) return;
+
+    LOG_INFO("AppSettings", "Migrating flat CW settings to CWOutputProfile system");
+
+    // Read existing flat CW keying settings
+    int keyingSource = getCWKeyingSource();  // 0=CAT, 1=Keyer, 2=DTR/RTS
+
+    CWOutputProfile defaultProfile;
+    defaultProfile.name = CWProfileDefaults::DEFAULT_PROFILE_NAME;
+
+    switch (keyingSource) {
+    case 0:  // Radio CAT
+        defaultProfile.type = CWSenderFactory::Backend::Hamlib;
+        break;
+    case 1: {  // External Keyer — need to separate input from output
+        KeyerDeviceType deviceType = static_cast<KeyerDeviceType>(getKeyerDeviceType());
+        if (deviceType == KeyerDeviceType::WinKeyer) {
+            // WinKeyer is a CW output device
+            defaultProfile.type = CWSenderFactory::Backend::KeyerDevice;
+            defaultProfile.winKeyerPortName = getKeyerPortName();
+            defaultProfile.weighting = getWinKeyerWeighting();
+            defaultProfile.leadInTime = getWinKeyerLeadIn();
+            defaultProfile.tailTime = getWinKeyerTailTime();
+        } else {
+            // HaliKey (Serial or MIDI) is a paddle INPUT device, not CW output.
+            // CW output falls back to Radio CAT since HaliKey can't send text.
+            defaultProfile.type = CWSenderFactory::Backend::Hamlib;
+
+            // Migrate paddle settings to PaddleInputConfig
+            PaddleInputConfig paddleConfig;
+            if (deviceType == KeyerDeviceType::HaliKeySerial) {
+                paddleConfig.deviceType = PaddleInputConfig::DeviceType::HaliKeySerial;
+            } else {
+                paddleConfig.deviceType = PaddleInputConfig::DeviceType::HaliKeyMidi;
+            }
+            paddleConfig.portName = getKeyerPortName();
+            paddleConfig.paddleSwap = getKeyerPaddleSwap();
+            savePaddleInputConfig(paddleConfig);
+
+            LOG_INFO("AppSettings", "Migrated HaliKey paddle settings to PaddleInputConfig");
+        }
+        break;
+    }
+    case 2:  // DTR/RTS
+        defaultProfile.type = CWSenderFactory::Backend::DtrRts;
+        defaultProfile.dtrRtsPortName = getDtrRtsPortName();
+        defaultProfile.dtrRtsPin = static_cast<DtrRtsCWSender::Pin>(getDtrRtsPin());
+        break;
+    }
+
+    QList<CWOutputProfile> profiles;
+    profiles.append(defaultProfile);
+    saveCWOutputProfiles(profiles);
+    setActiveCWOutputProfile(CWProfileDefaults::DEFAULT_PROFILE_NAME);
+
+    // Update active station profile's cw1Name to point to the migrated profile
+    QList<StationProfile> stationProfiles = loadStationProfiles();
+    bool updated = false;
+    for (StationProfile& sp : stationProfiles) {
+        if (sp.cw1Name.isEmpty()) {
+            sp.cw1Name = CWProfileDefaults::DEFAULT_PROFILE_NAME;
+            updated = true;
+        }
+    }
+    if (updated) {
+        saveStationProfiles(stationProfiles);
+    }
+
+    LOG_INFO("AppSettings", "CWOutputProfile migration complete: created 'Default' profile");
+}
+
+void AppSettings::savePaddleInputConfig(const PaddleInputConfig& config) {
+    QSettingsGroupGuard groupGuard(m_settings, "CW/PaddleInput");
+    m_settings.setValue("deviceType", static_cast<int>(config.deviceType));
+    m_settings.setValue("portName", config.portName);
+    m_settings.setValue("paddleSwap", config.paddleSwap);
+    m_settings.sync();
+
+    LOG_DEBUG("AppSettings", QString("Saved paddle input config (type=%1, port=%2)")
+              .arg(static_cast<int>(config.deviceType)).arg(config.portName));
+}
+
+PaddleInputConfig AppSettings::loadPaddleInputConfig() const {
+    PaddleInputConfig config;
+
+    ensureCleanSettingsState(m_settings);
+
+    QSettingsGroupGuard groupGuard(m_settings, "CW/PaddleInput");
+    config.deviceType = static_cast<PaddleInputConfig::DeviceType>(
+        m_settings.value("deviceType", 0).toInt());
+    config.portName = m_settings.value("portName").toString();
+    config.paddleSwap = m_settings.value("paddleSwap", false).toBool();
+
+    return config;
 }
 
 void AppSettings::setShowStableRadios(bool show) {

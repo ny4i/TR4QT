@@ -25,11 +25,11 @@
 #include "../../utils/AppSettings.h"
 #include "../../utils/DialogHelper.h"
 #include "../../logging/LogMacros.h"
+#include "../../cw/CWOutputProfile.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
 #include <QGroupBox>
-#include <QPainter>
 
 namespace TR4QT {
 
@@ -41,10 +41,6 @@ static constexpr int MAX_VOLUME = 100;
 static constexpr int MIN_PITCH_HZ = 200;
 static constexpr int MAX_PITCH_HZ = 1200;
 static constexpr int PITCH_STEP_HZ = 50;
-static constexpr int MIN_WEIGHTING = 10;
-static constexpr int MAX_WEIGHTING = 90;
-static constexpr int MAX_LEAD_IN = 250;
-static constexpr int MAX_TAIL_TIME = 250;
 
 // Colors for paddle indicators
 static const QColor INDICATOR_ACTIVE_COLOR(0, 200, 0);   // Green
@@ -60,7 +56,7 @@ KeyerSetupDialog::KeyerSetupDialog(KeyerController* keyerController,
     , m_radioController(radioController)
     , m_sidetone(new SidetoneGenerator(this))
 {
-    setWindowTitle("CW Keyer Setup");
+    setWindowTitle("Paddle Test");
     setMinimumWidth(380);
 
     setupUI();
@@ -100,9 +96,8 @@ KeyerSetupDialog::KeyerSetupDialog(KeyerController* keyerController,
 
     // Update UI to reflect current connection state
     updateConnectionUI(m_keyerController->isConnected());
-    updateWinKeyerVisibility();
 
-    LOG_INFO("KeyerSetupDialog", "Dialog opened");
+    LOG_INFO("KeyerSetupDialog", "Paddle Test dialog opened");
 }
 
 KeyerSetupDialog::~KeyerSetupDialog() {
@@ -113,14 +108,44 @@ KeyerSetupDialog::~KeyerSetupDialog() {
     disconnect(m_iambicKeyer, &IambicKeyer::keyUp, m_sidetone, &SidetoneGenerator::keyUp);
 
     m_sidetone->stop();
-    LOG_INFO("KeyerSetupDialog", "Dialog closed");
+    LOG_INFO("KeyerSetupDialog", "Paddle Test dialog closed");
 }
 
 void KeyerSetupDialog::setupUI() {
     auto* mainLayout = new QVBoxLayout(this);
 
-    // --- Key Status ---
-    auto* keyStatusGroup = new QGroupBox("Key Status", this);
+    // --- Input Device Label ---
+    const auto paddleConfig = AppSettings::instance().loadPaddleInputConfig();
+    QString inputText;
+    switch (paddleConfig.deviceType) {
+    case PaddleInputConfig::DeviceType::HaliKeySerial:
+        inputText = QString("HaliKey (Serial) on %1")
+                        .arg(paddleConfig.portName.isEmpty() ? "no port" : paddleConfig.portName);
+        break;
+    case PaddleInputConfig::DeviceType::HaliKeyMidi:
+        inputText = QString("HaliKey (MIDI) on %1")
+                        .arg(paddleConfig.portName.isEmpty() ? "no device" : paddleConfig.portName);
+        break;
+    default:
+        inputText = "None configured";
+        break;
+    }
+    m_inputDeviceLabel = new QLabel(QString("Input Device: %1").arg(inputText), this);
+    m_inputDeviceLabel->setStyleSheet("QLabel { color: #888; font-style: italic; padding: 4px; }");
+
+    auto* inputRow = new QHBoxLayout();
+    inputRow->addWidget(m_inputDeviceLabel);
+    inputRow->addStretch();
+    auto* settingsBtn = new QPushButton("CW Input Settings...", this);
+    settingsBtn->setToolTip("Open Preferences \u2192 Hardware \u2192 CW Input");
+    connect(settingsBtn, &QPushButton::clicked, this, [this]() {
+        emit openCWInputSettingsRequested();
+    });
+    inputRow->addWidget(settingsBtn);
+    mainLayout->addLayout(inputRow);
+
+    // --- Paddle Status ---
+    auto* keyStatusGroup = new QGroupBox("Paddle Status", this);
     auto* keyStatusLayout = new QHBoxLayout(keyStatusGroup);
 
     m_ditIndicator = new QWidget(this);
@@ -154,8 +179,8 @@ void KeyerSetupDialog::setupUI() {
             this, &KeyerSetupDialog::onSidetoneOnlyToggled);
     mainLayout->addWidget(m_sidetoneOnlyCheckbox);
 
-    // --- CW Settings ---
-    auto* cwGroup = new QGroupBox("CW Settings", this);
+    // --- Practice Settings ---
+    auto* cwGroup = new QGroupBox("Practice Settings", this);
     auto* cwLayout = new QFormLayout(cwGroup);
 
     // Speed slider
@@ -194,70 +219,6 @@ void KeyerSetupDialog::setupUI() {
 
     mainLayout->addWidget(cwGroup);
 
-    // --- Keyer Mode ---
-    auto* modeGroup = new QGroupBox("Keyer Mode", this);
-    auto* modeLayout = new QVBoxLayout(modeGroup);
-
-    auto* keyerTypeLayout = new QHBoxLayout();
-    m_iambicRadio = new QRadioButton("Iambic", this);
-    m_straightKeyRadio = new QRadioButton("Straight Key", this);
-    m_iambicRadio->setChecked(true);
-    keyerTypeLayout->addWidget(m_iambicRadio);
-    keyerTypeLayout->addWidget(m_straightKeyRadio);
-    keyerTypeLayout->addStretch();
-    modeLayout->addLayout(keyerTypeLayout);
-
-    auto* iambicModeLayout = new QHBoxLayout();
-    m_modeARadio = new QRadioButton("Mode A", this);
-    m_modeBRadio = new QRadioButton("Mode B", this);
-    m_modeBRadio->setChecked(true);
-    iambicModeLayout->addWidget(m_modeARadio);
-    iambicModeLayout->addWidget(m_modeBRadio);
-    iambicModeLayout->addStretch();
-    modeLayout->addLayout(iambicModeLayout);
-
-    m_swapPaddlesCheckbox = new QCheckBox("Swap Paddles (Left \u2194 Right)", this);
-    modeLayout->addWidget(m_swapPaddlesCheckbox);
-
-    connect(m_iambicRadio, &QRadioButton::toggled, this, &KeyerSetupDialog::onKeyerModeChanged);
-    connect(m_modeARadio, &QRadioButton::toggled, this, &KeyerSetupDialog::onKeyerModeChanged);
-    connect(m_swapPaddlesCheckbox, &QCheckBox::toggled, this, &KeyerSetupDialog::onSwapPaddlesToggled);
-
-    mainLayout->addWidget(modeGroup);
-
-    // --- WinKeyer Settings ---
-    m_winKeyerGroup = new QGroupBox("WinKeyer Settings", this);
-    auto* wkLayout = new QFormLayout(m_winKeyerGroup);
-
-    // Weighting slider
-    auto* weightLayout = new QHBoxLayout();
-    m_weightingSlider = new QSlider(Qt::Horizontal, this);
-    m_weightingSlider->setRange(MIN_WEIGHTING, MAX_WEIGHTING);
-    m_weightingLabel = new QLabel("50", this);
-    m_weightingLabel->setFixedWidth(40);
-    weightLayout->addWidget(m_weightingSlider);
-    weightLayout->addWidget(m_weightingLabel);
-    connect(m_weightingSlider, &QSlider::valueChanged, this, &KeyerSetupDialog::onWeightingChanged);
-    wkLayout->addRow("Weighting:", weightLayout);
-
-    // Lead-in spin
-    m_leadInSpin = new QSpinBox(this);
-    m_leadInSpin->setRange(0, MAX_LEAD_IN);
-    m_leadInSpin->setSuffix(" x10ms");
-    connect(m_leadInSpin, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &KeyerSetupDialog::onLeadInChanged);
-    wkLayout->addRow("Lead-in:", m_leadInSpin);
-
-    // Tail time spin
-    m_tailTimeSpin = new QSpinBox(this);
-    m_tailTimeSpin->setRange(0, MAX_TAIL_TIME);
-    m_tailTimeSpin->setSuffix(" x10ms");
-    connect(m_tailTimeSpin, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &KeyerSetupDialog::onTailTimeChanged);
-    wkLayout->addRow("Tail time:", m_tailTimeSpin);
-
-    mainLayout->addWidget(m_winKeyerGroup);
-
     // --- Buttons ---
     auto* buttonLayout = new QHBoxLayout();
     m_connectBtn = new QPushButton("Connect", this);
@@ -288,19 +249,6 @@ void KeyerSetupDialog::loadSettings() {
     m_pitchSlider->setValue(settings.getSidetonePitch());
     m_pitchLabel->setText(QString("%1 Hz").arg(settings.getSidetonePitch()));
     m_sidetone->setFrequency(settings.getSidetonePitch());
-
-    // Keyer mode
-    const int iambicMode = settings.getKeyerIambicMode();
-    m_modeARadio->setChecked(iambicMode == 0);
-    m_modeBRadio->setChecked(iambicMode == 1);
-
-    m_swapPaddlesCheckbox->setChecked(settings.getKeyerPaddleSwap());
-
-    // WinKeyer settings
-    m_weightingSlider->setValue(settings.getWinKeyerWeighting());
-    m_weightingLabel->setText(QString::number(settings.getWinKeyerWeighting()));
-    m_leadInSpin->setValue(settings.getWinKeyerLeadIn());
-    m_tailTimeSpin->setValue(settings.getWinKeyerTailTime());
 }
 
 void KeyerSetupDialog::saveSettings() {
@@ -309,11 +257,6 @@ void KeyerSetupDialog::saveSettings() {
     settings.setMorseWPM(m_wpmSlider->value());
     settings.setSidetoneVolume(m_volumeSlider->value());
     settings.setSidetonePitch(m_pitchSlider->value());
-    settings.setKeyerIambicMode(m_modeARadio->isChecked() ? 0 : 1);
-    settings.setKeyerPaddleSwap(m_swapPaddlesCheckbox->isChecked());
-    settings.setWinKeyerWeighting(m_weightingSlider->value());
-    settings.setWinKeyerLeadIn(m_leadInSpin->value());
-    settings.setWinKeyerTailTime(m_tailTimeSpin->value());
 }
 
 void KeyerSetupDialog::updateConnectionUI(bool connected) {
@@ -321,30 +264,33 @@ void KeyerSetupDialog::updateConnectionUI(bool connected) {
     m_disconnectBtn->setEnabled(connected);
 }
 
-void KeyerSetupDialog::updateWinKeyerVisibility() {
-    bool isWinKeyer = m_keyerController->isConnected() &&
-                      m_keyerController->connectedDeviceType() == KeyerDeviceType::WinKeyer;
-    m_winKeyerGroup->setVisible(isWinKeyer);
-}
-
 void KeyerSetupDialog::onConnectClicked() {
-    auto& settings = AppSettings::instance();
+    const auto paddleConfig = AppSettings::instance().loadPaddleInputConfig();
 
     KeyerConfig config;
-    config.type = static_cast<KeyerDeviceType>(settings.getKeyerDeviceType());
-    config.portName = settings.getKeyerPortName();
+    switch (paddleConfig.deviceType) {
+    case PaddleInputConfig::DeviceType::HaliKeySerial:
+        config.type = KeyerDeviceType::HaliKeySerial;
+        break;
+    case PaddleInputConfig::DeviceType::HaliKeyMidi:
+        config.type = KeyerDeviceType::HaliKeyMidi;
+        break;
+    default:
+        DialogHelper::warning(this, "No Input Device",
+                              "Please configure a paddle input device in Preferences \u2192 Hardware \u2192 CW Input first.");
+        return;
+    }
+    config.portName = paddleConfig.portName;
     config.defaultWpm = m_wpmSlider->value();
-    config.paddleSwap = m_swapPaddlesCheckbox->isChecked();
-    config.iambicMode = m_modeARadio->isChecked() ? IambicMode::IambicA : IambicMode::IambicB;
-    config.ditNoteNumber = settings.getKeyerDitNote();
-    config.dahNoteNumber = settings.getKeyerDahNote();
-    config.weighting = m_weightingSlider->value();
-    config.leadInTime = m_leadInSpin->value();
-    config.tailTime = m_tailTimeSpin->value();
+    config.paddleSwap = paddleConfig.paddleSwap;
+    config.iambicMode = AppSettings::instance().getKeyerIambicMode() == 0
+                            ? IambicMode::IambicA : IambicMode::IambicB;
+    config.ditNoteNumber = CWProfileDefaults::MIDI_DIT_NOTE;
+    config.dahNoteNumber = CWProfileDefaults::MIDI_DAH_NOTE;
 
     if (config.portName.isEmpty() && config.type != KeyerDeviceType::HaliKeyMidi) {
         DialogHelper::warning(this, "No Port Configured",
-                              "Please configure the keyer port in Preferences first.");
+                              "Please configure the keyer port in Preferences \u2192 Hardware \u2192 CW Input first.");
         return;
     }
 
@@ -359,7 +305,6 @@ void KeyerSetupDialog::onDisconnectClicked() {
 
 void KeyerSetupDialog::onConnectionStatusChanged(bool connected) {
     updateConnectionUI(connected);
-    updateWinKeyerVisibility();
 
     if (connected) {
         LOG_INFO("KeyerSetupDialog", "Keyer connected");
@@ -399,36 +344,6 @@ void KeyerSetupDialog::onPitchSliderChanged(int value) {
 void KeyerSetupDialog::onSidetoneOnlyToggled(bool checked) {
     m_sidetoneOnly = checked;
     LOG_DEBUG("KeyerSetupDialog", QString("Sidetone-only mode: %1").arg(checked ? "ON" : "OFF"));
-}
-
-void KeyerSetupDialog::onKeyerModeChanged() {
-    IambicMode mode = m_modeARadio->isChecked() ? IambicMode::IambicA : IambicMode::IambicB;
-    m_iambicKeyer->setMode(mode);
-
-    // Enable/disable iambic mode selection based on keyer type
-    const bool isIambic = m_iambicRadio->isChecked();
-    m_modeARadio->setEnabled(isIambic);
-    m_modeBRadio->setEnabled(isIambic);
-}
-
-void KeyerSetupDialog::onSwapPaddlesToggled(bool checked) {
-    Q_UNUSED(checked);
-    // Paddle swap is read from settings by the keyer device on connect.
-    // For live adjustment, would need to reconnect. Just save for next connect.
-    LOG_DEBUG("KeyerSetupDialog", QString("Paddle swap: %1").arg(checked ? "ON" : "OFF"));
-}
-
-void KeyerSetupDialog::onWeightingChanged(int value) {
-    m_weightingLabel->setText(QString::number(value));
-    m_keyerController->setWeighting(value);
-}
-
-void KeyerSetupDialog::onLeadInChanged(int value) {
-    m_keyerController->setLeadInTime(value);
-}
-
-void KeyerSetupDialog::onTailTimeChanged(int value) {
-    m_keyerController->setTailTime(value);
 }
 
 } // namespace TR4QT
