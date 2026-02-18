@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.44.76] - 2026-02-18
+
+### Added
+- **About Dialog Components** (#86): Shows third-party dependency versions — Qt (runtime/compiled), Hamlib, SQLite, QCustomPlot, miniz, plus OS name and CPU architecture
+
 ## [3.44.75] - 2026-02-18
 
 ### Changed
