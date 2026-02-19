@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.45.79";  // Spot processor worker thread, DXLab DDE integration, window activation fix
+constexpr const char* APP_VERSION = "3.45.80";  // Fix spot processor thread safety, cache multipliers, eliminate hardcoded colors
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
@@ -87,6 +87,10 @@ constexpr int AUTO_SP_SENSITIVITY_STEP_HZ = 100;     // Step size for input dial
 
 // Grayline propagation window
 constexpr int GRAYLINE_WINDOW_MINUTES = 30;  // Minutes before/after sunrise/sunset
+
+// Hamlib model IDs for hardware-specific detection
+constexpr int HAMLIB_MODEL_ELECRAFT_KPA1500 = 1201;  // Elecraft KPA1500 amplifier
+constexpr int HAMLIB_MODEL_PSTROTATOR = 9999;         // PSTRotator (virtual rotator)
 
 // LED/indicator colors (for amplifier panels, meters, etc.) - Hardware colors, not themed
 namespace LedColors {

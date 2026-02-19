@@ -1931,6 +1931,13 @@ QWidget* PreferencesDialog::createAdvancedTab() {
     connect(m_dxlabDDECheck, &QCheckBox::toggled,
             m_dxlabDDEQSYCheck, &QCheckBox::setEnabled);
 
+#ifndef Q_OS_WIN
+    // DDE is Windows-only — disable and uncheck on other platforms
+    dxlabGroup->setEnabled(false);
+    m_dxlabDDECheck->setChecked(false);
+    m_dxlabDDEQSYCheck->setChecked(false);
+#endif
+
     layout->addWidget(dxlabGroup);
     layout->addStretch();
 

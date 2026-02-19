@@ -121,6 +121,9 @@ void TestTypes::testStringToMode_AllModes() {
     QCOMPARE(stringToMode("FT4"), ModeType::FT4);
     QCOMPARE(stringToMode("DATA"), ModeType::DATA);
     QCOMPARE(stringToMode("DATA-R"), ModeType::DATAR);
+
+    // ADIF alias mappings (generic mode names that map to specific modes)
+    QCOMPARE(stringToMode("SSB"), ModeType::USB);  // SSB defaults to USB per ADIF convention
 }
 
 void TestTypes::testStringToMode_Invalid() {
@@ -128,7 +131,6 @@ void TestTypes::testStringToMode_Invalid() {
     QCOMPARE(stringToMode(""), ModeType::None);
     QCOMPARE(stringToMode("invalid"), ModeType::None);
     QCOMPARE(stringToMode("cw"), ModeType::None);  // Lowercase should fail (case sensitive)
-    QCOMPARE(stringToMode("SSB"), ModeType::None); // Not specific enough
     QCOMPARE(stringToMode("Unknown"), ModeType::None);
 }
 

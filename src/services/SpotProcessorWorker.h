@@ -23,6 +23,8 @@
 #include <QThread>
 #include <QColor>
 #include <QList>
+#include <QMap>
+#include <QSet>
 #include <QSqlDatabase>
 #include "../core/Types.h"
 #include "../ui/widgets/BandMapWidget.h"
@@ -61,6 +63,37 @@ struct ProcessedSpot {
 };
 
 /**
+ * Configuration snapshot passed from the main thread to the worker.
+ * Captures all settings the worker needs so it never touches AppSettings directly.
+ */
+struct SpotProcessorConfig {
+    // Colors for spot classification
+    QColor dupeColor{128, 128, 128};       // Default gray
+    QColor multiplierColor{255, 0, 0};     // Default red
+    bool lotwLookupEnabled{false};
+
+    // Display colors (band colors for frequency formatting)
+    QColor band160mColor{102, 51, 153};
+    QColor band80mColor{153, 76, 0};
+    QColor band40mColor{204, 0, 102};
+    QColor band20mColor{0, 102, 204};
+    QColor band15mColor{0, 153, 0};
+    QColor band10mColor{204, 102, 0};
+    QColor bandDefaultColor{102, 102, 102};
+
+    // Text formatting colors
+    QColor spotterColor{102, 102, 102};    // Gray for spotter callsign
+    QColor timestampColor{153, 153, 153};  // Light gray for timestamp
+    QColor commentColor{51, 51, 51};       // Dark gray for comment
+    QColor splitIndicatorColor{0, 206, 209}; // Cyan for split indicator
+    QColor defaultCallColor{0, 0, 0};      // Black for unclassified spots
+
+    // Alternating row backgrounds
+    QColor evenRowBackground{255, 255, 255};
+    QColor oddRowBackground{248, 248, 248};
+};
+
+/**
  * Worker that processes DX cluster spots off the main thread.
  *
  * Runs in a QThread. Receives raw spot data, does all heavy work:
@@ -70,7 +103,12 @@ struct ProcessedSpot {
  * - Split frequency parsing
  * - Text formatting with colors
  *
- * Emits processed results back to the main thread for display.
+ * All configuration (colors, settings) is passed in via SpotProcessorConfig
+ * from the main thread - the worker never accesses AppSettings directly.
+ *
+ * Worked callsigns and multipliers are cached in memory to minimize SQL queries.
+ * The cache is rebuilt when the contest context changes, and individual entries
+ * are added via addWorkedCallsign() when a QSO is logged.
  */
 class SpotProcessorWorker : public QObject {
     Q_OBJECT
@@ -80,16 +118,37 @@ public:
     ~SpotProcessorWorker() override;
 
     /**
-     * Initialize database connections (must be called from worker thread)
+     * Initialize database connections and load country file.
+     * Must be called from worker thread.
+     * @param countryFilePath Path to cty.dat (captured from main thread)
      */
-    void initDatabase(const QString& contestDbPath, const QString& globalDbPath);
+    void initDatabase(const QString& contestDbPath, const QString& globalDbPath,
+                      const QString& countryFilePath);
+
+    /**
+     * Update display/color configuration.
+     * Thread-safe: called via queued connection from main thread.
+     */
+    void setConfig(const SpotProcessorConfig& config);
 
     /**
      * Update contest context for dupe/multiplier checking.
-     * Thread-safe: copies the data needed, doesn't hold pointers.
+     * Rebuilds in-memory caches from database.
+     * Thread-safe: called via queued connection from main thread.
      */
     void setContestContext(int contestDbId,
                            const QList<MultiplierDefinition>& multDefs);
+
+    /**
+     * Add a single worked callsign to the dupe cache (called when QSO logged).
+     * Avoids full cache rebuild for each new QSO.
+     */
+    void addWorkedCallsign(const QString& callsign, const QString& band, const QString& mode);
+
+    /**
+     * Add a single multiplier to the cache (called when new mult logged).
+     */
+    void addWorkedMultiplier(const QString& multType, const QString& multValue, const QString& band);
 
 public slots:
     /**
@@ -107,34 +166,40 @@ signals:
 
 private:
     /**
-     * Determine spot color based on dupe/multiplier status
+     * Determine spot color based on cached dupe/multiplier status
      */
     QColor getSpotColor(const QString& callsign, double frequency);
 
     /**
-     * Parse split frequency from comment (QSX/UP/DOWN)
+     * Parse split/QSX/UP/DOWN from comment, returning listen frequency in Hz.
+     * Returns 0 if no split info found.
      */
-    double parseSplitInfo(const QString& comment, double spotFrequency);
+    double parseSplitFrequency(const QString& comment, double spotFrequencyHz);
 
     /**
-     * Check LOTW user status
+     * Check LOTW user status via cached global DB
      */
     bool checkLotwUser(const QString& callsign);
 
     /**
-     * Parse QSX frequency from comment
+     * Get band color from config
      */
-    freq_t parseQSX(const QString& comment, freq_t spotFrequency);
-
-    /**
-     * Parse UP offset from comment
-     */
-    freq_t parseUP(const QString& comment, freq_t spotFrequency);
+    QColor getBandColor(BandType band) const;
 
     /**
      * Extract multiplier value from QSO data for a given type
      */
     static QString extractMultiplierValue(const QSO& qso, MultiplierType type);
+
+    /**
+     * Rebuild dupe cache from database
+     */
+    void rebuildDupeCache();
+
+    /**
+     * Rebuild multiplier cache from database
+     */
+    void rebuildMultiplierCache();
 
     // Worker-thread database connections
     QSqlDatabase m_contestDb;
@@ -146,7 +211,17 @@ private:
     int m_contestDbId{-1};
     QList<MultiplierDefinition> m_multDefs;
 
-    // Country file (worker's own instance)
+    // In-memory dupe cache: key = "CALLSIGN|BAND|MODE" for PerBandMode
+    QSet<QString> m_dupeCache;
+
+    // In-memory multiplier cache: multType -> (band -> set of values)
+    // For AllBands scope, band key is empty string
+    QMap<QString, QMap<QString, QSet<QString>>> m_multiplierCache;
+
+    // Configuration snapshot (set from main thread, read from worker)
+    SpotProcessorConfig m_config;
+
+    // Country file (worker's own instance - required for thread safety)
     CountryFile m_countryFile;
 
     // Spot row counter for alternating backgrounds
@@ -154,10 +229,19 @@ private:
 
     static constexpr const char* CONTEST_CONN_NAME = "tr4qt_spot_worker";
     static constexpr const char* GLOBAL_CONN_NAME = "tr4qt_spot_worker_global";
+
+    // Display formatting constants
+    static constexpr int SPLIT_INDICATOR_WIDTH = 2;
+    static constexpr int SPOTTER_FIELD_WIDTH = 12;
+    static constexpr int FREQUENCY_FIELD_WIDTH = 10;
+    static constexpr int CALLSIGN_INDENT = 3;
+    static constexpr int CALLSIGN_FIELD_WIDTH = 12;
+    static constexpr int TIMESTAMP_FIELD_WIDTH = 5;  // "1234Z"
 };
 
 } // namespace TR4QT
 
 Q_DECLARE_METATYPE(TR4QT::ProcessedSpot)
+Q_DECLARE_METATYPE(TR4QT::SpotProcessorConfig)
 
 #endif // SPOTPROCESSORWORKER_H

@@ -128,10 +128,18 @@ private slots:
             "exchange_sent TEXT,"
             "current_serial INTEGER DEFAULT 1,"
             "created_at INTEGER NOT NULL,"
-            "notes TEXT"
+            "notes TEXT,"
+            "category TEXT,"
+            "power_class TEXT,"
+            "operator_name TEXT,"
+            "assisted TEXT"
             ")", {});
 
         // Recreate QSO table with full schema (matching QSORepository expectations)
+        // WARNING: This DDL must stay in sync with src/data/schema.sql and any
+        // Database::migrateSchema() additions. If a column is added to the qsos
+        // table, it MUST be added here too, or tests will silently pass against
+        // a stale schema. See radio_nr (migration 10) as an example of past drift.
         Database::instance().execute(
             "CREATE TABLE qsos ("
             "id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -174,6 +182,7 @@ private slots:
             "operator_call TEXT,"
             "deleted BOOLEAN DEFAULT 0,"
             "notes TEXT,"
+            "radio_nr INTEGER DEFAULT 1,"
             "FOREIGN KEY (contest_id) REFERENCES contests(id) ON DELETE CASCADE"
             ")", {});
     }

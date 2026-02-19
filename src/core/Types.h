@@ -160,6 +160,7 @@ ModeGroup modeTypeToModeGroup(ModeType mode);
 BandType stringToBand(const QString& str);
 ModeType stringToMode(const QString& str);
 QString continentToString(Continent cont);
+QString multiplierTypeToString(MultiplierType type);
 
 /**
  * Get the base frequency (band edge) for a band in kHz

@@ -151,6 +151,21 @@ QString continentToString(Continent cont) {
     }
 }
 
+QString multiplierTypeToString(MultiplierType type) {
+    switch (type) {
+        case MultiplierType::Country: return "Country";
+        case MultiplierType::CQZone:  return "CQZone";
+        case MultiplierType::ITUZone: return "ITUZone";
+        case MultiplierType::State:   return "State";
+        case MultiplierType::Section: return "Section";
+        case MultiplierType::Prefix:  return "Prefix";
+        case MultiplierType::Grid:    return "Grid";
+        case MultiplierType::County:  return "County";
+        case MultiplierType::Custom:  return "Custom";
+    }
+    return "Unknown";
+}
+
 unsigned long bandToBaseFrequency(BandType band) {
     // Returns base frequency in kHz (band edge for CW portion)
     switch (band) {

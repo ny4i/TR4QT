@@ -18,32 +18,33 @@
 
 #include "SpotProcessorWorker.h"
 #include "../logging/LogMacros.h"
-#include "../utils/AppSettings.h"
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QRegularExpression>
 
 namespace TR4QT {
 
-// DX Cluster band colors (same as DXClusterWindow)
-static const QColor COLOR_BAND_160M(102, 51, 153);
-static const QColor COLOR_BAND_80M(153, 76, 0);
-static const QColor COLOR_BAND_40M(204, 0, 102);
-static const QColor COLOR_BAND_20M(0, 102, 204);
-static const QColor COLOR_BAND_15M(0, 153, 0);
-static const QColor COLOR_BAND_10M(204, 102, 0);
-static const QColor COLOR_BAND_DEFAULT(102, 102, 102);
-
-static QColor getBandColor(BandType band) {
-    switch (band) {
-        case BandType::Band160M: return COLOR_BAND_160M;
-        case BandType::Band80M:  return COLOR_BAND_80M;
-        case BandType::Band40M:  return COLOR_BAND_40M;
-        case BandType::Band20M:  return COLOR_BAND_20M;
-        case BandType::Band15M:  return COLOR_BAND_15M;
-        case BandType::Band10M:  return COLOR_BAND_10M;
-        default:                 return COLOR_BAND_DEFAULT;
+// Helper: open a SQLite DB with WAL mode for read-heavy worker thread access
+static QSqlDatabase openWorkerDb(const QString& path, const QString& connName,
+                                  const QString& label)
+{
+    if (path.isEmpty()) {
+        return {};
     }
+
+    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connName);
+    db.setDatabaseName(path);
+    if (!db.open()) {
+        LOG_WARN("SpotProcessorWorker", QString("Failed to open %1 DB: %2")
+            .arg(label, db.lastError().text()));
+        return {};
+    }
+
+    QSqlQuery query(db);
+    query.exec("PRAGMA journal_mode=WAL");
+    query.exec("PRAGMA read_uncommitted=1");
+    LOG_INFO("SpotProcessorWorker", QString("%1 DB connection opened").arg(label));
+    return db;
 }
 
 SpotProcessorWorker::SpotProcessorWorker(QObject* parent)
@@ -51,65 +52,46 @@ SpotProcessorWorker::SpotProcessorWorker(QObject* parent)
 {
     qRegisterMetaType<ProcessedSpot>("ProcessedSpot");
     qRegisterMetaType<TR4QT::ProcessedSpot>("TR4QT::ProcessedSpot");
+    qRegisterMetaType<SpotProcessorConfig>("SpotProcessorConfig");
+    qRegisterMetaType<TR4QT::SpotProcessorConfig>("TR4QT::SpotProcessorConfig");
 }
 
 SpotProcessorWorker::~SpotProcessorWorker()
 {
-    // Close worker-thread database connections
     if (m_contestDb.isOpen()) {
         m_contestDb.close();
     }
     if (m_globalDb.isOpen()) {
         m_globalDb.close();
     }
-    // Remove connections (must use static method with connection name)
     QSqlDatabase::removeDatabase(CONTEST_CONN_NAME);
     QSqlDatabase::removeDatabase(GLOBAL_CONN_NAME);
 }
 
-void SpotProcessorWorker::initDatabase(const QString& contestDbPath, const QString& globalDbPath)
+void SpotProcessorWorker::initDatabase(const QString& contestDbPath, const QString& globalDbPath,
+                                        const QString& countryFilePath)
 {
     m_contestDbPath = contestDbPath;
     m_globalDbPath = globalDbPath;
 
-    // Open contest database connection for this thread
-    if (!contestDbPath.isEmpty()) {
-        m_contestDb = QSqlDatabase::addDatabase("QSQLITE", CONTEST_CONN_NAME);
-        m_contestDb.setDatabaseName(contestDbPath);
-        if (!m_contestDb.open()) {
-            LOG_WARN("SpotProcessorWorker", QString("Failed to open contest DB: %1")
-                .arg(m_contestDb.lastError().text()));
-        } else {
-            // Enable WAL mode for better concurrent read performance
-            QSqlQuery query(m_contestDb);
-            query.exec("PRAGMA journal_mode=WAL");
-            query.exec("PRAGMA read_uncommitted=1");
-            LOG_INFO("SpotProcessorWorker", "Contest DB connection opened");
-        }
-    }
+    m_contestDb = openWorkerDb(contestDbPath, CONTEST_CONN_NAME, "Contest");
+    m_globalDb = openWorkerDb(globalDbPath, GLOBAL_CONN_NAME, "Global");
 
-    // Open global database connection for LOTW lookups
-    if (!globalDbPath.isEmpty()) {
-        m_globalDb = QSqlDatabase::addDatabase("QSQLITE", GLOBAL_CONN_NAME);
-        m_globalDb.setDatabaseName(globalDbPath);
-        if (!m_globalDb.open()) {
-            LOG_WARN("SpotProcessorWorker", QString("Failed to open global DB: %1")
-                .arg(m_globalDb.lastError().text()));
-        } else {
-            QSqlQuery query(m_globalDb);
-            query.exec("PRAGMA journal_mode=WAL");
-            query.exec("PRAGMA read_uncommitted=1");
-            LOG_INFO("SpotProcessorWorker", "Global DB connection opened");
-        }
-    }
-
-    // Load country file
-    QString countryFilePath = AppSettings::instance().getCountryFilePath();
+    // Load country file (worker needs its own instance for thread safety)
+    // Path is captured from the main thread to avoid accessing AppSettings here
     if (!countryFilePath.isEmpty()) {
-        if (!m_countryFile.loadFromFile(countryFilePath)) {
+        if (m_countryFile.loadFromFile(countryFilePath)) {
+            LOG_INFO("SpotProcessorWorker", QString("Country file loaded: %1").arg(countryFilePath));
+        } else {
             LOG_WARN("SpotProcessorWorker", QString("Failed to load country file: %1").arg(countryFilePath));
         }
     }
+}
+
+void SpotProcessorWorker::setConfig(const SpotProcessorConfig& config)
+{
+    m_config = config;
+    LOG_DEBUG("SpotProcessorWorker", "Configuration updated");
 }
 
 void SpotProcessorWorker::setContestContext(int contestDbId,
@@ -117,8 +99,80 @@ void SpotProcessorWorker::setContestContext(int contestDbId,
 {
     m_contestDbId = contestDbId;
     m_multDefs = multDefs;
-    LOG_INFO("SpotProcessorWorker", QString("Contest context updated: dbId=%1, %2 mult types")
-        .arg(contestDbId).arg(multDefs.size()));
+
+    // Rebuild in-memory caches from database
+    rebuildDupeCache();
+    rebuildMultiplierCache();
+
+    LOG_INFO("SpotProcessorWorker", QString("Contest context updated: dbId=%1, %2 mult types, %3 dupes cached")
+        .arg(contestDbId).arg(multDefs.size()).arg(m_dupeCache.size()));
+}
+
+void SpotProcessorWorker::addWorkedCallsign(const QString& callsign, const QString& band, const QString& mode)
+{
+    QString key = callsign.toUpper() + "|" + band + "|" + mode;
+    m_dupeCache.insert(key);
+}
+
+void SpotProcessorWorker::addWorkedMultiplier(const QString& multType, const QString& multValue, const QString& band)
+{
+    m_multiplierCache[multType][band].insert(multValue);
+}
+
+void SpotProcessorWorker::rebuildDupeCache()
+{
+    m_dupeCache.clear();
+
+    if (m_contestDbId < 0 || !m_contestDb.isOpen()) {
+        return;
+    }
+
+    QSqlQuery query(m_contestDb);
+    query.prepare("SELECT callsign, band, mode FROM qsos WHERE contest_id = ? AND deleted = 0");
+    query.addBindValue(m_contestDbId);
+
+    if (query.exec()) {
+        while (query.next()) {
+            QString key = query.value(0).toString().toUpper() + "|"
+                        + query.value(1).toString() + "|"
+                        + query.value(2).toString();
+            m_dupeCache.insert(key);
+        }
+    } else {
+        LOG_WARN("SpotProcessorWorker", QString("Failed to build dupe cache: %1")
+            .arg(query.lastError().text()));
+    }
+
+    LOG_DEBUG("SpotProcessorWorker", QString("Dupe cache rebuilt: %1 entries").arg(m_dupeCache.size()));
+}
+
+void SpotProcessorWorker::rebuildMultiplierCache()
+{
+    m_multiplierCache.clear();
+
+    if (m_contestDbId < 0 || !m_contestDb.isOpen()) {
+        return;
+    }
+
+    QSqlQuery query(m_contestDb);
+    query.prepare("SELECT mult_type, mult_value, band FROM multipliers WHERE contest_id = ?");
+    query.addBindValue(m_contestDbId);
+
+    int count = 0;
+    if (query.exec()) {
+        while (query.next()) {
+            QString multType = query.value(0).toString();
+            QString multValue = query.value(1).toString();
+            QString band = query.value(2).toString();  // Empty string for AllBands
+            m_multiplierCache[multType][band].insert(multValue);
+            count++;
+        }
+    } else {
+        LOG_WARN("SpotProcessorWorker", QString("Failed to build multiplier cache: %1")
+            .arg(query.lastError().text()));
+    }
+
+    LOG_DEBUG("SpotProcessorWorker", QString("Multiplier cache rebuilt: %1 entries").arg(count));
 }
 
 void SpotProcessorWorker::processSpot(const QString& callsign, double frequency,
@@ -137,29 +191,26 @@ void SpotProcessorWorker::processSpot(const QString& callsign, double frequency,
     spot.comment = comment;
     spot.source = QString("DX Cluster (%1)").arg(spotter);
 
-    // Parse split frequency
-    double listenFrequency = parseSplitInfo(comment, frequency);
+    // Parse split frequency (single pass for both display and band map)
+    double listenFrequency = parseSplitFrequency(comment, frequency);
     result.isSplit = (listenFrequency > 0);
     result.listenFrequency = listenFrequency;
 
-    // Also parse QSX for band map spot
-    spot.qsx = parseQSX(comment, spot.frequency);
-    if (spot.qsx == 0) {
-        spot.qsx = parseUP(comment, spot.frequency);
+    // Set QSX on band map spot
+    if (listenFrequency > 0) {
+        spot.qsx = static_cast<freq_t>(listenFrequency);
     }
 
     // Check LOTW status
     spot.isLotwUser = checkLotwUser(callsign);
 
-    // Determine dupe/multiplier color
+    // Determine dupe/multiplier color (uses in-memory cache, no SQL)
     QColor callsignColor = getSpotColor(callsign, frequency);
 
     // Set dupe/mult flags on spot based on color result
-    QString dupeColorStr = AppSettings::instance().getClusterDupeColor();
-    QString multColorStr = AppSettings::instance().getClusterMultiplierColor();
-    if (callsignColor == QColor(dupeColorStr)) {
+    if (callsignColor == m_config.dupeColor) {
         spot.isWorked = true;
-    } else if (callsignColor == QColor(multColorStr)) {
+    } else if (callsignColor == m_config.multiplierColor) {
         spot.isMultiplier = true;
     }
 
@@ -170,17 +221,14 @@ void SpotProcessorWorker::processSpot(const QString& callsign, double frequency,
     double freqKHz = frequency / 1000.0;
     QString freqStr = QString::number(freqKHz, 'f', 1);
 
-    const int SPLIT_INDICATOR_WIDTH = 2;
-    const int CALLSIGN_INDENT = 3;
-
-    QString splitIcon = result.isSplit ? QString::fromUtf8("● ") : "  ";
+    QString splitIcon = result.isSplit ? QString::fromUtf8("\u25CF ") : "  ";
 
     result.displayText = QString("%1%2 %3%4%5 %6Z %7")
         .arg(splitIcon)
-        .arg(spotter, -12)
-        .arg(freqStr, 10)
+        .arg(spotter, -SPOTTER_FIELD_WIDTH)
+        .arg(freqStr, FREQUENCY_FIELD_WIDTH)
         .arg(QString(CALLSIGN_INDENT, ' '))
-        .arg(callsign, -12)
+        .arg(callsign, -CALLSIGN_FIELD_WIDTH)
         .arg(timestamp, 4)
         .arg(comment);
 
@@ -189,19 +237,18 @@ void SpotProcessorWorker::processSpot(const QString& callsign, double frequency,
 
     // Split indicator
     if (result.isSplit) {
-        result.formats.append({pos, SPLIT_INDICATOR_WIDTH, QColor(0, 206, 209), false});
+        result.formats.append({pos, SPLIT_INDICATOR_WIDTH, m_config.splitIndicatorColor, false});
     }
     pos += SPLIT_INDICATOR_WIDTH;
 
-    // Spotter (12 chars) - gray
-    result.formats.append({pos, 12, QColor(102, 102, 102), false});
-    pos += 12;
+    // Spotter
+    result.formats.append({pos, SPOTTER_FIELD_WIDTH, m_config.spotterColor, false});
+    pos += SPOTTER_FIELD_WIDTH;
 
     // Space
     pos += 1;
 
-    // Frequency (10 chars, right-aligned)
-    const int FREQUENCY_FIELD_WIDTH = 10;
+    // Frequency (right-aligned within field)
     int freqPadding = FREQUENCY_FIELD_WIDTH - freqStr.length();
     int freqStart = pos + freqPadding;
     result.formats.append({freqStart, static_cast<int>(freqStr.length()), freqColor, false});
@@ -210,24 +257,22 @@ void SpotProcessorWorker::processSpot(const QString& callsign, double frequency,
     // Indent
     pos += CALLSIGN_INDENT;
 
-    // Callsign (12 chars) - bold, color based on dupe/multiplier
-    int callsignPos = pos;
-    int callsignLen = callsign.length();
-    result.formats.append({callsignPos, callsignLen, callsignColor, true});
-    pos += 12;
+    // Callsign (bold, color based on dupe/multiplier)
+    result.formats.append({pos, static_cast<int>(callsign.length()), callsignColor, true});
+    pos += CALLSIGN_FIELD_WIDTH;
 
     // Space
     pos += 1;
 
-    // Timestamp (4 chars + Z) - light gray
-    result.formats.append({pos, 5, QColor(153, 153, 153), false});
-    pos += 5;
+    // Timestamp
+    result.formats.append({pos, TIMESTAMP_FIELD_WIDTH, m_config.timestampColor, false});
+    pos += TIMESTAMP_FIELD_WIDTH;
 
     // Space
     pos += 1;
 
-    // Comment - dark gray
-    result.formats.append({pos, static_cast<int>(comment.length()), QColor(51, 51, 51), false});
+    // Comment
+    result.formats.append({pos, static_cast<int>(comment.length()), m_config.commentColor, false});
 
     m_spotRowCount++;
 
@@ -236,47 +281,36 @@ void SpotProcessorWorker::processSpot(const QString& callsign, double frequency,
 
 QColor SpotProcessorWorker::getSpotColor(const QString& callsign, double frequency)
 {
-    if (m_contestDbId < 0 || !m_contestDb.isOpen()) {
-        return Qt::black;
+    if (m_contestDbId < 0) {
+        return m_config.defaultCallColor;
     }
 
     BandType band = frequencyToBand(static_cast<unsigned long>(frequency));
-    ModeType mode = (frequency >= 1800000 && frequency < 10000000) ? ModeType::CW : ModeType::USB;
-
     QString bandStr = bandToString(band);
-    QString modeStr = modeToString(mode);
+    QString callUpper = callsign.toUpper();
 
-    // Check dupe
-    QSqlQuery dupeQuery(m_contestDb);
-    dupeQuery.prepare(R"(
-        SELECT COUNT(*)
-        FROM qsos
-        WHERE contest_id = ?
-          AND callsign = ?
-          AND band = ?
-          AND mode = ?
-          AND deleted = 0
-    )");
-    dupeQuery.addBindValue(m_contestDbId);
-    dupeQuery.addBindValue(callsign);
-    dupeQuery.addBindValue(bandStr);
-    dupeQuery.addBindValue(modeStr);
-
-    if (dupeQuery.exec() && dupeQuery.next() && dupeQuery.value(0).toInt() > 0) {
-        QString dupeColorStr = AppSettings::instance().getClusterDupeColor();
-        return QColor(dupeColorStr);
+    // Spot lines don't carry mode. Check all common modes to avoid false non-dupes.
+    // A station worked on CW should show as dupe even when the spot doesn't specify mode.
+    QString dupeKeyCW  = callUpper + "|" + bandStr + "|CW";
+    QString dupeKeySSB = callUpper + "|" + bandStr + "|USB";
+    QString dupeKeyLSB = callUpper + "|" + bandStr + "|LSB";
+    QString dupeKeyFM  = callUpper + "|" + bandStr + "|FM";
+    if (m_dupeCache.contains(dupeKeyCW)  ||
+        m_dupeCache.contains(dupeKeySSB) ||
+        m_dupeCache.contains(dupeKeyLSB) ||
+        m_dupeCache.contains(dupeKeyFM)) {
+        return m_config.dupeColor;
     }
 
-    // Check multipliers
+    // Check multipliers via in-memory cache (no SQL)
     if (m_multDefs.isEmpty()) {
-        return Qt::black;
+        return m_config.defaultCallColor;
     }
 
-    // Build temp QSO for mult checking
+    // Build temp QSO for mult value extraction
     QSO tempQso;
     tempQso.callsign = callsign;
     tempQso.band = band;
-    tempQso.mode = mode;
     tempQso.frequency = frequency;
 
     // Populate country/zone from CountryFile
@@ -290,53 +324,22 @@ QColor SpotProcessorWorker::getSpotColor(const QString& callsign, double frequen
     }
 
     for (const MultiplierDefinition& multDef : m_multDefs) {
-        QString bandParam = (multDef.scope == MultiplierScope::PerBand)
-                            ? bandStr : QString();
+        QString multTypeStr = multiplierTypeToString(multDef.type);
 
-        // Get worked multipliers from DB
-        QSqlQuery multQuery(m_contestDb);
-        QString multTypeStr;
-        switch (multDef.type) {
-            case MultiplierType::Country: multTypeStr = "Country"; break;
-            case MultiplierType::CQZone:  multTypeStr = "CQZone"; break;
-            case MultiplierType::ITUZone: multTypeStr = "ITUZone"; break;
-            case MultiplierType::State:   multTypeStr = "State"; break;
-            case MultiplierType::Section: multTypeStr = "Section"; break;
-            case MultiplierType::Prefix:  multTypeStr = "Prefix"; break;
-            case MultiplierType::Grid:    multTypeStr = "Grid"; break;
-            case MultiplierType::County:  multTypeStr = "County"; break;
-            case MultiplierType::Custom:  multTypeStr = "Custom"; break;
-        }
+        // Look up in cache
+        QString bandKey = (multDef.scope == MultiplierScope::PerBand) ? bandStr : QString();
 
-        QString sql = "SELECT mult_value FROM multipliers WHERE contest_id = ? AND mult_type = ?";
-        QVariantList params;
-        params << m_contestDbId << multTypeStr;
-        if (!bandParam.isEmpty()) {
-            sql += " AND band = ?";
-            params << bandParam;
-        }
+        const auto& typeCache = m_multiplierCache.value(multTypeStr);
+        const auto& bandCache = typeCache.value(bandKey);
 
-        multQuery.prepare(sql);
-        for (int i = 0; i < params.size(); ++i) {
-            multQuery.addBindValue(params[i]);
-        }
-
-        QStringList workedMults;
-        if (multQuery.exec()) {
-            while (multQuery.next()) {
-                workedMults.append(multQuery.value(0).toString());
-            }
-        }
-
-        // Check if this spot is a new multiplier
+        // Check if this spot would be a new multiplier
         QString multValue = extractMultiplierValue(tempQso, multDef.type);
-        if (!multValue.isEmpty() && !workedMults.contains(multValue)) {
-            QString multColorStr = AppSettings::instance().getClusterMultiplierColor();
-            return QColor(multColorStr);
+        if (!multValue.isEmpty() && !bandCache.contains(multValue)) {
+            return m_config.multiplierColor;
         }
     }
 
-    return Qt::black;
+    return m_config.defaultCallColor;
 }
 
 QString SpotProcessorWorker::extractMultiplierValue(const QSO& qso, MultiplierType type)
@@ -355,16 +358,22 @@ QString SpotProcessorWorker::extractMultiplierValue(const QSO& qso, MultiplierTy
     }
 }
 
-double SpotProcessorWorker::parseSplitInfo(const QString& comment, double spotFrequency)
+double SpotProcessorWorker::parseSplitFrequency(const QString& comment, double spotFrequencyHz)
 {
     QString upperComment = comment.toUpper();
 
-    // QSX (absolute frequency)
-    static QRegularExpression qsxRegex(R"(QSX\s*(\d+(?:\.\d+)?))");
+    // QSX (absolute frequency in kHz)
+    static QRegularExpression qsxRegex(R"(\bQSX\s*(\d+(?:\.\d+)?))");
     QRegularExpressionMatch qsxMatch = qsxRegex.match(upperComment);
     if (qsxMatch.hasMatch()) {
-        double listenKHz = qsxMatch.captured(1).toDouble();
-        return listenKHz * 1000.0;
+        double qsxValue = qsxMatch.captured(1).toDouble();
+        // Heuristic: if value < 1000, it's kHz relative to current MHz
+        // (e.g., QSX 045 on 7 MHz -> 7045 kHz)
+        if (qsxValue < 1000) {
+            freq_t spotMHz = (static_cast<freq_t>(spotFrequencyHz) / 1000000) * 1000000;
+            return static_cast<double>(spotMHz) + (qsxValue * 1000.0);
+        }
+        return qsxValue * 1000.0;
     }
 
     // UP (relative offset, positive)
@@ -372,7 +381,7 @@ double SpotProcessorWorker::parseSplitInfo(const QString& comment, double spotFr
     QRegularExpressionMatch upMatch = upRegex.match(upperComment);
     if (upMatch.hasMatch()) {
         double offsetKHz = upMatch.captured(1).toDouble();
-        return spotFrequency + (offsetKHz * 1000.0);
+        return spotFrequencyHz + (offsetKHz * 1000.0);
     }
 
     // DOWN/DN (relative offset, negative)
@@ -380,51 +389,31 @@ double SpotProcessorWorker::parseSplitInfo(const QString& comment, double spotFr
     QRegularExpressionMatch downMatch = downRegex.match(upperComment);
     if (downMatch.hasMatch()) {
         double offsetKHz = downMatch.captured(1).toDouble();
-        return spotFrequency - (offsetKHz * 1000.0);
+        return spotFrequencyHz - (offsetKHz * 1000.0);
     }
 
     return 0;
 }
 
-freq_t SpotProcessorWorker::parseQSX(const QString& comment, freq_t spotFrequency)
+QColor SpotProcessorWorker::getBandColor(BandType band) const
 {
-    static QRegularExpression qsxRegex(R"(\bQSX\s+(\d+(?:\.\d+)?)\b)",
-                                        QRegularExpression::CaseInsensitiveOption);
-    QRegularExpressionMatch match = qsxRegex.match(comment);
-    if (!match.hasMatch()) return 0;
-
-    double qsxValue = match.captured(1).toDouble();
-    if (qsxValue < 1000) {
-        freq_t spotMHz = (spotFrequency / 1000000) * 1000000;
-        return spotMHz + static_cast<freq_t>(qsxValue * 1000);
-    } else {
-        return static_cast<freq_t>(qsxValue * 1000000);
+    switch (band) {
+        case BandType::Band160M: return m_config.band160mColor;
+        case BandType::Band80M:  return m_config.band80mColor;
+        case BandType::Band40M:  return m_config.band40mColor;
+        case BandType::Band20M:  return m_config.band20mColor;
+        case BandType::Band15M:  return m_config.band15mColor;
+        case BandType::Band10M:  return m_config.band10mColor;
+        default:                 return m_config.bandDefaultColor;
     }
-}
-
-freq_t SpotProcessorWorker::parseUP(const QString& comment, freq_t spotFrequency)
-{
-    static QRegularExpression upRegex(R"(\bUP\s+(\d+(?:\.\d+)?)\b)",
-                                       QRegularExpression::CaseInsensitiveOption);
-    QRegularExpressionMatch match = upRegex.match(comment);
-    if (!match.hasMatch()) return 0;
-
-    double offsetKHz = match.captured(1).toDouble();
-    return spotFrequency + static_cast<freq_t>(offsetKHz * 1000);
 }
 
 bool SpotProcessorWorker::checkLotwUser(const QString& callsign)
 {
-    AppSettings& settings = AppSettings::instance();
-    if (!settings.getEnableLotwLookup()) {
+    if (!m_config.lotwLookupEnabled || !m_globalDb.isOpen()) {
         return false;
     }
 
-    if (!m_globalDb.isOpen()) {
-        return false;
-    }
-
-    // Direct SQL query instead of LOTWUserRepository (which uses GlobalDatabase singleton)
     QSqlQuery query(m_globalDb);
     query.prepare("SELECT COUNT(*) FROM lotw_users WHERE callsign = ?");
     query.addBindValue(callsign.toUpper());

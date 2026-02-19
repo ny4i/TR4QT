@@ -244,37 +244,35 @@ MainWindow::MainWindow(QWidget* parent)
     // Initialize hardware control services (amplifier and rotator)
     initializeHardwareServices();
 
-    // Initialize DXLab PathFinder DDE bridge (Windows only - stub on other platforms)
-    m_pathfinder = new DXLabPathfinder(this);
-    connect(m_pathfinder, &DXLabPathfinder::callsignReceived,
+    // Initialize SpotCollector DDE service (Windows only - stub on other platforms)
+    m_spotCollectorService = new SpotCollectorService(this);
+    connect(m_spotCollectorService, &SpotCollectorService::callsignReceived,
             this, [this](const QString& callsign) {
-                LOG_DEBUG("MainWindow", QString("DXLab PathFinder callsign: %1").arg(callsign));
-                // Allow if fields are empty OR if callsign was set by DDE and user hasn't engaged
-                bool fieldsEmpty = m_callsignEntry->text().trimmed().isEmpty()
-                                   && m_exchangeEntry->text().trimmed().isEmpty();
-                if (!fieldsEmpty && !m_callsignFromDDE) {
-                    LOG_DEBUG("MainWindow", "DXLab PathFinder: ignoring, user is working a contact");
-                    return;
-                }
-                m_callsignFromDDE = true;
                 m_callsignEntry->setText(callsign);
                 m_callsignEntry->setFocus();
-                // QSY to spot frequency if found in band map
-                if (AppSettings::instance().getDXLabDDEQSY() && m_bandMapWindow && m_radioConnected) {
-                    freq_t freq = m_bandMapWindow->findFrequencyByCallsign(callsign);
-                    if (freq > 0) {
-                        LOG_DEBUG("MainWindow", QString("DXLab PathFinder: QSY to %1 Hz").arg(freq));
-                        m_radio->setFrequency(freq);
-                    }
+            });
+    connect(m_spotCollectorService, &SpotCollectorService::qsyRequested,
+            this, [this](double freq) {
+                if (m_radioConnected) {
+                    m_radio->setFrequency(static_cast<freq_t>(freq));
                 }
             });
-    connect(m_pathfinder, &DXLabPathfinder::error,
-            this, [](const QString& msg) {
-                LOG_WARN("MainWindow", QString("DXLab PathFinder: %1").arg(msg));
-            });
-    if (AppSettings::instance().getDXLabDDEEnabled()) {
-        m_pathfinder->start();
-    }
+    // Tell service when entry fields change so it knows whether to accept DDE callsigns
+    auto updateFieldState = [this]() {
+        bool empty = m_callsignEntry->text().trimmed().isEmpty()
+                     && m_exchangeEntry->text().trimmed().isEmpty();
+        m_spotCollectorService->setFieldsEmpty(empty);
+    };
+    connect(m_callsignEntry, &QLineEdit::textChanged, this, updateFieldState);
+    connect(m_exchangeEntry, &QLineEdit::textChanged, this, updateFieldState);
+    // Provide band map frequency lookup for QSY
+    m_spotCollectorService->setFrequencyLookup([this](const QString& callsign) -> double {
+        if (m_bandMapWindow) {
+            return m_bandMapWindow->findFrequencyByCallsign(callsign);
+        }
+        return 0;
+    });
+    m_spotCollectorService->loadSettings();
 
     // Initialize input handler service (keyboard handling for CW, mode switching)
     InputHandlerService::Config inputConfig;
@@ -1193,40 +1191,7 @@ void MainWindow::initializeHardwareServices() {
     // Initialize amplifier service if enabled
     // Issue #69: AmplifierController runs the device in a worker thread to prevent UI freezing
     if (settings.getAmplifierEnabled()) {
-        int modelId = settings.getAmplifierModel();
-        QString connectionType = settings.getAmplifierConnectionType();
-        QString port = settings.getAmplifierPort();
-        int baudRate = settings.getAmplifierBaudRate();
-
-        AmplifierConfig config;
-        config.hamlibModelId = modelId;
-        config.connectionType = connectionType;
-        config.port = port;
-        config.baudRate = baudRate;
-        config.pollIntervalMs = settings.getAmplifierPollInterval();
-
-        // Determine amplifier type
-        int amplifierType;
-        const int AMP_MODEL_ELECRAFT_KPA1500 = 1201;
-        if (connectionType == "direct" && modelId == AMP_MODEL_ELECRAFT_KPA1500) {
-            amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::KPA1500_DIRECT);
-        } else {
-            amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::HAMLIB);
-        }
-
-        // Create amplifier controller (manages device in worker thread)
-        m_amplifierController = new AmplifierController(this);
-
-        // Create amplifier service (business logic layer)
-        m_amplifierService = new AmplifierService(m_amplifierController, this);
-
-        // Auto-connect if enabled (async - result via connectionStatusChanged signal)
-        if (settings.getAmplifierAutoConnect()) {
-            m_amplifierService->connectToAmplifier(amplifierType, config);
-            LOG_INFO("MainWindow", "Amplifier auto-connect initiated (async)");
-        }
-
-        LOG_DEBUG("MainWindow", "Amplifier controller and service initialized (worker thread)");
+        initializeAmplifierService();
     }
 
     // Initialize rotator service if enabled
@@ -1247,8 +1212,7 @@ void MainWindow::initializeHardwareServices() {
 
         // Determine rotator type
         int rotatorType;
-        const int ROT_MODEL_PSTROTATOR = 9999;
-        if (connectionType == "direct" && modelId == ROT_MODEL_PSTROTATOR) {
+        if (connectionType == "direct" && modelId == HAMLIB_MODEL_PSTROTATOR) {
             rotatorType = static_cast<int>(RotatorFactory::RotatorType::PSTROTATOR);
             config.rotatorType = 0;  // PSTRotator
         } else {
@@ -1274,6 +1238,39 @@ void MainWindow::initializeHardwareServices() {
     // --- CW Keyer ---
     // KeyerController + IambicKeyer are owned by CWService (created earlier)
     LOG_DEBUG("MainWindow", "Keyer controller and iambic keyer initialized (via CWService)");
+}
+
+void MainWindow::initializeAmplifierService() {
+    AppSettings& settings = AppSettings::instance();
+
+    AmplifierConfig config;
+    config.hamlibModelId = settings.getAmplifierModel();
+    config.connectionType = settings.getAmplifierConnectionType();
+    config.port = settings.getAmplifierPort();
+    config.baudRate = settings.getAmplifierBaudRate();
+    config.pollIntervalMs = settings.getAmplifierPollInterval();
+
+    // Determine amplifier type
+    int amplifierType;
+    if (config.connectionType == "direct" && config.hamlibModelId == HAMLIB_MODEL_ELECRAFT_KPA1500) {
+        amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::KPA1500_DIRECT);
+    } else {
+        amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::HAMLIB);
+    }
+
+    // Create amplifier controller (manages device in worker thread)
+    m_amplifierController = new AmplifierController(this);
+
+    // Create amplifier service (business logic layer)
+    m_amplifierService = new AmplifierService(m_amplifierController, this);
+
+    // Auto-connect if enabled (async - result via connectionStatusChanged signal)
+    if (settings.getAmplifierAutoConnect()) {
+        m_amplifierService->connectToAmplifier(amplifierType, config);
+        LOG_INFO("MainWindow", "Amplifier auto-connect initiated (async)");
+    }
+
+    LOG_DEBUG("MainWindow", "Amplifier controller and service initialized (worker thread)");
 }
 
 void MainWindow::loadSettings() {
@@ -1470,13 +1467,11 @@ void MainWindow::saveSettings() {
     if (m_radioControlWindow) {
         geometry.radioControlGeometry = m_radioControlWindow->saveGeometry();
     }
-    // Use tracked visibility (Qt's isVisible() can return false during SIGTERM shutdown)
-    geometry.radioControlVisible = m_radioControlWindowVisible;
+    geometry.radioControlVisible = m_radioControlWindow ? m_radioControlWindow->isVisible() : false;
     if (m_radio2ControlWindow) {
         geometry.radio2ControlGeometry = m_radio2ControlWindow->saveGeometry();
     }
-    // Use tracked visibility (Qt's isVisible() can return false during SIGTERM shutdown)
-    geometry.radio2ControlVisible = m_radio2ControlWindowVisible;
+    geometry.radio2ControlVisible = m_radio2ControlWindow ? m_radio2ControlWindow->isVisible() : false;
     if (m_multiplierWindow) {
         geometry.multipliersGeometry = m_multiplierWindow->saveGeometry();
         geometry.multipliersVisible = m_multiplierWindow->isVisible();
@@ -1485,33 +1480,34 @@ void MainWindow::saveSettings() {
         geometry.statisticsGeometry = m_statisticsWindow->saveGeometry();
         geometry.statisticsVisible = m_statisticsWindow->isVisible();
     }
+    // Map/dialog visibility: use isVisible() directly since saveSettings() is called
+    // from closeEvent() where the UI is still valid. The tracked *Visible flags only
+    // update on QEvent::Close which hasn't fired for child windows during app quit,
+    // causing windows to reappear on next startup.
     if (m_sectionsMapViewer) {
-        geometry.sectionsMapVisible = m_sectionsMapViewerVisible;
+        geometry.sectionsMapVisible = m_sectionsMapViewer->isVisible();
     }
     if (m_statesMapViewer) {
-        geometry.statesMapVisible = m_statesMapViewerVisible;
+        geometry.statesMapVisible = m_statesMapViewer->isVisible();
     }
     if (m_worldMapViewer) {
-        geometry.worldMapVisible = m_worldMapViewerVisible;
+        geometry.worldMapVisible = m_worldMapViewer->isVisible();
     }
     if (m_graylineMapDialog) {
         geometry.graylineMapGeometry = m_graylineMapDialog->saveGeometry();
-        geometry.graylineMapVisible = m_graylineMapDialogVisible;
+        geometry.graylineMapVisible = m_graylineMapDialog->isVisible();
     }
     if (m_amplifierControlWindow) {
         geometry.amplifierControlGeometry = m_amplifierControlWindow->saveGeometry();
     }
-    // Use tracked visibility (Qt's isVisible() can return false during SIGTERM shutdown)
-    geometry.amplifierControlVisible = m_amplifierControlWindowVisible;
-    LOG_DEBUG("MainWindow", QString("Amplifier window tracked visibility: %1").arg(m_amplifierControlWindowVisible));
+    geometry.amplifierControlVisible = m_amplifierControlWindow ? m_amplifierControlWindow->isVisible() : false;
 
 #ifdef PANADAPTER_ENABLED
     // Panadapter window
     if (m_panadapterWindow) {
         geometry.panadapterGeometry = m_panadapterWindow->saveGeometry();
     }
-    geometry.panadapterVisible = m_panadapterWindowVisible;
-    LOG_DEBUG("MainWindow", QString("Panadapter window tracked visibility: %1").arg(m_panadapterWindowVisible));
+    geometry.panadapterVisible = m_panadapterWindow ? m_panadapterWindow->isVisible() : false;
 #endif
 
     // Debug logging for window visibility
@@ -1705,21 +1701,6 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
             if (m_radio && m_radioConnected) {
                 m_radio->setDetailedRigInfoEnabled(false);
             }
-        }
-    }
-
-    // Track map/grayline window close events for reliable visibility save
-    // (isVisible() is unreliable during SIGTERM shutdown)
-    // Note: Only Close, not Hide — Hide fires on minimize/focus-loss which is too broad
-    if (event->type() == QEvent::Close) {
-        if (obj == m_sectionsMapViewer) {
-            m_sectionsMapViewerVisible = false;
-        } else if (obj == m_statesMapViewer) {
-            m_statesMapViewerVisible = false;
-        } else if (obj == m_worldMapViewer) {
-            m_worldMapViewerVisible = false;
-        } else if (obj == m_graylineMapDialog) {
-            m_graylineMapDialogVisible = false;
         }
     }
 
@@ -2029,36 +2010,11 @@ void MainWindow::onPreferences() {
 
         // Initialize amplifier service if enabled but not yet created
         if (amplifierEnabled && !m_amplifierService) {
-            LOG_INFO("MainWindow", "Amplifier enabled in preferences - initializing service");
-            int modelId = settings.getAmplifierModel();
-            QString connectionType = settings.getAmplifierConnectionType();
-            QString port = settings.getAmplifierPort();
-            int baudRate = settings.getAmplifierBaudRate();
-
-            AmplifierConfig config;
-            config.hamlibModelId = modelId;
-            config.connectionType = connectionType;
-            config.port = port;
-            config.baudRate = baudRate;
-            config.pollIntervalMs = settings.getAmplifierPollInterval();
-
-            // Determine amplifier type
-            int amplifierType;
-            const int AMP_MODEL_ELECRAFT_KPA1500 = 1201;
-            if (connectionType == "direct" && modelId == AMP_MODEL_ELECRAFT_KPA1500) {
-                amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::KPA1500_DIRECT);
-            } else {
-                amplifierType = static_cast<int>(AmplifierFactory::AmplifierType::HAMLIB);
-            }
-
-            // Create amplifier controller (manages device in worker thread)
-            m_amplifierController = new AmplifierController(this);
-
-            // Create amplifier service (business logic layer)
-            m_amplifierService = new AmplifierService(m_amplifierController, this);
-
-            LOG_DEBUG("MainWindow", "Amplifier controller and service initialized from preferences");
+            initializeAmplifierService();
         }
+
+        // Reload SpotCollector DDE settings (start/stop DDE bridge as needed)
+        m_spotCollectorService->loadSettings();
 
         // TODO: Reload contest settings if changed
     }
@@ -2489,17 +2445,19 @@ void MainWindow::updateUIAfterQSOLogged(const QSO& qso, const QSOLoggingService:
 
     // Add to table model
     m_qsoTableModel->addQSO(qso);
-    updateScoreDisplay();
+
+    // Fetch multiplier definitions once for both multiplier window and spot processor
+    QList<MultiplierDefinition> multDefs;
+    if (m_activeContest) {
+        multDefs = m_activeContest->getMultiplierTypes();
+    }
 
     // Update multiplier window
-    if (m_multiplierWindow && m_activeContest) {
-        QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
-        if (!multDefs.isEmpty()) {
-            MultiplierType primaryMultType = multDefs.first().type;
-            QString multValue = m_activeContest->getMultiplierValue(qso, primaryMultType, QStringList());
-            if (!multValue.isEmpty()) {
-                m_multiplierWindow->setMultiplierWorked(multValue, qso.band);
-            }
+    if (m_multiplierWindow && !multDefs.isEmpty()) {
+        MultiplierType primaryMultType = multDefs.first().type;
+        QString multValue = m_activeContest->getMultiplierValue(qso, primaryMultType, QStringList());
+        if (!multValue.isEmpty()) {
+            m_multiplierWindow->setMultiplierWorked(multValue, qso.band);
         }
     }
 
@@ -2525,6 +2483,31 @@ void MainWindow::updateUIAfterQSOLogged(const QSO& qso, const QSOLoggingService:
     else if (result.persistenceResult.status == QSOPersistenceService::SaveResult::NeedsUserDecision) {
         DialogHelper::warning(this, "QSO Save Issue",
             QString("QSO save needs attention:\n%1").arg(result.persistenceResult.errorMessage));
+    }
+
+    // Update spot processor's in-memory dupe/multiplier caches
+    if (m_dxClusterWindow && m_dxClusterWindow->spotProcessor()) {
+        SpotProcessorWorker* worker = m_dxClusterWindow->spotProcessor();
+        QString callsign = qso.callsign;
+        QString band = bandToString(qso.band);
+        QString mode = modeToString(qso.mode);
+        QMetaObject::invokeMethod(worker, [worker, callsign, band, mode]() {
+            worker->addWorkedCallsign(callsign, band, mode);
+        }, Qt::QueuedConnection);
+
+        // If this QSO has multiplier value, update that cache too
+        if (!multDefs.isEmpty()) {
+            for (const MultiplierDefinition& multDef : multDefs) {
+                QString multValue = m_activeContest->getMultiplierValue(qso, multDef.type, QStringList());
+                if (!multValue.isEmpty()) {
+                    QString multType = multiplierTypeToString(multDef.type);
+                    QString bandKey = (multDef.scope == MultiplierScope::PerBand) ? band : QString();
+                    QMetaObject::invokeMethod(worker, [worker, multType, multValue, bandKey]() {
+                        worker->addWorkedMultiplier(multType, multValue, bandKey);
+                    }, Qt::QueuedConnection);
+                }
+            }
+        }
     }
 
     // Update last QSO time
@@ -2725,7 +2708,7 @@ void MainWindow::onExchangeTextChanged(const QString& text) {
 }
 
 void MainWindow::onCallsignEnterPressed() {
-    m_callsignFromDDE = false;  // User is engaging with the contact
+    m_spotCollectorService->resetUserEngagement();  // User is engaging with the contact
     QString callsign = m_callsignEntry->text().trimmed().toUpper();
 
     if (callsign.isEmpty()) {
@@ -2810,7 +2793,7 @@ void MainWindow::onClearEntry() {
     m_exchangeEntry->clear();
     m_callsignEntry->setFocus();
     m_initialExchangePopulated = false;
-    m_callsignFromDDE = false;
+    m_spotCollectorService->resetUserEngagement();
 
     // Reset status
     setStatusMessage("Ready");
@@ -4018,9 +4001,6 @@ void MainWindow::onShowDXCluster() {
         m_dxClusterWindow->setWindowTitle("DX Cluster");
         m_dxClusterWindow->setAttribute(Qt::WA_DeleteOnClose, false);
 
-        // Pass country file for DXCC/zone lookup
-        m_dxClusterWindow->setCountryFile(&m_countryFile);
-
         // Pass active contest if one is loaded
         if (m_hasActiveContest && m_activeContest) {
             m_dxClusterWindow->setActiveContest(m_activeContest.get(), m_currentContestDbId);
@@ -4197,7 +4177,6 @@ void MainWindow::onShowRadioControl() {
             if (m_radio && m_radioConnected) {
                 m_radio->setDetailedRigInfoEnabled(false);
             }
-            m_radioControlWindowVisible = false;  // Track closure
         });
 
         // Install event filter to catch show/hide events
@@ -4219,7 +4198,6 @@ void MainWindow::onShowRadioControl() {
     m_radioControlWindow->show();
     m_radioControlWindow->raise();
     m_radioControlWindow->activateWindow();
-    m_radioControlWindowVisible = true;  // Track visibility for reliable shutdown save
     updateWindowMenuCheckmarks();
 
     // Enable detailed rig info when window is shown
@@ -4305,7 +4283,7 @@ void MainWindow::onShowRadio2Control() {
 
         // Connect close/hide event
         connect(m_radio2ControlWindow, &QWidget::destroyed, this, [this]() {
-            m_radio2ControlWindowVisible = false;
+            m_radio2ControlWindow = nullptr;
         });
 
         // Install event filter to catch show/hide events
@@ -4320,7 +4298,6 @@ void MainWindow::onShowRadio2Control() {
     m_radio2ControlWindow->show();
     m_radio2ControlWindow->raise();
     m_radio2ControlWindow->activateWindow();
-    m_radio2ControlWindowVisible = true;
     updateWindowMenuCheckmarks();
 }
 
@@ -4394,12 +4371,10 @@ void MainWindow::onShowSectionsMap() {
         m_sectionsMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
 
         // Track visibility for reliable shutdown save (isVisible() unreliable during SIGTERM)
-        m_sectionsMapViewer->installEventFilter(this);
     }
     m_sectionsMapViewer->show();
     m_sectionsMapViewer->raise();
     m_sectionsMapViewer->activateWindow();
-    m_sectionsMapViewerVisible = true;
     updateWindowMenuCheckmarks();
 }
 
@@ -4411,13 +4386,10 @@ void MainWindow::onShowStatesMap() {
         m_statesMapViewer->setWindowFlags(Qt::Window);
         m_statesMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
 
-        // Track visibility for reliable shutdown save (isVisible() unreliable during SIGTERM)
-        m_statesMapViewer->installEventFilter(this);
     }
     m_statesMapViewer->show();
     m_statesMapViewer->raise();
     m_statesMapViewer->activateWindow();
-    m_statesMapViewerVisible = true;
     updateWindowMenuCheckmarks();
 }
 
@@ -4430,12 +4402,10 @@ void MainWindow::onShowWorldMap() {
         m_worldMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
 
         // Track visibility for reliable shutdown save (isVisible() unreliable during SIGTERM)
-        m_worldMapViewer->installEventFilter(this);
     }
     m_worldMapViewer->show();
     m_worldMapViewer->raise();
     m_worldMapViewer->activateWindow();
-    m_worldMapViewerVisible = true;
     updateWindowMenuCheckmarks();
 }
 
@@ -4446,13 +4416,10 @@ void MainWindow::onShowGraylineMap() {
         m_graylineMapDialog->setWindowFlags(Qt::Window);
         m_graylineMapDialog->setAttribute(Qt::WA_DeleteOnClose, false);
 
-        // Track visibility for reliable shutdown save (isVisible() unreliable during SIGTERM)
-        m_graylineMapDialog->installEventFilter(this);
     }
     m_graylineMapDialog->show();
     m_graylineMapDialog->raise();
     m_graylineMapDialog->activateWindow();
-    m_graylineMapDialogVisible = true;
     updateWindowMenuCheckmarks();
 }
 
@@ -4482,7 +4449,6 @@ void MainWindow::onShowAmplifierControl() {
             // Geometry and visibility saved in MainWindow::saveSettings()
             // DON'T save visibility here - it causes race condition on shutdown
             m_amplifierControlWindow = nullptr;  // Clear pointer
-            m_amplifierControlWindowVisible = false;  // Track closure
             // DON'T call updateWindowMenuCheckmarks() here - menu might be destroyed during shutdown
         });
     }
@@ -4490,8 +4456,6 @@ void MainWindow::onShowAmplifierControl() {
     m_amplifierControlWindow->show();
     m_amplifierControlWindow->raise();
     m_amplifierControlWindow->activateWindow();
-    m_amplifierControlWindowVisible = true;  // Track visibility for reliable shutdown save
-    // Visibility will be saved in MainWindow::saveSettings() on exit
     updateWindowMenuCheckmarks();
 }
 
@@ -4520,12 +4484,10 @@ void MainWindow::onShowPanadapter() {
         // Connect destroyed signal to clear pointer
         connect(m_panadapterWindow, &QWidget::destroyed, this, [this]() {
             m_panadapterWindow = nullptr;
-            m_panadapterWindowVisible = false;
         });
 
-        // Connect windowClosed signal to track when user manually closes window
+        // Connect windowClosed signal to update menu checkmarks
         connect(m_panadapterWindow, &PanadapterWindow::windowClosed, this, [this]() {
-            m_panadapterWindowVisible = false;
             updateWindowMenuCheckmarks();
         });
 
@@ -4536,7 +4498,6 @@ void MainWindow::onShowPanadapter() {
     m_panadapterWindow->show();
     m_panadapterWindow->raise();
     m_panadapterWindow->activateWindow();
-    m_panadapterWindowVisible = true;
     updateWindowMenuCheckmarks();
 }
 #else

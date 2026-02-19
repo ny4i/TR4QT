@@ -41,13 +41,26 @@
 
 namespace TR4QT {
 
+// Default DX cluster servers (shown when no downloaded list or saved servers exist)
+static const QStringList DEFAULT_CLUSTER_SERVERS = {
+    "DXC.NC7J.COM:7373",
+    "ve7cc.net:23",
+    "dxc.ww2dx.com:7373"
+};
+
+static constexpr int DEFAULT_TELNET_PORT = 23;
+
+// Alternating row contrast: subtle visual separation without being distracting
+static constexpr int ALTERNATING_ROW_LIGHTNESS_SHIFT = 7;
+static constexpr int LIGHTNESS_MIDPOINT = 128;  // 0=black, 255=white
+
 DXClusterWindow::DXClusterWindow(QWidget* parent)
     : QWidget(parent)
     , m_telnetThread(new TelnetThread(this))
     , m_telnetClient(nullptr)
     , m_isFrozen(false)
     , m_autoReconnect(false)
-    , m_reconnectManager(new ReconnectionManager(10000, MAX_RECONNECT_ATTEMPTS, this))
+    , m_reconnectManager(new ReconnectionManager(RECONNECT_INTERVAL_MS, MAX_RECONNECT_ATTEMPTS, this))
     , m_spotRowCount(0)
     , m_spotWorkerThread(new QThread(this))
     , m_spotWorker(new SpotProcessorWorker())
@@ -59,6 +72,7 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
     m_spotWorker->moveToThread(m_spotWorkerThread);
 
     // Initialize worker's database connections when thread starts
+    // Capture all paths and config by value on the main thread to avoid cross-thread access
     connect(m_spotWorkerThread, &QThread::started, this, [this]() {
         QString contestDbPath;
         QString globalDbPath;
@@ -70,8 +84,24 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
             globalDbPath = GlobalDatabase::instance().connection().databaseName();
         }
 
-        QMetaObject::invokeMethod(m_spotWorker, [this, contestDbPath, globalDbPath]() {
-            m_spotWorker->initDatabase(contestDbPath, globalDbPath);
+        QString countryFilePath = AppSettings::instance().getCountryFilePath();
+        SpotProcessorConfig config = buildConfig();
+
+        // Post to worker thread — after initDatabase completes, signal back
+        // to the main thread so we know the worker is ready for contest context.
+        // Using QPointer to guard against DXClusterWindow being destroyed before
+        // the callback fires.
+        SpotProcessorWorker* worker = m_spotWorker;
+        QPointer<DXClusterWindow> safeThis = this;
+        QMetaObject::invokeMethod(worker, [worker, safeThis, contestDbPath, globalDbPath, countryFilePath, config]() {
+            worker->initDatabase(contestDbPath, globalDbPath, countryFilePath);
+            worker->setConfig(config);
+
+            // Signal back to main thread that worker DB is ready
+            QMetaObject::invokeMethod(safeThis, [safeThis]() {
+                if (!safeThis) return;
+                safeThis->onWorkerInitialized();
+            }, Qt::QueuedConnection);
         }, Qt::QueuedConnection);
     });
 
@@ -85,31 +115,12 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
 
     m_spotWorkerThread->start();
 
-    // Start telnet thread
+    // Start telnet thread - use clientReady signal instead of msleep race
+    connect(m_telnetThread, &TelnetThread::clientReady,
+            this, &DXClusterWindow::onTelnetClientReady,
+            Qt::QueuedConnection);
+
     m_telnetThread->start();
-
-    // Wait for thread to create client
-    QThread::msleep(100);
-    m_telnetClient = m_telnetThread->client();
-
-    // Connect signals from telnet client (cross-thread)
-    if (m_telnetClient) {
-        connect(m_telnetClient, &TelnetClient::connected,
-                this, &DXClusterWindow::onTelnetConnected,
-                Qt::QueuedConnection);
-        connect(m_telnetClient, &TelnetClient::disconnected,
-                this, &DXClusterWindow::onTelnetDisconnected,
-                Qt::QueuedConnection);
-        connect(m_telnetClient, &TelnetClient::connectionError,
-                this, &DXClusterWindow::onTelnetError,
-                Qt::QueuedConnection);
-        connect(m_telnetClient, &TelnetClient::dataReceived,
-                this, &DXClusterWindow::onTelnetDataReceived,
-                Qt::QueuedConnection);
-        connect(m_telnetClient, &TelnetClient::spotReceived,
-                this, &DXClusterWindow::onTelnetSpotReceived,
-                Qt::QueuedConnection);
-    }
 
     // Setup reconnection manager (10 seconds, max 10 attempts)
     connect(m_reconnectManager, &ReconnectionManager::retryRequested, this, [this](int attempt) {
@@ -142,7 +153,7 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
         if (!server.isEmpty()) {
             LOG_DEBUG("DXClusterWindow", QString("Auto-connect enabled, connecting to: %1").arg(server));
             // Use QTimer to delay connection slightly to ensure UI is fully initialized
-            QTimer::singleShot(500, this, [this, server]() {
+            QTimer::singleShot(AUTO_CONNECT_DELAY_MS, this, [this, server]() {
                 m_serverCombo->setCurrentText(server);
                 onConnectClicked();
             });
@@ -166,20 +177,116 @@ DXClusterWindow::~DXClusterWindow() {
     }
 }
 
+void DXClusterWindow::onTelnetClientReady(TelnetClient* client) {
+    m_telnetClient = client;
+
+    if (!m_telnetClient) {
+        LOG_WARN("DXClusterWindow", "TelnetThread clientReady signal received but client is null");
+        return;
+    }
+
+    // Now safe to connect signals (client is guaranteed to exist)
+    connect(m_telnetClient, &TelnetClient::connected,
+            this, &DXClusterWindow::onTelnetConnected,
+            Qt::QueuedConnection);
+    connect(m_telnetClient, &TelnetClient::disconnected,
+            this, &DXClusterWindow::onTelnetDisconnected,
+            Qt::QueuedConnection);
+    connect(m_telnetClient, &TelnetClient::connectionError,
+            this, &DXClusterWindow::onTelnetError,
+            Qt::QueuedConnection);
+    connect(m_telnetClient, &TelnetClient::dataReceived,
+            this, &DXClusterWindow::onTelnetDataReceived,
+            Qt::QueuedConnection);
+    connect(m_telnetClient, &TelnetClient::spotReceived,
+            this, &DXClusterWindow::onTelnetSpotReceived,
+            Qt::QueuedConnection);
+
+    LOG_DEBUG("DXClusterWindow", "Telnet client ready, signals connected");
+}
+
 void DXClusterWindow::setActiveContest(ContestBase* contest, int contestDbId) {
     if (m_spotWorker) {
         QList<MultiplierDefinition> multDefs;
         if (contest) {
             multDefs = contest->getMultiplierTypes();
         }
-        QMetaObject::invokeMethod(m_spotWorker, [this, contestDbId, multDefs]() {
-            m_spotWorker->setContestContext(contestDbId, multDefs);
+
+        // If worker hasn't finished init yet, defer until it does
+        if (!m_workerInitialized) {
+            m_pendingContestContext = ContestContext{contestDbId, multDefs};
+            LOG_DEBUG("DXClusterWindow", "Contest context deferred until worker init completes");
+            return;
+        }
+
+        // Capture worker pointer by value, not 'this'
+        SpotProcessorWorker* worker = m_spotWorker;
+        QMetaObject::invokeMethod(worker, [worker, contestDbId, multDefs]() {
+            worker->setContestContext(contestDbId, multDefs);
         }, Qt::QueuedConnection);
     }
 }
 
-void DXClusterWindow::setCountryFile(CountryFile* /*countryFile*/) {
-    // Worker has its own CountryFile instance, no need to pass pointer
+void DXClusterWindow::onWorkerInitialized() {
+    m_workerInitialized = true;
+    LOG_DEBUG("DXClusterWindow", "Worker initialized, DB connections ready");
+
+    // Apply any contest context that arrived before init completed
+    if (m_pendingContestContext) {
+        auto ctx = *m_pendingContestContext;
+        m_pendingContestContext.reset();
+        SpotProcessorWorker* worker = m_spotWorker;
+        QMetaObject::invokeMethod(worker, [worker, ctx]() {
+            worker->setContestContext(ctx.contestDbId, ctx.multDefs);
+        }, Qt::QueuedConnection);
+    }
+}
+
+void DXClusterWindow::updateSpotProcessorConfig() {
+    if (m_spotWorker) {
+        SpotProcessorConfig config = buildConfig();
+
+        // Cache row colors locally for appendRichText
+        m_evenRowBackground = config.evenRowBackground;
+        m_oddRowBackground = config.oddRowBackground;
+
+        // Pass config to worker via queued connection
+        SpotProcessorWorker* worker = m_spotWorker;
+        QMetaObject::invokeMethod(worker, [worker, config]() {
+            worker->setConfig(config);
+        }, Qt::QueuedConnection);
+    }
+}
+
+SpotProcessorConfig DXClusterWindow::buildConfig() {
+    SpotProcessorConfig config;
+    AppSettings& settings = AppSettings::instance();
+    ThemeManager& theme = ThemeManager::instance();
+
+    // Dupe/multiplier colors from user settings
+    config.dupeColor = QColor(settings.getClusterDupeColor());
+    config.multiplierColor = QColor(settings.getClusterMultiplierColor());
+    config.lotwLookupEnabled = settings.getEnableLotwLookup();
+
+    // Use ThemeManager colors where applicable
+    config.defaultCallColor = theme.color(ColorRole::PrimaryText);
+    config.spotterColor = theme.color(ColorRole::SecondaryText);
+    config.commentColor = theme.color(ColorRole::SecondaryText);
+
+    // Derive row backgrounds from theme
+    QColor windowBg = theme.color(ColorRole::TextDisplayBackground);
+    config.evenRowBackground = windowBg;
+    // Slightly darker/lighter for alternating rows
+    int lightnessShift = (windowBg.lightness() > LIGHTNESS_MIDPOINT)
+        ? -ALTERNATING_ROW_LIGHTNESS_SHIFT
+        :  ALTERNATING_ROW_LIGHTNESS_SHIFT;
+    config.oddRowBackground = QColor(
+        qBound(0, windowBg.red() + lightnessShift, 255),
+        qBound(0, windowBg.green() + lightnessShift, 255),
+        qBound(0, windowBg.blue() + lightnessShift, 255)
+    );
+
+    return config;
 }
 
 
@@ -213,9 +320,7 @@ void DXClusterWindow::setupUI() {
     m_serverCombo = new QComboBox(this);
     m_serverCombo->setEditable(true);
     m_serverCombo->setMinimumWidth(300);
-    m_serverCombo->addItem("DXC.NC7J.COM:7373");
-    m_serverCombo->addItem("ve7cc.net:23");
-    m_serverCombo->addItem("dxc.ww2dx.com:7373");
+    m_serverCombo->addItems(DEFAULT_CLUSTER_SERVERS);
 
     m_sendButton = new QPushButton("Send", this);
 
@@ -346,6 +451,8 @@ void DXClusterWindow::saveSettings() {
 
 void DXClusterWindow::onConnectClicked() {
     if (!m_telnetClient) {
+        LOG_WARN("DXClusterWindow", "Cannot connect: telnet client not yet ready");
+        appendText("Waiting for telnet client to initialize...", Qt::darkYellow);
         return;
     }
 
@@ -375,7 +482,7 @@ void DXClusterWindow::onConnectClicked() {
     // Parse server:port (default to port 23 if not specified)
     QStringList parts = connectionString.split(':');
     QString host;
-    int port = 23;  // Default telnet port
+    int port = DEFAULT_TELNET_PORT;
 
     if (parts.size() == 1) {
         // No port specified, use default
@@ -393,7 +500,8 @@ void DXClusterWindow::onConnectClicked() {
         }
     } else {
         DialogHelper::warning(this, "DX Cluster",
-                           "Invalid format. Use: hostname:port or just hostname (e.g., DXC.NC7J.COM:7373 or DXC.NC7J.COM)");
+                           QString("Invalid format. Use: hostname:port or just hostname (e.g., %1)")
+                           .arg(DEFAULT_CLUSTER_SERVERS.first()));
         return;
     }
 
@@ -450,6 +558,7 @@ void DXClusterWindow::onFreezeClicked() {
 void DXClusterWindow::onClearClicked() {
     m_textDisplay->clear();
     m_spotRowCount = 0;  // Reset alternating row counter
+    m_splitSpots.clear();  // Clear split spot cache
 }
 
 void DXClusterWindow::onCommandsClicked() {
@@ -492,6 +601,7 @@ void DXClusterWindow::onSendClicked() {
 }
 
 void DXClusterWindow::onTelnetConnected() {
+    m_isConnected = true;
     updateConnectionStatus(true);
     appendText("Connected!", Qt::darkGreen);
 
@@ -500,13 +610,15 @@ void DXClusterWindow::onTelnetConnected() {
 }
 
 void DXClusterWindow::onTelnetDisconnected() {
+    m_isConnected = false;
     updateConnectionStatus(false);
     appendText("Disconnected.", Qt::darkRed);
 
     // Start auto-reconnect timer if enabled
     if (m_autoReconnect) {
-        LOG_DEBUG("DXClusterWindow", "Disconnected - will attempt reconnect in 10 seconds");
-        appendText("Will attempt to reconnect in 10 seconds...", Qt::darkYellow);
+        int reconnectSec = RECONNECT_INTERVAL_MS / 1000;
+        LOG_DEBUG("DXClusterWindow", QString("Disconnected - will attempt reconnect in %1 seconds").arg(reconnectSec));
+        appendText(QString("Will attempt to reconnect in %1 seconds...").arg(reconnectSec), Qt::darkYellow);
         m_reconnectManager->start();
     }
 }
@@ -562,6 +674,11 @@ void DXClusterWindow::onSpotProcessed(const ProcessedSpot& result) {
             info.listenFrequency = result.listenFrequency;
             info.callsign = result.callsign;
             m_splitSpots[result.displayText.trimmed()] = info;
+
+            // Prune if cache is getting too large
+            if (m_splitSpots.size() > MAX_SPLIT_SPOTS_CACHED) {
+                pruneSplitSpots();
+            }
         }
 
         appendRichText(result.displayText, result.formats, result.isSplit);
@@ -574,6 +691,17 @@ void DXClusterWindow::onSpotProcessed(const ProcessedSpot& result) {
 
     // Always forward processed spot to band map
     emit spotProcessed(result);
+}
+
+void DXClusterWindow::pruneSplitSpots() {
+    // Remove first half of entries by key order to stay under MAX_SPLIT_SPOTS_CACHED
+    int toRemove = m_splitSpots.size() / 2;
+    auto it = m_splitSpots.begin();
+    for (int i = 0; i < toRemove && it != m_splitSpots.end(); ++i) {
+        it = m_splitSpots.erase(it);
+    }
+    LOG_DEBUG("DXClusterWindow", QString("Pruned split spots cache, %1 entries remaining")
+        .arg(m_splitSpots.size()));
 }
 
 void DXClusterWindow::updateConnectionStatus(bool connected) {
@@ -609,10 +737,9 @@ void DXClusterWindow::appendRichText(const QString& text, const QList<SpotFormat
     QTextCursor cursor = m_textDisplay->textCursor();
     cursor.movePosition(QTextCursor::End);
 
-    // Alternating row backgrounds (very subtle)
-    // Note: QTextBlockFormat applies to entire line including leading/trailing whitespace
+    // Alternating row backgrounds (theme-aware)
     bool isEvenRow = (m_spotRowCount % 2 == 0);
-    QColor bgColor = isEvenRow ? QColor(255, 255, 255) : QColor(248, 248, 248);
+    QColor bgColor = isEvenRow ? m_evenRowBackground : m_oddRowBackground;
 
     QTextBlockFormat blockFormat;
     blockFormat.setBackground(bgColor);
@@ -643,102 +770,87 @@ void DXClusterWindow::appendRichText(const QString& text, const QList<SpotFormat
     m_spotRowCount++;
 }
 
+DXClusterWindow::ParsedSpotLine DXClusterWindow::parseSpotLine(const QString& line) {
+    ParsedSpotLine result;
+    if (line.isEmpty()) return result;
+
+    result.isSplit = line.startsWith("[SPLIT]");
+    QString spotLine = result.isSplit ? line.mid(8).trimmed() : line;
+
+    static const QRegularExpression freqRegex(R"(\s+(\d+\.\d+)\s+)");
+    QRegularExpressionMatch freqMatch = freqRegex.match(spotLine);
+
+    if (freqMatch.hasMatch()) {
+        result.valid = true;
+        result.freqKHz = freqMatch.captured(1).toDouble();
+
+        int freqEnd = freqMatch.capturedEnd();
+        QString remainder = spotLine.mid(freqEnd).trimmed();
+        QStringList parts = remainder.split(QRegularExpression("\\s+"));
+        result.callsign = parts.isEmpty() ? QString() : parts[0];
+    }
+
+    return result;
+}
+
 bool DXClusterWindow::eventFilter(QObject* obj, QEvent* event) {
     if (obj == m_textDisplay->viewport()) {
         if (event->type() == QEvent::MouseButtonPress) {
             // Single click - show spot info in status label
             QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
             if (mouseEvent->button() == Qt::LeftButton) {
-                // Get the line under cursor
                 QTextCursor cursor = m_textDisplay->cursorForPosition(mouseEvent->pos());
                 cursor.select(QTextCursor::LineUnderCursor);
                 QString line = cursor.selectedText().trimmed();
 
-                if (!line.isEmpty()) {
-                    // Parse formatted spot line:
-                    // Format: [SPLIT] Spotter(12) Freq(10) Callsign(12) Time(5) Comment
+                ParsedSpotLine parsed = parseSpotLine(line);
+                if (parsed.valid) {
+                    QString freqStr = QString::number(parsed.freqKHz, 'f', 1);
+                    QString statusMsg;
 
-                    // Check if this is a split spot
-                    bool isSplit = line.startsWith("[SPLIT]");
-                    QString spotLine = isSplit ? line.mid(8).trimmed() : line;
-
-                    // Extract frequency (after spotter, before callsign)
-                    QRegularExpression freqRegex(R"(\s+(\d+\.\d+)\s+)");
-                    QRegularExpressionMatch freqMatch = freqRegex.match(spotLine);
-
-                    if (freqMatch.hasMatch()) {
-                        QString freqStr = freqMatch.captured(1);
-                        double freqKHz = freqStr.toDouble();
-
-                        // Extract callsign (after frequency)
-                        int freqEnd = freqMatch.capturedEnd();
-                        QString remainder = spotLine.mid(freqEnd).trimmed();
-                        QStringList parts = remainder.split(QRegularExpression("\\s+"));
-                        QString callsign = parts.isEmpty() ? "" : parts[0];
-
-                        // Build status message
-                        QString statusMsg;
-                        if (isSplit) {
-                            // Look up split info from m_splitSpots
-                            if (m_splitSpots.contains(line)) {
-                                SplitSpotInfo info = m_splitSpots[line];
-                                double txKHz = info.spotFrequency / 1000.0;
-                                double rxKHz = info.listenFrequency / 1000.0;
-                                statusMsg = QString("SPLIT - %1 - TX: %2 kHz, RX: %3 kHz - Double-click to QSY")
-                                    .arg(callsign)
-                                    .arg(QString::number(txKHz, 'f', 1))
-                                    .arg(QString::number(rxKHz, 'f', 1));
-                            } else {
-                                statusMsg = QString("SPLIT - %1 @ %2 kHz - Double-click to QSY")
-                                    .arg(callsign)
-                                    .arg(freqStr);
-                            }
-                        } else {
-                            statusMsg = QString("%1 @ %2 kHz - Double-click to QSY")
-                                .arg(callsign)
-                                .arg(freqStr);
-                        }
-
-                        m_statusLabel->setText(statusMsg);
-                        LOG_DEBUG("DXClusterWindow", QString("Single-click: %1").arg(statusMsg));
+                    if (parsed.isSplit && m_splitSpots.contains(line)) {
+                        SplitSpotInfo info = m_splitSpots[line];
+                        double txKHz = info.spotFrequency / 1000.0;
+                        double rxKHz = info.listenFrequency / 1000.0;
+                        statusMsg = QString("SPLIT - %1 - TX: %2 kHz, RX: %3 kHz - Double-click to QSY")
+                            .arg(parsed.callsign)
+                            .arg(QString::number(txKHz, 'f', 1))
+                            .arg(QString::number(rxKHz, 'f', 1));
+                    } else if (parsed.isSplit) {
+                        statusMsg = QString("SPLIT - %1 @ %2 kHz - Double-click to QSY")
+                            .arg(parsed.callsign, freqStr);
+                    } else {
+                        statusMsg = QString("%1 @ %2 kHz - Double-click to QSY")
+                            .arg(parsed.callsign, freqStr);
                     }
+
+                    m_statusLabel->setText(statusMsg);
+                    LOG_DEBUG("DXClusterWindow", QString("Single-click: %1").arg(statusMsg));
                 }
             }
         } else if (event->type() == QEvent::MouseButtonDblClick) {
             // Double click - QSY to spot
             QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
             if (mouseEvent->button() == Qt::LeftButton) {
-                // Get the line under cursor
                 QTextCursor cursor = m_textDisplay->cursorForPosition(mouseEvent->pos());
                 cursor.select(QTextCursor::LineUnderCursor);
                 QString line = cursor.selectedText().trimmed();
 
-                if (!line.isEmpty()) {
-                    // Check if this is a split spot
-                    bool isSplit = line.startsWith("[SPLIT]");
-
-                    if (isSplit && m_splitSpots.contains(line)) {
-                        // Emit split QSY signal
-                        SplitSpotInfo info = m_splitSpots[line];
-                        LOG_DEBUG("DXClusterWindow", QString("Double-click split QSY: TX=%1 Hz, RX=%2 Hz")
-                            .arg(QString::number(info.spotFrequency, 'f', 0))
-                            .arg(QString::number(info.listenFrequency, 'f', 0)));
-                        emit splitQsyRequested(info.spotFrequency, info.listenFrequency);
-                    } else {
-                        // Parse frequency for simplex QSY
-                        QString spotLine = isSplit ? line.mid(8).trimmed() : line;
-                        QRegularExpression freqRegex(R"(\s+(\d+\.\d+)\s+)");
-                        QRegularExpressionMatch freqMatch = freqRegex.match(spotLine);
-
-                        if (freqMatch.hasMatch()) {
-                            QString freqStr = freqMatch.captured(1);
-                            double freqKHz = freqStr.toDouble();
-                            double freqHz = freqKHz * 1000.0;  // Convert kHz to Hz
-
-                            LOG_DEBUG("DXClusterWindow", QString("Double-click simplex QSY: %1 Hz")
-                                .arg(QString::number(freqHz, 'f', 0)));
-                            emit qsyRequested(freqHz);
-                        }
+                // Split spots with cached info get split QSY
+                if (line.startsWith("[SPLIT]") && m_splitSpots.contains(line)) {
+                    SplitSpotInfo info = m_splitSpots[line];
+                    LOG_DEBUG("DXClusterWindow", QString("Double-click split QSY: TX=%1 Hz, RX=%2 Hz")
+                        .arg(QString::number(info.spotFrequency, 'f', 0))
+                        .arg(QString::number(info.listenFrequency, 'f', 0)));
+                    emit splitQsyRequested(info.spotFrequency, info.listenFrequency);
+                } else {
+                    // Simplex QSY - parse frequency from line
+                    ParsedSpotLine parsed = parseSpotLine(line);
+                    if (parsed.valid) {
+                        double freqHz = parsed.freqKHz * 1000.0;
+                        LOG_DEBUG("DXClusterWindow", QString("Double-click simplex QSY: %1 Hz")
+                            .arg(QString::number(freqHz, 'f', 0)));
+                        emit qsyRequested(freqHz);
                     }
                 }
             }
@@ -756,14 +868,16 @@ void DXClusterWindow::applyTheme() {
         .arg(theme.color(ColorRole::TextDisplayBackground).name()));
 
     // Update status label (maintain current connection state)
-    bool isConnected = (m_statusLabel->text() == "CONNECTED");
-    updateConnectionStatus(isConnected);
+    updateConnectionStatus(m_isConnected);
 
     // Update freeze button if frozen
     if (m_isFrozen) {
         m_freezeButton->setStyleSheet(QString("QPushButton { background-color: %1; font-weight: bold; }")
             .arg(theme.color(ColorRole::FrozenIndicator).name()));
     }
+
+    // Push updated colors to spot processor worker
+    updateSpotProcessorConfig();
 }
 
 } // namespace TR4QT

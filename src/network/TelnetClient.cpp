@@ -240,6 +240,9 @@ void TelnetThread::run() {
     // Create client in this thread
     m_client = new TelnetClient();
 
+    // Notify owner that client is ready (cross-thread via queued connection)
+    emit clientReady(m_client);
+
     // Run event loop
     exec();
 

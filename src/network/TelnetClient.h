@@ -122,6 +122,13 @@ public:
 
     TelnetClient* client() const { return m_client; }
 
+signals:
+    /**
+     * Emitted after the client has been created in the worker thread.
+     * Connect to this instead of using msleep() after start().
+     */
+    void clientReady(TelnetClient* client);
+
 protected:
     void run() override;
 

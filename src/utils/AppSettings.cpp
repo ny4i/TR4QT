@@ -2163,7 +2163,7 @@ void AppSettings::setDXLabDDEEnabled(bool enabled) {
 }
 
 bool AppSettings::getDXLabDDEEnabled() const {
-    return m_settings.value("DXLab/DDEEnabled", true).toBool();
+    return m_settings.value("DXLab/DDEEnabled", false).toBool();
 }
 
 void AppSettings::setDXLabDDEQSY(bool enabled) {
@@ -2172,7 +2172,7 @@ void AppSettings::setDXLabDDEQSY(bool enabled) {
 }
 
 bool AppSettings::getDXLabDDEQSY() const {
-    return m_settings.value("DXLab/DDEQSY", true).toBool();
+    return m_settings.value("DXLab/DDEQSY", false).toBool();
 }
 
 // LOTW settings

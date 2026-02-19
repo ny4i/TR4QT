@@ -61,7 +61,7 @@
 #include "../services/MaintenanceService.h"
 #include "../services/InputHandlerService.h"
 #include "../services/StatusNotifier.h"
-#include "../services/DXLabPathfinder.h"
+#include "../services/SpotCollectorService.h"
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
@@ -277,6 +277,7 @@ private:
     QWidget* createBottomPanel();
     void loadStatisticsWindowData();  // Load/reload QSO data into Statistics window
     void initializeHardwareServices();
+    void initializeAmplifierService();  // Create amplifier controller/service from settings
     void loadSettings();
     void restoreChildWindows(const WindowGeometry& geometry);
     void applyFontSettings();
@@ -438,19 +439,6 @@ private:
     PanadapterWindow* m_panadapterWindow = nullptr;
 #endif
 
-    // Window visibility tracking (for reliable save during shutdown)
-    // Qt's isVisible() can return false during SIGTERM handling, so we track state ourselves
-    bool m_sectionsMapViewerVisible{false};
-    bool m_statesMapViewerVisible{false};
-    bool m_worldMapViewerVisible{false};
-    bool m_graylineMapDialogVisible{false};
-    bool m_amplifierControlWindowVisible{false};
-#ifdef PANADAPTER_ENABLED
-    bool m_panadapterWindowVisible{false};
-#endif
-    bool m_radioControlWindowVisible{false};
-    bool m_radio2ControlWindowVisible{false};
-
     // Time tracking
     QTimer* m_updateTimer;
     QDateTime m_lastQSOTime;
@@ -521,9 +509,8 @@ private:
     // Input handler service (keyboard handling for CW, mode switching)
     InputHandlerService* m_inputHandler;
 
-    // DXLab PathFinder DDE bridge (SpotCollector callsign integration)
-    DXLabPathfinder* m_pathfinder{nullptr};
-    bool m_callsignFromDDE{false};  // True when callsign was set by DDE and user hasn't engaged
+    // DXLab SpotCollector DDE integration (Windows only, stub on other platforms)
+    SpotCollectorService* m_spotCollectorService{nullptr};
 
     // Country file for lookups
     CountryFile m_countryFile;

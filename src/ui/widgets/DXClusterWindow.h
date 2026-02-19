@@ -25,6 +25,8 @@
 #include <QPushButton>
 #include <QLineEdit>
 #include <QLabel>
+#include <QPointer>
+#include <optional>
 #include "../../network/TelnetClient.h"
 #include "../../utils/ReconnectionManager.h"
 #include "../../services/SpotProcessorWorker.h"
@@ -33,7 +35,6 @@ namespace TR4QT {
 
 // Forward declarations
 class ContestBase;
-class CountryFile;
 
 /**
  * DX Cluster Window
@@ -43,6 +44,7 @@ class CountryFile;
  *
  * Features:
  * - Telnet client runs in separate thread (never blocks UI)
+ * - Spot processing runs in separate worker thread (DB queries off UI)
  * - Connect/Disconnect/Freeze/Clear/Commands controls
  * - Text display of cluster output
  * - Command input field
@@ -63,15 +65,15 @@ public:
     void setActiveContest(ContestBase* contest, int contestDbId);
 
     /**
-     * Set the country file for DXCC/zone lookup
-     * @param countryFile Pointer to CountryFile (from MainWindow)
-     */
-    void setCountryFile(CountryFile* countryFile);
-
-    /**
      * Get the spot processor worker (for MainWindow to connect signals)
      */
     SpotProcessorWorker* spotProcessor() const { return m_spotWorker; }
+
+    /**
+     * Update spot processor configuration (colors, settings).
+     * Call this after theme changes or settings changes.
+     */
+    void updateSpotProcessorConfig();
 
 signals:
     /**
@@ -118,6 +120,17 @@ private slots:
      */
     void onSpotProcessed(const TR4QT::ProcessedSpot& result);
 
+    /**
+     * Called when telnet thread has created its client object
+     */
+    void onTelnetClientReady(TelnetClient* client);
+
+    /**
+     * Called (via queued connection) after worker's initDatabase() completes.
+     * Drains any pending contest context.
+     */
+    void onWorkerInitialized();
+
 private:
     void setupUI();
     void loadSettings();
@@ -126,6 +139,28 @@ private:
     void appendText(const QString& text, const QColor& color = Qt::black);
     void appendRichText(const QString& text, const QList<SpotFormatRange>& formats, bool isSplit = false);
     void applyTheme();
+    void pruneSplitSpots();
+
+    /**
+     * Build a SpotProcessorConfig from current ThemeManager + AppSettings.
+     * Called on the main thread, result is passed to worker via queued connection.
+     */
+    static SpotProcessorConfig buildConfig();
+
+    /**
+     * Parsed result from a spot display line (used by event filter click handlers)
+     */
+    struct ParsedSpotLine {
+        bool valid{false};
+        bool isSplit{false};
+        double freqKHz{0};
+        QString callsign;
+    };
+
+    /**
+     * Parse a spot display line to extract split flag, frequency, and callsign.
+     */
+    static ParsedSpotLine parseSpotLine(const QString& line);
 
     // UI elements
     QComboBox* m_serverCombo;
@@ -145,15 +180,30 @@ private:
 
     // State
     bool m_isFrozen;
+    bool m_isConnected{false};
     QStringList m_recentServers;
     bool m_autoReconnect;
     ReconnectionManager* m_reconnectManager;
     static constexpr int MAX_RECONNECT_ATTEMPTS = 10;
+    static constexpr int RECONNECT_INTERVAL_MS = 10000;    // 10 seconds between reconnect attempts
+    static constexpr int AUTO_CONNECT_DELAY_MS = 500;      // Delay to allow UI initialization before auto-connect
     int m_spotRowCount;  // For alternating row backgrounds
 
     // Spot processor (runs in worker thread)
     QThread* m_spotWorkerThread;
     SpotProcessorWorker* m_spotWorker;
+    bool m_workerInitialized{false};
+
+    // Pending contest context (queued if setActiveContest called before worker init)
+    struct ContestContext {
+        int contestDbId{-1};
+        QList<MultiplierDefinition> multDefs;
+    };
+    std::optional<ContestContext> m_pendingContestContext;
+
+    // Cached config for alternating row colors (read from config on theme change)
+    QColor m_evenRowBackground{Qt::white};
+    QColor m_oddRowBackground{Qt::white};
 
     // Split operation tracking
     // Maps displayed line text -> struct with split info
@@ -163,6 +213,7 @@ private:
         QString callsign;
     };
     QMap<QString, SplitSpotInfo> m_splitSpots;
+    static constexpr int MAX_SPLIT_SPOTS_CACHED = 500;
 };
 
 } // namespace TR4QT
