@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.45.80] - 2026-02-19
+
+### Added
+- **SpotCollectorService**: Extracted DXLab SpotCollector DDE integration from MainWindow into dedicated service with state machine for callsign acceptance and QSY gating
+- **Spot Processor In-Memory Caches**: Worker thread maintains dupe/multiplier caches updated on each logged QSO, eliminating per-spot SQL queries
+- **Test Coverage**: 26 new tests across 2 test files
+  - `test_spot_processor_worker`: 20 tests — split frequency parsing (QSX/UP/DOWN/DN/decimal), dupe cache, multiplier cache, display text formatting, band map spot fields
+  - `test_spot_collector_service`: 6 tests — initial state, signal behavior on non-Windows, state transitions, callback storage
+- **Hamlib Model Constants**: `HAMLIB_MODEL_ELECRAFT_KPA1500` and `HAMLIB_MODEL_PSTROTATOR` in Constants.h
+
+### Fixed
+- **DDE Settings Not Applied After Preferences**: `SpotCollectorService::loadSettings()` was not called after PreferencesDialog closed — toggling DDE on/off had no effect until restart
+- **DDE Enabled by Default on macOS**: Both DDE settings defaulted to `true` in AppSettings; now default to `false` (opt-in). DDE checkbox disabled on non-Windows in PreferencesDialog
+- **States Map Reappearing on Startup**: Tracked boolean visibility flags were never cleared during normal app quit because `saveSettings()` runs before child windows close. Replaced all 7 tracked flags with direct `isVisible()` queries at save time (#88)
+- **Worker Init Race Condition**: `setActiveContest()` could fire before worker's `initDatabase()` completed. Fixed with callback from worker thread + `std::optional<ContestContext>` pending queue
+- **Perpetually Failing Tests**: Fixed `test_types` (SSB→USB is correct ADIF behavior, not invalid) and `test_qso_persistence_service` (inline DDL missing `radio_nr` column and v9 contests columns)
+
+### Changed
+- **Extract `initializeAmplifierService()`**: Replaced two duplicate 20-line amplifier init blocks in MainWindow with single helper method
+- **Extract `parseSpotLine()`**: Deduplicated spot-line frequency/callsign parsing from DXClusterWindow event filter (single-click and double-click branches)
+- **Named Constants**: Default cluster servers → `DEFAULT_CLUSTER_SERVERS`, telnet port → `DEFAULT_TELNET_PORT`, reconnect interval string uses `RECONNECT_INTERVAL_MS / 1000`, alternating row contrast → `ALTERNATING_ROW_LIGHTNESS_SHIFT`/`LIGHTNESS_MIDPOINT`, row backgrounds use `Qt::white` instead of hardcoded RGB
+- **`updateUIAfterQSOLogged` Cleanup**: Fetch `getMultiplierTypes()` once (was called twice), remove duplicate `updateScoreDisplay()` call
+- Move SSB→USB ADIF mapping test from `testStringToMode_Invalid` to `testStringToMode_AllModes`
+- Add schema drift warning comment to `test_qso_persistence_service` inline DDL
+
 ## [3.45.78] - 2026-02-19
 
 ### Added
@@ -19,8 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Map Window Visibility Persistence**: Map windows (States, Sections, World, Grayline) intermittently restored on startup despite being closed before quitting
-  - Root cause: `isVisible()` unreliable during SIGTERM shutdown; `saveSettings()` runs before child windows close during normal quit
-  - Fix: Track visibility via boolean flags + eventFilter on `QEvent::Close` (not Hide, which fires on minimize/focus-loss)
+  - Root cause: `saveSettings()` runs before child windows close during normal quit
+  - Fix: Track visibility via boolean flags + eventFilter on `QEvent::Close` (superseded in v3.45.80 by direct `isVisible()` queries)
 
 ### Changed
 - Replace `"RADIO1"` magic string with `RateCalculator::QsoRecord::DEFAULT_STATION_ID` constant
