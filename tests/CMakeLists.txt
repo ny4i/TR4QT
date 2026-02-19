@@ -628,6 +628,137 @@ add_tr4qt_test(test_window_persistence
     ../src/logging/FileAppender.cpp
 )
 
+# StatusNotifier tests (pure function: formatMessage + styleForEvent)
+add_tr4qt_test(test_status_notifier
+    test_status_notifier.cpp
+    ../src/services/StatusNotifier.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
+# QSOQueryService tests (worked callsigns, bands, time windows, rate)
+add_tr4qt_test(test_qso_query_service
+    test_qso_query_service.cpp
+    ../src/services/QSOQueryService.cpp
+    ../src/services/StationInfoService.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/utils/GeographicUtils.cpp
+    ../src/utils/ThemeManager.cpp
+    ../src/utils/PathManager.cpp
+    ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/data/Database.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
+# ScoreCalculationService tests (scoring, multipliers, band stats)
+add_tr4qt_test(test_score_calculation_service
+    test_score_calculation_service.cpp
+    ../src/services/ScoreCalculationService.cpp
+    ../src/contests/CQWWContest.cpp
+    ../src/contests/CQWWCWContest.cpp
+    ../src/contests/CQWWBase.cpp
+    ../src/contests/CQWPXContest.cpp
+    ../src/contests/CQWPXCWContest.cpp
+    ../src/contests/CQWPXBase.cpp
+    ../src/contests/ContestRegistry.cpp
+    ../src/contests/ContestMetadata.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
+# CWService tests (adjustWPM clamping, preconditions, signals)
+# Uses tr4qt_core for RadioController (heavy transitive deps)
+add_executable(test_cw_service
+    test_cw_service.cpp
+    ../src/services/CWService.cpp
+    ../src/services/CWService.h
+    ../src/cw/CWTemplateEngine.cpp
+    ../src/cw/CWSenderFactory.cpp
+    ../src/cw/CWSender.h
+    ../src/cw/HamlibCWSender.cpp
+    ../src/cw/HamlibCWSender.h
+    ../src/cw/KeyerCWSender.cpp
+    ../src/cw/KeyerCWSender.h
+    ../src/cw/DtrRtsCWSender.cpp
+    ../src/cw/DtrRtsCWSender.h
+    ../src/cw/MorseEncoder.cpp
+    ../src/keyers/KeyerController.cpp
+    ../src/keyers/KeyerController.h
+    ../src/keyers/KeyerFactory.cpp
+    ../src/keyers/ICWKeyerDevice.h
+    ../src/keyers/IambicKeyer.cpp
+    ../src/keyers/IambicKeyer.h
+    ../src/keyers/WinKeyerDevice.cpp
+    ../src/keyers/WinKeyerDevice.h
+    ../src/keyers/HaliKeySerialDevice.cpp
+    ../src/keyers/HaliKeySerialDevice.h
+    ../src/keyers/HaliKeyMidiDevice.cpp
+    ../src/keyers/HaliKeyMidiDevice.h
+    ../src/3rdparty/rtmidi/RtMidi.cpp
+    ../src/utils/AppSettings.cpp
+    ../src/utils/CredentialStore.cpp
+    ../src/utils/PathManager.cpp
+    ../src/utils/PerformanceProfiler.cpp
+    ../src/network/UdpBroadcaster.cpp
+    ../src/network/UdpBroadcaster.h
+    ../src/network/ContactInfo.cpp
+    ../src/network/RadioInfo.cpp
+)
+
+target_link_libraries(test_cw_service PRIVATE
+    tr4qt_core
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Sql
+    Qt6::Network
+    Qt6::SerialPort
+    ${HAMLIB_LIBRARIES}
+    qt6keychain
+)
+
+target_include_directories(test_cw_service PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${HAMLIB_INCLUDE_DIRS}
+    ${qtkeychain_SOURCE_DIR}
+    ${qtkeychain_BINARY_DIR}
+)
+
+# macOS: SystemConfiguration framework for PlatformUtils
+if(APPLE)
+    target_link_libraries(test_cw_service PRIVATE "-framework SystemConfiguration")
+endif()
+
+# RtMidi needs CoreMIDI on macOS, ALSA on Linux
+if(APPLE)
+    target_link_libraries(test_cw_service PRIVATE "-framework CoreMIDI" "-framework CoreAudio" "-framework CoreFoundation")
+    target_compile_definitions(test_cw_service PRIVATE __MACOSX_CORE__)
+elseif(UNIX)
+    target_link_libraries(test_cw_service PRIVATE asound)
+    target_compile_definitions(test_cw_service PRIVATE __LINUX_ALSA__)
+elseif(WIN32)
+    target_link_libraries(test_cw_service PRIVATE winmm)
+    target_compile_definitions(test_cw_service PRIVATE __WINDOWS_MM__)
+endif()
+
+# Enable AUTOMOC for CW/keyer headers with Q_OBJECT
+set_target_properties(test_cw_service PROPERTIES AUTOMOC ON)
+
+add_test(NAME test_cw_service COMMAND test_cw_service)
+set_tests_properties(test_cw_service PROPERTIES TIMEOUT 30)
+
 # Rotator service tests (Issue #60 - PSTRotator support)
 # Tests rotator control system with mock rotator
 add_executable(test_rotator_service

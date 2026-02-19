@@ -143,6 +143,9 @@ public:
         QString stationId;
         int qsoPoints{0};       // Points for this QSO (from contest scoring)
         bool isDupe{false};     // Is this a duplicate QSO?
+
+        // Default station ID for solo operation (non-SO2R)
+        static constexpr const char* DEFAULT_STATION_ID = "RADIO1";
     };
     void loadDetailedHistory(const QVector<QsoRecord>& records);
 

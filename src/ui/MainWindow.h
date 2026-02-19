@@ -441,6 +441,10 @@ private:
 
     // Window visibility tracking (for reliable save during shutdown)
     // Qt's isVisible() can return false during SIGTERM handling, so we track state ourselves
+    bool m_sectionsMapViewerVisible{false};
+    bool m_statesMapViewerVisible{false};
+    bool m_worldMapViewerVisible{false};
+    bool m_graylineMapDialogVisible{false};
     bool m_amplifierControlWindowVisible{false};
 #ifdef PANADAPTER_ENABLED
     bool m_panadapterWindowVisible{false};

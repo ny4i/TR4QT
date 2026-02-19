@@ -1454,17 +1454,17 @@ void MainWindow::saveSettings() {
         geometry.statisticsVisible = m_statisticsWindow->isVisible();
     }
     if (m_sectionsMapViewer) {
-        geometry.sectionsMapVisible = m_sectionsMapViewer->isVisible();
+        geometry.sectionsMapVisible = m_sectionsMapViewerVisible;
     }
     if (m_statesMapViewer) {
-        geometry.statesMapVisible = m_statesMapViewer->isVisible();
+        geometry.statesMapVisible = m_statesMapViewerVisible;
     }
     if (m_worldMapViewer) {
-        geometry.worldMapVisible = m_worldMapViewer->isVisible();
+        geometry.worldMapVisible = m_worldMapViewerVisible;
     }
     if (m_graylineMapDialog) {
         geometry.graylineMapGeometry = m_graylineMapDialog->saveGeometry();
-        geometry.graylineMapVisible = m_graylineMapDialog->isVisible();
+        geometry.graylineMapVisible = m_graylineMapDialogVisible;
     }
     if (m_amplifierControlWindow) {
         geometry.amplifierControlGeometry = m_amplifierControlWindow->saveGeometry();
@@ -1673,6 +1673,21 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
             if (m_radio && m_radioConnected) {
                 m_radio->setDetailedRigInfoEnabled(false);
             }
+        }
+    }
+
+    // Track map/grayline window close events for reliable visibility save
+    // (isVisible() is unreliable during SIGTERM shutdown)
+    // Note: Only Close, not Hide — Hide fires on minimize/focus-loss which is too broad
+    if (event->type() == QEvent::Close) {
+        if (obj == m_sectionsMapViewer) {
+            m_sectionsMapViewerVisible = false;
+        } else if (obj == m_statesMapViewer) {
+            m_statesMapViewerVisible = false;
+        } else if (obj == m_worldMapViewer) {
+            m_worldMapViewerVisible = false;
+        } else if (obj == m_graylineMapDialog) {
+            m_graylineMapDialogVisible = false;
         }
     }
 
@@ -2498,7 +2513,7 @@ void MainWindow::updateUIAfterQSOLogged(const QSO& qso, const QSOLoggingService:
         QString operatorCall = qso.operatorCall.isEmpty() ?
             AppSettings::instance().getCurrentOperator() : qso.operatorCall;
         QString stationId = m_radioManager->isSO2REnabled() ?
-            QString("RADIO%1").arg(m_radioManager->getActiveRadioIndex() + 1) : "RADIO1";
+            QString("RADIO%1").arg(m_radioManager->getActiveRadioIndex() + 1) : RateCalculator::QsoRecord::DEFAULT_STATION_ID;
         m_statisticsWindow->addQso(qso.timestamp, qso.band, qso.mode, operatorCall, stationId);
     }
 
@@ -4340,10 +4355,14 @@ void MainWindow::onShowSectionsMap() {
         m_sectionsMapViewer = new NativeMapViewer(NativeMapViewer::Sections, m_qsoTableModel, this);
         m_sectionsMapViewer->setWindowFlags(Qt::Window);
         m_sectionsMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Track visibility for reliable shutdown save (isVisible() unreliable during SIGTERM)
+        m_sectionsMapViewer->installEventFilter(this);
     }
     m_sectionsMapViewer->show();
     m_sectionsMapViewer->raise();
     m_sectionsMapViewer->activateWindow();
+    m_sectionsMapViewerVisible = true;
     updateWindowMenuCheckmarks();
 }
 
@@ -4354,10 +4373,14 @@ void MainWindow::onShowStatesMap() {
         m_statesMapViewer = new NativeMapViewer(NativeMapViewer::States, m_qsoTableModel, this);
         m_statesMapViewer->setWindowFlags(Qt::Window);
         m_statesMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Track visibility for reliable shutdown save (isVisible() unreliable during SIGTERM)
+        m_statesMapViewer->installEventFilter(this);
     }
     m_statesMapViewer->show();
     m_statesMapViewer->raise();
     m_statesMapViewer->activateWindow();
+    m_statesMapViewerVisible = true;
     updateWindowMenuCheckmarks();
 }
 
@@ -4368,10 +4391,14 @@ void MainWindow::onShowWorldMap() {
         m_worldMapViewer = new NativeMapViewer(NativeMapViewer::DXCC, m_qsoTableModel, this);
         m_worldMapViewer->setWindowFlags(Qt::Window);
         m_worldMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Track visibility for reliable shutdown save (isVisible() unreliable during SIGTERM)
+        m_worldMapViewer->installEventFilter(this);
     }
     m_worldMapViewer->show();
     m_worldMapViewer->raise();
     m_worldMapViewer->activateWindow();
+    m_worldMapViewerVisible = true;
     updateWindowMenuCheckmarks();
 }
 
@@ -4381,10 +4408,14 @@ void MainWindow::onShowGraylineMap() {
         m_graylineMapDialog = new GraylineMapDialog(this);
         m_graylineMapDialog->setWindowFlags(Qt::Window);
         m_graylineMapDialog->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        // Track visibility for reliable shutdown save (isVisible() unreliable during SIGTERM)
+        m_graylineMapDialog->installEventFilter(this);
     }
     m_graylineMapDialog->show();
     m_graylineMapDialog->raise();
     m_graylineMapDialog->activateWindow();
+    m_graylineMapDialogVisible = true;
     updateWindowMenuCheckmarks();
 }
 

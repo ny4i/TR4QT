@@ -51,7 +51,7 @@ void RateCalculator::addQso(const QDateTime& timestamp,
     record.band = band;
     record.mode = mode;
     record.operatorCall = operatorCall;
-    record.stationId = stationId.isEmpty() ? "RADIO1" : stationId;
+    record.stationId = stationId.isEmpty() ? QsoRecord::DEFAULT_STATION_ID : stationId;
     m_qsoRecords.append(record);
 
     // Keep detailed records bounded
@@ -476,7 +476,7 @@ void RateCalculator::updateStationStats() {
     QMap<QString, QMap<BandType, int>> stationBandCounts;
 
     for (const auto& record : m_qsoRecords) {
-        QString stationId = record.stationId.isEmpty() ? "RADIO1" : record.stationId;
+        QString stationId = record.stationId.isEmpty() ? QsoRecord::DEFAULT_STATION_ID : record.stationId;
 
         if (!m_stationStats.contains(stationId)) {
             StationStats stats;

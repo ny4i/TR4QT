@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.45.77";  // Extract business logic leaks from MainWindow (#71)
+constexpr const char* APP_VERSION = "3.45.78";  // Add test coverage, fix map window visibility persistence
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

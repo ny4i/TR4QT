@@ -39,7 +39,9 @@ public:
     ~RadioController() override;
 
     // Thread-safe radio control methods
-    bool isConnected() const;
+    // Note: isConnected, setCWSpeed, getCWSpeedRange are virtual to allow test mocking.
+    // Ideally CWService would depend on a narrow interface, not RadioController directly.
+    virtual bool isConnected() const;
     RadioState getCurrentState() const;
     QString getRadioModel() const;
     int maxPowerWatts() const;  // Maximum TX power rating
@@ -55,9 +57,9 @@ public slots:
     void setMode(ModeType mode, VFO vfo = VFO::VFO_A);
     void setPTT(bool transmit);
     void sendCW(const QString& text);
-    void setCWSpeed(int wpm);
+    virtual void setCWSpeed(int wpm);
     int getCWSpeed() const;
-    void getCWSpeedRange(int& minWpm, int& maxWpm) const;
+    virtual void getCWSpeedRange(int& minWpm, int& maxWpm) const;
     void stopCW();
     bool waitForMorseComplete();
     void setDetailedRigInfoEnabled(bool enabled);

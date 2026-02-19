@@ -16,10 +16,49 @@
 #include <QFile>
 #include <QDir>
 #include <QSettings>
+#include <QWidget>
+#include <QCloseEvent>
 #include "../src/ui/managers/SettingsManager.h"
 #include "../src/logging/LogMacros.h"
 
 using namespace TR4QT;
+
+/**
+ * VisibilityTracker - Reproduces the MainWindow event filter pattern.
+ *
+ * MainWindow tracks map window visibility via boolean flags + eventFilter
+ * instead of isVisible() (which is unreliable during SIGTERM shutdown).
+ * This class isolates that pattern for testing without MainWindow dependencies.
+ */
+class VisibilityTracker : public QObject {
+    Q_OBJECT
+
+public:
+    bool trackedVisible{false};
+    QWidget* trackedWindow{nullptr};
+
+    void trackWindow(QWidget* window) {
+        trackedWindow = window;
+        window->installEventFilter(this);
+    }
+
+    void showWindow() {
+        if (trackedWindow) {
+            trackedWindow->show();
+            trackedVisible = true;
+        }
+    }
+
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override {
+        // Same pattern as MainWindow::eventFilter() for map windows:
+        // Only Close events, NOT Hide (Hide fires on minimize/focus-loss)
+        if (event->type() == QEvent::Close && obj == trackedWindow) {
+            trackedVisible = false;
+        }
+        return QObject::eventFilter(obj, event);
+    }
+};
 
 class TestWindowPersistence : public QObject {
     Q_OBJECT
@@ -39,6 +78,12 @@ private slots:
 
     // Test settings roundtrip
     void testSettingsRoundtrip_PreservesAllStates();
+
+    // Test event filter visibility tracking (map window fix)
+    void testVisibilityTracker_DefaultFalse();
+    void testVisibilityTracker_ShowSetsTrue();
+    void testVisibilityTracker_CloseSetsFalse();
+    void testVisibilityTracker_HideDoesNotSetFalse();
 
 private:
     QTemporaryDir* m_tempDir;
@@ -246,6 +291,63 @@ void TestWindowPersistence::testSettingsRoundtrip_PreservesAllStates() {
     QCOMPARE(loaded.graylineMapVisible, original.graylineMapVisible);
 
     qInfo() << "✓ Settings roundtrip: All 8 window visibility states preserved";
+}
+
+// --- Event filter visibility tracking tests ---
+// These validate the pattern used in MainWindow::eventFilter() to track
+// map window close events (fix for intermittent map restore on startup).
+
+void TestWindowPersistence::testVisibilityTracker_DefaultFalse()
+{
+    VisibilityTracker tracker;
+    QVERIFY(!tracker.trackedVisible);
+}
+
+void TestWindowPersistence::testVisibilityTracker_ShowSetsTrue()
+{
+    VisibilityTracker tracker;
+    QWidget window;
+    window.setWindowFlags(Qt::Window);
+    window.setAttribute(Qt::WA_DeleteOnClose, false);
+
+    tracker.trackWindow(&window);
+    QVERIFY(!tracker.trackedVisible);
+
+    tracker.showWindow();
+    QVERIFY(tracker.trackedVisible);
+}
+
+void TestWindowPersistence::testVisibilityTracker_CloseSetsFalse()
+{
+    VisibilityTracker tracker;
+    QWidget window;
+    window.setWindowFlags(Qt::Window);
+    window.setAttribute(Qt::WA_DeleteOnClose, false);
+
+    tracker.trackWindow(&window);
+    tracker.showWindow();
+    QVERIFY(tracker.trackedVisible);
+
+    // Close the window — should set tracked flag to false
+    window.close();
+    QVERIFY(!tracker.trackedVisible);
+}
+
+void TestWindowPersistence::testVisibilityTracker_HideDoesNotSetFalse()
+{
+    VisibilityTracker tracker;
+    QWidget window;
+    window.setWindowFlags(Qt::Window);
+    window.setAttribute(Qt::WA_DeleteOnClose, false);
+
+    tracker.trackWindow(&window);
+    tracker.showWindow();
+    QVERIFY(tracker.trackedVisible);
+
+    // Hide the window — should NOT change tracked flag
+    // (Hide fires on minimize/focus-loss, not just user close)
+    window.hide();
+    QVERIFY(tracker.trackedVisible);
 }
 
 QTEST_MAIN(TestWindowPersistence)
