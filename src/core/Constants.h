@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.45.78";  // Add test coverage, fix map window visibility persistence
+constexpr const char* APP_VERSION = "3.45.79";  // Spot processor worker thread, DXLab DDE integration, window activation fix
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
