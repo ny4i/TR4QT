@@ -34,7 +34,7 @@ on:
       #   type: boolean
 
 env:
-  QT_VERSION: '6.10.1'
+  QT_VERSION: '6.10.2'
   HAMLIB_VERSION: '4.7.0'
   # VirusTotal: max malicious detections before blocking release.
   # Unsigned MinGW/NSIS builds typically trigger 1-3 heuristic false positives.
@@ -50,9 +50,9 @@ jobs:
     runs-on: [self-hosted, windows, X64]
     if: github.event_name != 'workflow_dispatch' || inputs.build_windows == true
 
-    # Self-hosted runner has Qt 6.10.1, MinGW, and Hamlib pre-installed
+    # Self-hosted runner has Qt 6.10.2, MinGW, and Hamlib pre-installed
     env:
-      QT_ROOT_DIR: C:/Qt/6.10.1/mingw_64
+      QT_ROOT_DIR: C:/Qt/6.10.2/mingw_64
       HAMLIB_ROOT: C:/hamlib
       MINGW_BIN: C:/Qt/Tools/mingw1310_64/bin
 
@@ -465,7 +465,7 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64]
     if: github.event_name != 'workflow_dispatch' || inputs.build_macos == true
 
-    # Self-hosted runner has Qt 6.10.1 and Hamlib pre-installed via Homebrew
+    # Self-hosted runner has Qt 6.10.2 and Hamlib pre-installed via Homebrew
     env:
       QT_ROOT_DIR: /opt/homebrew/opt/qt@6
       HAMLIB_ROOT: /opt/homebrew/opt/hamlib
@@ -823,10 +823,10 @@ jobs:
     if: always()  # Run even if Windows build fails
     continue-on-error: true  # Don't fail the workflow if Linux build fails
 
-    # Self-hosted runner has Qt 6.10.1 at /opt/Qt and Hamlib at /opt/hamlib pre-installed
+    # Self-hosted runner has Qt 6.10.2 at /opt/Qt and Hamlib at /opt/hamlib pre-installed
     # NOTE: Runner also needs libasound2-dev installed for MIDI support (RtMidi/ALSA)
     env:
-      QT_ROOT_DIR: /opt/Qt/6.10.1/gcc_64
+      QT_ROOT_DIR: /opt/Qt/6.10.2/gcc_64
       HAMLIB_ROOT: /opt/hamlib
 
     steps:

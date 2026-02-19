@@ -11,11 +11,11 @@ This document specifies the required versions of dependencies for TR4QT developm
 ## Required Versions
 
 ### Qt
-- **Version**: `6.10.1`
+- **Version**: `6.10.2`
 - **Rationale**:
   - Fixes critical issues with SQL drivers and theme/palette handling present in Qt 6.7.x
   - Required for consistent behavior across Windows and macOS builds
-  - Local development uses Qt 6.10.1 - CI must match to ensure identical binaries
+  - Local development uses Qt 6.10.2 - CI must match to ensure identical binaries
 
 ### Hamlib
 - **Version**: `4.7.0`
@@ -63,9 +63,10 @@ When updating dependency versions:
 
 | TR4QT Version | Qt Version | Hamlib Version | Notes |
 |---------------|------------|----------------|-------|
-| 3.43.73+      | 6.10.1     | 4.7.0          | Hamlib 4.7.0 upgrade, IC-7300MK2/IC-905 model ID fixes |
-| 3.31.11-3.43.72 | 6.10.1   | 4.6.5          | Fixed version parity between Windows/macOS |
-| 3.31.0-3.31.10| 6.7.2 (macOS)<br>6.10.1 (Windows) | 4.6.5 | **BROKEN**: Version mismatch caused QSO grid issues |
+| 3.45.80+      | 6.10.2     | 4.7.0          | Qt 6.10.2 upgrade across all platforms |
+| 3.43.73-3.45.79 | 6.10.1   | 4.7.0          | Hamlib 4.7.0 upgrade, IC-7300MK2/IC-905 model ID fixes |
+| 3.31.11-3.43.72 | 6.10.2   | 4.6.5          | Fixed version parity between Windows/macOS |
+| 3.31.0-3.31.10| 6.7.2 (macOS)<br>6.10.2 (Windows) | 4.6.5 | **BROKEN**: Version mismatch caused QSO grid issues |
 | < 3.31.0      | 6.7.2      | 4.5.x          | Legacy versions |
 
 ## Common Issues
@@ -73,7 +74,7 @@ When updating dependency versions:
 ### QSO Grid Not Populating
 - **Symptom**: QSO grid empty in log display, radio indicator flashes black instead of red
 - **Cause**: Qt version mismatch between CI build and local development
-- **Fix**: Ensure CI uses same Qt version as local dev (currently 6.10.1)
+- **Fix**: Ensure CI uses same Qt version as local dev (currently 6.10.2)
 
 ### TLS/HTTPS Downloads Fail
 - **Symptom**: Country file download fails, "No functional TLS backend was found"
@@ -96,7 +97,7 @@ CI validation checks:
 
 **Real example from v3.31.10:**
 - Windows CI: Qt 6.7.2
-- Local development: Qt 6.10.1
+- Local development: Qt 6.10.2
 - Result: CI-built releases had broken QSO grid and theme issues
 - Users downloaded broken installers from GitHub Releases
 - Wasted hours debugging "works on my machine" issues
