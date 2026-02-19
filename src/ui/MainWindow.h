@@ -54,6 +54,7 @@
 #include "../services/LogExportService.h"
 #include "../services/FrequencyInputService.h"
 #include "../services/SpotProcessingService.h"
+#include "../services/SpotProcessorWorker.h"
 #include "../services/QSOQueryService.h"
 #include "../services/AmplifierService.h"
 #include "../services/RotatorService.h"
@@ -224,10 +225,7 @@ private slots:
     void onSPMode();                // Switch to S&P mode (Tab)
 
     // DX Cluster integration
-    void onDXSpotReceived(const QString& callsign,
-                          double frequency,
-                          const QString& spotter,
-                          const QString& comment);
+    void onDXSpotReceived(const TR4QT::ProcessedSpot& processedSpot);
 
     // Band switching
     void onBandClicked(BandType band);

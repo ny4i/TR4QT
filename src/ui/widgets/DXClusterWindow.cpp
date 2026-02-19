@@ -23,10 +23,9 @@
 #include "../../utils/AppSettings.h"
 #include "../../utils/ThemeManager.h"
 #include "../../utils/FontManager.h"
-#include "../../data/LOTWUserRepository.h"
 #include "../../contests/ContestBase.h"
-#include "../../data/QSORepository.h"
-#include "../../utils/CountryFile.h"
+#include "../../data/Database.h"
+#include "../../data/GlobalDatabase.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QToolBar>
@@ -42,32 +41,6 @@
 
 namespace TR4QT {
 
-// DX Cluster band colors
-// Consistent color definitions for all bands (avoids magic RGB values)
-static const QColor COLOR_BAND_160M(102, 51, 153);  // Purple
-static const QColor COLOR_BAND_80M(153, 76, 0);     // Brown
-static const QColor COLOR_BAND_40M(204, 0, 102);    // Magenta
-static const QColor COLOR_BAND_20M(0, 102, 204);    // Blue
-static const QColor COLOR_BAND_15M(0, 153, 0);      // Green
-static const QColor COLOR_BAND_10M(204, 102, 0);    // Orange
-static const QColor COLOR_BAND_DEFAULT(102, 102, 102);  // Gray for unhandled bands
-
-/**
- * Map band to display color for DX cluster spots
- * Uses distinct colors to visually differentiate bands
- */
-static QColor getBandColor(BandType band) {
-    switch (band) {
-        case BandType::Band160M: return COLOR_BAND_160M;
-        case BandType::Band80M:  return COLOR_BAND_80M;
-        case BandType::Band40M:  return COLOR_BAND_40M;
-        case BandType::Band20M:  return COLOR_BAND_20M;
-        case BandType::Band15M:  return COLOR_BAND_15M;
-        case BandType::Band10M:  return COLOR_BAND_10M;
-        default:                 return COLOR_BAND_DEFAULT;
-    }
-}
-
 DXClusterWindow::DXClusterWindow(QWidget* parent)
     : QWidget(parent)
     , m_telnetThread(new TelnetThread(this))
@@ -76,12 +49,41 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
     , m_autoReconnect(false)
     , m_reconnectManager(new ReconnectionManager(10000, MAX_RECONNECT_ATTEMPTS, this))
     , m_spotRowCount(0)
-    , m_activeContest(nullptr)
-    , m_contestDbId(-1)
-    , m_countryFile(nullptr)
+    , m_spotWorkerThread(new QThread(this))
+    , m_spotWorker(new SpotProcessorWorker())
 {
     setupUI();
     loadSettings();
+
+    // Setup spot processor worker thread
+    m_spotWorker->moveToThread(m_spotWorkerThread);
+
+    // Initialize worker's database connections when thread starts
+    connect(m_spotWorkerThread, &QThread::started, this, [this]() {
+        QString contestDbPath;
+        QString globalDbPath;
+
+        if (Database::instance().isOpen()) {
+            contestDbPath = Database::instance().connection().databaseName();
+        }
+        if (GlobalDatabase::instance().isOpen()) {
+            globalDbPath = GlobalDatabase::instance().connection().databaseName();
+        }
+
+        QMetaObject::invokeMethod(m_spotWorker, [this, contestDbPath, globalDbPath]() {
+            m_spotWorker->initDatabase(contestDbPath, globalDbPath);
+        }, Qt::QueuedConnection);
+    });
+
+    // Connect worker's output to main thread display
+    connect(m_spotWorker, &SpotProcessorWorker::spotProcessed,
+            this, &DXClusterWindow::onSpotProcessed,
+            Qt::QueuedConnection);
+
+    // Clean up worker when thread finishes
+    connect(m_spotWorkerThread, &QThread::finished, m_spotWorker, &QObject::deleteLater);
+
+    m_spotWorkerThread->start();
 
     // Start telnet thread
     m_telnetThread->start();
@@ -151,6 +153,12 @@ DXClusterWindow::DXClusterWindow(QWidget* parent)
 DXClusterWindow::~DXClusterWindow() {
     saveSettings();
 
+    // Stop spot worker thread
+    if (m_spotWorkerThread->isRunning()) {
+        m_spotWorkerThread->quit();
+        m_spotWorkerThread->wait();
+    }
+
     // Stop telnet thread
     if (m_telnetThread->isRunning()) {
         m_telnetThread->quit();
@@ -159,78 +167,21 @@ DXClusterWindow::~DXClusterWindow() {
 }
 
 void DXClusterWindow::setActiveContest(ContestBase* contest, int contestDbId) {
-    m_activeContest = contest;
-    m_contestDbId = contestDbId;
-}
-
-void DXClusterWindow::setCountryFile(CountryFile* countryFile) {
-    m_countryFile = countryFile;
-}
-
-QColor DXClusterWindow::getSpotColor(const QString& callsign, double frequency) const {
-    // No contest active - return default color
-    if (!m_activeContest || m_contestDbId < 0) {
-        return Qt::black;
-    }
-
-    // Determine band and mode from frequency
-    BandType band = frequencyToBand(static_cast<unsigned long>(frequency));
-    ModeType mode = (frequency >= 1800000 && frequency < 10000000) ? ModeType::CW : ModeType::USB; // Simplified mode detection
-
-    // Check if it's a dupe
-    QSORepository repo;
-    bool isDupe = repo.isDuplicate(callsign, band, mode, m_contestDbId);
-
-    if (isDupe) {
-        // Return dupe color from settings
-        QString dupeColorStr = AppSettings::instance().getClusterDupeColor();
-        return QColor(dupeColorStr);
-    }
-
-    // Check if it's a new multiplier
-    // Create a temporary QSO for mult checking
-    QSO tempQso;
-    tempQso.callsign = callsign;
-    tempQso.band = band;
-    tempQso.mode = mode;
-    tempQso.frequency = frequency;
-
-    // Populate country/zone data from CountryFile (if available)
-    if (m_countryFile) {
-        CountryData countryData = m_countryFile->lookup(callsign);
-        if (countryData.isValid()) {
-            tempQso.dxccPrefix = countryData.primaryPrefix;
-            tempQso.dxccEntity = countryData.name;
-            tempQso.continent = continentToString(countryData.continent);
-            tempQso.cqZone = countryData.cqZone;
-            tempQso.ituZone = countryData.ituZone;
+    if (m_spotWorker) {
+        QList<MultiplierDefinition> multDefs;
+        if (contest) {
+            multDefs = contest->getMultiplierTypes();
         }
+        QMetaObject::invokeMethod(m_spotWorker, [this, contestDbId, multDefs]() {
+            m_spotWorker->setContestContext(contestDbId, multDefs);
+        }, Qt::QueuedConnection);
     }
-
-    // Get multiplier types for this contest
-    QList<MultiplierDefinition> multDefs = m_activeContest->getMultiplierTypes();
-
-    for (const MultiplierDefinition& multDef : multDefs) {
-        // Determine band parameter based on multiplier scope
-        QString bandParam = (multDef.scope == MultiplierScope::PerBand)
-                            ? bandToString(band)
-                            : QString();
-
-        // Get worked multipliers for this type
-        QStringList workedMults = repo.getWorkedMultipliers(multDef.type, bandParam, m_contestDbId);
-
-        // Check if this spot is a new mult
-        QString multValue = m_activeContest->getMultiplierValue(tempQso, multDef.type, workedMults);
-        if (!multValue.isEmpty()) {
-            // It's a new multiplier! Return multiplier color
-            QString multColorStr = AppSettings::instance().getClusterMultiplierColor();
-            return QColor(multColorStr);
-        }
-    }
-
-    // Not a dupe, not a multiplier - return normal color
-    return Qt::black;
 }
+
+void DXClusterWindow::setCountryFile(CountryFile* /*countryFile*/) {
+    // Worker has its own CountryFile instance, no need to pass pointer
+}
+
 
 void DXClusterWindow::setupUI() {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -590,114 +541,39 @@ void DXClusterWindow::onTelnetSpotReceived(const QString& callsign,
                                           const QString& spotter,
                                           const QString& comment,
                                           const QString& timestamp) {
-    // Don't update display if frozen
-    if (m_isFrozen) {
-        // Still forward to band map even if display is frozen
-        emit spotReceived(callsign, frequency, spotter, comment);
-        return;
+    // Forward to worker thread for processing (dupe/mult/LOTW checks, formatting)
+    // Worker emits spotProcessed() which we handle in onSpotProcessed()
+    QMetaObject::invokeMethod(m_spotWorker, "processSpot",
+                             Qt::QueuedConnection,
+                             Q_ARG(QString, callsign),
+                             Q_ARG(double, frequency),
+                             Q_ARG(QString, spotter),
+                             Q_ARG(QString, comment),
+                             Q_ARG(QString, timestamp));
+}
+
+void DXClusterWindow::onSpotProcessed(const ProcessedSpot& result) {
+    // Don't update display if frozen (but still forward spot to band map)
+    if (!m_isFrozen) {
+        // Store split info for click-to-QSY handling
+        if (result.isSplit) {
+            SplitSpotInfo info;
+            info.spotFrequency = result.spotFrequency;
+            info.listenFrequency = result.listenFrequency;
+            info.callsign = result.callsign;
+            m_splitSpots[result.displayText.trimmed()] = info;
+        }
+
+        appendRichText(result.displayText, result.formats, result.isSplit);
+
+        // Auto-scroll to bottom
+        QTextCursor cursor = m_textDisplay->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        m_textDisplay->setTextCursor(cursor);
     }
 
-    // Check for split operation (QSX/UP/DOWN in comment)
-    double listenFrequency = parseSplitInfo(comment, frequency);
-    bool isSplit = (listenFrequency > 0);
-
-    // Format spot into fixed-width columns for better readability
-    // Format: [SPLIT] Spotter(12) Freq(10) Callsign(12) Time(5) Comment(remaining)
-
-    // Convert frequency from Hz to kHz for display
-    double freqKHz = frequency / 1000.0;
-    QString freqStr = QString::number(freqKHz, 'f', 1);  // 1 decimal place
-
-    // Spot formatting constants
-    const int SPLIT_INDICATOR_WIDTH = 2;  // Width of split indicator ("● " or "  ")
-    const int CALLSIGN_INDENT = 3;         // Spaces between frequency and callsign
-
-    // Split indicator (consistent 2-character width for both display and formatting)
-    QString splitIcon = isSplit ? "● " : "  ";
-
-    // Build plain text version for split spot lookup and display
-    QString plainSpot = QString("%1%2 %3%4%5 %6Z %7")
-        .arg(splitIcon)
-        .arg(spotter, -12)
-        .arg(freqStr, 10)
-        .arg(QString(CALLSIGN_INDENT, ' '))
-        .arg(callsign, -12)
-        .arg(timestamp, 4)
-        .arg(comment);
-
-    // Store split info for click-to-QSY handling
-    if (isSplit) {
-        SplitSpotInfo info;
-        info.spotFrequency = frequency;
-        info.listenFrequency = listenFrequency;
-        info.callsign = callsign;
-        m_splitSpots[plainSpot.trimmed()] = info;
-    }
-
-    // Determine frequency color based on band (using central band determination logic)
-    BandType band = frequencyToBand(static_cast<unsigned long>(frequency));
-    QColor freqColor = getBandColor(band);
-
-    // Build format info for character-based formatting (preserves alignment)
-    QList<FormatRange> formats;
-
-    // Calculate character positions in the line
-    // Format: [● ] Spotter(12) Freq(10) [3 spaces] Callsign(12) TimeZ(5) Comment
-    int pos = 0;
-
-    // Split indicator (already defined above as splitIcon)
-    if (isSplit) {
-        formats.append({pos, SPLIT_INDICATOR_WIDTH, QColor(0, 206, 209), false});  // Cyan dot
-    }
-    pos += SPLIT_INDICATOR_WIDTH;
-
-    // Spotter (12 chars) - gray
-    formats.append({pos, 12, QColor(102, 102, 102), false});
-    pos += 12;
-
-    // Space
-    pos += 1;
-
-    // Frequency (10 chars, right-aligned) - color-coded by band
-    const int FREQUENCY_FIELD_WIDTH = 10;
-    int freqPadding = FREQUENCY_FIELD_WIDTH - freqStr.length();
-    int freqStart = pos + freqPadding;  // Adjust for right-alignment
-    formats.append({freqStart, static_cast<int>(freqStr.length()), freqColor, false});
-    pos += FREQUENCY_FIELD_WIDTH;
-
-    // Indent (3 spaces)
-    pos += CALLSIGN_INDENT;
-
-    // Callsign (12 chars) - bold, color based on dupe/multiplier status
-    int callsignPos = pos;
-    int callsignLen = callsign.length();
-    QColor callsignColor = getSpotColor(callsign, frequency);
-    formats.append({callsignPos, callsignLen, callsignColor, true});
-    pos += 12;
-
-    // Space
-    pos += 1;
-
-    // Timestamp (4 chars + Z) - light gray
-    formats.append({pos, 5, QColor(153, 153, 153), false});
-    pos += 5;
-
-    // Space
-    pos += 1;
-
-    // Comment - dark gray
-    formats.append({pos, static_cast<int>(comment.length()), QColor(51, 51, 51), false});
-
-    // Use the plain text version we already built
-    appendRichText(plainSpot, formats, isSplit);
-
-    // Auto-scroll to bottom
-    QTextCursor cursor = m_textDisplay->textCursor();
-    cursor.movePosition(QTextCursor::End);
-    m_textDisplay->setTextCursor(cursor);
-
-    // Forward spot to band map (signal will be connected by MainWindow)
-    emit spotReceived(callsign, frequency, spotter, comment);
+    // Always forward processed spot to band map
+    emit spotProcessed(result);
 }
 
 void DXClusterWindow::updateConnectionStatus(bool connected) {
@@ -729,7 +605,7 @@ void DXClusterWindow::appendText(const QString& text, const QColor& color) {
     cursor.insertText(text + "\n");
 }
 
-void DXClusterWindow::appendRichText(const QString& text, const QList<FormatRange>& formats, bool isSplit) {
+void DXClusterWindow::appendRichText(const QString& text, const QList<SpotFormatRange>& formats, bool isSplit) {
     QTextCursor cursor = m_textDisplay->textCursor();
     cursor.movePosition(QTextCursor::End);
 
@@ -747,7 +623,7 @@ void DXClusterWindow::appendRichText(const QString& text, const QList<FormatRang
     cursor.insertText(text);
 
     // Now apply character formatting to specific ranges
-    for (const FormatRange& range : formats) {
+    for (const SpotFormatRange& range : formats) {
         QTextCharFormat format;
         format.setForeground(range.color);
         if (range.bold) {
@@ -888,45 +764,6 @@ void DXClusterWindow::applyTheme() {
         m_freezeButton->setStyleSheet(QString("QPushButton { background-color: %1; font-weight: bold; }")
             .arg(theme.color(ColorRole::FrozenIndicator).name()));
     }
-}
-
-double DXClusterWindow::parseSplitInfo(const QString& comment, double spotFrequency) {
-    // Parse split operation from comment:
-    // - "QSX 14205" or "QSX14205" - DX listening on 14205 kHz (absolute)
-    // - "UP 10" or "UP10" - DX listening 10 kHz up from spot frequency
-    // - "DOWN 5" or "DN5" - DX listening 5 kHz down from spot frequency
-
-    QString upperComment = comment.toUpper();
-
-    // Check for QSX (absolute frequency)
-    QRegularExpression qsxRegex(R"(QSX\s*(\d+(?:\.\d+)?))");
-    QRegularExpressionMatch qsxMatch = qsxRegex.match(upperComment);
-    if (qsxMatch.hasMatch()) {
-        double listenKHz = qsxMatch.captured(1).toDouble();
-        // Convert kHz to Hz
-        return listenKHz * 1000.0;
-    }
-
-    // Check for UP (relative offset, positive)
-    QRegularExpression upRegex(R"(\bUP\s*(\d+(?:\.\d+)?))");
-    QRegularExpressionMatch upMatch = upRegex.match(upperComment);
-    if (upMatch.hasMatch()) {
-        double offsetKHz = upMatch.captured(1).toDouble();
-        // Add offset to spot frequency
-        return spotFrequency + (offsetKHz * 1000.0);
-    }
-
-    // Check for DOWN/DN (relative offset, negative)
-    QRegularExpression downRegex(R"(\b(?:DOWN|DN)\s*(\d+(?:\.\d+)?))");
-    QRegularExpressionMatch downMatch = downRegex.match(upperComment);
-    if (downMatch.hasMatch()) {
-        double offsetKHz = downMatch.captured(1).toDouble();
-        // Subtract offset from spot frequency
-        return spotFrequency - (offsetKHz * 1000.0);
-    }
-
-    // Not a split spot
-    return 0;
 }
 
 } // namespace TR4QT

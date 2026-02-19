@@ -170,6 +170,7 @@ private:
     // Storage - master list and filtered display list
     QList<Spot> m_allSpots;      // All spots in memory (master list)
     QList<Spot> m_displaySpots;  // Filtered spots for display (cache)
+    bool m_spotsDirty{false};    // Spots added while hidden, need geography calc
     freq_t m_currentFrequency;
     BandType m_currentBand;      // Current band (for filtering when radio not connected)
     int m_selectedIndex;

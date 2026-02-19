@@ -94,6 +94,10 @@ add_tr4qt_test(test_frequency_input_service
 add_tr4qt_test(test_dxlab_pathfinder
     test_dxlab_pathfinder.cpp
     ../src/services/DXLabPathfinder.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
 )
 
 add_tr4qt_test(test_spot_processing_service

@@ -122,27 +122,32 @@ BandMapWidget::BandMapWidget(QWidget* parent)
 }
 
 void BandMapWidget::addSpot(const Spot& spot) {
-    // Make a copy to calculate geography
-    Spot updatedSpot = spot;
-
-    // Calculate azimuth and distance for this spot
-    calculateSpotGeography(updatedSpot);
-
-    // NOTE: Don't apply filters here - they're applied non-destructively in rebuildDisplayList()
-    // This ensures spots aren't permanently deleted when filters are toggled
-
     // Check if spot already exists (update it)
     for (int i = 0; i < m_allSpots.size(); ++i) {
-        if (m_allSpots[i].callsign == updatedSpot.callsign) {
-            m_allSpots[i] = updatedSpot;
-            rebuildDisplayList();  // Also triggers viewport repaint
+        if (m_allSpots[i].callsign == spot.callsign) {
+            m_allSpots[i] = spot;
+            m_allSpots[i].timestamp = spot.timestamp;
+            if (!isVisible()) {
+                m_spotsDirty = true;
+                return;
+            }
+            calculateSpotGeography(m_allSpots[i]);
+            rebuildDisplayList();
             return;
         }
     }
 
     // Add new spot
-    m_allSpots.append(updatedSpot);
-    rebuildDisplayList();  // Also triggers viewport repaint
+    m_allSpots.append(spot);
+
+    if (!isVisible()) {
+        m_spotsDirty = true;
+        return;
+    }
+
+    // Calculate geography and rebuild only when visible
+    calculateSpotGeography(m_allSpots.last());
+    rebuildDisplayList();
 }
 
 void BandMapWidget::removeSpot(const QString& callsign) {
@@ -450,9 +455,17 @@ void BandMapWidget::focusOutEvent(QFocusEvent* event) {
 void BandMapWidget::showEvent(QShowEvent* event) {
     QAbstractScrollArea::showEvent(event);
 
+    // Batch-process spots that arrived while hidden
+    if (m_spotsDirty) {
+        for (auto& spot : m_allSpots) {
+            if (spot.azimuth < 0)
+                calculateSpotGeography(spot);
+        }
+        m_spotsDirty = false;
+        rebuildDisplayList();
+    }
+
     // Recalculate layout and scrollbars when widget is shown
-    // This fixes the issue where scrollbars don't appear on startup
-    // when spots are loaded from database before widget is properly sized
     updateScrollBars();
     viewport()->update();
 }
@@ -864,14 +877,10 @@ void BandMapWidget::rebuildDisplayList() {
     int expirySeconds = settings.getSpotExpirySeconds();
     QDateTime cutoffTime = QDateTime::currentDateTime().addSecs(-expirySeconds);
 
-    // Debug: Log filter state
-    LOG_DEBUG("BandMapWidget", QString("rebuildDisplayList() - m_showAllBands=%1, m_currentBand=%2")
+    LOG_TRACE("BandMapWidget", QString("rebuildDisplayList() - m_showAllBands=%1, m_currentBand=%2")
         .arg(m_showAllBands).arg(bandToString(m_currentBand)));
 
     int filteredByBand = 0;
-    if (!m_showAllBands && m_currentBand != BandType::None) {
-        LOG_DEBUG("BandMapWidget", QString("Band filter active - current band: %1").arg(bandToString(m_currentBand)));
-    }
 
     // Filter spots for display
     for (const Spot& spot : m_allSpots) {
@@ -899,7 +908,7 @@ void BandMapWidget::rebuildDisplayList() {
     }
 
     if (filteredByBand > 0) {
-        LOG_DEBUG("BandMapWidget", QString("Filtered out %1 spots on other bands (keeping only %2)")
+        LOG_TRACE("BandMapWidget", QString("Filtered out %1 spots on other bands (keeping only %2)")
             .arg(filteredByBand).arg(bandToString(m_currentBand)));
     }
 
@@ -1009,7 +1018,7 @@ void BandMapWidget::calculateSpotGeography(Spot& spot) {
     CountryData country = m_countryFile.lookup(spot.callsign);
 
     if (!country.isValid()) {
-        LOG_DEBUG("BandMapWidget", QString("Could not find country for callsign: %1").arg(spot.callsign));
+        LOG_TRACE("BandMapWidget", QString("Could not find country for callsign: %1").arg(spot.callsign));
         spot.azimuth = -1.0;
         spot.distance = -1.0;
         return;

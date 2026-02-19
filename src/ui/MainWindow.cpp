@@ -4026,8 +4026,8 @@ void MainWindow::onShowDXCluster() {
             m_dxClusterWindow->setActiveContest(m_activeContest.get(), m_currentContestDbId);
         }
 
-        // Connect spot signal to forward spots to band map
-        connect(m_dxClusterWindow, &DXClusterWindow::spotReceived,
+        // Connect processed spot signal to forward spots to band map
+        connect(m_dxClusterWindow, &DXClusterWindow::spotProcessed,
                 this, &MainWindow::onDXSpotReceived);
 
         // Connect QSY signal to tune radio to clicked frequency
@@ -5324,19 +5324,14 @@ void MainWindow::onEditSO2R() {
     }
 }
 
-void MainWindow::onDXSpotReceived(const QString& callsign,
-                                   double frequency,
-                                   const QString& spotter,
-                                   const QString& comment) {
+void MainWindow::onDXSpotReceived(const ProcessedSpot& processedSpot) {
     if (!m_bandMapWindow) {
-        LOG_DEBUG("MainWindow", "Band map window not open - spot not added");
+        LOG_TRACE("MainWindow", "Band map window not open - spot not added");
         return;
     }
 
-    // Delegate spot processing to service
-    SpotProcessingService spotService;
-    Spot spot = spotService.processSpot(callsign, frequency, spotter, comment);
-    m_bandMapWindow->addSpot(spot);
+    // Spot is already fully processed by the worker thread
+    m_bandMapWindow->addSpot(processedSpot.bandMapSpot);
 }
 
 void MainWindow::onBandClicked(BandType band) {

@@ -199,6 +199,7 @@ set(SOURCES
     services/LogExportService.cpp
     services/FrequencyInputService.cpp
     services/SpotProcessingService.cpp
+    services/SpotProcessorWorker.cpp
     services/DXLabPathfinder.cpp
     services/QSOQueryService.cpp
     services/RotatorService.cpp

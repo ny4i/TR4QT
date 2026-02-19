@@ -89,7 +89,6 @@ void WindowActivationHelper::raiseAllWindows(QWidget* activatedWindow) {
     // Re-raise the activated window last so it stays on top
     if (activatedWindow && activatedWindow->isVisible()) {
         activatedWindow->raise();
-        activatedWindow->activateWindow();
     }
 
     // Ensure main window is accessible but not on top of the activated window

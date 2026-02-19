@@ -27,6 +27,7 @@
 #include <QLabel>
 #include "../../network/TelnetClient.h"
 #include "../../utils/ReconnectionManager.h"
+#include "../../services/SpotProcessorWorker.h"
 
 namespace TR4QT {
 
@@ -67,14 +68,16 @@ public:
      */
     void setCountryFile(CountryFile* countryFile);
 
+    /**
+     * Get the spot processor worker (for MainWindow to connect signals)
+     */
+    SpotProcessorWorker* spotProcessor() const { return m_spotWorker; }
+
 signals:
     /**
-     * Emitted when a DX spot is received
+     * Emitted when a processed spot is ready (forwarded from worker)
      */
-    void spotReceived(const QString& callsign,
-                     double frequency,
-                     const QString& spotter,
-                     const QString& comment);
+    void spotProcessed(const TR4QT::ProcessedSpot& spot);
 
     /**
      * User wants to QSY to a frequency (simplex)
@@ -110,40 +113,19 @@ private slots:
                              const QString& comment,
                              const QString& timestamp);
 
-private:
     /**
-     * Format range for character-based text formatting
-     * Used to apply colors and bold to specific character positions
+     * Receive processed spot from worker thread and display it
      */
-    struct FormatRange {
-        int start;      // Starting character position
-        int length;     // Number of characters
-        QColor color;   // Text color
-        bool bold;      // Bold weight
-    };
+    void onSpotProcessed(const TR4QT::ProcessedSpot& result);
 
+private:
     void setupUI();
     void loadSettings();
     void saveSettings();
     void updateConnectionStatus(bool connected);
     void appendText(const QString& text, const QColor& color = Qt::black);
-    void appendRichText(const QString& text, const QList<FormatRange>& formats, bool isSplit = false);
+    void appendRichText(const QString& text, const QList<SpotFormatRange>& formats, bool isSplit = false);
     void applyTheme();
-
-    /**
-     * Determine color for DX spot based on dupe/multiplier status
-     * @param callsign Spotted callsign
-     * @param frequency Spotted frequency in Hz
-     * @return Color to use for the spot (dupe/mult/normal)
-     */
-    QColor getSpotColor(const QString& callsign, double frequency) const;
-
-    /**
-     * Parse split operation info from comment
-     * Returns listening frequency in Hz, or 0 if not a split spot
-     * Handles: "QSX 14205", "UP 10", "DOWN 5", "UP10", etc.
-     */
-    double parseSplitInfo(const QString& comment, double spotFrequency);
 
     // UI elements
     QComboBox* m_serverCombo;
@@ -169,12 +151,9 @@ private:
     static constexpr int MAX_RECONNECT_ATTEMPTS = 10;
     int m_spotRowCount;  // For alternating row backgrounds
 
-    // Contest context (for dupe/multiplier checking)
-    ContestBase* m_activeContest;
-    int m_contestDbId;
-
-    // Country file (for DXCC/zone lookup)
-    CountryFile* m_countryFile;
+    // Spot processor (runs in worker thread)
+    QThread* m_spotWorkerThread;
+    SpotProcessorWorker* m_spotWorker;
 
     // Split operation tracking
     // Maps displayed line text -> struct with split info
