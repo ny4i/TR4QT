@@ -876,7 +876,7 @@ jobs:
         # Check if all required extra Qt modules are present.
         # These modules are not in the base aqtinstall and must be installed separately.
         MISSING=false
-        for mod in Qt6Multimedia Qt6HttpServer Qt6WebSockets Qt6SerialPort; do
+        for mod in Qt6Multimedia Qt6HttpServer Qt6WebSockets Qt6SerialPort Qt6ShaderTools; do
           if [ ! -d "${{ env.QT_ROOT_DIR }}/lib/cmake/${mod}" ]; then
             echo "Missing: ${mod}"
             MISSING=true
@@ -888,7 +888,7 @@ jobs:
           python3 -m venv /tmp/aqt-venv
           /tmp/aqt-venv/bin/pip install aqtinstall
           /tmp/aqt-venv/bin/aqt install-qt linux desktop ${{ env.QT_VERSION }} --outputdir /opt/Qt \
-            --modules qtmultimedia qthttpserver qtwebsockets qtserialport
+            --modules qtmultimedia qthttpserver qtwebsockets qtserialport qtshadertools
           rm -rf /tmp/aqt-venv
         else
           echo "All required Qt modules already installed"
