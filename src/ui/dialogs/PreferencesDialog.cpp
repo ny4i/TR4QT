@@ -1912,6 +1912,26 @@ QWidget* PreferencesDialog::createAdvancedTab() {
     formLayout->addRow("", m_autoUpdateCountryFileCheck);
 
     layout->addWidget(countryGroup);
+
+    // DXLab DDE integration group (Windows only)
+    QGroupBox* dxlabGroup = new QGroupBox("DXLab Integration (Windows Only)", this);
+    QVBoxLayout* dxlabLayout = new QVBoxLayout(dxlabGroup);
+
+    m_dxlabDDECheck = new QCheckBox("Use DDE Server from DXLab", this);
+    m_dxlabDDECheck->setToolTip("Register as PathFinder on DDE to receive callsigns from SpotCollector");
+    dxlabLayout->addWidget(m_dxlabDDECheck);
+
+    m_dxlabDDEQSYCheck = new QCheckBox("QSY to DDE callsign from cluster spot", this);
+    m_dxlabDDEQSYCheck->setToolTip("When a callsign is received via DDE, QSY the radio to the spot frequency if found in the band map");
+    m_dxlabDDEQSYCheck->setContentsMargins(20, 0, 0, 0);  // Indent under parent option
+    dxlabLayout->addWidget(m_dxlabDDEQSYCheck);
+
+    // QSY option depends on DDE being enabled
+    m_dxlabDDEQSYCheck->setEnabled(m_dxlabDDECheck->isChecked());
+    connect(m_dxlabDDECheck, &QCheckBox::toggled,
+            m_dxlabDDEQSYCheck, &QCheckBox::setEnabled);
+
+    layout->addWidget(dxlabGroup);
     layout->addStretch();
 
     return advancedTab;
@@ -2133,6 +2153,8 @@ void PreferencesDialog::loadSettings() {
 
     // Advanced tab
     m_countryFilePathEdit->setText(settings.getCountryFilePath());
+    m_dxlabDDECheck->setChecked(settings.getDXLabDDEEnabled());
+    m_dxlabDDEQSYCheck->setChecked(settings.getDXLabDDEQSY());
 }
 
 void PreferencesDialog::saveSettings() {
@@ -2319,6 +2341,8 @@ void PreferencesDialog::saveSettings() {
 
     // Advanced tab
     settings.setCountryFilePath(m_countryFilePathEdit->text());
+    settings.setDXLabDDEEnabled(m_dxlabDDECheck->isChecked());
+    settings.setDXLabDDEQSY(m_dxlabDDEQSYCheck->isChecked());
 }
 
 void PreferencesDialog::accept() {

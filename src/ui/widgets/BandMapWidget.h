@@ -106,6 +106,11 @@ public:
     int spotCount() const { return m_allSpots.size(); }
 
     /**
+     * Find a spot by callsign and return its frequency (0 if not found)
+     */
+    freq_t findFrequencyByCallsign(const QString& callsign) const;
+
+    /**
      * Refresh LOTW status for all spots
      * Called when LOTW settings change (e.g., min upload months)
      */

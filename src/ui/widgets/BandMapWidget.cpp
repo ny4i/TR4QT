@@ -155,6 +155,14 @@ void BandMapWidget::removeSpot(const QString& callsign) {
     }
 }
 
+freq_t BandMapWidget::findFrequencyByCallsign(const QString& callsign) const {
+    for (const auto& spot : m_allSpots) {
+        if (spot.callsign.compare(callsign, Qt::CaseInsensitive) == 0)
+            return spot.frequency;
+    }
+    return 0;
+}
+
 void BandMapWidget::clearSpots() {
     m_allSpots.clear();
     m_selectedIndex = -1;

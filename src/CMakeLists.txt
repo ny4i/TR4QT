@@ -199,6 +199,7 @@ set(SOURCES
     services/LogExportService.cpp
     services/FrequencyInputService.cpp
     services/SpotProcessingService.cpp
+    services/DXLabPathfinder.cpp
     services/QSOQueryService.cpp
     services/RotatorService.cpp
     services/AmplifierService.cpp
@@ -527,7 +528,7 @@ if(APPLE)
     )
 elseif(WIN32)
     target_compile_definitions(tr4qt PRIVATE __WINDOWS_MM__)
-    target_link_libraries(tr4qt PRIVATE winmm setupapi)
+    target_link_libraries(tr4qt PRIVATE winmm setupapi user32)
 else()
     target_compile_definitions(tr4qt PRIVATE __LINUX_ALSA__)
     # Linux: libasound2-dev required for ALSA MIDI

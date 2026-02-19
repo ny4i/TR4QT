@@ -60,6 +60,7 @@
 #include "../services/MaintenanceService.h"
 #include "../services/InputHandlerService.h"
 #include "../services/StatusNotifier.h"
+#include "../services/DXLabPathfinder.h"
 #include "managers/MenuManager.h"
 #include "managers/SettingsManager.h"
 #include "managers/WindowManager.h"
@@ -521,6 +522,10 @@ private:
 
     // Input handler service (keyboard handling for CW, mode switching)
     InputHandlerService* m_inputHandler;
+
+    // DXLab PathFinder DDE bridge (SpotCollector callsign integration)
+    DXLabPathfinder* m_pathfinder{nullptr};
+    bool m_callsignFromDDE{false};  // True when callsign was set by DDE and user hasn't engaged
 
     // Country file for lookups
     CountryFile m_countryFile;

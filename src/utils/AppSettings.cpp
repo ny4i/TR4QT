@@ -2156,6 +2156,25 @@ QString AppSettings::getCountryFilePath() const {
     return m_settings.value("CountryFile/path", defaultPath).toString();
 }
 
+// DXLab DDE integration
+void AppSettings::setDXLabDDEEnabled(bool enabled) {
+    m_settings.setValue("DXLab/DDEEnabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getDXLabDDEEnabled() const {
+    return m_settings.value("DXLab/DDEEnabled", true).toBool();
+}
+
+void AppSettings::setDXLabDDEQSY(bool enabled) {
+    m_settings.setValue("DXLab/DDEQSY", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getDXLabDDEQSY() const {
+    return m_settings.value("DXLab/DDEQSY", true).toBool();
+}
+
 // LOTW settings
 void AppSettings::setShowOnlyLotwUsers(bool show) {
     m_settings.setValue("BandMap/ShowOnlyLotwUsers", show);

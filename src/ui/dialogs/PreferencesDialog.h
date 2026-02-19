@@ -374,6 +374,8 @@ private:
     // Advanced tab widgets
     QLineEdit* m_countryFilePathEdit;
     QCheckBox* m_autoUpdateCountryFileCheck;
+    QCheckBox* m_dxlabDDECheck;
+    QCheckBox* m_dxlabDDEQSYCheck;
 
     // Sidebar navigation widgets
     QListWidget* m_categoryList;

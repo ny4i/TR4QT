@@ -91,6 +91,11 @@ add_tr4qt_test(test_frequency_input_service
     ../src/logging/FileAppender.cpp
 )
 
+add_tr4qt_test(test_dxlab_pathfinder
+    test_dxlab_pathfinder.cpp
+    ../src/services/DXLabPathfinder.cpp
+)
+
 add_tr4qt_test(test_spot_processing_service
     test_spot_processing_service.cpp
     ../src/services/SpotProcessingService.cpp

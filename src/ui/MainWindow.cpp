@@ -244,6 +244,38 @@ MainWindow::MainWindow(QWidget* parent)
     // Initialize hardware control services (amplifier and rotator)
     initializeHardwareServices();
 
+    // Initialize DXLab PathFinder DDE bridge (Windows only - stub on other platforms)
+    m_pathfinder = new DXLabPathfinder(this);
+    connect(m_pathfinder, &DXLabPathfinder::callsignReceived,
+            this, [this](const QString& callsign) {
+                LOG_DEBUG("MainWindow", QString("DXLab PathFinder callsign: %1").arg(callsign));
+                // Allow if fields are empty OR if callsign was set by DDE and user hasn't engaged
+                bool fieldsEmpty = m_callsignEntry->text().trimmed().isEmpty()
+                                   && m_exchangeEntry->text().trimmed().isEmpty();
+                if (!fieldsEmpty && !m_callsignFromDDE) {
+                    LOG_DEBUG("MainWindow", "DXLab PathFinder: ignoring, user is working a contact");
+                    return;
+                }
+                m_callsignFromDDE = true;
+                m_callsignEntry->setText(callsign);
+                m_callsignEntry->setFocus();
+                // QSY to spot frequency if found in band map
+                if (AppSettings::instance().getDXLabDDEQSY() && m_bandMapWindow && m_radioConnected) {
+                    freq_t freq = m_bandMapWindow->findFrequencyByCallsign(callsign);
+                    if (freq > 0) {
+                        LOG_DEBUG("MainWindow", QString("DXLab PathFinder: QSY to %1 Hz").arg(freq));
+                        m_radio->setFrequency(freq);
+                    }
+                }
+            });
+    connect(m_pathfinder, &DXLabPathfinder::error,
+            this, [](const QString& msg) {
+                LOG_WARN("MainWindow", QString("DXLab PathFinder: %1").arg(msg));
+            });
+    if (AppSettings::instance().getDXLabDDEEnabled()) {
+        m_pathfinder->start();
+    }
+
     // Initialize input handler service (keyboard handling for CW, mode switching)
     InputHandlerService::Config inputConfig;
     inputConfig.radio = m_radio;
@@ -2205,8 +2237,11 @@ void MainWindow::onRadioStateUpdated(const RadioState& state) {
                 LOG_WARN("MainWindow", QString("Phone privilege violation: %1").arg(warning));
                 lastPrivilegeWarning = warning;
             }
-        } else {
-            lastPrivilegeWarning.clear();  // Reset when no violation
+        } else if (!lastPrivilegeWarning.isEmpty()) {
+            // Was showing a warning, now clear it
+            lastPrivilegeWarning.clear();
+            setStatusMessage("Ready");
+            m_statusLabel->setStyleSheet("");
         }
     }
 
@@ -2690,6 +2725,7 @@ void MainWindow::onExchangeTextChanged(const QString& text) {
 }
 
 void MainWindow::onCallsignEnterPressed() {
+    m_callsignFromDDE = false;  // User is engaging with the contact
     QString callsign = m_callsignEntry->text().trimmed().toUpper();
 
     if (callsign.isEmpty()) {
@@ -2774,6 +2810,7 @@ void MainWindow::onClearEntry() {
     m_exchangeEntry->clear();
     m_callsignEntry->setFocus();
     m_initialExchangePopulated = false;
+    m_callsignFromDDE = false;
 
     // Reset status
     setStatusMessage("Ready");

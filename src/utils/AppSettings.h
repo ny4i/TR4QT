@@ -468,6 +468,12 @@ public:
     void setCountryFilePath(const QString& path);
     QString getCountryFilePath() const;
 
+    // DXLab DDE integration (Windows only)
+    void setDXLabDDEEnabled(bool enabled);
+    bool getDXLabDDEEnabled() const;
+    void setDXLabDDEQSY(bool enabled);
+    bool getDXLabDDEQSY() const;
+
     // Band Map filter settings
     void setShowOnlyLotwUsers(bool show);
     bool getShowOnlyLotwUsers() const;
