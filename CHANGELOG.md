@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.45.78] - 2026-02-19
+
+### Added
+- **Test Coverage for 4 Services** (#71): 56 new test methods across 4 test files
+  - `test_cw_service`: adjustWPM clamping, preconditions, CWR mode, signal emission
+  - `test_score_calculation_service`: per-band/all-bands multipliers, scoring formula, band stats
+  - `test_qso_query_service`: worked callsigns, bands, time windows, rate calculation
+  - `test_status_notifier`: formatMessage, styleForEvent
+- **Map Visibility Tracking Tests**: 4 tests validating the Close vs Hide event filter pattern
+
+### Fixed
+- **Map Window Visibility Persistence**: Map windows (States, Sections, World, Grayline) intermittently restored on startup despite being closed before quitting
+  - Root cause: `isVisible()` unreliable during SIGTERM shutdown; `saveSettings()` runs before child windows close during normal quit
+  - Fix: Track visibility via boolean flags + eventFilter on `QEvent::Close` (not Hide, which fires on minimize/focus-loss)
+
+### Changed
+- Replace `"RADIO1"` magic string with `RateCalculator::QsoRecord::DEFAULT_STATION_ID` constant
+- `RadioController::isConnected`, `setCWSpeed`, `getCWSpeedRange` made virtual for test mocking (tech debt tracked in #87)
+- CW test uses shared mock fixture — 1.5s vs 6.5s with per-test thread creation
+
 ## [3.45.77] - 2026-02-18
 
 ### Changed
