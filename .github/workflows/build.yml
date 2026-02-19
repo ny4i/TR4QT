@@ -873,16 +873,25 @@ jobs:
 
     - name: Install missing Qt modules
       run: |
-        # Qt6Multimedia is required but not in the base aqtinstall.
-        # Install it if not already present.
-        if [ ! -d "${{ env.QT_ROOT_DIR }}/lib/cmake/Qt6Multimedia" ]; then
-          echo "Installing Qt6Multimedia module..."
+        # Check if all required extra Qt modules are present.
+        # These modules are not in the base aqtinstall and must be installed separately.
+        MISSING=false
+        for mod in Qt6Multimedia Qt6HttpServer Qt6WebSockets Qt6SerialPort; do
+          if [ ! -d "${{ env.QT_ROOT_DIR }}/lib/cmake/${mod}" ]; then
+            echo "Missing: ${mod}"
+            MISSING=true
+          fi
+        done
+
+        if [ "$MISSING" = true ]; then
+          echo "Installing missing Qt modules..."
           python3 -m venv /tmp/aqt-venv
           /tmp/aqt-venv/bin/pip install aqtinstall
-          /tmp/aqt-venv/bin/aqt install-qt linux desktop ${{ env.QT_VERSION }} --outputdir /opt/Qt --modules qtmultimedia
+          /tmp/aqt-venv/bin/aqt install-qt linux desktop ${{ env.QT_VERSION }} --outputdir /opt/Qt \
+            --modules qtmultimedia qthttpserver qtwebsockets qtserialport
           rm -rf /tmp/aqt-venv
         else
-          echo "Qt6Multimedia already installed"
+          echo "All required Qt modules already installed"
         fi
 
     - name: Configure CMake
