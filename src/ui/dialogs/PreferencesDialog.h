@@ -325,6 +325,13 @@ private:
     // Network tab widgets
     QLineEdit* m_computerIDEdit;
 
+    // WSJT-X integration widgets (on Network tab)
+    QCheckBox* m_wsjtxEnabledCheck;
+    QSpinBox* m_wsjtxPortSpin;
+    QLineEdit* m_wsjtxMulticastEdit;
+    QCheckBox* m_wsjtxAutoLogCheck;
+    QCheckBox* m_wsjtxHighlightCheck;
+
     // Appearance tab widgets
     QSpinBox* m_entryFontSizeSpin;
     QSpinBox* m_tableFontSizeSpin;

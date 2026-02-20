@@ -73,6 +73,7 @@
 #include "../services/CWService.h"
 #include "../controllers/AmplifierController.h"
 #include "../controllers/RotatorController.h"
+#include "../controllers/WSJTXController.h"
 #include "controllers/PlaceholderActions.h"
 
 class QMenuBar;
@@ -227,6 +228,12 @@ private slots:
     // DX Cluster integration
     void onDXSpotReceived(const TR4QT::ProcessedSpot& processedSpot);
 
+    // WSJT-X integration (FT8/FT4 auto-logging and callsign highlighting)
+    void onWSJTXQSOReady(const TR4QT::QSO& qso);
+    void onWSJTXDxCallChanged(const QString& callsign, quint64 frequencyHz);
+    void onWSJTXConnected(const QString& id, const QString& version);
+    void onWSJTXDisconnected();
+
     // Band switching
     void onBandClicked(BandType band);
     void onBandUp();
@@ -278,6 +285,7 @@ private:
     void loadStatisticsWindowData();  // Load/reload QSO data into Statistics window
     void initializeHardwareServices();
     void initializeAmplifierService();  // Create amplifier controller/service from settings
+    void initializeWSJTX();             // Initialize WSJT-X FT8/FT4 integration
     void loadSettings();
     void restoreChildWindows(const WindowGeometry& geometry);
     void applyFontSettings();
@@ -511,6 +519,10 @@ private:
 
     // DXLab SpotCollector DDE integration (Windows only, stub on other platforms)
     SpotCollectorService* m_spotCollectorService{nullptr};
+
+    // WSJT-X integration (FT8/FT4 digital mode contesting)
+    WSJTXController* m_wsjtxController{nullptr};
+    QLabel* m_wsjtxStatusLabel{nullptr};
 
     // Country file for lookups
     CountryFile m_countryFile;

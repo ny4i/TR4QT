@@ -1187,12 +1187,42 @@ QWidget* PreferencesDialog::createNetworkTab() {
 
     mainLayout->addWidget(networkGroup);
 
+    // WSJT-X Integration group
+    QGroupBox* wsjtxGroup = new QGroupBox("WSJT-X Integration (FT8/FT4)", this);
+    QFormLayout* wsjtxLayout = new QFormLayout(wsjtxGroup);
+
+    m_wsjtxEnabledCheck = new QCheckBox("Enable WSJT-X integration", this);
+    m_wsjtxEnabledCheck->setToolTip("Listen for WSJT-X UDP messages for FT8/FT4 contest logging");
+    wsjtxLayout->addRow(m_wsjtxEnabledCheck);
+
+    m_wsjtxPortSpin = new QSpinBox(this);
+    m_wsjtxPortSpin->setRange(1024, 65535);
+    m_wsjtxPortSpin->setValue(2237);
+    m_wsjtxPortSpin->setToolTip("UDP port WSJT-X sends to (must match WSJT-X Settings → Reporting → UDP Server port)");
+    wsjtxLayout->addRow("UDP Port:", m_wsjtxPortSpin);
+
+    m_wsjtxMulticastEdit = new QLineEdit(this);
+    m_wsjtxMulticastEdit->setPlaceholderText("Leave empty for unicast");
+    m_wsjtxMulticastEdit->setToolTip("Multicast group address (e.g., 239.255.0.0) — allows multiple listeners on same port");
+    wsjtxLayout->addRow("Multicast Group:", m_wsjtxMulticastEdit);
+
+    m_wsjtxAutoLogCheck = new QCheckBox("Auto-log QSOs from WSJT-X", this);
+    m_wsjtxAutoLogCheck->setToolTip("Automatically log QSOs when clicking 'Log QSO' in WSJT-X");
+    wsjtxLayout->addRow(m_wsjtxAutoLogCheck);
+
+    m_wsjtxHighlightCheck = new QCheckBox("Highlight dupes/multipliers", this);
+    m_wsjtxHighlightCheck->setToolTip("Send callsign highlighting to WSJT-X's band activity window (dupes=red, mults=yellow)");
+    wsjtxLayout->addRow(m_wsjtxHighlightCheck);
+
+    mainLayout->addWidget(wsjtxGroup);
+
     // Help text
     QLabel* helpLabel = new QLabel(
         "Network settings for multi-station operation.\n\n"
         "Computer ID identifies this station in a networked TR4QT setup.\n"
         "Each station in the network should have a unique ID (A, B, C, etc.).\n"
-        "The ID appears in the \"Id\" column of the QSO table.",
+        "The ID appears in the \"Id\" column of the QSO table.\n\n"
+        "WSJT-X: Configure WSJT-X → Settings → Reporting → enable 'UDP Server' on matching port.",
         this
     );
     helpLabel->setWordWrap(true);
@@ -2079,6 +2109,13 @@ void PreferencesDialog::loadSettings() {
     // Network tab
     m_computerIDEdit->setText(settings.getComputerID());
 
+    // WSJT-X integration
+    m_wsjtxEnabledCheck->setChecked(settings.getWSJTXEnabled());
+    m_wsjtxPortSpin->setValue(settings.getWSJTXPort());
+    m_wsjtxMulticastEdit->setText(settings.getWSJTXMulticastGroup());
+    m_wsjtxAutoLogCheck->setChecked(settings.getWSJTXAutoLog());
+    m_wsjtxHighlightCheck->setChecked(settings.getWSJTXHighlightEnabled());
+
     // Appearance tab
     m_entryFontSizeSpin->setValue(settings.getEntryFontSize());
     m_tableFontSizeSpin->setValue(settings.getTableFontSize());
@@ -2260,6 +2297,13 @@ void PreferencesDialog::saveSettings() {
 
     // Network tab
     settings.setComputerID(m_computerIDEdit->text());
+
+    // WSJT-X integration
+    settings.setWSJTXEnabled(m_wsjtxEnabledCheck->isChecked());
+    settings.setWSJTXPort(static_cast<quint16>(m_wsjtxPortSpin->value()));
+    settings.setWSJTXMulticastGroup(m_wsjtxMulticastEdit->text().trimmed());
+    settings.setWSJTXAutoLog(m_wsjtxAutoLogCheck->isChecked());
+    settings.setWSJTXHighlightEnabled(m_wsjtxHighlightCheck->isChecked());
 
     // Appearance tab
     settings.setEntryFontSize(m_entryFontSizeSpin->value());

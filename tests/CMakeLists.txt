@@ -830,3 +830,47 @@ add_test(NAME test_rotator_service COMMAND test_rotator_service)
 
 # Set test properties
 set_tests_properties(test_rotator_service PROPERTIES TIMEOUT 30)
+
+# WSJT-X Message codec tests (binary protocol parsing)
+add_tr4qt_test(test_wsjtx_message
+    test_wsjtx_message.cpp
+    ../src/network/WSJTXMessage.cpp
+    ../src/core/Types.cpp
+)
+
+# WSJT-X Service tests (mode mapping, callsign extraction, QSO conversion)
+add_tr4qt_test(test_wsjtx_service
+    test_wsjtx_service.cpp
+    ../src/services/WSJTXService.cpp
+    ../src/network/WSJTXMessage.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/utils/GeographicUtils.cpp
+    ../src/utils/PathManager.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/data/Database.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
+# WSJT-X Highlight Worker tests (dupe/mult cache logic)
+add_tr4qt_test(test_wsjtx_highlight_worker
+    test_wsjtx_highlight_worker.cpp
+    ../src/services/WSJTXHighlightWorker.cpp
+    ../src/services/WSJTXService.cpp
+    ../src/network/WSJTXMessage.cpp
+    ../src/utils/CountryFile.cpp
+    ../src/utils/GeographicUtils.cpp
+    ../src/utils/PathManager.cpp
+    ../src/data/DXCCRepository.cpp
+    ../src/data/GlobalDatabase.cpp
+    ../src/data/Database.cpp
+    ../src/core/Types.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)

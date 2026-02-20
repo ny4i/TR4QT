@@ -117,6 +117,8 @@ set(SOURCES
     network/ContactInfo.cpp
     network/UdpBroadcaster.cpp
     network/UdpBroadcastManager.cpp
+    network/WSJTXMessage.cpp
+    network/WSJTXUdpClient.cpp
     network/WebServer.cpp
     network/WebServerContext.cpp
     data/Database.cpp
@@ -189,6 +191,7 @@ set(SOURCES
     controllers/KPA1500UdpPoller.cpp
     controllers/AmplifierController.cpp
     controllers/RotatorController.cpp
+    controllers/WSJTXController.cpp
     commands/CommandDispatcher.cpp
     services/QSOPersistenceService.cpp
     services/ExchangeMemoryService.cpp
@@ -200,6 +203,8 @@ set(SOURCES
     services/FrequencyInputService.cpp
     services/SpotProcessingService.cpp
     services/SpotProcessorWorker.cpp
+    services/WSJTXService.cpp
+    services/WSJTXHighlightWorker.cpp
     services/DXLabPathfinder.cpp
     services/SpotCollectorService.cpp
     services/QSOQueryService.cpp
@@ -303,6 +308,8 @@ set(HEADERS
     network/ContactInfo.h
     network/UdpBroadcaster.h
     network/UdpBroadcastManager.h
+    network/WSJTXMessage.h
+    network/WSJTXUdpClient.h
     network/WebServer.h
     network/WebServerContext.h
     data/Database.h
@@ -361,6 +368,7 @@ set(HEADERS
     controllers/BandSwitchingManager.h
     controllers/AmplifierController.h
     controllers/RotatorController.h
+    controllers/WSJTXController.h
     models/QSO.h
     models/StationInfo.h
     ui/MainWindow.h
@@ -440,8 +448,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.45.80"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.45.80"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.46.80"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.46.80"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)

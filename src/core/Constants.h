@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.45.80";  // Fix spot processor thread safety, cache multipliers, eliminate hardcoded colors
+constexpr const char* APP_VERSION = "3.46.80";  // WSJT-X integration: auto-log QSOs, dupe/mult highlighting, UDP protocol
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

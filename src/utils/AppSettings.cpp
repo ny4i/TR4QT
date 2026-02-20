@@ -2653,4 +2653,51 @@ QString AppSettings::getValue(const QString& key, const QString& defaultValue) c
     return m_settings.value(key, defaultValue).toString();
 }
 
+// ─── WSJT-X integration settings ───────────────────────────────────────────
+
+void AppSettings::setWSJTXEnabled(bool enabled) {
+    m_settings.setValue("WSJTX/enabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getWSJTXEnabled() const {
+    return m_settings.value("WSJTX/enabled", false).toBool();
+}
+
+void AppSettings::setWSJTXPort(quint16 port) {
+    m_settings.setValue("WSJTX/port", port);
+    m_settings.sync();
+}
+
+quint16 AppSettings::getWSJTXPort() const {
+    return static_cast<quint16>(m_settings.value("WSJTX/port", 2237).toUInt());
+}
+
+void AppSettings::setWSJTXMulticastGroup(const QString& group) {
+    m_settings.setValue("WSJTX/multicastGroup", group);
+    m_settings.sync();
+}
+
+QString AppSettings::getWSJTXMulticastGroup() const {
+    return m_settings.value("WSJTX/multicastGroup", "").toString();
+}
+
+void AppSettings::setWSJTXAutoLog(bool enabled) {
+    m_settings.setValue("WSJTX/autoLog", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getWSJTXAutoLog() const {
+    return m_settings.value("WSJTX/autoLog", true).toBool();
+}
+
+void AppSettings::setWSJTXHighlightEnabled(bool enabled) {
+    m_settings.setValue("WSJTX/highlightEnabled", enabled);
+    m_settings.sync();
+}
+
+bool AppSettings::getWSJTXHighlightEnabled() const {
+    return m_settings.value("WSJTX/highlightEnabled", true).toBool();
+}
+
 } // namespace TR4QT

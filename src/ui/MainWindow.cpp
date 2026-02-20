@@ -274,6 +274,9 @@ MainWindow::MainWindow(QWidget* parent)
     });
     m_spotCollectorService->loadSettings();
 
+    // Initialize WSJT-X integration (FT8/FT4 digital mode contesting)
+    initializeWSJTX();
+
     // Initialize input handler service (keyboard handling for CW, mode switching)
     InputHandlerService::Config inputConfig;
     inputConfig.radio = m_radio;
@@ -1183,6 +1186,14 @@ void MainWindow::createStatusBar() {
     m_radioStatusLabel = new QLabel("Radio: Not Connected", this);
     m_radioStatusLabel->setStyleSheet("color: red; font-weight: bold;");
     status->addPermanentWidget(m_radioStatusLabel);
+
+    // WSJT-X connection status indicator
+    m_wsjtxStatusLabel = new QLabel("WSJT-X: —", this);
+    m_wsjtxStatusLabel->setStyleSheet("QLabel { color: gray; }");
+    m_wsjtxStatusLabel->setToolTip("WSJT-X FT8/FT4 integration status");
+    if (AppSettings::instance().getWSJTXEnabled()) {
+        status->addPermanentWidget(m_wsjtxStatusLabel);
+    }
 }
 
 void MainWindow::initializeHardwareServices() {
@@ -5607,6 +5618,101 @@ QString MainWindow::substituteSentExchangeTemplate(const QString& templateStr, i
     result.replace("{GRID}", settings.getMyGridSquare());
 
     return result.trimmed();
+}
+
+// ─── WSJT-X Integration ────────────────────────────────────────────────────
+
+void MainWindow::initializeWSJTX()
+{
+    m_wsjtxController = new WSJTXController(this);
+    m_wsjtxController->setCountryFile(&m_countryFile);
+
+    // Connect WSJT-X signals
+    connect(m_wsjtxController, &WSJTXController::qsoReady,
+            this, &MainWindow::onWSJTXQSOReady);
+    connect(m_wsjtxController, &WSJTXController::dxCallChanged,
+            this, &MainWindow::onWSJTXDxCallChanged);
+    connect(m_wsjtxController, &WSJTXController::wsjtxConnected,
+            this, &MainWindow::onWSJTXConnected);
+    connect(m_wsjtxController, &WSJTXController::wsjtxDisconnected,
+            this, &MainWindow::onWSJTXDisconnected);
+
+    // Apply settings
+    AppSettings& settings = AppSettings::instance();
+    m_wsjtxController->setAutoLogEnabled(settings.getWSJTXAutoLog());
+    m_wsjtxController->setHighlightEnabled(settings.getWSJTXHighlightEnabled());
+
+    // Start if enabled
+    if (settings.getWSJTXEnabled()) {
+        m_wsjtxController->start(settings.getWSJTXPort(),
+                                  settings.getWSJTXMulticastGroup());
+    }
+}
+
+void MainWindow::onWSJTXQSOReady(const QSO& qso)
+{
+    if (!m_hasActiveContest) {
+        LOG_WARN("MainWindow", "WSJT-X QSO received but no active contest — ignoring");
+        return;
+    }
+
+    if (!m_persistenceService) return;
+
+    QSO mutableQso = qso;
+
+    auto result = m_persistenceService->saveQSO(mutableQso, m_currentContestDbId);
+    if (result.status == QSOPersistenceService::SaveResult::SavedToDatabase) {
+        LOG_INFO("MainWindow", QString("WSJT-X QSO logged: %1 on %2")
+                 .arg(qso.callsign, bandToString(qso.band)));
+
+        // Update the QSO table model
+        if (m_qsoTableModel) {
+            m_qsoTableModel->addQSO(mutableQso);
+        }
+
+        // Update WSJT-X highlight worker's dupe cache
+        m_wsjtxController->onQSOLogged(mutableQso);
+    } else {
+        LOG_ERROR("MainWindow", QString("Failed to save WSJT-X QSO: %1").arg(result.errorMessage));
+    }
+}
+
+void MainWindow::onWSJTXDxCallChanged(const QString& callsign, quint64 frequencyHz)
+{
+    Q_UNUSED(frequencyHz)
+    // Pre-fill the callsign entry if it's empty
+    if (m_callsignEntry && m_callsignEntry->text().trimmed().isEmpty()) {
+        m_callsignEntry->setText(callsign);
+    }
+}
+
+void MainWindow::onWSJTXConnected(const QString& id, const QString& version)
+{
+    Q_UNUSED(id)
+    if (m_wsjtxStatusLabel) {
+        m_wsjtxStatusLabel->setText(QString("WSJT-X: %1").arg(version));
+        m_wsjtxStatusLabel->setStyleSheet("QLabel { color: green; }");
+    }
+    LOG_INFO("MainWindow", QString("WSJT-X connected: %1 %2").arg(id, version));
+
+    // Send contest context to the highlight worker
+    if (m_hasActiveContest && m_activeContest && Database::instance().isOpen()) {
+        QString dbPath = Database::instance().connection().databaseName();
+        m_wsjtxController->setContestContext(
+            m_currentContestDbId,
+            dbPath,
+            m_activeContest->getMultiplierTypes(),
+            m_activeContest->getDuplicateCheckingRule());
+    }
+}
+
+void MainWindow::onWSJTXDisconnected()
+{
+    if (m_wsjtxStatusLabel) {
+        m_wsjtxStatusLabel->setText("WSJT-X: —");
+        m_wsjtxStatusLabel->setStyleSheet("QLabel { color: gray; }");
+    }
+    LOG_INFO("MainWindow", "WSJT-X disconnected");
 }
 
 } // namespace TR4QT

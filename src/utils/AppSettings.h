@@ -620,6 +620,22 @@ public:
     void setSCPIncludeLocalLogs(bool include);
     bool getSCPIncludeLocalLogs() const;  // Default: true
 
+    // WSJT-X integration settings
+    void setWSJTXEnabled(bool enabled);
+    bool getWSJTXEnabled() const;  // Default: false
+
+    void setWSJTXPort(quint16 port);
+    quint16 getWSJTXPort() const;  // Default: 2237
+
+    void setWSJTXMulticastGroup(const QString& group);
+    QString getWSJTXMulticastGroup() const;  // Default: "" (unicast)
+
+    void setWSJTXAutoLog(bool enabled);
+    bool getWSJTXAutoLog() const;  // Default: true
+
+    void setWSJTXHighlightEnabled(bool enabled);
+    bool getWSJTXHighlightEnabled() const;  // Default: true
+
     // Generic settings access
     /**
      * Get a settings value by key path
