@@ -87,9 +87,9 @@ target_link_libraries(tr4qt_core PRIVATE
     ${HAMLIB_LIBRARIES}
 )
 
-# macOS: SystemConfiguration framework for PlatformUtils (NetBIOS name lookup)
+# macOS: SystemConfiguration + CoreFoundation for PlatformUtils (NetBIOS name lookup)
 if(APPLE)
-    target_link_libraries(tr4qt_core PRIVATE "-framework SystemConfiguration")
+    target_link_libraries(tr4qt_core PRIVATE "-framework SystemConfiguration" "-framework CoreFoundation")
 endif()
 
 set(SOURCES

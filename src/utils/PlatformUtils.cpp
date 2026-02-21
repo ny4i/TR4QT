@@ -18,6 +18,8 @@
 
 #include "PlatformUtils.h"
 #include <QHostInfo>
+#include <QSerialPortInfo>
+#include <algorithm>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -70,6 +72,29 @@ QString getNetBiosName()
         hostname = hostname.left(dotIndex);
     }
     return hostname;
+}
+
+QList<QPair<QString, QString>> availableSerialPorts()
+{
+    QList<QPair<QString, QString>> items;
+    const auto ports = QSerialPortInfo::availablePorts();
+
+    for (const auto& port : ports) {
+#ifdef Q_OS_MACOS
+        // On macOS, skip tty.* devices — cu.* is correct for outgoing serial.
+        if (port.portName().startsWith("tty.")) continue;
+#endif
+        QString displayText = port.description().isEmpty()
+            ? port.portName()
+            : QString("%1 (%2)").arg(port.description(), port.portName());
+        items.append({displayText, port.portName()});
+    }
+
+    std::sort(items.begin(), items.end(), [](const auto& a, const auto& b) {
+        return a.first.compare(b.first, Qt::CaseInsensitive) < 0;
+    });
+
+    return items;
 }
 
 }  // namespace PlatformUtils

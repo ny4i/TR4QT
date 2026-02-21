@@ -23,7 +23,6 @@
 #include <QSettings>
 #include <QCloseEvent>
 #include <QTimer>
-#include <QDataStream>
 #include "../core/Constants.h"
 #include "../logging/LogMacros.h"
 
@@ -135,22 +134,7 @@ public:
                 // Deferred restore — gives macOS WM time to finish placement.
                 const int GEOMETRY_RESTORE_DELAY_MS = 150;
                 QTimer::singleShot(GEOMETRY_RESTORE_DELAY_MS, this, [this, savedGeometry]() {
-                    QPoint posBefore = this->pos();
                     this->restoreGeometry(savedGeometry);
-
-                    // Fallback: if restoreGeometry() had no effect, decode the
-                    // blob and use move()/resize() directly.
-                    if (this->pos() == posBefore) {
-                        QDataStream stream(savedGeometry);
-                        stream.setVersion(QDataStream::Qt_5_0);
-                        quint32 magic; quint16 majV, minV;
-                        qint32 fx, fy, fw, fh, nx, ny, nw, nh;
-                        stream >> magic >> majV >> minV
-                               >> fx >> fy >> fw >> fh
-                               >> nx >> ny >> nw >> nh;
-                        this->move(nx, ny);
-                        this->resize(nw, nh);
-                    }
                 });
             }
         }

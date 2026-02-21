@@ -26,7 +26,7 @@
 #include <QHBoxLayout>
 #include <QFormLayout>
 #include <QDialogButtonBox>
-#include <QSerialPortInfo>
+#include "../../utils/PlatformUtils.h"
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QIntValidator>
@@ -600,9 +600,9 @@ RadioConfig RadioEditDialog::buildRadioConfigFromUI() const
         config.port = QString("%1:%2").arg(m_ipAddressEdit->text()).arg(m_portSpin->value());
         config.connectionMethod = 2;  // Network
     } else {
-        // Prefer combo selection, fall back to manual entry
-        if (m_serialPortCombo->currentIndex() > 0) {
-            config.port = m_serialPortCombo->currentText();
+        // Prefer combo selection (use data for actual port name), fall back to manual entry
+        if (m_serialPortCombo->currentIndex() > 0 && m_serialPortCombo->currentData().isValid()) {
+            config.port = m_serialPortCombo->currentData().toString();
         } else if (!m_serialPortEdit->text().isEmpty()) {
             config.port = m_serialPortEdit->text();
         } else {
@@ -818,13 +818,8 @@ void RadioEditDialog::refreshSerialPorts()
     m_serialPortCombo->clear();
     m_serialPortCombo->addItem("-- Select Port --");
 
-    QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
-    for (const auto& port : ports) {
-        QString displayName = port.portName();
-        if (!port.description().isEmpty()) {
-            displayName += QString(" (%1)").arg(port.description());
-        }
-        m_serialPortCombo->addItem(displayName, port.portName());
+    for (const auto& [displayText, portName] : PlatformUtils::availableSerialPorts()) {
+        m_serialPortCombo->addItem(displayText, portName);
     }
 }
 

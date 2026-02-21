@@ -19,6 +19,8 @@
 #pragma once
 
 #include <QString>
+#include <QList>
+#include <QPair>
 
 namespace TR4QT {
 namespace PlatformUtils {
@@ -28,6 +30,11 @@ namespace PlatformUtils {
 // macOS: SCDynamicStore SMB/NetBIOSName, falls back to local hostname
 // Linux: hostname without domain suffix
 QString getNetBiosName();
+
+// Returns available serial ports as (displayText, portName) pairs,
+// sorted alphabetically by display text.
+// On macOS, filters out tty.* devices (cu.* is correct for outgoing serial).
+QList<QPair<QString, QString>> availableSerialPorts();
 
 }  // namespace PlatformUtils
 }  // namespace TR4QT
