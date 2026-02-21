@@ -68,6 +68,10 @@ add_library(tr4qt_core OBJECT
     logging/FileAppender.cpp
     logging/FileAppender.h
     logging/LogMacros.h
+
+    # Platform utilities (serial port enumeration, NetBIOS name, etc.)
+    utils/PlatformUtils.cpp
+    utils/PlatformUtils.h
 )
 
 # Object library needs same includes/links as main app
@@ -82,6 +86,11 @@ target_link_libraries(tr4qt_core PRIVATE
     Qt6::SerialPort
     ${HAMLIB_LIBRARIES}
 )
+
+# macOS: SystemConfiguration framework for PlatformUtils (NetBIOS name lookup)
+if(APPLE)
+    target_link_libraries(tr4qt_core PRIVATE "-framework SystemConfiguration")
+endif()
 
 set(SOURCES
     main.cpp
@@ -107,7 +116,7 @@ set(SOURCES
     utils/RadioEnumerator.cpp
     utils/ThemeManager.cpp
     utils/FontManager.cpp
-    utils/PlatformUtils.cpp
+    # PlatformUtils.cpp is in tr4qt_core object library
     utils/ReconnectionManager.cpp
     utils/CredentialStore.cpp
     utils/PerformanceProfiler.cpp
@@ -299,7 +308,7 @@ set(HEADERS
     utils/RadioEnumerator.h
     utils/ThemeManager.h
     utils/FontManager.h
-    utils/PlatformUtils.h
+    # PlatformUtils.h is in tr4qt_core object library
     utils/ReconnectionManager.h
     utils/CredentialStore.h
     # Radio headers now in tr4qt_core object library (removed to prevent duplicate MOC)
@@ -448,8 +457,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.47.80"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.47.80"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.48.80"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.48.80"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
@@ -614,7 +623,7 @@ set(SERVER_SOURCES
     utils/CredentialStore.cpp
     utils/GeographicUtils.cpp
     utils/PathManager.cpp
-    utils/PlatformUtils.cpp
+    # PlatformUtils.cpp is in tr4qt_core object library
     utils/ADIFExporter.cpp
     utils/CabrilloExporter.cpp
     # Network

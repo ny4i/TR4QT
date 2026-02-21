@@ -18,12 +18,12 @@
 
 #include "CWOutputEditDialog.h"
 #include "../../utils/DialogHelper.h"
+#include "../../utils/PlatformUtils.h"
 #include "../../logging/LogMacros.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
 #include <QDialogButtonBox>
-#include <QSerialPortInfo>
 
 namespace TR4QT {
 
@@ -122,6 +122,23 @@ void CWOutputEditDialog::setupUI()
     m_tailTimeSpin->setToolTip("PTT tail time after last element (x10ms)");
     winKeyerLayout->addRow("Tail Time:", m_tailTimeSpin);
 
+    // Speed pot range
+    m_potMinWpmSpin = new QSpinBox(this);
+    m_potMinWpmSpin->setRange(CWProfileDefaults::WINKEYER_POT_MIN_WPM,
+                              CWProfileDefaults::WINKEYER_POT_MAX_WPM);
+    m_potMinWpmSpin->setValue(CWProfileDefaults::WINKEYER_POT_DEFAULT_MIN);
+    m_potMinWpmSpin->setSuffix(" WPM");
+    m_potMinWpmSpin->setToolTip("Minimum CW speed at bottom of pot rotation (K1EL range: 5-99)");
+    winKeyerLayout->addRow("Pot Min Speed:", m_potMinWpmSpin);
+
+    m_potMaxWpmSpin = new QSpinBox(this);
+    m_potMaxWpmSpin->setRange(CWProfileDefaults::WINKEYER_POT_MIN_WPM,
+                              CWProfileDefaults::WINKEYER_POT_MAX_WPM);
+    m_potMaxWpmSpin->setValue(CWProfileDefaults::WINKEYER_POT_DEFAULT_MAX);
+    m_potMaxWpmSpin->setSuffix(" WPM");
+    m_potMaxWpmSpin->setToolTip("Maximum CW speed at top of pot rotation (K1EL range: 5-99)");
+    winKeyerLayout->addRow("Pot Max Speed:", m_potMaxWpmSpin);
+
     mainLayout->addWidget(m_winKeyerGroup);
 
     // === DTR/RTS Settings ===
@@ -178,13 +195,26 @@ void CWOutputEditDialog::loadProfileIntoUI(const CWOutputProfile& profile)
     if (typeIndex >= 0) m_typeCombo->setCurrentIndex(typeIndex);
 
     // WinKeyer settings — ports already populated in setupUI()
-    m_winKeyerPortCombo->setCurrentText(profile.winKeyerPortName);
+    // Try matching by port name (data), fall back to display text for legacy settings
+    int wkIdx = m_winKeyerPortCombo->findData(profile.winKeyerPortName);
+    if (wkIdx >= 0) {
+        m_winKeyerPortCombo->setCurrentIndex(wkIdx);
+    } else {
+        m_winKeyerPortCombo->setCurrentText(profile.winKeyerPortName);
+    }
     m_weightingSpin->setValue(profile.weighting);
     m_leadInSpin->setValue(profile.leadInTime);
     m_tailTimeSpin->setValue(profile.tailTime);
+    m_potMinWpmSpin->setValue(profile.potMinWpm);
+    m_potMaxWpmSpin->setValue(profile.potMaxWpm);
 
     // DTR/RTS settings — ports already populated in setupUI()
-    m_dtrRtsPortCombo->setCurrentText(profile.dtrRtsPortName);
+    int dtrIdx = m_dtrRtsPortCombo->findData(profile.dtrRtsPortName);
+    if (dtrIdx >= 0) {
+        m_dtrRtsPortCombo->setCurrentIndex(dtrIdx);
+    } else {
+        m_dtrRtsPortCombo->setCurrentText(profile.dtrRtsPortName);
+    }
     int pinIndex = m_dtrRtsPinCombo->findData(static_cast<int>(profile.dtrRtsPin));
     if (pinIndex >= 0) m_dtrRtsPinCombo->setCurrentIndex(pinIndex);
 
@@ -200,13 +230,15 @@ CWOutputProfile CWOutputEditDialog::getCWOutputProfile() const
     // Only populate fields relevant to the selected type
     switch (profile.type) {
     case CWSenderFactory::Backend::KeyerDevice:
-        profile.winKeyerPortName = m_winKeyerPortCombo->currentText();
+        profile.winKeyerPortName = m_winKeyerPortCombo->currentData().toString();
         profile.weighting = m_weightingSpin->value();
         profile.leadInTime = m_leadInSpin->value();
         profile.tailTime = m_tailTimeSpin->value();
+        profile.potMinWpm = m_potMinWpmSpin->value();
+        profile.potMaxWpm = qMax(m_potMaxWpmSpin->value(), m_potMinWpmSpin->value() + 1);
         break;
     case CWSenderFactory::Backend::DtrRts:
-        profile.dtrRtsPortName = m_dtrRtsPortCombo->currentText();
+        profile.dtrRtsPortName = m_dtrRtsPortCombo->currentData().toString();
         profile.dtrRtsPin = static_cast<DtrRtsCWSender::Pin>(m_dtrRtsPinCombo->currentData().toInt());
         break;
     default:  // Hamlib: no extra fields
@@ -227,25 +259,10 @@ void CWOutputEditDialog::onRefreshWinKeyerPorts()
     QString previousPort = m_winKeyerPortCombo->currentText();
     m_winKeyerPortCombo->clear();
 
-    const auto ports = QSerialPortInfo::availablePorts();
-    QList<QPair<QString, QString>> items;
-
-    for (const auto& port : ports) {
-        QString displayText = port.description().isEmpty()
-            ? port.portName()
-            : QString("%1 (%2)").arg(port.description(), port.portName());
-        items.append({displayText, port.portName()});
+    for (const auto& [displayText, portName] : PlatformUtils::availableSerialPorts()) {
+        m_winKeyerPortCombo->addItem(displayText, portName);
     }
 
-    std::sort(items.begin(), items.end(), [](const auto& a, const auto& b) {
-        return a.first.compare(b.first, Qt::CaseInsensitive) < 0;
-    });
-
-    for (const auto& item : items) {
-        m_winKeyerPortCombo->addItem(item.first, item.second);
-    }
-
-    // Restore previous selection
     if (!previousPort.isEmpty()) {
         int idx = m_winKeyerPortCombo->findText(previousPort);
         if (idx >= 0) m_winKeyerPortCombo->setCurrentIndex(idx);
@@ -257,25 +274,10 @@ void CWOutputEditDialog::onRefreshDtrRtsPorts()
     QString previousPort = m_dtrRtsPortCombo->currentText();
     m_dtrRtsPortCombo->clear();
 
-    const auto ports = QSerialPortInfo::availablePorts();
-    QList<QPair<QString, QString>> items;
-
-    for (const auto& port : ports) {
-        QString displayText = port.description().isEmpty()
-            ? port.portName()
-            : QString("%1 (%2)").arg(port.description(), port.portName());
-        items.append({displayText, port.portName()});
+    for (const auto& [displayText, portName] : PlatformUtils::availableSerialPorts()) {
+        m_dtrRtsPortCombo->addItem(displayText, portName);
     }
 
-    std::sort(items.begin(), items.end(), [](const auto& a, const auto& b) {
-        return a.first.compare(b.first, Qt::CaseInsensitive) < 0;
-    });
-
-    for (const auto& item : items) {
-        m_dtrRtsPortCombo->addItem(item.first, item.second);
-    }
-
-    // Restore previous selection
     if (!previousPort.isEmpty()) {
         int idx = m_dtrRtsPortCombo->findText(previousPort);
         if (idx >= 0) m_dtrRtsPortCombo->setCurrentIndex(idx);

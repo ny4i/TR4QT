@@ -863,6 +863,8 @@ void AppSettings::saveStationProfiles(const QList<StationProfile>& profiles) {
             m_settings.setValue("radio2Name", profiles[i].radio2Name);
             m_settings.setValue("cw1Name", profiles[i].cw1Name);
             m_settings.setValue("cw2Name", profiles[i].cw2Name);
+            m_settings.setValue("cw1SpeedSync", profiles[i].cw1SpeedSync);
+            m_settings.setValue("cw2SpeedSync", profiles[i].cw2SpeedSync);
             m_settings.setValue("defaultActive", profiles[i].defaultActive);
             m_settings.setValue("so2rEnabled", profiles[i].so2rEnabled);
         }
@@ -890,6 +892,8 @@ QList<StationProfile> AppSettings::loadStationProfiles() const {
         profile.radio2Name = m_settings.value("radio2Name").toString();
         profile.cw1Name = m_settings.value("cw1Name").toString();
         profile.cw2Name = m_settings.value("cw2Name").toString();
+        profile.cw1SpeedSync = m_settings.value("cw1SpeedSync", false).toBool();
+        profile.cw2SpeedSync = m_settings.value("cw2SpeedSync", false).toBool();
         profile.defaultActive = m_settings.value("defaultActive", 0).toInt();
         profile.so2rEnabled = m_settings.value("so2rEnabled", false).toBool();
         profiles.append(profile);
@@ -937,6 +941,8 @@ void AppSettings::saveCWOutputProfiles(const QList<CWOutputProfile>& profiles) {
             m_settings.setValue("weighting", profiles[i].weighting);
             m_settings.setValue("leadInTime", profiles[i].leadInTime);
             m_settings.setValue("tailTime", profiles[i].tailTime);
+            m_settings.setValue("potMinWpm", profiles[i].potMinWpm);
+            m_settings.setValue("potMaxWpm", profiles[i].potMaxWpm);
             // DTR/RTS settings
             m_settings.setValue("dtrRtsPortName", profiles[i].dtrRtsPortName);
             m_settings.setValue("dtrRtsPin", static_cast<int>(profiles[i].dtrRtsPin));
@@ -968,6 +974,8 @@ QList<CWOutputProfile> AppSettings::loadCWOutputProfiles() const {
         profile.weighting = m_settings.value("weighting", 50).toInt();
         profile.leadInTime = m_settings.value("leadInTime", 0).toInt();
         profile.tailTime = m_settings.value("tailTime", 0).toInt();
+        profile.potMinWpm = m_settings.value("potMinWpm", CWProfileDefaults::WINKEYER_POT_DEFAULT_MIN).toInt();
+        profile.potMaxWpm = m_settings.value("potMaxWpm", CWProfileDefaults::WINKEYER_POT_DEFAULT_MAX).toInt();
         // DTR/RTS settings
         profile.dtrRtsPortName = m_settings.value("dtrRtsPortName").toString();
         profile.dtrRtsPin = static_cast<DtrRtsCWSender::Pin>(m_settings.value("dtrRtsPin", 0).toInt());

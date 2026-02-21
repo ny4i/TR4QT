@@ -237,6 +237,41 @@ MainWindow::MainWindow(QWidget* parent)
     m_radio = m_radioManager->radioController();  // Get RadioController from RadioManager
     m_bandSwitchingManager = new BandSwitchingManager(this);
     m_cwService = new CWService(CWService::Config{m_radio}, this);
+
+    // Update CW speed display when WinKeyer speed pot is turned
+    connect(m_cwService, &CWService::cwSpeedSynced, this, [this](int wpm) {
+        m_currentState.cwSpeed = wpm;
+        m_radioWpmLabel->setText(QString("%1 WPM").arg(wpm));
+    });
+
+    // Speed sync: push WinKeyer speed changes to the radio via Hamlib KS command
+    connect(m_cwService, &CWService::speedSyncToRadio, this, [this](int wpm) {
+        if (m_radio && m_radio->isConnected()) {
+            m_radio->setCWSpeed(wpm);
+        }
+    });
+
+    // WinKeyer connection status indicator
+    connect(m_cwService->keyerController(), &KeyerController::connectionStatusChanged,
+            this, [this](bool connected) {
+        if (m_winKeyerStatusLabel) {
+            if (connected) {
+                m_winKeyerStatusLabel->setText("WK: OK");
+                m_winKeyerStatusLabel->setStyleSheet("QLabel { color: green; font-weight: bold; }");
+            } else {
+                m_winKeyerStatusLabel->setText("WK: \u2014");
+                m_winKeyerStatusLabel->setStyleSheet("QLabel { color: gray; }");
+            }
+        }
+    });
+
+    // Set initial speed sync state from active station profile
+    {
+        auto& s = AppSettings::instance();
+        StationProfile station = s.getStationProfile(s.getActiveStationProfile());
+        m_cwService->setSpeedSyncEnabled(station.cw1SpeedSync);
+    }
+
     m_windowManager = new WindowManager(this);
     m_windowActivationHelper = new WindowActivationHelper(this, this);
     m_settingsManager = std::make_unique<SettingsManager>();
@@ -432,6 +467,11 @@ MainWindow::MainWindow(QWidget* parent)
                     if (!cwProfile.name.isEmpty()) {
                         m_cwService->activateCWProfile(cwProfile);
                     }
+                    // Enable/disable speed sync based on station profile
+                    StationProfile station = AppSettings::instance().getStationProfile(
+                        AppSettings::instance().getActiveStationProfile());
+                    bool speedSync = (radioIndex == 0) ? station.cw1SpeedSync : station.cw2SpeedSync;
+                    m_cwService->setSpeedSyncEnabled(speedSync);
                 }
                 // Update UDP broadcast manager for correct focusRadioNr/activeRadioNr
                 if (m_udpBroadcastManager) {
@@ -1188,6 +1228,18 @@ void MainWindow::createStatusBar() {
     m_radioStatusLabel->setStyleSheet("color: red; font-weight: bold;");
     status->addPermanentWidget(m_radioStatusLabel);
 
+    // WinKeyer connection status indicator (only create if active CW profile uses WinKeyer)
+    {
+        int activeRadio = 0;  // Default to Radio 1 at startup
+        CWOutputProfile cwProfile = AppSettings::instance().getCWOutputProfileForRadio(activeRadio);
+        if (cwProfile.type == CWSenderFactory::Backend::KeyerDevice) {
+            m_winKeyerStatusLabel = new QLabel("WK: \u2014", this);
+            m_winKeyerStatusLabel->setStyleSheet("QLabel { color: gray; }");
+            m_winKeyerStatusLabel->setToolTip("WinKeyer connection status");
+            status->addPermanentWidget(m_winKeyerStatusLabel);
+        }
+    }
+
     // WSJT-X connection status indicator (only create if enabled)
     if (AppSettings::instance().getWSJTXEnabled()) {
         m_wsjtxStatusLabel = new QLabel("WSJT-X: —", this);
@@ -1827,6 +1879,22 @@ void MainWindow::onPreferences() {
             CWOutputProfile cwProfile = settings.getCWOutputProfileForRadio(activeRadio);
             if (!cwProfile.name.isEmpty()) {
                 m_cwService->activateCWProfile(cwProfile);
+            }
+            // Update speed sync from station profile
+            StationProfile station = settings.getStationProfile(settings.getActiveStationProfile());
+            bool speedSync = (activeRadio == 0) ? station.cw1SpeedSync : station.cw2SpeedSync;
+            m_cwService->setSpeedSyncEnabled(speedSync);
+
+            // Create or remove WinKeyer status indicator based on CW profile type
+            if (cwProfile.type == CWSenderFactory::Backend::KeyerDevice && !m_winKeyerStatusLabel) {
+                m_winKeyerStatusLabel = new QLabel("WK: \u2014", this);
+                m_winKeyerStatusLabel->setStyleSheet("QLabel { color: gray; }");
+                m_winKeyerStatusLabel->setToolTip("WinKeyer connection status");
+                statusBar()->addPermanentWidget(m_winKeyerStatusLabel);
+            } else if (cwProfile.type != CWSenderFactory::Backend::KeyerDevice && m_winKeyerStatusLabel) {
+                statusBar()->removeWidget(m_winKeyerStatusLabel);
+                delete m_winKeyerStatusLabel;
+                m_winKeyerStatusLabel = nullptr;
             }
         }
 
@@ -3236,10 +3304,13 @@ void MainWindow::updateRadioStatusGrid() {
     }
 
     // Update WPM label (only enabled in CW mode AND when auto-send is enabled)
+    // When speed sync is enabled, WinKeyer owns the WPM display — don't overwrite with radio poll
     bool isCWMode = (activeState.modeA == ModeType::CW || activeState.modeA == ModeType::CWR);
     bool autoSendEnabled = m_autoSendCWAction->isChecked();
-    int wpm = activeState.cwSpeed;
-    m_radioWpmLabel->setText(QString("%1 WPM").arg(wpm));
+    if (!m_cwService || !m_cwService->isSpeedSyncEnabled()) {
+        int wpm = activeState.cwSpeed;
+        m_radioWpmLabel->setText(QString("%1 WPM").arg(wpm));
+    }
     m_radioWpmLabel->setEnabled(isCWMode && autoSendEnabled);
 
     // Update date/time (UTC - contest logging standard)

@@ -435,12 +435,24 @@ QWidget* PreferencesDialog::createRadioSettingsWidget() {
     m_cw1AssignCombo = new QComboBox(this);
     m_cw1AssignCombo->setMinimumWidth(200);
     m_cw1AssignCombo->setToolTip("CW output hardware to use with Radio 1");
-    assignmentLayout->addRow("CW Output 1:", m_cw1AssignCombo);
+    m_cw1SpeedSyncCheck = new QCheckBox("Speed Sync", this);
+    m_cw1SpeedSyncCheck->setToolTip("When enabled, WinKeyer speed knob controls radio CW speed.\n"
+                                     "Radio polling will not override the WPM display.");
+    QHBoxLayout* cw1Layout = new QHBoxLayout();
+    cw1Layout->addWidget(m_cw1AssignCombo, 1);
+    cw1Layout->addWidget(m_cw1SpeedSyncCheck);
+    assignmentLayout->addRow("CW Output 1:", cw1Layout);
 
     m_cw2AssignCombo = new QComboBox(this);
     m_cw2AssignCombo->setMinimumWidth(200);
     m_cw2AssignCombo->setToolTip("CW output hardware to use with Radio 2");
-    assignmentLayout->addRow("CW Output 2:", m_cw2AssignCombo);
+    m_cw2SpeedSyncCheck = new QCheckBox("Speed Sync", this);
+    m_cw2SpeedSyncCheck->setToolTip("When enabled, WinKeyer speed knob controls radio CW speed.\n"
+                                     "Radio polling will not override the WPM display.");
+    QHBoxLayout* cw2Layout = new QHBoxLayout();
+    cw2Layout->addWidget(m_cw2AssignCombo, 1);
+    cw2Layout->addWidget(m_cw2SpeedSyncCheck);
+    assignmentLayout->addRow("CW Output 2:", cw2Layout);
 
     profilesLayout->addLayout(assignmentLayout);
 
@@ -2461,6 +2473,7 @@ void PreferencesDialog::onSO2REnabledChanged(bool enabled) {
     m_radio2AssignCombo->setEnabled(enabled);
     m_radio2DefaultButton->setEnabled(enabled);
     m_cw2AssignCombo->setEnabled(enabled);
+    m_cw2SpeedSyncCheck->setEnabled(enabled);
 
     // Auto-save the station profile (consistent with other fields)
     saveCurrentStationProfile();
@@ -2579,6 +2592,8 @@ void PreferencesDialog::onStationProfileChanged(int index) {
                 p.radio2Name = m_radio2AssignCombo->currentData().toString();
                 p.cw1Name = m_cw1AssignCombo->currentData().toString();
                 p.cw2Name = m_cw2AssignCombo->currentData().toString();
+                p.cw1SpeedSync = m_cw1SpeedSyncCheck->isChecked();
+                p.cw2SpeedSync = m_cw2SpeedSyncCheck->isChecked();
                 p.defaultActive = m_radio2DefaultButton->isChecked() ? 1 : 0;
                 p.so2rEnabled = m_so2rEnabledCheck->isChecked();
                 break;
@@ -2821,6 +2836,8 @@ void PreferencesDialog::loadStationProfileIntoUI(const QString& profileName) {
     m_radio2AssignCombo->blockSignals(true);
     m_cw1AssignCombo->blockSignals(true);
     m_cw2AssignCombo->blockSignals(true);
+    m_cw1SpeedSyncCheck->blockSignals(true);
+    m_cw2SpeedSyncCheck->blockSignals(true);
     m_radio1DefaultButton->blockSignals(true);
     m_radio2DefaultButton->blockSignals(true);
     m_so2rEnabledCheck->blockSignals(true);
@@ -2841,6 +2858,10 @@ void PreferencesDialog::loadStationProfileIntoUI(const QString& profileName) {
     int cw2Index = m_cw2AssignCombo->findData(profile.cw2Name);
     m_cw2AssignCombo->setCurrentIndex(cw2Index >= 0 ? cw2Index : 0);
 
+    // Set CW Speed Sync checkboxes
+    m_cw1SpeedSyncCheck->setChecked(profile.cw1SpeedSync);
+    m_cw2SpeedSyncCheck->setChecked(profile.cw2SpeedSync);
+
     // Set default active
     if (profile.defaultActive == 0) {
         m_radio1DefaultButton->setChecked(true);
@@ -2855,12 +2876,15 @@ void PreferencesDialog::loadStationProfileIntoUI(const QString& profileName) {
     m_radio2AssignCombo->setEnabled(profile.so2rEnabled);
     m_radio2DefaultButton->setEnabled(profile.so2rEnabled);
     m_cw2AssignCombo->setEnabled(profile.so2rEnabled);
+    m_cw2SpeedSyncCheck->setEnabled(profile.so2rEnabled);
 
     // Unblock signals
     m_radio1AssignCombo->blockSignals(false);
     m_radio2AssignCombo->blockSignals(false);
     m_cw1AssignCombo->blockSignals(false);
     m_cw2AssignCombo->blockSignals(false);
+    m_cw1SpeedSyncCheck->blockSignals(false);
+    m_cw2SpeedSyncCheck->blockSignals(false);
     m_radio1DefaultButton->blockSignals(false);
     m_radio2DefaultButton->blockSignals(false);
     m_so2rEnabledCheck->blockSignals(false);
@@ -2881,6 +2905,8 @@ void PreferencesDialog::saveCurrentStationProfile() {
             p.radio2Name = m_radio2AssignCombo->currentData().toString();
             p.cw1Name = m_cw1AssignCombo->currentData().toString();
             p.cw2Name = m_cw2AssignCombo->currentData().toString();
+            p.cw1SpeedSync = m_cw1SpeedSyncCheck->isChecked();
+            p.cw2SpeedSync = m_cw2SpeedSyncCheck->isChecked();
             p.defaultActive = m_radio2DefaultButton->isChecked() ? 1 : 0;
             p.so2rEnabled = m_so2rEnabledCheck->isChecked();
             break;

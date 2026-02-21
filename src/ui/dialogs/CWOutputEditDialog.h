@@ -75,6 +75,8 @@ private:
     QSpinBox* m_weightingSpin;
     QSpinBox* m_leadInSpin;
     QSpinBox* m_tailTimeSpin;
+    QSpinBox* m_potMinWpmSpin;
+    QSpinBox* m_potMaxWpmSpin;
 
     // DTR/RTS settings group (type == DtrRts)
     QGroupBox* m_dtrRtsGroup;

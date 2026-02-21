@@ -176,6 +176,10 @@ void TestWindowPersistence::testWindowGeometry_DefaultsEmpty() {
 
 void TestWindowPersistence::testMainWindowGeometry_Roundtrip() {
     SettingsManager settingsManager;
+
+    // Save existing production values so we can restore them after the test
+    WindowGeometry saved = settingsManager.loadWindowGeometry();
+
     WindowGeometry original;
     original.mainWindowGeometry = QByteArray("test_geometry_data");
     original.mainWindowState = QByteArray("test_state_data");
@@ -187,6 +191,9 @@ void TestWindowPersistence::testMainWindowGeometry_Roundtrip() {
     // Main window geometry roundtrips via AppSettings
     QCOMPARE(loaded.mainWindowGeometry, original.mainWindowGeometry);
     QCOMPARE(loaded.currentOperator, original.currentOperator);
+
+    // Restore production values so running app doesn't lose its window positions
+    settingsManager.saveWindowGeometry(saved);
 
     qInfo() << "OK Main window geometry roundtrip works";
 }

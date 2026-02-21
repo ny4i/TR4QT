@@ -58,6 +58,8 @@ struct KeyerConfig {
     int weighting = 50;         // WinKeyer: 10-90, 50=normal
     int leadInTime = 0;         // WinKeyer: 0-250 x10ms
     int tailTime = 0;           // WinKeyer: 0-250 x10ms
+    int potMinWpm = 10;         // Speed pot minimum WPM (K1EL range: 5-99)
+    int potMaxWpm = 45;         // Speed pot maximum WPM (K1EL range: 5-99)
 
     // MIDI-specific (default note assignments from NetKeyer/HaliKey)
     int ditNoteNumber = 20;     // MIDI note for dit paddle (left)

@@ -41,8 +41,8 @@ bool WinKeyerDevice::open(const KeyerConfig& config) {
     m_defaultWpm = config.defaultWpm;
     m_paddleSwap = config.paddleSwap;
     m_keyerMode = config.winKeyerMode;
-    m_minWpmRange = m_defaultWpm - POT_RANGE_OFFSET;
-    if (m_minWpmRange <= 0) m_minWpmRange = 1;
+    m_potMinWpm = config.potMinWpm;
+    m_potRangeWpm = config.potMaxWpm - config.potMinWpm;
 
     // Configure serial port: 1200 baud, 8N2 (WinKeyer protocol requirement)
     m_serial.setPortName(config.portName);
@@ -140,13 +140,16 @@ bool WinKeyerDevice::open(const KeyerConfig& config) {
     cmd[0] = 0x15;
     m_serial.write(cmd);
 
-    // Set POT range
+    // Set POT range: <05><MIN><RANGE><don't care>
+    // Full swing: MIN to MIN+RANGE WPM
     cmd.resize(4);
     cmd[0] = 0x05;
-    cmd[1] = static_cast<char>(m_minWpmRange);
-    cmd[2] = static_cast<char>(POT_RANGE_STEPS);
-    cmd[3] = static_cast<char>(0xFF);
+    cmd[1] = static_cast<char>(m_potMinWpm);
+    cmd[2] = static_cast<char>(m_potRangeWpm);
+    cmd[3] = 0x00;  // Don't care per spec, zero recommended
     m_serial.write(cmd);
+    LOG_INFO("WinKeyer", QString("POT range: %1-%2 WPM (range=%3)")
+             .arg(m_potMinWpm).arg(m_potMinWpm + m_potRangeWpm).arg(m_potRangeWpm));
 
     // Set default WPM
     setWpm(m_defaultWpm);
@@ -250,41 +253,53 @@ void WinKeyerDevice::setTailTime(int time) {
 }
 
 void WinKeyerDevice::handleReadyRead() {
-    unsigned char rcvByte;
+    // Drain ALL available bytes, but only emit the LAST speed pot value.
+    // This prevents flooding the radio with dozens of KS commands when the
+    // user turns the speed pot (many intermediate values arrive in one burst).
+    int lastPotWpm = -1;
 
-    m_serial.read(reinterpret_cast<char*>(&rcvByte), 1);
+    while (m_serial.bytesAvailable() > 0) {
+        unsigned char rcvByte;
+        m_serial.read(reinterpret_cast<char*>(&rcvByte), 1);
 
-    LOG_TRACE("WinKeyer", QString("RCV async: 0x%1").arg(rcvByte, 2, 16, QChar('0')));
+        LOG_TRACE("WinKeyer", QString("RCV async: 0x%1").arg(rcvByte, 2, 16, QChar('0')));
 
-    if ((rcvByte & 0xC0) == 0xC0) {
-        // Status byte
-        m_xoff = false;
+        if ((rcvByte & 0xC0) == 0xC0) {
+            // Status byte
+            m_xoff = false;
 
-        if (rcvByte == 0xC0) {
-            LOG_TRACE("WinKeyer", "Status: Idle");
-        } else if (m_version >= 20 && (rcvByte & 0x08)) {
-            // Push-button status (WK2+)
-            LOG_TRACE("WinKeyer", "Push-button event");
+            if (rcvByte == 0xC0) {
+                LOG_TRACE("WinKeyer", "Status: Idle");
+            } else if (m_version >= 20 && (rcvByte & 0x08)) {
+                // Push-button status (WK2+)
+                LOG_TRACE("WinKeyer", "Push-button event");
+            } else {
+                // Regular status byte
+                if (rcvByte & 0x01) {
+                    LOG_TRACE("WinKeyer", "Status: Buffer 2/3 full (XOFF)");
+                    m_xoff = true;
+                }
+                if (rcvByte & 0x04) {
+                    LOG_TRACE("WinKeyer", "Status: Key busy");
+                }
+            }
+        } else if ((rcvByte & 0xC0) == 0x80) {
+            // Speed pot value — accumulate, emit only the last one after draining
+            // Pot reports 6-bit value (0-63), scale across configured range
+            int potValue = rcvByte & 0x3F;
+            lastPotWpm = m_potMinWpm + (potValue * m_potRangeWpm + POT_MAX_VALUE / 2) / POT_MAX_VALUE;
+            LOG_DEBUG("WinKeyer", QString("Speed pot: raw=0x%1 potValue=%2 WPM=%3")
+                      .arg(rcvByte, 2, 16, QChar('0')).arg(potValue).arg(lastPotWpm));
         } else {
-            // Regular status byte
-            if (rcvByte & 0x01) {
-                LOG_TRACE("WinKeyer", "Status: Buffer 2/3 full (XOFF)");
-                m_xoff = true;
-            }
-            if (rcvByte & 0x04) {
-                LOG_TRACE("WinKeyer", "Status: Key busy");
-            }
+            // Echo character
+            LOG_TRACE("WinKeyer", QString("Echo: '%1'").arg(QChar(rcvByte)));
+            emit echoText(QString(QChar(rcvByte)));
         }
-    } else if ((rcvByte & 0xC0) == 0x80) {
-        // Speed pot value
-        int potValue = rcvByte & 0x7F;
-        int currentWpm = m_minWpmRange + potValue;
-        LOG_DEBUG("WinKeyer", QString("Speed pot: WPM=%1").arg(currentWpm));
-        emit wpmChanged(currentWpm);
-    } else {
-        // Echo character
-        LOG_TRACE("WinKeyer", QString("Echo: '%1'").arg(QChar(rcvByte)));
-        emit echoText(QString(QChar(rcvByte)));
+    }
+
+    // Emit only the final speed pot value (if any were received in this burst)
+    if (lastPotWpm >= 0) {
+        emit wpmChanged(lastPotWpm);
     }
 
     tryAsyncWrite();
@@ -298,8 +313,15 @@ void WinKeyerDevice::handleError(QSerialPort::SerialPortError error) {
     if (error == QSerialPort::NoError) return;
 
     QString detail = m_serial.errorString();
-    LOG_ERROR("WinKeyer", QString("Serial error: %1").arg(detail));
+    LOG_ERROR("WinKeyer", QString("Serial error %1: %2").arg(error).arg(detail));
     emit errorOccurred(detail);
+
+    // Fatal errors (USB unplug, device removed) — tear down the connection
+    if (error == QSerialPort::ResourceError) {
+        LOG_WARN("WinKeyer", "Fatal serial error (device removed?) — closing connection");
+        closeInternal();
+        emit disconnected();
+    }
 }
 
 void WinKeyerDevice::tryAsyncWrite() {

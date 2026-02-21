@@ -22,6 +22,7 @@
 #include <QObject>
 #include <QThread>
 #include <QMutex>
+#include <QTimer>
 #include "KeyerConfig.h"
 
 namespace TR4QT {
@@ -100,6 +101,9 @@ signals:
 
 private:
     void cleanupDevice();
+    void attemptReconnect();
+    void startReconnectTimer();
+    void stopReconnectTimer();
 
     QThread m_workerThread;
     ICWKeyerDevice* m_device = nullptr;
@@ -108,6 +112,13 @@ private:
     KeyerDeviceType m_deviceType = KeyerDeviceType::WinKeyer;
     bool m_canSendText = false;
     bool m_hasPaddleInput = false;
+
+    // Auto-reconnect state
+    QTimer m_reconnectTimer;
+    KeyerConfig m_lastConfig;           ///< Config to use for reconnect attempts
+    bool m_userDisconnected = false;    ///< true when user explicitly called disconnectKeyer()
+
+    static constexpr int RECONNECT_INTERVAL_MS = 3000;  ///< Retry every 3 seconds
 };
 
 } // namespace TR4QT

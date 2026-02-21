@@ -87,7 +87,8 @@ private:
     bool m_inHostMode = false;
     bool m_xoff = false;
     unsigned char m_version = 0;
-    int m_minWpmRange = 10;
+    int m_potMinWpm = 10;
+    int m_potRangeWpm = 35;    ///< potMaxWpm - potMinWpm
     int m_defaultWpm = 25;
     bool m_paddleSwap = false;
     int m_keyerMode = 2;  // IambicB default
@@ -96,10 +97,8 @@ private:
     static constexpr int SERIAL_TIMEOUT_MS = 5000;
     // Delay after opening port (ms)
     static constexpr int POST_OPEN_DELAY_MS = 200;
-    // WinKeyer POT range steps
-    static constexpr int POT_RANGE_STEPS = 31;
-    // WinKeyer POT range offset from default WPM
-    static constexpr int POT_RANGE_OFFSET = 15;
+    // WinKeyer speed pot status byte has 6-bit value (0-63)
+    static constexpr int POT_MAX_VALUE = 63;
 };
 
 } // namespace TR4QT

@@ -36,6 +36,10 @@ namespace CWProfileDefaults {
     constexpr int WINKEYER_WEIGHTING_MAX = 90;
     constexpr int WINKEYER_TIMING_MIN = 0;
     constexpr int WINKEYER_TIMING_MAX = 250;       // x10ms
+    constexpr int WINKEYER_POT_MIN_WPM = 5;        // K1EL published minimum
+    constexpr int WINKEYER_POT_MAX_WPM = 99;       // K1EL published maximum
+    constexpr int WINKEYER_POT_DEFAULT_MIN = 10;    // Sensible default minimum
+    constexpr int WINKEYER_POT_DEFAULT_MAX = 45;    // Sensible default maximum
     constexpr int MIDI_NOTE_MIN = 0;
     constexpr int MIDI_NOTE_MAX = 127;
 }
@@ -66,6 +70,8 @@ struct CWOutputProfile {
     int weighting = CWProfileDefaults::WINKEYER_WEIGHTING_NORMAL;  ///< WinKeyer weighting (10-90, 50=normal)
     int leadInTime = 0;                                    ///< WinKeyer lead-in (x10ms)
     int tailTime = 0;                                      ///< WinKeyer tail time (x10ms)
+    int potMinWpm = CWProfileDefaults::WINKEYER_POT_DEFAULT_MIN;   ///< Speed pot minimum WPM
+    int potMaxWpm = CWProfileDefaults::WINKEYER_POT_DEFAULT_MAX;   ///< Speed pot maximum WPM
 
     // --- DTR/RTS settings (type == DtrRts) ---
     QString dtrRtsPortName;                                ///< Serial port for DTR/RTS keying

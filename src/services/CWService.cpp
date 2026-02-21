@@ -51,6 +51,22 @@ CWService::CWService(const Config& config, QObject* parent)
     connect(m_keyerController, &KeyerController::paddleStateChanged,
             m_iambicKeyer, &IambicKeyer::updatePaddleState);
 
+    // Forward WinKeyer speed pot changes so MainWindow can update the display
+    connect(m_keyerController, &KeyerController::wpmChanged,
+            this, &CWService::cwSpeedSynced);
+
+    // When speed sync is enabled, push WinKeyer speed changes to the radio.
+    // Do NOT send the speed back to the WinKeyer (m_sender->setWpm) — that
+    // creates a feedback loop: WK reports pot → we set WK speed → WK reports pot...
+    connect(m_keyerController, &KeyerController::wpmChanged,
+            this, [this](int wpm) {
+        if (m_speedSyncEnabled) {
+            AppSettings::instance().setMorseWPM(wpm);
+            emit speedSyncToRadio(wpm);
+            LOG_DEBUG("CWService", QString("Speed sync: WinKeyer→Radio %1 WPM").arg(wpm));
+        }
+    });
+
     // Configure paddle input from global settings
     PaddleInputConfig paddleConfig = settings.loadPaddleInputConfig();
     configurePaddleInput(paddleConfig);
@@ -363,6 +379,11 @@ bool CWService::adjustWPM(const RadioState& radioState, int delta)
 
 void CWService::syncCWSpeedFromRadio(const RadioState& state)
 {
+    // When speed sync is enabled, WinKeyer is authoritative — don't let radio polling override
+    if (m_speedSyncEnabled) {
+        return;
+    }
+
     if ((state.modeA == ModeType::CW || state.modeA == ModeType::CWR) && state.cwSpeed > 0) {
         if (state.cwSpeed != m_lastSyncedCWSpeed) {
             AppSettings::instance().setMorseWPM(state.cwSpeed);
@@ -377,6 +398,13 @@ void CWService::syncCWSpeedFromRadio(const RadioState& state)
             emit cwSpeedSynced(state.cwSpeed);
         }
     }
+}
+
+void CWService::setSpeedSyncEnabled(bool enabled)
+{
+    if (m_speedSyncEnabled == enabled) return;
+    m_speedSyncEnabled = enabled;
+    LOG_INFO("CWService", QString("CW Speed Sync %1").arg(enabled ? "enabled" : "disabled"));
 }
 
 // --- Runtime state ---
@@ -486,6 +514,8 @@ void CWService::createSenderFromProfile(const CWOutputProfile& profile)
             winKeyerConfig.weighting = profile.weighting;
             winKeyerConfig.leadInTime = profile.leadInTime;
             winKeyerConfig.tailTime = profile.tailTime;
+            winKeyerConfig.potMinWpm = profile.potMinWpm;
+            winKeyerConfig.potMaxWpm = profile.potMaxWpm;
             m_keyerController->connectKeyer(winKeyerConfig);
         }
         m_sender = CWSenderFactory::create(CWSenderFactory::Backend::KeyerDevice,

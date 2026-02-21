@@ -262,6 +262,8 @@ private:
     // ===== CW Assignment in Station Profiles =====
     QComboBox* m_cw1AssignCombo;      // CW output assigned to Radio 1
     QComboBox* m_cw2AssignCombo;      // CW output assigned to Radio 2
+    QCheckBox* m_cw1SpeedSyncCheck;   // Sync CW speed from WinKeyer to Radio 1
+    QCheckBox* m_cw2SpeedSyncCheck;   // Sync CW speed from WinKeyer to Radio 2
 
     // Amplifier widgets (enhanced for Hamlib support)
     QCheckBox* m_amplifierEnabledCheck;

@@ -524,6 +524,9 @@ private:
     WSJTXController* m_wsjtxController{nullptr};
     QLabel* m_wsjtxStatusLabel{nullptr};
 
+    // WinKeyer connection status indicator
+    QLabel* m_winKeyerStatusLabel{nullptr};
+
     // Country file for lookups
     CountryFile m_countryFile;
     CountryFileDownloader* m_countryFileDownloader;  // For version checking

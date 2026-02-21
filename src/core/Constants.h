@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.47.80";  // Fix child window geometry restore on macOS (deferred restore after WM placement)
+constexpr const char* APP_VERSION = "3.48.80";  // CW Speed Sync (WinKeyer→Radio) + WinKeyer status indicator
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

@@ -29,11 +29,16 @@ KeyerController::KeyerController(QObject* parent)
 {
     m_workerThread.setObjectName("KeyerWorker");
     m_workerThread.start();
+
+    m_reconnectTimer.setSingleShot(false);
+    connect(&m_reconnectTimer, &QTimer::timeout, this, &KeyerController::attemptReconnect);
+
     LOG_DEBUG("KeyerController", "Worker thread started");
 }
 
 KeyerController::~KeyerController() {
     LOG_DEBUG("KeyerController", "Destructor: cleaning up");
+    stopReconnectTimer();
     cleanupDevice();
 
     m_workerThread.quit();
@@ -69,6 +74,10 @@ void KeyerController::connectKeyer(const KeyerConfig& config) {
              .arg(KeyerFactory::deviceTypeName(config.type))
              .arg(config.portName));
 
+    stopReconnectTimer();
+    m_userDisconnected = false;
+    m_lastConfig = config;
+
     // Clean up any existing device
     cleanupDevice();
 
@@ -99,6 +108,11 @@ void KeyerController::connectKeyer(const KeyerConfig& config) {
         }
         LOG_INFO("KeyerController", "Keyer disconnected");
         emit connectionStatusChanged(false);
+
+        // Auto-reconnect if this wasn't a user-initiated disconnect
+        if (!m_userDisconnected) {
+            startReconnectTimer();
+        }
     });
 
     connect(device, &ICWKeyerDevice::errorOccurred,
@@ -141,7 +155,9 @@ void KeyerController::connectKeyer(const KeyerConfig& config) {
 }
 
 void KeyerController::disconnectKeyer() {
-    LOG_INFO("KeyerController", "Disconnecting keyer");
+    LOG_INFO("KeyerController", "Disconnecting keyer (user-initiated)");
+    m_userDisconnected = true;
+    stopReconnectTimer();
     cleanupDevice();
     emit connectionStatusChanged(false);
 }
@@ -238,6 +254,106 @@ void KeyerController::cleanupDevice() {
     }, Qt::BlockingQueuedConnection);
 
     device->deleteLater();
+}
+
+void KeyerController::startReconnectTimer() {
+    if (m_reconnectTimer.isActive()) return;
+    LOG_INFO("KeyerController", QString("Starting auto-reconnect (every %1ms)")
+             .arg(RECONNECT_INTERVAL_MS));
+    m_reconnectTimer.start(RECONNECT_INTERVAL_MS);
+}
+
+void KeyerController::stopReconnectTimer() {
+    if (m_reconnectTimer.isActive()) {
+        LOG_INFO("KeyerController", "Stopping auto-reconnect timer");
+        m_reconnectTimer.stop();
+    }
+}
+
+void KeyerController::attemptReconnect() {
+    if (m_lastConfig.portName.isEmpty()) {
+        LOG_WARN("KeyerController", "No saved config for reconnect");
+        stopReconnectTimer();
+        return;
+    }
+
+    LOG_DEBUG("KeyerController", QString("Reconnect attempt: port=%1").arg(m_lastConfig.portName));
+
+    // connectKeyer stops the timer on entry, so save/restore reconnect state
+    KeyerConfig config = m_lastConfig;
+    stopReconnectTimer();
+    m_userDisconnected = false;
+
+    // Try to connect — if it fails, the disconnected signal won't fire
+    // (open() returns false), so we restart the timer manually
+    cleanupDevice();
+
+    ICWKeyerDevice* device = KeyerFactory::createKeyer(config.type);
+    if (!device) {
+        startReconnectTimer();
+        return;
+    }
+
+    device->moveToThread(&m_workerThread);
+
+    // Wire signals (same as connectKeyer)
+    connect(device, &ICWKeyerDevice::connected, this, [this]() {
+        {
+            QMutexLocker locker(&m_mutex);
+            m_connected = true;
+        }
+        LOG_INFO("KeyerController", "Keyer reconnected");
+        emit connectionStatusChanged(true);
+    });
+
+    connect(device, &ICWKeyerDevice::disconnected, this, [this]() {
+        {
+            QMutexLocker locker(&m_mutex);
+            m_connected = false;
+        }
+        LOG_INFO("KeyerController", "Keyer disconnected");
+        emit connectionStatusChanged(false);
+        if (!m_userDisconnected) {
+            startReconnectTimer();
+        }
+    });
+
+    connect(device, &ICWKeyerDevice::errorOccurred,
+            this, &KeyerController::errorOccurred);
+    connect(device, &ICWKeyerDevice::paddleStateChanged,
+            this, &KeyerController::paddleStateChanged);
+    connect(device, &ICWKeyerDevice::echoText,
+            this, &KeyerController::echoText);
+    connect(device, &ICWKeyerDevice::wpmChanged,
+            this, &KeyerController::wpmChanged);
+
+    {
+        QMutexLocker locker(&m_mutex);
+        m_device = device;
+        m_deviceType = config.type;
+        m_canSendText = false;
+        m_hasPaddleInput = false;
+    }
+
+    connect(&m_workerThread, &QThread::finished, device, &QObject::deleteLater);
+
+    m_lastConfig = config;
+
+    QMetaObject::invokeMethod(device, [this, device, config]() {
+        bool success = device->open(config);
+        if (success) {
+            QMutexLocker locker(&m_mutex);
+            m_canSendText = device->canSendText();
+            m_hasPaddleInput = device->hasPaddleInput();
+            LOG_INFO("KeyerController", "Reconnect succeeded");
+        } else {
+            LOG_DEBUG("KeyerController", "Reconnect failed, will retry");
+            // open() failed — device won't emit disconnected, so restart timer from main thread
+            QMetaObject::invokeMethod(this, [this]() {
+                startReconnectTimer();
+            }, Qt::QueuedConnection);
+        }
+    }, Qt::QueuedConnection);
 }
 
 } // namespace TR4QT

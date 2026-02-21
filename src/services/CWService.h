@@ -146,10 +146,19 @@ public:
     // --- CW speed sync (extracted from MainWindow::onRadioStateUpdated) ---
 
     /**
-     * Sync CW speed from radio state to AppSettings
-     * Call from onRadioStateUpdated
+     * Sync CW speed from radio state to AppSettings.
+     * When speed sync is enabled, this is a no-op (WinKeyer is authoritative).
+     * Call from onRadioStateUpdated.
      */
     void syncCWSpeedFromRadio(const RadioState& state);
+
+    /**
+     * Enable/disable CW speed sync (WinKeyer→Radio).
+     * When enabled, WinKeyer speed pot changes are pushed to the radio
+     * and radio polling does NOT override the WPM display.
+     */
+    void setSpeedSyncEnabled(bool enabled);
+    bool isSpeedSyncEnabled() const { return m_speedSyncEnabled; }
 
     // --- CW Output Mode ---
 
@@ -207,6 +216,12 @@ signals:
      */
     void cwSpeedSynced(int wpm);
 
+    /**
+     * Emitted when WinKeyer speed should be pushed to the radio (speed sync mode).
+     * MainWindow connects this to RadioController::setCWSpeed().
+     */
+    void speedSyncToRadio(int wpm);
+
 private:
     /**
      * Validate preconditions for sending CW (radio connected, CW mode)
@@ -253,6 +268,7 @@ private:
     QString m_lastCWMessage[2];        // Per radio (for = key repeat)
     int m_activeRadioIndex = 0;
     int m_lastSyncedCWSpeed = 0;       // Track last synced speed to avoid redundant updates
+    bool m_speedSyncEnabled = false;   // When true, WinKeyer is authoritative for CW speed
     OutputMode m_outputMode = OutputMode::CAT;  // Default: CAT (Hamlib KY command)
     CWOutputProfile m_activeProfile;           // Active CW output profile (if set via activateCWProfile)
 

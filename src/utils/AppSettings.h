@@ -47,6 +47,8 @@ struct StationProfile {
     QString radio2Name;     ///< Name of radio assigned to Radio 2 slot (or empty)
     QString cw1Name;        ///< Name of CW output profile assigned to Radio 1 (or empty)
     QString cw2Name;        ///< Name of CW output profile assigned to Radio 2 (or empty)
+    bool cw1SpeedSync{false}; ///< Sync CW speed from WinKeyer to radio for Radio 1
+    bool cw2SpeedSync{false}; ///< Sync CW speed from WinKeyer to radio for Radio 2
     int defaultActive{0};   ///< 0 = Radio 1 is default active, 1 = Radio 2
     bool so2rEnabled{false};///< Enable SO2R (two-radio operation)
 };
