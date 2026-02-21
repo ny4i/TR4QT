@@ -17,6 +17,7 @@
 */
 
 #include "MainWindow.h"
+#include "PersistentWindow.h"
 #include "dialogs/PreferencesDialog.h"
 #include "dialogs/BackupRestoreDialog.h"
 #include "dialogs/OperatorDialog.h"
@@ -1187,11 +1188,11 @@ void MainWindow::createStatusBar() {
     m_radioStatusLabel->setStyleSheet("color: red; font-weight: bold;");
     status->addPermanentWidget(m_radioStatusLabel);
 
-    // WSJT-X connection status indicator
-    m_wsjtxStatusLabel = new QLabel("WSJT-X: —", this);
-    m_wsjtxStatusLabel->setStyleSheet("QLabel { color: gray; }");
-    m_wsjtxStatusLabel->setToolTip("WSJT-X FT8/FT4 integration status");
+    // WSJT-X connection status indicator (only create if enabled)
     if (AppSettings::instance().getWSJTXEnabled()) {
+        m_wsjtxStatusLabel = new QLabel("WSJT-X: —", this);
+        m_wsjtxStatusLabel->setStyleSheet("QLabel { color: gray; }");
+        m_wsjtxStatusLabel->setToolTip("WSJT-X FT8/FT4 integration status");
         status->addPermanentWidget(m_wsjtxStatusLabel);
     }
 }
@@ -1332,122 +1333,41 @@ void MainWindow::showEvent(QShowEvent* event) {
 }
 
 void MainWindow::restoreChildWindows(const WindowGeometry& geometry) {
-    LOG_DEBUG("MainWindow", "Restoring child windows (deferred to event loop)");
+    Q_UNUSED(geometry);  // Child window visibility now read from QSettings directly
+    LOG_DEBUG("MainWindow", "Restoring child windows from PersistentWindow settings");
 
-    // Restore child windows if they were visible
-    if (geometry.dxClusterVisible) {
-        LOG_DEBUG("MainWindow", "Restoring DX Cluster window (was visible on exit)");
-        onShowDXCluster();
-        if (m_dxClusterWindow && !geometry.dxClusterGeometry.isEmpty()) {
-            m_dxClusterWindow->restoreGeometry(geometry.dxClusterGeometry);
-        }
-    } else {
-        LOG_DEBUG("MainWindow", "NOT restoring DX Cluster window (was hidden on exit)");
-    }
+    // Migrate old-style keys (BandMapWindow/visible, etc.) to new namespace (Windows/BandMap/Visible)
+    // Must run before reading new keys, since windows are lazily created.
+    TR4QT::migrateWindowSettings();
 
-    if (geometry.bandMapVisible) {
-        LOG_DEBUG("MainWindow", "Restoring Band Map window (was visible on exit)");
-        onShowBandMap();
-        if (m_bandMapWindow && !geometry.bandMapGeometry.isEmpty()) {
-            m_bandMapWindow->restoreGeometry(geometry.bandMapGeometry);
-        }
-    } else {
-        LOG_DEBUG("MainWindow", "NOT restoring Band Map window (was hidden on exit)");
-    }
+    // Read visibility from QSettings (written by PersistentWindow on show/hide).
+    // Geometry is restored automatically by PersistentWindow::setVisible().
+    // Table-driven: settings key → show handler. Add new windows here.
+    QSettings settings(APP_ORG, APP_NAME);
 
-    if (geometry.radioControlVisible) {
-        LOG_DEBUG("MainWindow", "Restoring Radio Control window (was visible on exit)");
-        onShowRadioControl();
-        if (m_radioControlWindow && !geometry.radioControlGeometry.isEmpty()) {
-            m_radioControlWindow->restoreGeometry(geometry.radioControlGeometry);
-        }
-    } else {
-        LOG_DEBUG("MainWindow", "NOT restoring Radio Control window (was hidden on exit)");
-    }
-
-    if (geometry.radio2ControlVisible) {
-        LOG_DEBUG("MainWindow", "Restoring Radio 2 Control window (was visible on exit)");
-        onShowRadio2Control();
-        if (m_radio2ControlWindow && !geometry.radio2ControlGeometry.isEmpty()) {
-            m_radio2ControlWindow->restoreGeometry(geometry.radio2ControlGeometry);
-        }
-    } else {
-        LOG_DEBUG("MainWindow", "NOT restoring Radio 2 Control window (was hidden on exit)");
-    }
-
-    if (geometry.multipliersVisible) {
-        LOG_DEBUG("MainWindow", "Restoring Multipliers window (was visible on exit)");
-        onShowMultipliers();
-        if (m_multiplierWindow && !geometry.multipliersGeometry.isEmpty()) {
-            m_multiplierWindow->restoreGeometry(geometry.multipliersGeometry);
-        }
-    } else {
-        LOG_DEBUG("MainWindow", "NOT restoring Multipliers window (was hidden on exit)");
-    }
-
-    if (geometry.statisticsVisible) {
-        LOG_DEBUG("MainWindow", "Restoring Statistics window (was visible on exit)");
-        onShowStatistics();
-        if (m_statisticsWindow && !geometry.statisticsGeometry.isEmpty()) {
-            m_statisticsWindow->restoreGeometry(geometry.statisticsGeometry);
-        }
-    } else {
-        LOG_DEBUG("MainWindow", "NOT restoring Statistics window (was hidden on exit)");
-    }
-
-    if (geometry.sectionsMapVisible) {
-        LOG_DEBUG("MainWindow", "Restoring Sections Map window (was visible on exit)");
-        onShowSectionsMap();
-    } else {
-        LOG_DEBUG("MainWindow", "NOT restoring Sections Map window (was hidden on exit)");
-    }
-
-    if (geometry.statesMapVisible) {
-        LOG_DEBUG("MainWindow", "Restoring States Map window (was visible on exit)");
-        onShowStatesMap();
-    } else {
-        LOG_DEBUG("MainWindow", "NOT restoring States Map window (was hidden on exit)");
-    }
-
-    if (geometry.worldMapVisible) {
-        LOG_DEBUG("MainWindow", "Restoring World Map window (was visible on exit)");
-        onShowWorldMap();
-    } else {
-        LOG_DEBUG("MainWindow", "NOT restoring World Map window (was hidden on exit)");
-    }
-
-    if (geometry.graylineMapVisible) {
-        LOG_DEBUG("MainWindow", "Restoring Grayline Map window (was visible on exit)");
-        onShowGraylineMap();
-        if (m_graylineMapDialog && !geometry.graylineMapGeometry.isEmpty()) {
-            m_graylineMapDialog->restoreGeometry(geometry.graylineMapGeometry);
-        }
-    } else {
-        LOG_DEBUG("MainWindow", "NOT restoring Grayline Map window (was hidden on exit)");
-    }
-
-    if (geometry.amplifierControlVisible) {
-        LOG_DEBUG("MainWindow", "Restoring Amplifier Control window (was visible on exit)");
-        onShowAmplifierControl();
-        if (m_amplifierControlWindow && !geometry.amplifierControlGeometry.isEmpty()) {
-            m_amplifierControlWindow->restoreGeometry(geometry.amplifierControlGeometry);
-        }
-    } else {
-        LOG_DEBUG("MainWindow", "NOT restoring Amplifier Control window (was hidden on exit)");
-    }
-
+    struct WindowRestore { const char* key; std::function<void()> show; };
+    const std::vector<WindowRestore> childWindows = {
+        { "Windows/DXCluster",        [this]() { onShowDXCluster(); } },
+        { "Windows/BandMap",           [this]() { onShowBandMap(); } },
+        { "Windows/RadioControl",      [this]() { onShowRadioControl(); } },
+        { "Windows/Radio2Control",     [this]() { onShowRadio2Control(); } },
+        { "Windows/Multipliers",       [this]() { onShowMultipliers(); } },
+        { "Windows/Statistics",        [this]() { onShowStatistics(); } },
+        { "Windows/SectionsMap",       [this]() { onShowSectionsMap(); } },
+        { "Windows/StatesMap",         [this]() { onShowStatesMap(); } },
+        { "Windows/WorldMap",          [this]() { onShowWorldMap(); } },
+        { "Windows/GraylineMap",       [this]() { onShowGraylineMap(); } },
+        { "Windows/AmplifierControl",  [this]() { onShowAmplifierControl(); } },
 #ifdef PANADAPTER_ENABLED
-    // Panadapter window
-    if (geometry.panadapterVisible) {
-        LOG_DEBUG("MainWindow", "Restoring Panadapter window (was visible on exit)");
-        onShowPanadapter();
-        if (m_panadapterWindow && !geometry.panadapterGeometry.isEmpty()) {
-            m_panadapterWindow->restoreGeometry(geometry.panadapterGeometry);
-        }
-    } else {
-        LOG_DEBUG("MainWindow", "NOT restoring Panadapter window (was hidden on exit)");
-    }
+        { "Windows/Panadapter",        [this]() { onShowPanadapter(); } },
 #endif
+    };
+
+    for (const auto& w : childWindows) {
+        if (settings.value(QString(w.key) + "/Visible", false).toBool()) {
+            w.show();
+        }
+    }
 }
 
 void MainWindow::saveSettings() {
@@ -1455,86 +1375,14 @@ void MainWindow::saveSettings() {
         return;
     }
 
-    LOG_DEBUG("MainWindow", "saveSettings() called - checking window visibility");
-    if (m_amplifierControlWindow) {
-        LOG_DEBUG("MainWindow", QString("At start of saveSettings: amplifier window exists, isVisible=%1").arg(m_amplifierControlWindow->isVisible()));
-    }
+    LOG_DEBUG("MainWindow", "saveSettings() called");
 
-    // Build geometry struct
+    // Save main window geometry (child windows handle their own persistence
+    // via PersistentWindow — no snapshot needed here)
     WindowGeometry geometry;
     geometry.mainWindowGeometry = saveGeometry();
     geometry.mainWindowState = saveState();
     geometry.currentOperator = AppSettings::instance().getCurrentOperator();
-
-    // Save child window geometries and visibility
-    if (m_dxClusterWindow) {
-        geometry.dxClusterGeometry = m_dxClusterWindow->saveGeometry();
-        geometry.dxClusterVisible = m_dxClusterWindow->isVisible();
-    }
-    if (m_bandMapWindow) {
-        geometry.bandMapGeometry = m_bandMapWindow->saveGeometry();
-        geometry.bandMapVisible = m_bandMapWindow->isVisible();
-    }
-    if (m_radioControlWindow) {
-        geometry.radioControlGeometry = m_radioControlWindow->saveGeometry();
-    }
-    geometry.radioControlVisible = m_radioControlWindow ? m_radioControlWindow->isVisible() : false;
-    if (m_radio2ControlWindow) {
-        geometry.radio2ControlGeometry = m_radio2ControlWindow->saveGeometry();
-    }
-    geometry.radio2ControlVisible = m_radio2ControlWindow ? m_radio2ControlWindow->isVisible() : false;
-    if (m_multiplierWindow) {
-        geometry.multipliersGeometry = m_multiplierWindow->saveGeometry();
-        geometry.multipliersVisible = m_multiplierWindow->isVisible();
-    }
-    if (m_statisticsWindow) {
-        geometry.statisticsGeometry = m_statisticsWindow->saveGeometry();
-        geometry.statisticsVisible = m_statisticsWindow->isVisible();
-    }
-    // Map/dialog visibility: use isVisible() directly since saveSettings() is called
-    // from closeEvent() where the UI is still valid. The tracked *Visible flags only
-    // update on QEvent::Close which hasn't fired for child windows during app quit,
-    // causing windows to reappear on next startup.
-    if (m_sectionsMapViewer) {
-        geometry.sectionsMapVisible = m_sectionsMapViewer->isVisible();
-    }
-    if (m_statesMapViewer) {
-        geometry.statesMapVisible = m_statesMapViewer->isVisible();
-    }
-    if (m_worldMapViewer) {
-        geometry.worldMapVisible = m_worldMapViewer->isVisible();
-    }
-    if (m_graylineMapDialog) {
-        geometry.graylineMapGeometry = m_graylineMapDialog->saveGeometry();
-        geometry.graylineMapVisible = m_graylineMapDialog->isVisible();
-    }
-    if (m_amplifierControlWindow) {
-        geometry.amplifierControlGeometry = m_amplifierControlWindow->saveGeometry();
-    }
-    geometry.amplifierControlVisible = m_amplifierControlWindow ? m_amplifierControlWindow->isVisible() : false;
-
-#ifdef PANADAPTER_ENABLED
-    // Panadapter window
-    if (m_panadapterWindow) {
-        geometry.panadapterGeometry = m_panadapterWindow->saveGeometry();
-    }
-    geometry.panadapterVisible = m_panadapterWindow ? m_panadapterWindow->isVisible() : false;
-#endif
-
-    // Debug logging for window visibility
-    LOG_DEBUG("MainWindow", QString("Saving window visibility - DXCluster:%1 BandMap:%2 RadioCtrl:%3 Radio2Ctrl:%4 Mult:%5 Stats:%6 Sections:%7 States:%8 Grayline:%9 AmpCtrl:%10")
-        .arg(geometry.dxClusterVisible)
-        .arg(geometry.bandMapVisible)
-        .arg(geometry.radioControlVisible)
-        .arg(geometry.radio2ControlVisible)
-        .arg(geometry.multipliersVisible)
-        .arg(geometry.statisticsVisible)
-        .arg(geometry.sectionsMapVisible)
-        .arg(geometry.statesMapVisible)
-        .arg(geometry.graylineMapVisible)
-        .arg(geometry.amplifierControlVisible));
-
-    // Delegate save to SettingsManager
     m_settingsManager->saveWindowGeometry(geometry);
 }
 
@@ -1565,64 +1413,31 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         m_bandMapWindow->saveSpotsToDatabase();
     }
 
-    // Close all child windows
-    LOG_DEBUG("MainWindow", "Closing child windows...");
-    QElapsedTimer closeTimer;
-    closeTimer.start();
-
-    if (m_dxClusterWindow) {
-        LOG_DEBUG("MainWindow", "Closing DX Cluster window...");
-        m_dxClusterWindow->close();
-        LOG_DEBUG("MainWindow", QString("DX Cluster window closed (%1ms)").arg(closeTimer.restart()));
-    }
-    if (m_bandMapWindow) {
-        LOG_DEBUG("MainWindow", "Closing Band Map window...");
-        m_bandMapWindow->close();
-        LOG_DEBUG("MainWindow", QString("Band Map window closed (%1ms)").arg(closeTimer.restart()));
-    }
-    if (m_radioControlWindow) {
-        LOG_DEBUG("MainWindow", "Closing Radio 1 Control window...");
-        m_radioControlWindow->close();
-        LOG_DEBUG("MainWindow", QString("Radio 1 Control window closed (%1ms)").arg(closeTimer.restart()));
-    }
-    if (m_radio2ControlWindow) {
-        LOG_DEBUG("MainWindow", "Closing Radio 2 Control window...");
-        m_radio2ControlWindow->close();
-        LOG_DEBUG("MainWindow", QString("Radio 2 Control window closed (%1ms)").arg(closeTimer.restart()));
-    }
-    if (m_multiplierWindow) {
-        LOG_DEBUG("MainWindow", "Closing Multiplier window...");
-        m_multiplierWindow->close();
-        LOG_DEBUG("MainWindow", QString("Multiplier window closed (%1ms)").arg(closeTimer.restart()));
-    }
+    // Pre-shutdown cleanup for windows that need it
     if (m_statisticsWindow) {
-        LOG_DEBUG("MainWindow", "Closing Statistics window...");
         m_statisticsWindow->rateCalculator()->stopAutoUpdate();
-        m_statisticsWindow->close();
-        LOG_DEBUG("MainWindow", QString("Statistics window closed (%1ms)").arg(closeTimer.restart()));
     }
-    if (m_amplifierControlWindow) {
-        LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Closing Amplifier Control window... (%1ms elapsed)")
-                 .arg(shutdownTimer.elapsed()));
-        m_amplifierControlWindow->close();
-        LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Amplifier Control window closed (%1ms, total %2ms)")
-                 .arg(closeTimer.restart()).arg(shutdownTimer.elapsed()));
-    }
+
+    // Save geometry for all visible child windows, then hide them.
+    // Using hide() (not close()) because only closeEvent writes Visible=false
+    // (user action). But we must save geometry here because hide() doesn't
+    // trigger closeEvent and the window positions would be lost.
+    // Settings key is stored as a dynamic property on each PersistentWindow.
+    TR4QT::saveAndHideAll({
+        m_dxClusterWindow, m_bandMapWindow,
+        m_radioControlWindow, m_radio2ControlWindow,
+        m_multiplierWindow, m_statisticsWindow,
+        m_sectionsMapViewer, m_statesMapViewer, m_worldMapViewer,
+        m_graylineMapDialog, m_amplifierControlWindow,
 #ifdef PANADAPTER_ENABLED
-    if (m_panadapterWindow) {
-        LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Closing Panadapter window... (%1ms elapsed)")
-                 .arg(shutdownTimer.elapsed()));
-        m_panadapterWindow->close();
-        LOG_INFO("MainWindow", QString("SHUTDOWN TIMING: Panadapter window closed (%1ms, total %2ms)")
-                 .arg(closeTimer.restart()).arg(shutdownTimer.elapsed()));
-    }
+        m_panadapterWindow,
 #endif
+    });
 
     // Disconnect radios before closing and wait for completion
     // CRITICAL: Must allow disconnect packets to be sent before app exits
     // Without this, Icom network radios stay in "connected" state and refuse reconnection
     LOG_DEBUG("MainWindow", "Disconnecting radios...");
-    closeTimer.restart();
 
     // Use RadioManager to disconnect all radios (SO2R support)
     if (m_radioManager) {
@@ -1633,7 +1448,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         // to process the queued disconnect operation before QApplication::quit()
         QApplication::processEvents();  // Process queued disconnect
         QThread::msleep(100);           // Allow UDP packets to be sent
-        LOG_DEBUG("MainWindow", QString("Radio disconnect completed (%1ms)").arg(closeTimer.elapsed()));
+        LOG_DEBUG("MainWindow", "Radio disconnect completed");
     }
 
     event->accept();
@@ -4114,7 +3929,7 @@ void MainWindow::onShowBandMap() {
 
 void MainWindow::onShowRadioControl() {
     if (!m_radioControlWindow) {
-        m_radioControlWindow = new RadioControlWidget();
+        m_radioControlWindow = new RadioControlWidget("Windows/RadioControl");
         // Set window title with radio model name if known
         QString title = m_radioModels[0].isEmpty()
             ? "Radio 1 Control"
@@ -4225,7 +4040,7 @@ void MainWindow::onShowRadio2Control() {
     }
 
     if (!m_radio2ControlWindow) {
-        m_radio2ControlWindow = new RadioControlWidget();
+        m_radio2ControlWindow = new RadioControlWidget("Windows/Radio2Control");
         // Set window title with radio model name if known
         QString title = m_radioModels[1].isEmpty()
             ? "Radio 2 Control"
@@ -4390,9 +4205,12 @@ void MainWindow::onShowSectionsMap() {
 }
 
 void MainWindow::onShowStatesMap() {
+    LOG_ERROR("MainWindow", QString("TRACE-STATES-MAP: onShowStatesMap() called, m_statesMapViewer=%1")
+        .arg(m_statesMapViewer ? "exists" : "nullptr"));
     // Create and show US States map viewer (WAS tracking)
     // Uses native Qt graphics (QGraphicsView), works on all platforms
     if (!m_statesMapViewer) {
+        LOG_ERROR("MainWindow", "TRACE-STATES-MAP: Creating new NativeMapViewer(States)");
         m_statesMapViewer = new NativeMapViewer(NativeMapViewer::States, m_qsoTableModel, this);
         m_statesMapViewer->setWindowFlags(Qt::Window);
         m_statesMapViewer->setAttribute(Qt::WA_DeleteOnClose, false);
@@ -4445,12 +4263,10 @@ void MainWindow::onShowAmplifierControl() {
         m_amplifierControlWindow->setWindowFlags(Qt::Window);
         m_amplifierControlWindow->setAttribute(Qt::WA_DeleteOnClose, false);
 
-        // Restore geometry
-        QByteArray geometry = AppSettings::instance().loadAmplifierControlGeometry();
-        if (!geometry.isEmpty()) {
-            m_amplifierControlWindow->restoreGeometry(geometry);
-        } else {
-            // First time opening - position offset from main window
+        // Geometry is restored automatically by PersistentWindow::setVisible()
+        // Position offset for first-time opening (no saved geometry)
+        QSettings settings(APP_ORG, APP_NAME);
+        if (!settings.contains("Windows/AmplifierControl/Geometry")) {
             QPoint offset(UIPositioning::WINDOW_INITIAL_OFFSET, UIPositioning::WINDOW_INITIAL_OFFSET);
             m_amplifierControlWindow->move(this->pos() + offset);
         }
@@ -4478,9 +4294,12 @@ void MainWindow::onShowPanadapter() {
         m_panadapterWindow->setWindowFlags(Qt::Window);
         m_panadapterWindow->setAttribute(Qt::WA_DeleteOnClose, false);
 
-        // Position offset from main window (first time)
-        QPoint offset(UIPositioning::WINDOW_INITIAL_OFFSET, UIPositioning::WINDOW_INITIAL_OFFSET);
-        m_panadapterWindow->move(this->pos() + offset);
+        // Position offset from main window (first time only, no saved geometry)
+        QSettings panadapterSettings(APP_ORG, APP_NAME);
+        if (!panadapterSettings.contains("Windows/Panadapter/Geometry")) {
+            QPoint offset(UIPositioning::WINDOW_INITIAL_OFFSET, UIPositioning::WINDOW_INITIAL_OFFSET);
+            m_panadapterWindow->move(this->pos() + offset);
+        }
 
         // Connect frequency click to tune radio
         connect(m_panadapterWindow, &PanadapterWindow::frequencyClicked, this,
@@ -5624,6 +5443,11 @@ QString MainWindow::substituteSentExchangeTemplate(const QString& templateStr, i
 
 void MainWindow::initializeWSJTX()
 {
+    // Only create the controller and worker thread if WSJT-X is enabled
+    AppSettings& settings = AppSettings::instance();
+    if (!settings.getWSJTXEnabled())
+        return;
+
     m_wsjtxController = new WSJTXController(this);
     m_wsjtxController->setCountryFile(&m_countryFile);
 
@@ -5638,15 +5462,12 @@ void MainWindow::initializeWSJTX()
             this, &MainWindow::onWSJTXDisconnected);
 
     // Apply settings
-    AppSettings& settings = AppSettings::instance();
     m_wsjtxController->setAutoLogEnabled(settings.getWSJTXAutoLog());
     m_wsjtxController->setHighlightEnabled(settings.getWSJTXHighlightEnabled());
 
-    // Start if enabled
-    if (settings.getWSJTXEnabled()) {
-        m_wsjtxController->start(settings.getWSJTXPort(),
-                                  settings.getWSJTXMulticastGroup());
-    }
+    // Start UDP listener
+    m_wsjtxController->start(settings.getWSJTXPort(),
+                              settings.getWSJTXMulticastGroup());
 }
 
 void MainWindow::onWSJTXQSOReady(const QSO& qso)

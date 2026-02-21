@@ -25,6 +25,7 @@
 #include <QFrame>
 #include <QTimer>
 #include "../../radio/RadioInterface.h"
+#include "../PersistentWindow.h"
 
 namespace TR4QT {
 
@@ -43,11 +44,12 @@ class SMeterWidget;
  *
  * Similar to TR4W's radio control window
  */
-class RadioControlWidget : public QWidget {
+class RadioControlWidget : public PersistentWindow<QWidget> {
     Q_OBJECT
 
 public:
-    explicit RadioControlWidget(QWidget* parent = nullptr);
+    explicit RadioControlWidget(const QString& settingsKey = "Windows/RadioControl",
+                                QWidget* parent = nullptr);
     ~RadioControlWidget() override;
 
     /**

@@ -39,7 +39,7 @@
 namespace TR4QT {
 
 GraylineMapDialog::GraylineMapDialog(QWidget* parent)
-    : QDialog(parent)
+    : PersistentWindow<QDialog>("Windows/GraylineMap", parent, "GraylineMapWindow")
     , m_view(nullptr)
     , m_scene(nullptr)
     , m_freezeButton(nullptr)

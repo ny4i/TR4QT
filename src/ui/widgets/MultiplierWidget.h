@@ -24,6 +24,7 @@
 #include <QMap>
 #include <QStringList>
 #include "../../core/Types.h"
+#include "../PersistentWindow.h"
 
 namespace TR4QT {
 
@@ -48,7 +49,7 @@ enum class MultiplierStatus {
  * - Click to add to bandmap or populate callsign
  * - Band-specific or all-band views
  */
-class MultiplierWidget : public QWidget {
+class MultiplierWidget : public PersistentWindow<QWidget> {
     Q_OBJECT
 
 public:

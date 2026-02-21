@@ -25,6 +25,7 @@
 #include <QGraphicsPolygonItem>
 #include <QMap>
 #include <QVector>
+#include "PersistentWindow.h"
 
 // Forward declarations
 class QLabel;
@@ -53,7 +54,7 @@ namespace TR4QT {
  * - Independent window (not embedded)
  * - No dependencies on web technologies
  */
-class NativeMapViewer : public QDialog {
+class NativeMapViewer : public TR4QT::PersistentWindow<QDialog> {
     Q_OBJECT
 
 public:

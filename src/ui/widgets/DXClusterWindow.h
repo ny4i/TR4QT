@@ -30,6 +30,7 @@
 #include "../../network/TelnetClient.h"
 #include "../../utils/ReconnectionManager.h"
 #include "../../services/SpotProcessorWorker.h"
+#include "../PersistentWindow.h"
 
 namespace TR4QT {
 
@@ -50,7 +51,7 @@ class ContestBase;
  * - Command input field
  * - Forwards spots to band map
  */
-class DXClusterWindow : public QWidget {
+class DXClusterWindow : public PersistentWindow<QWidget> {
     Q_OBJECT
 
 public:

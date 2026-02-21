@@ -25,6 +25,7 @@
 #include <QGraphicsPixmapItem>
 #include <QPushButton>
 #include <QDateTime>
+#include "../PersistentWindow.h"
 
 namespace TR4QT {
 
@@ -39,7 +40,7 @@ namespace TR4QT {
  * - Maidenhead grid overlay
  * - Grayline propagation zones (±30 min)
  */
-class GraylineMapDialog : public QDialog {
+class GraylineMapDialog : public PersistentWindow<QDialog> {
     Q_OBJECT
 
 public:

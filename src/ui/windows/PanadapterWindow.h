@@ -30,6 +30,7 @@
 #include "../../panadapter/IPanadapterRenderer.h"
 #include "../../panadapter/PanadapterDataModel.h"
 #include "../../radio/K4PanadapterReader.h"
+#include "../PersistentWindow.h"
 
 namespace TR4QT {
 
@@ -47,18 +48,12 @@ struct Spot;
  *
  * Integrates with K4PanadapterReader for live data from the radio.
  */
-class PanadapterWindow : public QWidget {
+class PanadapterWindow : public PersistentWindow<QWidget> {
     Q_OBJECT
 
 public:
     explicit PanadapterWindow(QWidget* parent = nullptr);
     ~PanadapterWindow() override;
-
-    /**
-     * @brief Check if window was visible when app last closed
-     * @return true if window should be restored on startup
-     */
-    static bool wasVisibleOnClose();
 
     /**
      * @brief Connect to a K4 radio's panadapter port

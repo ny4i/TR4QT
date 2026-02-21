@@ -45,8 +45,26 @@ using namespace TR4QT;
 
 using TR4QT::QSOTableModel;
 
+static QString mapTypeToSettingsKey(NativeMapViewer::MapType type) {
+    switch (type) {
+    case NativeMapViewer::Sections: return "Windows/SectionsMap";
+    case NativeMapViewer::States:   return "Windows/StatesMap";
+    case NativeMapViewer::DXCC:     return "Windows/WorldMap";
+    }
+    return "Windows/Map";
+}
+
+static QString mapTypeToOldKey(NativeMapViewer::MapType type) {
+    switch (type) {
+    case NativeMapViewer::Sections: return "MapViewer/Sections";
+    case NativeMapViewer::States:   return "MapViewer/States";
+    case NativeMapViewer::DXCC:     return "MapViewer/DXCC";
+    }
+    return QString();
+}
+
 NativeMapViewer::NativeMapViewer(MapType type, QSOTableModel* qsoModel, QWidget* parent)
-    : QDialog(parent)
+    : PersistentWindow<QDialog>(mapTypeToSettingsKey(type), parent, mapTypeToOldKey(type))
     , m_mapType(type)
     , m_qsoModel(qsoModel)
     , m_view(nullptr)
@@ -74,34 +92,22 @@ NativeMapViewer::NativeMapViewer(MapType type, QSOTableModel* qsoModel, QWidget*
 void NativeMapViewer::showEvent(QShowEvent* event) {
     QDialog::showEvent(event);
 
-    // Restore window geometry (position and size)
-    QSettings settings(APP_ORG, APP_NAME);  // Must match AppSettings initialization
-    QString geometryKey = QString("MapViewer/%1/Geometry").arg(m_mapType == Sections ? "Sections" :
-                                                                 m_mapType == States ? "States" : "DXCC");
-    if (settings.contains(geometryKey)) {
-        restoreGeometry(settings.value(geometryKey).toByteArray());
-        LOG_DEBUG("NativeMapViewer", QString("Restored window geometry for %1").arg(geometryKey));
-    }
-
-    // Restore view state every time the window is shown
-    // This ensures zoom/pan persist across hide/show cycles
+    // Restore view state (zoom/pan) every time the window is shown
     restoreViewState();
 }
 
 void NativeMapViewer::hideEvent(QHideEvent* event) {
-    // Save window geometry (position and size)
-    QSettings settings(APP_ORG, APP_NAME);  // Must match AppSettings initialization
-    QString geometryKey = QString("MapViewer/%1/Geometry").arg(m_mapType == Sections ? "Sections" :
-                                                                 m_mapType == States ? "States" : "DXCC");
-    settings.setValue(geometryKey, saveGeometry());
-    LOG_DEBUG("NativeMapViewer", QString("Saved window geometry for %1").arg(geometryKey));
-
-    // Save view state when hiding
+    // Save view state (zoom/pan) before hiding
     saveViewState();
+
     QDialog::hideEvent(event);
 }
 
 NativeMapViewer::~NativeMapViewer() {
+    if (m_mapType == States) {
+        LOG_ERROR("NativeMapViewer", QString("TRACE-STATES-MAP: ~NativeMapViewer() destructor, isVisible()=%1")
+            .arg(isVisible()));
+    }
     // Qt parent-child relationship handles cleanup
 }
 

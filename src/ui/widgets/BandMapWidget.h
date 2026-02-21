@@ -25,6 +25,7 @@
 #include <hamlib/rig.h>
 #include "../../core/Types.h"
 #include "../../utils/CountryFile.h"
+#include "../PersistentWindow.h"
 
 namespace TR4QT {
 
@@ -68,7 +69,7 @@ struct Spot {
  * - Integration with DX Cluster
  * - Scrollable when content exceeds viewport
  */
-class BandMapWidget : public QAbstractScrollArea {
+class BandMapWidget : public PersistentWindow<QAbstractScrollArea> {
     Q_OBJECT
 
 public:

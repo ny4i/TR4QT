@@ -44,7 +44,7 @@
 namespace TR4QT {
 
 AmplifierControlWindow::AmplifierControlWindow(AmplifierService* service, QWidget* parent)
-    : QWidget(parent)
+    : PersistentWindow<QWidget>("Windows/AmplifierControl", parent, "AmplifierControlWindow")
     , m_service(service)
 {
     // Create panel controller for KPA1500 (TODO: get from service/settings)
@@ -820,9 +820,7 @@ void AmplifierControlWindow::showEvent(QShowEvent* event) {
 }
 
 void AmplifierControlWindow::closeEvent(QCloseEvent* event) {
-    // Save window geometry
-    AppSettings::instance().saveAmplifierControlGeometry(saveGeometry());
-    QWidget::closeEvent(event);
+    PersistentWindow<QWidget>::closeEvent(event);
 }
 
 void AmplifierControlWindow::onAmplifierStateUpdated(const AmplifierState& state) {

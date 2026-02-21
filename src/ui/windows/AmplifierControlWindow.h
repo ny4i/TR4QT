@@ -27,6 +27,7 @@
 #include <memory>
 #include "../../amplifiers/IAmplifierController.h"
 #include "../panels/IAmplifierPanelController.h"
+#include "../PersistentWindow.h"
 
 class QLabel;
 class QPushButton;
@@ -42,7 +43,7 @@ class SvgPanelWidget;
  * Displays a realistic front panel image with clickable controls.
  * All coordinates are proportional to image dimensions for proper scaling.
  */
-class AmplifierControlWindow : public QWidget {
+class AmplifierControlWindow : public PersistentWindow<QWidget> {
     Q_OBJECT
 
 public:

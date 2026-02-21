@@ -43,30 +43,15 @@ struct FontConfig {
 /**
  * Window geometry configuration
  */
+/**
+ * Window geometry configuration
+ *
+ * Only holds main window geometry/state. Child windows persist
+ * their own visibility/geometry via PersistentWindow template.
+ */
 struct WindowGeometry {
     QByteArray mainWindowGeometry;
     QByteArray mainWindowState;
-    bool dxClusterVisible = false;
-    QByteArray dxClusterGeometry;
-    bool bandMapVisible = false;
-    QByteArray bandMapGeometry;
-    bool radioControlVisible = false;
-    QByteArray radioControlGeometry;
-    bool radio2ControlVisible = false;
-    QByteArray radio2ControlGeometry;
-    bool multipliersVisible = false;
-    QByteArray multipliersGeometry;
-    bool statisticsVisible = false;
-    QByteArray statisticsGeometry;
-    bool sectionsMapVisible = false;
-    bool statesMapVisible = false;
-    bool worldMapVisible = false;
-    bool graylineMapVisible = false;
-    QByteArray graylineMapGeometry;
-    bool amplifierControlVisible = false;
-    QByteArray amplifierControlGeometry;
-    bool panadapterVisible = false;
-    QByteArray panadapterGeometry;
     QString currentOperator;
 };
 

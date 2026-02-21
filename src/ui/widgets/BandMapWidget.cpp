@@ -45,7 +45,7 @@
 namespace TR4QT {
 
 BandMapWidget::BandMapWidget(QWidget* parent)
-    : QAbstractScrollArea(parent)
+    : PersistentWindow<QAbstractScrollArea>("Windows/BandMap", parent, "BandMapWindow")
     , m_currentFrequency(0)
     , m_currentBand(BandType::None)
     , m_selectedIndex(-1)

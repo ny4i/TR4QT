@@ -50,7 +50,7 @@ static constexpr int DEFAULT_WIDTH = 600;
 static constexpr int DEFAULT_HEIGHT = 400;
 
 PanadapterWindow::PanadapterWindow(QWidget* parent)
-    : QWidget(parent)
+    : PersistentWindow<QWidget>("Windows/Panadapter", parent, "PanadapterWindow")
     , m_renderer(std::make_unique<QmlPanadapterRenderer>())
     , m_dataModel(std::make_unique<PanadapterDataModel>())
     , m_reader(std::make_unique<K4PanadapterReader>())
@@ -367,26 +367,21 @@ void PanadapterWindow::onRendererCursorMoved(qint64 freqHz, float db)
 
 void PanadapterWindow::closeEvent(QCloseEvent* event)
 {
-    // Only set m_wasVisible=false if user explicitly closed window (not app shutdown)
     if (!QApplication::closingDown()) {
-        m_wasVisible = false;  // User clicked X to close window
-        LOG_DEBUG("PanadapterWindow", "User closed window, m_wasVisible=false");
         emit windowClosed();  // Notify MainWindow to update visibility tracking
-    } else {
-        LOG_DEBUG("PanadapterWindow", "App closing down, keeping m_wasVisible=true");
     }
     saveWindowState();
     // Disconnect but keep m_wasConnected so we reconnect when window is reopened
     LOG_DEBUG("PanadapterWindow", QString("Closing window, m_wasConnected=%1 (will reconnect on reopen)").arg(m_wasConnected));
     disconnectFromRadio();
-    event->accept();
+    PersistentWindow<QWidget>::closeEvent(event);
 }
 
 void PanadapterWindow::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);
     m_wasVisible = true;
-    LOG_DEBUG("PanadapterWindow", QString("Window shown, m_wasVisible=true, m_wasConnected=%1").arg(m_wasConnected));
+    LOG_DEBUG("PanadapterWindow", QString("Window shown, m_wasConnected=%1").arg(m_wasConnected));
 
     // Reconnect if we were connected before the window was closed
     if (m_wasConnected && !isConnected()) {
@@ -401,8 +396,6 @@ void PanadapterWindow::showEvent(QShowEvent* event)
 
 void PanadapterWindow::hideEvent(QHideEvent* event)
 {
-    // Don't set m_wasVisible=false here - hideEvent fires during app shutdown
-    // Only closeEvent (user action) should set it to false
     QWidget::hideEvent(event);
     LOG_DEBUG("PanadapterWindow", QString("Window hidden, m_wasVisible=%1").arg(m_wasVisible));
 }
@@ -410,39 +403,24 @@ void PanadapterWindow::hideEvent(QHideEvent* event)
 void PanadapterWindow::saveWindowState()
 {
     LOG_DEBUG("PanadapterWindow", QString("saveWindowState called, m_wasVisible=%1").arg(m_wasVisible));
+    // Save non-geometry state (palette, sliders) — geometry handled by PersistentWindow
     QSettings settings(APP_ORG, APP_NAME);
     settings.beginGroup("PanadapterWindow");
-    settings.setValue("geometry", saveGeometry());
-    // NOTE: Visibility is saved by MainWindow/SettingsManager BEFORE child closeEvents fire,
-    // so we don't save it here to avoid overwriting the correct value during app shutdown.
-    // The "visible" key is managed by SettingsManager.
     settings.setValue("palette", m_paletteCombo->currentIndex());
     settings.setValue("refLevel", m_refLevelSlider->value());
     settings.setValue("averaging", m_averagingSlider->value());
     settings.setValue("waterfallRange", m_wfRangeSlider->value());
     settings.setValue("waterfallRefLevel", m_wfRefLevelSlider->value());
     settings.endGroup();
-    settings.sync();  // Force write immediately
-    LOG_DEBUG("PanadapterWindow", QString("saveWindowState completed"));
-}
-
-bool PanadapterWindow::wasVisibleOnClose()
-{
-    QSettings settings(APP_ORG, APP_NAME);
-    settings.beginGroup("PanadapterWindow");
-    bool visible = settings.value("visible", false).toBool();
-    settings.endGroup();
-    return visible;
+    settings.sync();
+    LOG_DEBUG("PanadapterWindow", "saveWindowState completed");
 }
 
 void PanadapterWindow::restoreWindowState()
 {
+    // Restore non-geometry state (palette, sliders) — geometry handled by PersistentWindow
     QSettings settings(APP_ORG, APP_NAME);
     settings.beginGroup("PanadapterWindow");
-
-    if (settings.contains("geometry")) {
-        restoreGeometry(settings.value("geometry").toByteArray());
-    }
 
     if (settings.contains("palette")) {
         int idx = settings.value("palette").toInt();

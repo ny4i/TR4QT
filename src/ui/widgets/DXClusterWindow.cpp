@@ -55,7 +55,7 @@ static constexpr int ALTERNATING_ROW_LIGHTNESS_SHIFT = 7;
 static constexpr int LIGHTNESS_MIDPOINT = 128;  // 0=black, 255=white
 
 DXClusterWindow::DXClusterWindow(QWidget* parent)
-    : QWidget(parent)
+    : PersistentWindow<QWidget>("Windows/DXCluster", parent, "DXClusterWindow")
     , m_telnetThread(new TelnetThread(this))
     , m_telnetClient(nullptr)
     , m_isFrozen(false)

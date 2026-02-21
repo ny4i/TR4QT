@@ -28,7 +28,7 @@
 namespace TR4QT {
 
 StatisticsWindow::StatisticsWindow(QWidget* parent)
-    : QWidget(parent)
+    : PersistentWindow<QWidget>("Windows/Statistics", parent, "StatisticsWindow")
     , m_rateCalculator(new RateCalculator(this))
     , m_historyUpdateTimer(new QTimer(this))
 {
@@ -51,9 +51,6 @@ StatisticsWindow::StatisticsWindow(QWidget* parent)
     connect(m_historyUpdateTimer, &QTimer::timeout, this, &StatisticsWindow::onUpdateTimer);
     m_historyUpdateTimer->start(HISTORY_UPDATE_INTERVAL_MS);
 
-    // Restore saved geometry
-    restoreWindowSettings();
-
     LOG_DEBUG("StatisticsWindow", "Statistics window created");
 }
 
@@ -65,7 +62,6 @@ StatisticsWindow::~StatisticsWindow() {
     if (m_rateCalculator) {
         m_rateCalculator->stopAutoUpdate();
     }
-    saveWindowSettings();
 }
 
 void StatisticsWindow::setupUI() {
@@ -381,20 +377,11 @@ void StatisticsWindow::updateStationVisibility() {
 }
 
 void StatisticsWindow::closeEvent(QCloseEvent* event) {
-    saveWindowSettings();
+    // Write Visible=false and save geometry via base class
+    PersistentWindow<QWidget>::closeEvent(event);
+    // Don't destroy, just hide — ignore the close event
     hide();
-    event->ignore();  // Don't destroy, just hide
-}
-
-void StatisticsWindow::saveWindowSettings() {
-    AppSettings::instance().saveStatisticsWindowGeometry(QWidget::saveGeometry());
-}
-
-void StatisticsWindow::restoreWindowSettings() {
-    QByteArray geometry = AppSettings::instance().loadStatisticsWindowGeometry();
-    if (!geometry.isEmpty()) {
-        QWidget::restoreGeometry(geometry);
-    }
+    event->ignore();
 }
 
 } // namespace TR4QT

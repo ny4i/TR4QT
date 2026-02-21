@@ -31,6 +31,7 @@
 #include "RateDisplayWidget.h"
 #include "BandSummaryModel.h"
 #include "../../models/QSO.h"
+#include "../PersistentWindow.h"
 
 namespace TR4QT {
 
@@ -57,7 +58,7 @@ namespace TR4QT {
  * │ (multi-op only)    │ (SO2R only)                        │
  * └─────────────────────────────────────────────────────────┘
  */
-class StatisticsWindow : public QWidget {
+class StatisticsWindow : public PersistentWindow<QWidget> {
     Q_OBJECT
 
 public:
@@ -153,9 +154,6 @@ private:
     void updateTotalsRow();
     void updateOperatorVisibility();
     void updateStationVisibility();
-    void saveWindowSettings();
-    void restoreWindowSettings();
-
     // View mode
     ViewMode m_viewMode{ViewSolo};
     QComboBox* m_viewModeCombo{nullptr};

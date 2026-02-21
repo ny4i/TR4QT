@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.46.80";  // WSJT-X integration: auto-log QSOs, dupe/mult highlighting, UDP protocol
+constexpr const char* APP_VERSION = "3.47.80";  // Fix child window geometry restore on macOS (deferred restore after WM placement)
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file

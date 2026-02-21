@@ -32,7 +32,7 @@
 namespace TR4QT {
 
 MultiplierWidget::MultiplierWidget(QWidget* parent)
-    : QWidget(parent)
+    : PersistentWindow<QWidget>("Windows/Multipliers", parent, "MultipliersWindow")
     , m_type(MultiplierType::Country)
     , m_currentBand(BandType::None)
     , m_hideWorked(false)

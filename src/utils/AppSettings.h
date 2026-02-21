@@ -395,45 +395,8 @@ public:
     void saveWindowState(const QByteArray& state);
     QByteArray loadWindowState() const;
 
-    // Child window geometry and visibility
-    void saveDXClusterGeometry(const QByteArray& geometry);
-    QByteArray loadDXClusterGeometry() const;
-    void setDXClusterVisible(bool visible);
-    bool getDXClusterVisible() const;
-
-    void saveBandMapGeometry(const QByteArray& geometry);
-    QByteArray loadBandMapGeometry() const;
-    void setBandMapVisible(bool visible);
-    bool getBandMapVisible() const;
-
-    void saveRadioControlGeometry(const QByteArray& geometry);
-    QByteArray loadRadioControlGeometry() const;
-    void setRadioControlVisible(bool visible);
-    bool getRadioControlVisible() const;
-
-    void saveRadio2ControlGeometry(const QByteArray& geometry);
-    QByteArray loadRadio2ControlGeometry() const;
-    void setRadio2ControlVisible(bool visible);
-    bool getRadio2ControlVisible() const;
-
-    void saveMultipliersGeometry(const QByteArray& geometry);
-    QByteArray loadMultipliersGeometry() const;
-    void setMultipliersVisible(bool visible);
-    bool getMultipliersVisible() const;
-
-    void saveGraylineMapGeometry(const QByteArray& geometry);
-    QByteArray loadGraylineMapGeometry() const;
-    void setGraylineMapVisible(bool visible);
-    bool getGraylineMapVisible() const;
-
-    void saveAmplifierControlGeometry(const QByteArray& geometry);
-    QByteArray loadAmplifierControlGeometry() const;
-    void setAmplifierControlVisible(bool visible);
-    bool getAmplifierControlVisible() const;
-
-    // Statistics window settings
-    void saveStatisticsWindowGeometry(const QByteArray& geometry);
-    QByteArray loadStatisticsWindowGeometry() const;
+    // NOTE: Child window geometry and visibility methods removed.
+    // Child windows now self-persist via PersistentWindow template.
 
     // DX Cluster settings
     void setDXClusterCallsign(const QString& callsign);

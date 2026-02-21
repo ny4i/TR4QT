@@ -178,6 +178,7 @@ private:
     QWidget* createContestTab();
     QWidget* createCWSettingsTab();
     QWidget* createWebServerTab();
+    QWidget* createExternalSoftwareTab();
     QWidget* createAdvancedTab();
 
     // Helper methods
@@ -325,7 +326,7 @@ private:
     // Network tab widgets
     QLineEdit* m_computerIDEdit;
 
-    // WSJT-X integration widgets (on Network tab)
+    // WSJT-X integration widgets (on External Software tab)
     QCheckBox* m_wsjtxEnabledCheck;
     QSpinBox* m_wsjtxPortSpin;
     QLineEdit* m_wsjtxMulticastEdit;

@@ -54,58 +54,12 @@ FontConfig SettingsManager::loadFontConfig() const {
 
 WindowGeometry SettingsManager::loadWindowGeometry() const {
     AppSettings& settings = AppSettings::instance();
-    QSettings qsettings(APP_ORG, APP_NAME);  // Must match AppSettings initialization
 
     WindowGeometry geometry;
 
-    // Main window
+    // Main window only — child windows self-persist via PersistentWindow
     geometry.mainWindowGeometry = settings.loadWindowGeometry();
     geometry.mainWindowState = settings.loadWindowState();
-
-    // DX Cluster window
-    geometry.dxClusterVisible = settings.getDXClusterVisible();
-    geometry.dxClusterGeometry = settings.loadDXClusterGeometry();
-
-    // Band Map window
-    geometry.bandMapVisible = settings.getBandMapVisible();
-    geometry.bandMapGeometry = settings.loadBandMapGeometry();
-
-    // Radio Control window
-    geometry.radioControlVisible = settings.getRadioControlVisible();
-    geometry.radioControlGeometry = settings.loadRadioControlGeometry();
-
-    // Radio 2 Control window (SO2R)
-    geometry.radio2ControlVisible = settings.getRadio2ControlVisible();
-    geometry.radio2ControlGeometry = settings.loadRadio2ControlGeometry();
-
-    // Multipliers window
-    geometry.multipliersVisible = settings.getMultipliersVisible();
-    geometry.multipliersGeometry = settings.loadMultipliersGeometry();
-
-    // Statistics window
-    geometry.statisticsVisible = qsettings.value("Windows/Statistics/Visible", false).toBool();
-    geometry.statisticsGeometry = qsettings.value("Windows/Statistics/Geometry").toByteArray();
-
-    // Map viewers (visibility only, geometry saved by viewers)
-    geometry.sectionsMapVisible = qsettings.value("MapViewer/Sections/Visible", false).toBool();
-    geometry.statesMapVisible = qsettings.value("MapViewer/States/Visible", false).toBool();
-    geometry.worldMapVisible = qsettings.value("MapViewer/DXCC/Visible", false).toBool();
-
-    // Grayline Map
-    geometry.graylineMapVisible = settings.getGraylineMapVisible();
-    geometry.graylineMapGeometry = settings.loadGraylineMapGeometry();
-
-    // Amplifier Control window
-    geometry.amplifierControlVisible = settings.getAmplifierControlVisible();
-    geometry.amplifierControlGeometry = settings.loadAmplifierControlGeometry();
-    LOG_DEBUG("SettingsManager", QString("Loaded amplifier control visibility: %1").arg(geometry.amplifierControlVisible));
-
-    // Panadapter window - read from PanadapterWindow's keys (it saves its own state)
-    geometry.panadapterVisible = qsettings.value("PanadapterWindow/visible", false).toBool();
-    geometry.panadapterGeometry = qsettings.value("PanadapterWindow/geometry").toByteArray();
-    LOG_DEBUG("SettingsManager", QString("Loaded panadapter visibility: %1").arg(geometry.panadapterVisible));
-
-    // Current operator
     geometry.currentOperator = settings.getCurrentOperator();
 
     return geometry;
@@ -113,57 +67,10 @@ WindowGeometry SettingsManager::loadWindowGeometry() const {
 
 void SettingsManager::saveWindowGeometry(const WindowGeometry& geometry) {
     AppSettings& settings = AppSettings::instance();
-    QSettings qsettings(APP_ORG, APP_NAME);  // Must match AppSettings initialization
 
-    // Main window
+    // Main window only — child windows self-persist via PersistentWindow
     settings.saveWindowGeometry(geometry.mainWindowGeometry);
     settings.saveWindowState(geometry.mainWindowState);
-
-    // DX Cluster window
-    settings.saveDXClusterGeometry(geometry.dxClusterGeometry);
-    settings.setDXClusterVisible(geometry.dxClusterVisible);
-
-    // Band Map window
-    settings.saveBandMapGeometry(geometry.bandMapGeometry);
-    settings.setBandMapVisible(geometry.bandMapVisible);
-
-    // Radio Control window
-    settings.saveRadioControlGeometry(geometry.radioControlGeometry);
-    settings.setRadioControlVisible(geometry.radioControlVisible);
-
-    // Radio 2 Control window (SO2R)
-    settings.saveRadio2ControlGeometry(geometry.radio2ControlGeometry);
-    settings.setRadio2ControlVisible(geometry.radio2ControlVisible);
-
-    // Multipliers window
-    settings.saveMultipliersGeometry(geometry.multipliersGeometry);
-    settings.setMultipliersVisible(geometry.multipliersVisible);
-
-    // Statistics window
-    qsettings.setValue("Windows/Statistics/Geometry", geometry.statisticsGeometry);
-    qsettings.setValue("Windows/Statistics/Visible", geometry.statisticsVisible);
-
-    // Map viewers (visibility only, geometry saved by viewers)
-    qsettings.setValue("MapViewer/Sections/Visible", geometry.sectionsMapVisible);
-    qsettings.setValue("MapViewer/States/Visible", geometry.statesMapVisible);
-    qsettings.setValue("MapViewer/DXCC/Visible", geometry.worldMapVisible);
-
-    // Grayline Map
-    settings.saveGraylineMapGeometry(geometry.graylineMapGeometry);
-    settings.setGraylineMapVisible(geometry.graylineMapVisible);
-
-    // Amplifier Control window
-    LOG_DEBUG("SettingsManager", QString("Saving amplifier control visibility: %1").arg(geometry.amplifierControlVisible));
-    settings.saveAmplifierControlGeometry(geometry.amplifierControlGeometry);
-    settings.setAmplifierControlVisible(geometry.amplifierControlVisible);
-
-    // Panadapter window - use same keys as PanadapterWindow for consistency
-    LOG_DEBUG("SettingsManager", QString("Saving panadapter visibility: %1").arg(geometry.panadapterVisible));
-    qsettings.setValue("PanadapterWindow/visible", geometry.panadapterVisible);
-    qsettings.setValue("PanadapterWindow/geometry", geometry.panadapterGeometry);
-
-    // Ensure local qsettings are written to disk (important on Windows)
-    qsettings.sync();
 }
 
 UdpBroadcastConfig SettingsManager::loadUdpBroadcastConfig() const {

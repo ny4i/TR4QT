@@ -42,8 +42,8 @@
 
 namespace TR4QT {
 
-RadioControlWidget::RadioControlWidget(QWidget* parent)
-    : QWidget(parent)
+RadioControlWidget::RadioControlWidget(const QString& settingsKey, QWidget* parent)
+    : PersistentWindow<QWidget>(settingsKey, parent, "RadioControlWindow")
     , m_radioNumber(1)
 {
     LOG_DEBUG("RadioControlWidget", QString("Constructor called for Radio %1").arg(m_radioNumber));
@@ -76,7 +76,7 @@ void RadioControlWidget::closeEvent(QCloseEvent* event)
     LOG_DEBUG("RadioControlWidget", QString("closeEvent START for Radio %1").arg(m_radioNumber));
 
     // Call base class
-    QWidget::closeEvent(event);
+    PersistentWindow<QWidget>::closeEvent(event);
 
     LOG_DEBUG("RadioControlWidget", QString("closeEvent END for Radio %1 (took %2ms)")
               .arg(m_radioNumber).arg(timer.elapsed()));

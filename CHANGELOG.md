@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.47.80] - 2026-02-20
+
+### Added
+- **PersistentWindow CRTP template**: Self-contained child window persistence — each window manages its own visibility and geometry via QSettings, replacing 24 per-window methods in AppSettings/SettingsManager
+- **Table-driven window restore/shutdown**: `restoreChildWindows()` and `saveAndHideAll()` use data-driven lists — adding a new persistent window is one line in each table
+- **Migration support**: `migrateWindowSettings()` automatically converts old-style keys to new `Windows/*` namespace on first launch
+
+### Fixed
+- **Child window geometry not restoring on macOS**: `restoreGeometry()` called before/during `setVisible()` was silently overridden by macOS window manager. Fixed with deferred restore (150ms after show) plus `move()/resize()` fallback that manually decodes the geometry blob
+- **Geometry lost on graceful shutdown**: `MainWindow::closeEvent` called `hide()` on child windows (preserving `Visible=true`), but `hide()` doesn't trigger `closeEvent` so geometry was never saved. Fixed with `TR4QT::saveAndHideAll()` that saves geometry for all visible PersistentWindows before hiding
+- **Panadapter initial position overriding saved geometry**: `onShowPanadapter()` unconditionally called `move()` on every creation, ignoring saved geometry. Now only sets initial offset when no saved geometry exists
+
+### Changed
+- **Removed per-window visibility/geometry fields** from AppSettings (24 methods) and SettingsManager/WindowGeometry (all per-window fields, kept main window only)
+- **All 9 child window classes** converted to `PersistentWindow<QWidget>`: BandMapWidget, DXClusterWindow, RadioControlWidget, MultiplierWidget, StatisticsWindow, AmplifierControlWindow, GraylineMapDialog, NativeMapViewer, PanadapterWindow
+
 ## [3.45.80] - 2026-02-19
 
 ### Added

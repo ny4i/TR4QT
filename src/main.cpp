@@ -55,27 +55,23 @@ static TR4QT::MainWindow* g_mainWindow = nullptr;
 
 /**
  * Signal handler for graceful shutdown (SIGTERM, SIGINT)
- * Ensures settings are saved before the application exits
+ *
+ * IMPORTANT: Signal handlers are extremely restricted — only async-signal-safe
+ * functions may be called. QMetaObject::invokeMethod, QString, printf etc. are
+ * all undefined behavior here. We only set a flag and write to a pipe/stderr,
+ * then post quit via QueuedConnection (which is just writing to an eventfd).
+ *
+ * The actual saveSettings() call happens via QApplication::aboutToQuit signal,
+ * which fires safely inside the event loop when quit() processes.
  */
 static void signalHandler(int signal) {
-    const char* signalName = (signal == SIGTERM) ? "SIGTERM" :
-                             (signal == SIGINT) ? "SIGINT" : "UNKNOWN";
-
-    // Use posix_write() instead of LOG_* since we're in a signal handler
-    // (printf/QString are not async-signal-safe)
+    // posix_write is async-signal-safe
     const char* msg = "Signal received, performing graceful shutdown...\n";
     [[maybe_unused]] auto ignored = posix_write(STDERR_FILENO, msg, strlen(msg));
+    (void)signal;
 
-    // Save window state directly (bypasses confirmation dialog in closeEvent)
-    // This must be done via invokeMethod since we're in signal handler context
-    if (g_mainWindow) {
-        QMetaObject::invokeMethod(g_mainWindow, "saveSettings", Qt::BlockingQueuedConnection);
-    }
-
-    // Force sync settings to disk
-    TR4QT::AppSettings::instance().forceSync();
-
-    // Quit the application gracefully (don't call close() - it shows confirmation dialog)
+    // QCoreApplication::quit() posts a QEvent::Quit which is safe from signal context.
+    // The actual window state save happens in the aboutToQuit handler.
     if (g_app) {
         QMetaObject::invokeMethod(g_app, "quit", Qt::QueuedConnection);
     }
