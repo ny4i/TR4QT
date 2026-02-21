@@ -335,6 +335,19 @@ MainWindow::MainWindow(QWidget* parent)
             m_callsignEntry, qOverload<>(&QLineEdit::setFocus));
     connect(m_inputHandler, &InputHandlerService::statusMessage,
             this, &MainWindow::setStatusMessage);
+    connect(m_inputHandler, &InputHandlerService::cwSpeedChanged,
+            this, [this](int wpm) {
+        if (m_cwService) {
+            m_cwService->setKeyerSpeed(wpm);
+        }
+    });
+    connect(m_inputHandler, &InputHandlerService::stopCW,
+            this, [this]() {
+        if (m_cwService) {
+            m_cwService->stopAllCW();
+            setStatusMessage("CW transmission aborted");
+        }
+    });
     LOG_DEBUG("MainWindow", "InputHandlerService created and connected");
 
     loadSettings();
@@ -439,6 +452,12 @@ MainWindow::MainWindow(QWidget* parent)
             this, [this](int radioIndex, const RadioState& state) {
                 if (radioIndex == 0 && m_radioControlWindow) {
                     m_radioControlWindow->updateRadioState(state);
+                    // Show red WPM indicator if radio/program speeds are out of sync
+                    if (m_cwService) {
+                        bool mismatched = m_cwService->isCWSpeedMismatched(state.cwSpeed);
+                        m_radioControlWindow->setCWSpeedMismatch(mismatched,
+                            AppSettings::instance().getMorseWPM());
+                    }
                 } else if (radioIndex == 1 && m_radio2ControlWindow) {
                     m_radio2ControlWindow->updateRadioState(state);
                 }
@@ -1522,12 +1541,11 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
-    // ESC: Abort CW transmission
+    // ESC: Abort CW transmission on ALL channels (radio + WinKeyer)
     if (event->key() == Qt::Key_Escape) {
-        if (m_radioConnected) {
-            m_radio->stopCW();
+        if (m_cwService) {
+            m_cwService->stopAllCW();
             setStatusMessage("CW transmission aborted");
-            LOG_DEBUG("MainWindow", "CW transmission aborted via ESC key");
         }
         event->accept();
         return;
@@ -3303,12 +3321,11 @@ void MainWindow::updateRadioStatusGrid() {
         }
     }
 
-    // Update WPM label (only enabled in CW mode AND when auto-send is enabled)
-    // When speed sync is enabled, WinKeyer owns the WPM display — don't overwrite with radio poll
+    // Update WPM label — CWService decides the authoritative speed for display
     bool isCWMode = (activeState.modeA == ModeType::CW || activeState.modeA == ModeType::CWR);
     bool autoSendEnabled = m_autoSendCWAction->isChecked();
-    if (!m_cwService || !m_cwService->isSpeedSyncEnabled()) {
-        int wpm = activeState.cwSpeed;
+    if (m_cwService) {
+        int wpm = m_cwService->displayWpm(activeState.cwSpeed);
         m_radioWpmLabel->setText(QString("%1 WPM").arg(wpm));
     }
     m_radioWpmLabel->setEnabled(isCWMode && autoSendEnabled);

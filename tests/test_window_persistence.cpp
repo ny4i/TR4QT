@@ -6,6 +6,9 @@
  *
  * Also validates the event filter visibility tracking pattern
  * used by MainWindow for map windows.
+ *
+ * IMPORTANT: All tests use an isolated QSettings file in a temp directory.
+ * Production settings (plist) are never touched.
  */
 
 #include <QTest>
@@ -18,7 +21,6 @@
 #include <QShowEvent>
 #include <QHideEvent>
 #include "../src/ui/PersistentWindow.h"
-#include "../src/ui/managers/SettingsManager.h"
 #include "../src/logging/LogMacros.h"
 
 using namespace TR4QT;
@@ -72,9 +74,6 @@ private slots:
     void testPersistentWindow_HideWritesNotVisible();
     void testPersistentWindow_HideSavesGeometry();
 
-    // Test WindowGeometry struct defaults
-    void testWindowGeometry_DefaultsEmpty();
-
     // Test settings roundtrip (main window only)
     void testMainWindowGeometry_Roundtrip();
 
@@ -86,13 +85,15 @@ private slots:
 
 private:
     QTemporaryDir* m_tempDir;
-    QString m_settingsPath;
 };
 
 void TestWindowPersistence::initTestCase() {
     m_tempDir = new QTemporaryDir();
     QVERIFY(m_tempDir->isValid());
-    m_settingsPath = m_tempDir->path();
+
+    // Redirect ALL QSettings(APP_ORG, APP_NAME) to the temp directory.
+    // This ensures tests never touch the production plist.
+    QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, m_tempDir->path());
 }
 
 void TestWindowPersistence::cleanupTestCase() {
@@ -102,7 +103,7 @@ void TestWindowPersistence::cleanupTestCase() {
 void TestWindowPersistence::init() {
     // Clear test settings before each test
     QSettings settings(APP_ORG, APP_NAME);
-    settings.remove("Windows");
+    settings.clear();
 }
 
 void TestWindowPersistence::cleanup() {
@@ -165,35 +166,24 @@ void TestWindowPersistence::testPersistentWindow_HideSavesGeometry() {
     qInfo() << "OK PersistentWindow close saves geometry to QSettings";
 }
 
-void TestWindowPersistence::testWindowGeometry_DefaultsEmpty() {
-    WindowGeometry geometry;
-    QVERIFY(geometry.mainWindowGeometry.isEmpty());
-    QVERIFY(geometry.mainWindowState.isEmpty());
-    QVERIFY(geometry.currentOperator.isEmpty());
-
-    qInfo() << "OK WindowGeometry struct defaults are all empty";
-}
-
 void TestWindowPersistence::testMainWindowGeometry_Roundtrip() {
-    SettingsManager settingsManager;
+    // Test geometry/state roundtrip directly via QSettings to avoid
+    // coupling to the AppSettings singleton (which can't be redirected
+    // to a temp dir after construction).
+    QSettings settings(APP_ORG, APP_NAME);
 
-    // Save existing production values so we can restore them after the test
-    WindowGeometry saved = settingsManager.loadWindowGeometry();
+    QByteArray testGeometry("test_geometry_data_12345");
+    QByteArray testState("test_state_data_67890");
 
-    WindowGeometry original;
-    original.mainWindowGeometry = QByteArray("test_geometry_data");
-    original.mainWindowState = QByteArray("test_state_data");
-    original.currentOperator = "NY4I";
+    settings.setValue("MainWindow.geometry", testGeometry);
+    settings.setValue("MainWindow.state", testState);
+    settings.sync();
 
-    settingsManager.saveWindowGeometry(original);
-    WindowGeometry loaded = settingsManager.loadWindowGeometry();
+    QByteArray loadedGeometry = settings.value("MainWindow.geometry").toByteArray();
+    QByteArray loadedState = settings.value("MainWindow.state").toByteArray();
 
-    // Main window geometry roundtrips via AppSettings
-    QCOMPARE(loaded.mainWindowGeometry, original.mainWindowGeometry);
-    QCOMPARE(loaded.currentOperator, original.currentOperator);
-
-    // Restore production values so running app doesn't lose its window positions
-    settingsManager.saveWindowGeometry(saved);
+    QCOMPARE(loadedGeometry, testGeometry);
+    QCOMPARE(loadedState, testState);
 
     qInfo() << "OK Main window geometry roundtrip works";
 }

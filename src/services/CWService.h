@@ -160,6 +160,33 @@ public:
     void setSpeedSyncEnabled(bool enabled);
     bool isSpeedSyncEnabled() const { return m_speedSyncEnabled; }
 
+    /**
+     * Set CW speed on the active output device (WinKeyer, radio, or DTR/RTS).
+     * Called from PgUp/PgDn. Routes to the correct device based on output mode.
+     */
+    void setKeyerSpeed(int wpm);
+
+    /**
+     * Get the authoritative CW speed for display purposes.
+     * - WinKeyer mode: returns program speed (AppSettings)
+     * - CAT mode: returns radio-reported speed
+     * @param radioReportedWpm The radio's current CW speed from polling
+     */
+    int displayWpm(int radioReportedWpm) const;
+
+    /**
+     * Check if radio speed and program speed are out of sync.
+     * True when WinKeyer is active, Speed Sync is OFF, and speeds differ.
+     * Used to show a red indicator on the radio control panel.
+     */
+    bool isCWSpeedMismatched(int radioReportedWpm) const;
+
+    /**
+     * Stop all CW output — sender (WinKeyer/DTR) AND radio.
+     * Called on ESC key. Clears the WinKeyer buffer and stops the radio.
+     */
+    void stopAllCW();
+
     // --- CW Output Mode ---
 
     /**
@@ -221,6 +248,12 @@ signals:
      * MainWindow connects this to RadioController::setCWSpeed().
      */
     void speedSyncToRadio(int wpm);
+
+    /**
+     * Emitted when CW sending was aborted (ESC, paddle break-in, or WinKeyer idle).
+     * MainWindow can use this to cancel any pending CW-related timers.
+     */
+    void sendingAborted();
 
 private:
     /**

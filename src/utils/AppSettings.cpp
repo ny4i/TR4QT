@@ -133,6 +133,21 @@ AppSettings::AppSettings()
     : QObject(nullptr)
     , m_settings(APP_ORG, APP_NAME)
 {
+    // Verify the settings file is writable BEFORE doing anything.
+    // If tests left it read-only, or cfprefsd is serving stale data,
+    // catch it here rather than silently losing writes.
+    QString settingsPath = m_settings.fileName();
+    QFileInfo fi(settingsPath);
+    if (fi.exists() && !fi.isWritable()) {
+        // Settings file is read-only — likely a test guard left in place.
+        // Log loudly but don't crash; writes will fail silently via QSettings.
+        qWarning("AppSettings: SETTINGS FILE IS READ-ONLY: %s",
+                 qPrintable(settingsPath));
+        qWarning("AppSettings: Was run_tests.sh interrupted? "
+                 "Run: chmod u+w '%s' && pkill cfprefsd",
+                 qPrintable(settingsPath));
+    }
+
     // Force sync from disk immediately to ensure we have fresh values
     // This helps prevent cfprefsd cache issues on macOS
     m_settings.sync();

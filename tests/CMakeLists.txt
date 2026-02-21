@@ -17,6 +17,7 @@ function(add_tr4qt_test test_name)
         Qt6::Sql
         Qt6::Network
         Qt6::Concurrent
+        Qt6::SerialPort  # Needed by PlatformUtils (serial port enumeration)
         qt6keychain  # Secure credential storage (needed by AppSettings)
     )
 

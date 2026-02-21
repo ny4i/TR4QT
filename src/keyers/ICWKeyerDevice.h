@@ -79,6 +79,9 @@ signals:
 
     // WinKeyer speed pot change
     void wpmChanged(int wpm);
+
+    // WinKeyer transitioned from busy to idle (finished sending or paddle break-in)
+    void keyerIdle();
 };
 
 } // namespace TR4QT

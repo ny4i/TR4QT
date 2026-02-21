@@ -269,7 +269,14 @@ void WinKeyerDevice::handleReadyRead() {
             m_xoff = false;
 
             if (rcvByte == 0xC0) {
-                LOG_TRACE("WinKeyer", "Status: Idle");
+                // Idle status — detect busy→idle transition
+                if (m_keyBusy) {
+                    m_keyBusy = false;
+                    LOG_DEBUG("WinKeyer", "Status: Busy→Idle (sending finished or paddle break-in)");
+                    emit keyerIdle();
+                } else {
+                    LOG_TRACE("WinKeyer", "Status: Idle");
+                }
             } else if (m_version >= 20 && (rcvByte & 0x08)) {
                 // Push-button status (WK2+)
                 LOG_TRACE("WinKeyer", "Push-button event");
@@ -280,6 +287,7 @@ void WinKeyerDevice::handleReadyRead() {
                     m_xoff = true;
                 }
                 if (rcvByte & 0x04) {
+                    m_keyBusy = true;
                     LOG_TRACE("WinKeyer", "Status: Key busy");
                 }
             }

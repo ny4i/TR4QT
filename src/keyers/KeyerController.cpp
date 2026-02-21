@@ -127,6 +127,9 @@ void KeyerController::connectKeyer(const KeyerConfig& config) {
     connect(device, &ICWKeyerDevice::wpmChanged,
             this, &KeyerController::wpmChanged);
 
+    connect(device, &ICWKeyerDevice::keyerIdle,
+            this, &KeyerController::keyerIdle);
+
     // Store device reference and capabilities
     {
         QMutexLocker locker(&m_mutex);
@@ -326,6 +329,9 @@ void KeyerController::attemptReconnect() {
             this, &KeyerController::echoText);
     connect(device, &ICWKeyerDevice::wpmChanged,
             this, &KeyerController::wpmChanged);
+
+    connect(device, &ICWKeyerDevice::keyerIdle,
+            this, &KeyerController::keyerIdle);
 
     {
         QMutexLocker locker(&m_mutex);

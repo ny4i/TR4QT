@@ -90,6 +90,7 @@ private:
     int m_potMinWpm = 10;
     int m_potRangeWpm = 35;    ///< potMaxWpm - potMinWpm
     int m_defaultWpm = 25;
+    bool m_keyBusy = false;    ///< Tracks WinKeyer busy state for idle detection
     bool m_paddleSwap = false;
     int m_keyerMode = 2;  // IambicB default
 

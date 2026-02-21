@@ -55,6 +55,11 @@ CWService::CWService(const Config& config, QObject* parent)
     connect(m_keyerController, &KeyerController::wpmChanged,
             this, &CWService::cwSpeedSynced);
 
+    // WinKeyer busy→idle transition (finished sending or paddle break-in)
+    // Emit sendingAborted so MainWindow can cancel CW-related timers
+    connect(m_keyerController, &KeyerController::keyerIdle,
+            this, &CWService::sendingAborted);
+
     // When speed sync is enabled, push WinKeyer speed changes to the radio.
     // Do NOT send the speed back to the WinKeyer (m_sender->setWpm) — that
     // creates a feedback loop: WK reports pot → we set WK speed → WK reports pot...
@@ -405,6 +410,90 @@ void CWService::setSpeedSyncEnabled(bool enabled)
     if (m_speedSyncEnabled == enabled) return;
     m_speedSyncEnabled = enabled;
     LOG_INFO("CWService", QString("CW Speed Sync %1").arg(enabled ? "enabled" : "disabled"));
+}
+
+void CWService::stopAllCW()
+{
+    // Stop the CW sender (WinKeyer buffer clear, DTR/RTS stop, etc.)
+    if (m_sender) {
+        m_sender->stop();
+    }
+
+    // Also stop the WinKeyer directly (clears buffer even if sender doesn't)
+    if (m_keyerController && m_keyerController->isConnected()) {
+        m_keyerController->stopSending();
+    }
+
+    // Also stop the radio (RX mode, abort KY command)
+    if (m_config.radio && m_config.radio->isConnected()) {
+        m_config.radio->stopCW();
+    }
+
+    LOG_DEBUG("CWService", "All CW output stopped (sender + keyer + radio)");
+    emit sendingAborted();
+}
+
+void CWService::setKeyerSpeed(int wpm)
+{
+    // Route speed change based on active CW output mode:
+    // - WinKeyer mode: send to WinKeyer only (radio gets it via Speed Sync if enabled)
+    // - CAT mode: send to radio directly (no WinKeyer involved)
+    // - DTR/RTS mode: update internal sender WPM (software morse timing)
+
+    switch (m_outputMode) {
+    case OutputMode::WinKeyer:
+        if (m_keyerController && m_keyerController->isConnected()) {
+            m_keyerController->setWpm(wpm);
+            LOG_DEBUG("CWService", QString("WinKeyer speed: %1 WPM").arg(wpm));
+        }
+        break;
+
+    case OutputMode::DtrRts:
+        // DTR/RTS: software timing only
+        LOG_DEBUG("CWService", QString("DTR/RTS speed: %1 WPM").arg(wpm));
+        break;
+
+    case OutputMode::CAT:
+        // CAT: radio generates morse, send KS command
+        if (m_config.radio && m_config.radio->isConnected()) {
+            m_config.radio->setCWSpeed(wpm);
+            LOG_DEBUG("CWService", QString("Radio CW speed: %1 WPM").arg(wpm));
+        }
+        break;
+    }
+
+    // When Speed Sync is on, also push to radio (for WinKeyer and DTR/RTS modes)
+    if (m_speedSyncEnabled && m_outputMode != OutputMode::CAT) {
+        emit speedSyncToRadio(wpm);
+    }
+
+    // Update sender WPM for software timing (DTR/RTS, etc.)
+    if (m_sender) {
+        m_sender->setWpm(wpm);
+    }
+
+    emit cwSpeedSynced(wpm);
+}
+
+int CWService::displayWpm(int radioReportedWpm) const
+{
+    // WinKeyer and DTR/RTS use program speed (hardware/software morse generation)
+    // CAT mode uses radio-reported speed (radio generates morse from KY command)
+    if (m_outputMode == OutputMode::WinKeyer || m_outputMode == OutputMode::DtrRts) {
+        return AppSettings::instance().getMorseWPM();
+    }
+    return radioReportedWpm;
+}
+
+bool CWService::isCWSpeedMismatched(int radioReportedWpm) const
+{
+    // Mismatch applies when an external source controls CW timing
+    // (WinKeyer or DTR/RTS) AND Speed Sync is off
+    if (m_outputMode == OutputMode::CAT || m_speedSyncEnabled) {
+        return false;
+    }
+    int programWpm = AppSettings::instance().getMorseWPM();
+    return radioReportedWpm != programWpm;
 }
 
 // --- Runtime state ---

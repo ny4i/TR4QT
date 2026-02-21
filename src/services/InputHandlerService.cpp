@@ -78,7 +78,7 @@ bool InputHandlerService::handleCWSpeedKey(bool increase)
     }
 
     const int increment = AppSettings::instance().getMorseWPMIncrement();
-    const int currentWpm = m_config.currentState->cwSpeed;
+    const int currentWpm = AppSettings::instance().getMorseWPM();
 
     int newWpm;
     if (increase) {
@@ -87,8 +87,7 @@ bool InputHandlerService::handleCWSpeedKey(bool increase)
         newWpm = qMax(currentWpm - increment, K4Limits::CW_WPM_MIN);
     }
 
-    // Send to radio - display will update when radio responds via stateUpdated
-    m_config.radio->setCWSpeed(newWpm);
+    AppSettings::instance().setMorseWPM(newWpm);
 
     const QString direction = increase ? "increased" : "decreased";
     const QString keyName = increase ? "PgUp" : "PgDn";
@@ -98,6 +97,7 @@ bool InputHandlerService::handleCWSpeedKey(bool increase)
               .arg(newWpm)
               .arg(keyName));
 
+    // CWService decides where to route: WinKeyer, radio, or both (Speed Sync)
     emit cwSpeedChanged(newWpm);
     return true;
 }
@@ -116,13 +116,11 @@ bool InputHandlerService::handleTabKey(const KeyContext& context)
 
 bool InputHandlerService::handleEscapeKey(const KeyContext& context)
 {
-    // ALWAYS stop CW transmission first, regardless of where focus is
-    if (isRadioConnected() && m_config.radio) {
-        m_config.radio->stopCW();
-        emit statusMessage("CW transmission aborted");
-        emit stopCW();
-        LOG_DEBUG("InputHandler", "CW transmission aborted via ESC key");
-    }
+    // ALWAYS stop CW transmission first, regardless of where focus is.
+    // Emit stopCW() — MainWindow routes this to CWService::stopAllCW()
+    // which stops both the radio AND the WinKeyer.
+    emit stopCW();
+    LOG_DEBUG("InputHandler", "CW stop requested via ESC key");
 
     // ESC in callsign field: clear if not empty, or switch to CQ if empty & in S&P
     if (context.focusWidget == context.callsignEntry) {

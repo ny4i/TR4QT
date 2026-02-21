@@ -99,6 +99,9 @@ signals:
     // WinKeyer speed pot change
     void wpmChanged(int wpm);
 
+    // WinKeyer finished sending (busy→idle transition, paddle break-in)
+    void keyerIdle();
+
 private:
     void cleanupDevice();
     void attemptReconnect();

@@ -500,6 +500,25 @@ void RadioControlWidget::setRadioController(RadioController* controller) {
     m_radioController = controller;
 }
 
+void RadioControlWidget::setCWSpeedMismatch(bool mismatched, int programWpm) {
+    if (mismatched) {
+        QString errorColor = ThemeManager::instance().colorName(ColorRole::DupeText);
+        QString bgColor = ThemeManager::instance().colorName(ColorRole::ButtonUncheckedBackground);
+        m_wpmLabel->setStyleSheet(QString("QLabel { background-color: %1; color: %2; "
+                                          "padding: 3px; border-radius: 3px; }")
+                                  .arg(bgColor).arg(errorColor));
+        m_wpmLabel->setToolTip(QString("Radio CW speed (%1 WPM) differs from program speed (%2 WPM).\n"
+                                       "Speed Sync is OFF — enable it in Station Profiles\n"
+                                       "to keep radio and WinKeyer speeds in sync.")
+                               .arg(m_currentState.cwSpeed).arg(programWpm));
+    } else {
+        QString bgColor = ThemeManager::instance().colorName(ColorRole::ButtonUncheckedBackground);
+        m_wpmLabel->setStyleSheet(QString("QLabel { background-color: %1; padding: 3px; border-radius: 3px; }")
+                                  .arg(bgColor));
+        m_wpmLabel->setToolTip(QString());
+    }
+}
+
 void RadioControlWidget::showStatusMessage(int code, const QString& message) {
     // Display format: "message (code)"
     QString displayText = QString("%1 (%2)").arg(message).arg(code);

@@ -89,6 +89,15 @@ public:
      */
     void showStatusMessage(int code, const QString& message);
 
+    /**
+     * Set CW speed mismatch indicator on the WPM label.
+     * When mismatched, the label turns red with a tooltip explaining
+     * that Speed Sync is off and the program/radio speeds differ.
+     * @param mismatched true if program speed != radio speed and WinKeyer is active
+     * @param programWpm the program's CW speed (for tooltip)
+     */
+    void setCWSpeedMismatch(bool mismatched, int programWpm = 0);
+
 signals:
     /**
      * User toggled RIT
