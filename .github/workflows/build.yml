@@ -814,13 +814,10 @@ jobs:
             }]
           }"
 
-  # Linux x86_64 build - uses self-hosted runner
-  # Runs after Windows to avoid CPU thrashing (both runners share same host)
+  # Linux x86_64 build - uses self-hosted runner (separate Proxmox VM)
   build-linux-x86_64:
     name: Linux (x86_64)
-    needs: [build-windows]
     runs-on: [self-hosted, linux, X64]
-    if: always()  # Run even if Windows build fails
     continue-on-error: true  # Don't fail the workflow if Linux build fails
 
     # Self-hosted runner has Qt 6.10.2 at /opt/Qt and Hamlib at /opt/hamlib pre-installed
@@ -1090,9 +1087,7 @@ jobs:
   # Runner has Qt 6.10.2 at /opt/qt-6.10.2 and Hamlib 4.7.0 at /opt/hamlib pre-installed
   build-linux-arm64:
     name: Linux (ARM64/Pi)
-    needs: [build-linux-x86_64]
     runs-on: [self-hosted, linux, ARM64]
-    if: always()  # Run even if x86_64 build fails
     continue-on-error: true  # Don't fail the workflow if ARM64 build fails
 
     env:
