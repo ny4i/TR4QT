@@ -1,6 +1,6 @@
 # Building TR4QT
 
-This guide covers building TR4QT on Linux, macOS, and Windows platforms.
+This guide covers building TR4QT from source on Linux, macOS, and Windows.
 
 ## Quick Start
 
@@ -31,14 +31,19 @@ All platforms require:
 
 - **C++ Compiler** with C++17 support (GCC 7+, Clang 5+, MSVC 2017+)
 - **CMake** 3.16 or later
-- **Qt 6.2** or later (Qt 6.5+ recommended)
-  - Qt6Core, Qt6Gui, Qt6Widgets, Qt6Network, Qt6Sql, Qt6SerialPort
-  - Qt6Charts (for statistics plotting)
-- **Hamlib** 4.0 or later
+- **Qt 6.5** or later (Qt 6.10+ recommended)
+  - Required modules: Core, Gui, Widgets, Network, Sql, SerialPort, PrintSupport, Concurrent, Svg, Xml, Multimedia, HttpServer, Quick, QuickWidgets, Qml, ShaderTools
+  - Optional: GuiPrivate (enables panadapter waterfall display)
+- **Hamlib** 4.0 or later (4.7+ recommended)
 - **Git** (to clone the repository)
 
+**Linux additionally requires:**
+- **ALSA development libraries** (`libasound2-dev`) — for MIDI/CW keyer support
+- **PulseAudio development libraries** (`libpulse-dev`) — Qt Multimedia audio backend
+
 **Bundled Dependencies** (no installation required):
-- **QCustomPlot** 2.1.1 - Included in source tree for plotting statistics
+- **QCustomPlot** 2.1.1 — plotting/statistics (included in source tree)
+- **qtkeychain** — secure credential storage (fetched automatically by CMake)
 
 ## Building on macOS
 
@@ -46,7 +51,7 @@ All platforms require:
 
 #### Using Homebrew (Recommended)
 
-[Homebrew](https://brew.brew.sh) is the easiest way to install dependencies on macOS.
+[Homebrew](https://brew.sh) is the easiest way to install dependencies on macOS.
 
 ```bash
 # Install Homebrew if not already installed
@@ -55,13 +60,13 @@ All platforms require:
 # Install build tools
 brew install cmake git
 
-# Install Qt 6
+# Install Qt 6 (includes all required modules)
 brew install qt@6
 
 # Install Hamlib
 brew install hamlib
 
-# Add Qt to PATH (add to ~/.zshrc or ~/.bash_profile for persistence)
+# Add Qt to PATH (add to ~/.zshrc for persistence)
 export PATH="/opt/homebrew/opt/qt@6/bin:$PATH"
 export CMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@6:$CMAKE_PREFIX_PATH"
 ```
@@ -84,70 +89,43 @@ Alternatively, install Qt from the official installer:
 git clone https://github.com/ny4i/TR4QT.git
 cd TR4QT
 
-# Create build directory
-mkdir build
-cd build
-
-# Configure with CMake
-# If Qt installed via Homebrew:
-cmake ..
-
-# If Qt installed via Qt Online Installer:
-# cmake -DCMAKE_PREFIX_PATH=~/Qt/6.5.3/macos ..
-
-# Build (use -j for parallel compilation)
-make -j$(sysctl -n hw.ncpu)
+# Configure and build
+cmake -B build
+cmake --build build -j$(sysctl -n hw.ncpu)
 
 # Optional: Run tests
-ctest --output-on-failure
+cd build && ctest --output-on-failure
 
-# The executable will be in:
-# build/src/tr4qt.app/Contents/MacOS/tr4qt
+# The app bundle will be at: build/src/tr4qt.app
 ```
 
 ### Running TR4QT
 
 ```bash
-# From build directory
-./src/tr4qt.app/Contents/MacOS/tr4qt
+# From project root
+./build/src/tr4qt.app/Contents/MacOS/tr4qt
 
 # Or double-click tr4qt.app in Finder (in build/src/)
 
-# IMPORTANT: Kill any running instances first
-pkill -9 tr4qt
-./src/tr4qt.app/Contents/MacOS/tr4qt
+# Kill any running instances first (graceful shutdown)
+pkill tr4qt && sleep 1
+./build/src/tr4qt.app/Contents/MacOS/tr4qt
 ```
 
 ### macOS-Specific Notes
 
 **Keyboard Shortcuts:**
 - Qt automatically maps shortcuts to macOS conventions:
-  - `Qt::ALT` → Option (⌥)
-  - `Qt::CTRL` → Command (⌘)
+  - `Qt::ALT` → Option key
+  - `Qt::CTRL` → Command key
 
 **Permissions:**
-- **Serial Port Access:** Grant Terminal/IDE permission to access USB devices in System Preferences → Security & Privacy → Privacy → Files and Folders
-- **Microphone Access:** May be needed for audio features (future)
+- **Serial Port Access:** Grant Terminal/IDE permission to access USB devices in System Settings → Privacy & Security → Files and Folders
 
 **Code Signing:**
-For distribution, you'll need to sign the app:
+For local testing, ad-hoc signing is sufficient:
 ```bash
 codesign --force --deep --sign - build/src/tr4qt.app
-```
-
-**Creating .dmg Installer:**
-```bash
-# Install create-dmg
-brew install create-dmg
-
-# Create installer
-create-dmg \
-  --volname "TR4QT Installer" \
-  --window-size 600 400 \
-  --icon-size 100 \
-  --app-drop-link 450 150 \
-  TR4QT-2.59.1.dmg \
-  build/src/tr4qt.app
 ```
 
 ## Building on Linux
@@ -161,13 +139,20 @@ create-dmg \
 sudo apt update
 
 # Install build tools
-sudo apt install -y build-essential cmake git
+sudo apt install -y build-essential cmake git pkg-config
 
 # Install Qt 6 development packages
-sudo apt install -y qt6-base-dev qt6-base-dev-tools \
-                     libqt6core6 libqt6gui6 libqt6widgets6 \
-                     libqt6network6 libqt6sql6 libqt6serialport6 \
-                     qt6-charts-dev libqt6charts6
+sudo apt install -y \
+    qt6-base-dev qt6-base-dev-tools qt6-base-private-dev \
+    libqt6serialport6-dev \
+    libqt6svg6-dev \
+    qt6-multimedia-dev \
+    qt6-httpserver-dev \
+    qt6-declarative-dev \
+    qt6-shadertools-dev
+
+# Install system libraries required by Qt/RtMidi
+sudo apt install -y libasound2-dev libpulse-dev
 
 # Install Hamlib
 sudo apt install -y libhamlib-dev libhamlib-utils
@@ -176,20 +161,17 @@ sudo apt install -y libhamlib-dev libhamlib-utils
 sudo apt install -y libsqlite3-dev
 ```
 
-**Note for Ubuntu 20.04 LTS and Debian 11:**
-Qt 6 may not be available in the default repositories. You have two options:
+**Note:** Package names may vary slightly between Ubuntu/Debian versions. If a package is not found, search with `apt search qt6` to find the correct name for your distribution.
 
-1. **Add Qt PPA** (Ubuntu only):
-   ```bash
-   sudo add-apt-repository ppa:okirby/qt6-backports
-   sudo apt update
-   sudo apt install qt6-base-dev
-   ```
+**Note for Ubuntu 22.04 LTS and Debian 11:**
+Qt 6.5+ may not be available in the default repositories. Options:
 
-2. **Install Qt from Qt Online Installer**:
+1. **Install Qt from Qt Online Installer**:
    - Download from https://www.qt.io/download-qt-installer
    - Install to `/opt/Qt` or `~/Qt`
-   - Add to PATH: `export PATH=/opt/Qt/6.5.3/gcc_64/bin:$PATH`
+   - Set CMAKE_PREFIX_PATH when building
+
+2. **Use a newer distribution** (Ubuntu 24.04+ or Debian 12+ recommended)
 
 #### Build TR4QT
 
@@ -198,90 +180,101 @@ Qt 6 may not be available in the default repositories. You have two options:
 git clone https://github.com/ny4i/TR4QT.git
 cd TR4QT
 
-# Create build directory
-mkdir build
-cd build
-
-# Configure with CMake
-cmake ..
+# Configure and build
+cmake -B build
+cmake --build build -j$(nproc)
 
 # If Qt is installed in a custom location:
-# cmake -DCMAKE_PREFIX_PATH=/opt/Qt/6.5.3/gcc_64 ..
-
-# Build (use -j for parallel compilation)
-make -j$(nproc)
+# cmake -B build -DCMAKE_PREFIX_PATH=/opt/Qt/6.10.2/gcc_64
 
 # Optional: Run tests
-ctest
-
-# Install (optional)
-sudo make install
+cd build && ctest --output-on-failure
 ```
 
 #### Running TR4QT
 
 ```bash
-# From build directory
-./src/tr4qt
-
-# Or if installed
-tr4qt
+# From project root
+./build/src/tr4qt
 ```
 
 ### Raspberry Pi
 
-Building on Raspberry Pi (Raspbian/Raspberry Pi OS) is similar to Ubuntu/Debian, with some considerations:
+Building on Raspberry Pi 4/5 (64-bit Raspberry Pi OS or Debian) works the same as Ubuntu/Debian.
 
-#### Raspberry Pi 4/5 (64-bit)
+#### Raspberry Pi 4/5 (64-bit, recommended)
 
 ```bash
-# Install dependencies (same as Ubuntu/Debian)
+# Install dependencies (same as Ubuntu/Debian above)
 sudo apt update
-sudo apt install -y build-essential cmake git
-sudo apt install -y qt6-base-dev libhamlib-dev
+sudo apt install -y build-essential cmake git pkg-config \
+    qt6-base-dev qt6-base-dev-tools qt6-base-private-dev \
+    libqt6serialport6-dev libqt6svg6-dev \
+    qt6-multimedia-dev qt6-httpserver-dev \
+    qt6-declarative-dev qt6-shadertools-dev \
+    libasound2-dev libpulse-dev \
+    libhamlib-dev libhamlib-utils
 
-# Build (may take 10-15 minutes)
-mkdir build && cd build
-cmake ..
-make -j4  # Use all 4 cores
+# Configure and build (may take 10-15 minutes on Pi 5)
+git clone https://github.com/ny4i/TR4QT.git
+cd TR4QT
+cmake -B build
+cmake --build build -j4
 ```
 
-#### Raspberry Pi 3/Zero (32-bit)
+**Note:** If Qt 6.5+ is not available in your Pi OS repositories, you can install Qt from source or use the `aqt` installer:
+```bash
+pip3 install aqtinstall
+aqt install-qt linux desktop 6.10.2 linux_gcc_64 \
+    -m qtmultimedia qthttpserver qtserialport qtshadertools \
+    --outputdir /opt/Qt
+```
+Then build with: `cmake -B build -DCMAKE_PREFIX_PATH=/opt/Qt/6.10.2/gcc_64`
 
-For older Pi models with limited RAM:
+#### Older Raspberry Pi (Pi 3, limited RAM)
 
 ```bash
 # Reduce parallel jobs to avoid out-of-memory errors
-make -j2
+cmake --build build -j2
 
 # Or build single-threaded if RAM is very limited
-make
+cmake --build build
 ```
 
 **Performance Note:** TR4QT runs well on Raspberry Pi 4 and 5. On Pi 3 and older, expect slower performance, especially with large logs or multiple windows open.
 
 ### Generic Linux
 
-For other Linux distributions:
+For other Linux distributions, install the equivalent packages:
 
-1. **Install Qt 6**:
-   - Fedora: `sudo dnf install qt6-qtbase-devel qt6-qtcharts-devel`
-   - Arch: `sudo pacman -S qt6-base qt6-charts`
-   - OpenSUSE: `sudo zypper install qt6-base-devel qt6-charts-devel`
+**Fedora:**
+```bash
+sudo dnf install -y cmake git gcc-c++ \
+    qt6-qtbase-devel qt6-qtbase-private-devel \
+    qt6-qtserialport-devel qt6-qtsvg-devel \
+    qt6-qtmultimedia-devel qt6-qthttpserver-devel \
+    qt6-qtdeclarative-devel qt6-qtshadertools-devel \
+    alsa-lib-devel pulseaudio-libs-devel \
+    hamlib-devel
+```
 
-2. **Install Hamlib**:
-   - Fedora: `sudo dnf install hamlib-devel`
-   - Arch: `sudo pacman -S hamlib`
-   - OpenSUSE: `sudo zypper install hamlib-devel`
+**Arch Linux:**
+```bash
+sudo pacman -S --needed base-devel cmake git \
+    qt6-base qt6-serialport qt6-svg \
+    qt6-multimedia qt6-httpserver \
+    qt6-declarative qt6-shadertools \
+    alsa-lib libpulse \
+    hamlib
+```
 
-3. **Clone and Build**:
-   ```bash
-   git clone https://github.com/ny4i/TR4QT.git
-   cd TR4QT
-   mkdir build && cd build
-   cmake ..
-   make -j$(nproc)
-   ```
+**Then clone and build:**
+```bash
+git clone https://github.com/ny4i/TR4QT.git
+cd TR4QT
+cmake -B build
+cmake --build build -j$(nproc)
+```
 
 ## Building on Windows
 
@@ -305,10 +298,14 @@ pacman -Syu
 pacman -S --needed base-devel mingw-w64-x86_64-toolchain \
           mingw-w64-x86_64-cmake git
 
-# Install Qt 6
+# Install Qt 6 modules
 pacman -S mingw-w64-x86_64-qt6-base \
           mingw-w64-x86_64-qt6-serialport \
-          mingw-w64-x86_64-qt6-charts
+          mingw-w64-x86_64-qt6-svg \
+          mingw-w64-x86_64-qt6-multimedia \
+          mingw-w64-x86_64-qt6-httpserver \
+          mingw-w64-x86_64-qt6-declarative \
+          mingw-w64-x86_64-qt6-shadertools
 
 # Install Hamlib
 pacman -S mingw-w64-x86_64-hamlib
@@ -321,16 +318,12 @@ pacman -S mingw-w64-x86_64-hamlib
 git clone https://github.com/ny4i/TR4QT.git
 cd TR4QT
 
-# Create build directory
-mkdir build
-cd build
-
 # Configure and build
-cmake -G "MinGW Makefiles" ..
-mingw32-make -j$(nproc)
+cmake -B build -G "MinGW Makefiles"
+cmake --build build -j$(nproc)
 
 # Run
-./src/tr4qt.exe
+./build/src/tr4qt.exe
 ```
 
 ### Using Visual Studio
@@ -343,7 +336,7 @@ mingw32-make -j$(nproc)
 2. **Qt 6** from Qt Online Installer
    - Download from https://www.qt.io/download-qt-installer
    - Install MSVC 2019 64-bit component
-   - Default location: `C:\Qt\6.5.3\msvc2019_64`
+   - Select modules: SerialPort, Svg, Multimedia, HttpServer, Quick, ShaderTools
 
 3. **CMake**
    - Download from https://cmake.org/download/
@@ -352,33 +345,23 @@ mingw32-make -j$(nproc)
 4. **Hamlib for Windows**
    - Download pre-built binaries from https://github.com/Hamlib/Hamlib/releases
    - Extract to `C:\hamlib`
-   - Or build from source
 
 #### Build TR4QT
 
 Open **Developer Command Prompt for VS 2019**:
 
 ```cmd
-# Clone repository
 git clone https://github.com/ny4i/TR4QT.git
 cd TR4QT
 
-# Create build directory
-mkdir build
-cd build
-
-# Configure (adjust paths as needed)
-cmake -G "Visual Studio 16 2019" -A x64 ^
-      -DCMAKE_PREFIX_PATH=C:\Qt\6.5.3\msvc2019_64 ^
+cmake -B build -G "Visual Studio 16 2019" -A x64 ^
+      -DCMAKE_PREFIX_PATH=C:\Qt\6.10.2\msvc2019_64 ^
       -DHAMLIB_INCLUDE_DIR=C:\hamlib\include ^
-      -DHAMLIB_LIBRARY=C:\hamlib\lib\hamlib.lib ^
-      ..
+      -DHAMLIB_LIBRARY=C:\hamlib\lib\hamlib.lib
 
-# Build
-cmake --build . --config Release
+cmake --build build --config Release
 
-# Run
-.\src\Release\tr4qt.exe
+.\build\src\Release\tr4qt.exe
 ```
 
 ### Using Qt Creator (Cross-platform)
@@ -396,30 +379,28 @@ Qt Creator provides an IDE that works on Windows, Linux, and macOS.
 
 ## Qt-Specific Issues
 
-### Qt 6 Migration Issues
-
-TR4QT uses Qt 6, which has breaking changes from Qt 5:
-
-- **Removed Qt::MidButton** → Use `Qt::MiddleButton`
-- **QDateTime changes** → Requires `QTimeZone` parameter
-- **Signal deprecations** → `stateChanged` → `checkStateChanged` (Qt 6.9+)
-
-If you see warnings about deprecated APIs, these are non-fatal but should be addressed.
-
 ### Missing Qt Modules
 
-If CMake fails to find Qt modules:
+If CMake fails with "Could not find a package configuration file provided by Qt6...", you are missing a required Qt module. Install the specific module mentioned in the error.
 
+Common missing modules and their packages (Ubuntu/Debian):
+
+| CMake Error | Ubuntu/Debian Package |
+|---|---|
+| Qt6HttpServer | `qt6-httpserver-dev` |
+| Qt6Multimedia | `qt6-multimedia-dev` |
+| Qt6SerialPort | `libqt6serialport6-dev` |
+| Qt6Svg | `libqt6svg6-dev` |
+| Qt6ShaderTools | `qt6-shadertools-dev` |
+| Qt6Quick / Qt6Qml | `qt6-declarative-dev` |
+
+If Qt is installed in a custom location:
 ```bash
-# Linux: Set Qt6_DIR
-export Qt6_DIR=/usr/lib/x86_64-linux-gnu/cmake/Qt6
+# Linux
+cmake -B build -DCMAKE_PREFIX_PATH=/opt/Qt/6.10.2/gcc_64
 
-# Windows (MSYS2): Usually automatic
-# Windows (Visual Studio):
-set Qt6_DIR=C:\Qt\6.5.3\msvc2019_64\lib\cmake\Qt6
-
-# Then re-run cmake
-cmake ..
+# Windows (Visual Studio)
+cmake -B build -DCMAKE_PREFIX_PATH=C:\Qt\6.10.2\msvc2019_64
 ```
 
 ### Qt Plugins
@@ -436,13 +417,9 @@ export QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/qt6/plugins
 
 ### Qt Version Compatibility
 
-TR4QT requires Qt 6.2 minimum. Recommended versions:
+TR4QT requires Qt 6.5 minimum. Recommended: Qt 6.10.x.
 
-- **Qt 6.5.3** - Stable, well-tested
-- **Qt 6.6.x** - Latest LTS (Long Term Support)
-- **Qt 6.7.x** - Current stable
-
-Avoid Qt 6.0 and 6.1 (many bugs fixed in 6.2).
+Avoid Qt 6.0–6.4 (missing required module APIs).
 
 ## Linux Window Manager Issues
 
@@ -450,9 +427,9 @@ TR4QT is tested on various Linux window managers. Here are known issues and solu
 
 ### GNOME / Mutter
 
-**Issue:** Window geometry not saved correctly
+**Issue:** Window geometry not saved correctly on Wayland
 
-**Solution:** This is a known Qt/GNOME issue. Workaround:
+**Solution:**
 ```bash
 # Run with X11 instead of Wayland
 export QT_QPA_PLATFORM=xcb
@@ -463,28 +440,8 @@ export QT_QPA_PLATFORM=xcb
 
 **Solution:**
 ```bash
-# Let Qt handle scaling
 export QT_AUTO_SCREEN_SCALE_FACTOR=1
 ./tr4qt
-```
-
-### KDE Plasma / KWin
-
-**Issue:** Dock windows (Band Map, DX Cluster) not floating correctly
-
-**Solution:** KDE usually handles Qt windows well, but if issues occur:
-```bash
-# Disable compositor temporarily
-qdbus org.kde.KWin /Compositor suspend
-```
-
-### Xfce / LXDE
-
-**Issue:** Dialog windows too small or misaligned
-
-**Solution:** These lightweight WMs generally work well. Ensure you have:
-```bash
-sudo apt install libqt6x11extras6  # If available
 ```
 
 ### i3 / Awesome / Other Tiling WMs
@@ -509,9 +466,7 @@ For **Awesome**, add to `rc.lua`:
 
 ### Wayland Issues
 
-**General Issue:** Some Qt features don't work well on Wayland yet
-
-**Solution:** Force X11 mode:
+Some Qt features don't work well on Wayland yet. Force X11 mode:
 ```bash
 # For single run
 QT_QPA_PLATFORM=xcb ./tr4qt
@@ -520,9 +475,7 @@ QT_QPA_PLATFORM=xcb ./tr4qt
 Exec=env QT_QPA_PLATFORM=xcb /usr/local/bin/tr4qt
 ```
 
-### X11 vs Wayland Detection
-
-To check which you're using:
+To check which display server you're using:
 ```bash
 echo $XDG_SESSION_TYPE
 # Output: x11 or wayland
@@ -533,15 +486,17 @@ echo $XDG_SESSION_TYPE
 ### CMake Can't Find Qt
 
 ```bash
-# Linux
-sudo apt install qt6-base-dev-tools
+# Linux: Set CMAKE_PREFIX_PATH
 export CMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6
+cmake -B build
 
-# Windows (MSYS2)
-export CMAKE_PREFIX_PATH=/mingw64/lib/cmake
+# macOS (Homebrew)
+export CMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@6"
+cmake -B build
 
-# Windows (Visual Studio)
-cmake -DCMAKE_PREFIX_PATH=C:\Qt\6.5.3\msvc2019_64 ..
+# Windows (MSYS2): Usually automatic
+# Windows (Visual Studio):
+cmake -B build -DCMAKE_PREFIX_PATH=C:\Qt\6.10.2\msvc2019_64
 ```
 
 ### Hamlib Not Found
@@ -557,9 +512,9 @@ cd Hamlib
 ./configure
 make
 sudo make install
-sudo ldconfig  # Update library cache
+sudo ldconfig
 
-# Windows: Download pre-built or build with MSYS2
+# Windows (MSYS2)
 pacman -S mingw-w64-x86_64-hamlib
 ```
 
@@ -568,47 +523,21 @@ pacman -S mingw-w64-x86_64-hamlib
 Missing library. Check that all dependencies are installed:
 ```bash
 # Linux
-ldd ./src/tr4qt
+ldd ./build/src/tr4qt
 
 # Windows (MSYS2)
-ldd ./src/tr4qt.exe
+ldd ./build/src/tr4qt.exe
 ```
 
 ### Runtime Error: "libQt6Core.so.6: cannot open shared object file"
 
 Qt libraries not in library path:
-
 ```bash
 # Linux: Add to LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/opt/Qt/6.5.3/gcc_64/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/opt/Qt/6.10.2/gcc_64/lib:$LD_LIBRARY_PATH
 
-# Or install Qt system-wide
-sudo apt install qt6-base-dev
-
-# Windows (MSYS2): Usually automatic
-# Windows (Visual Studio): Copy Qt DLLs to exe directory or add to PATH
-set PATH=C:\Qt\6.5.3\msvc2019_64\bin;%PATH%
+# Or install Qt system-wide via package manager
 ```
-
-### Application Crashes on Startup
-
-1. **Check Qt platform plugin:**
-   ```bash
-   export QT_DEBUG_PLUGINS=1
-   ./tr4qt
-   ```
-
-2. **Run with verbose logging:**
-   ```bash
-   ./tr4qt --verbose
-   ```
-
-3. **Use debugger:**
-   ```bash
-   gdb ./tr4qt
-   run
-   bt  # backtrace on crash
-   ```
 
 ### Serial Port Permission Denied (Linux)
 
@@ -620,121 +549,49 @@ sudo usermod -a -G dialout $USER
 
 # Log out and log back in, then verify
 groups | grep dialout
-
-# Or use sudo (not recommended for regular use)
-sudo ./tr4qt
 ```
 
-### High Memory Usage
+### Application Crashes on Startup
 
-Large contest logs can use significant memory. For Raspberry Pi or low-RAM systems:
+1. **Check Qt platform plugin:**
+   ```bash
+   export QT_DEBUG_PLUGINS=1
+   ./build/src/tr4qt
+   ```
 
-1. Close unused windows (Band Map, DX Cluster)
-2. Reduce log table display (only show recent 100 QSOs)
-3. Export and clear old contests
+2. **Use debugger:**
+   ```bash
+   gdb ./build/src/tr4qt
+   run
+   bt  # backtrace on crash
+   ```
 
 ## Build Options
 
 ### Debug Build
 
 ```bash
-cmake -DCMAKE_BUILD_TYPE=Debug ..
-make
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
 ```
 
 ### Release Build (Optimized)
 
 ```bash
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
 
 ### Enable Tests
 
 ```bash
-cmake -DBUILD_TESTING=ON ..
-make
-ctest --output-on-failure
+cmake -B build -DBUILD_TESTING=ON
+cmake --build build
+cd build && ctest --output-on-failure
 ```
-
-### Custom Install Prefix
-
-```bash
-cmake -DCMAKE_INSTALL_PREFIX=/opt/tr4qt ..
-make
-sudo make install
-```
-
-## Packaging
-
-### Linux .deb Package (Ubuntu/Debian)
-
-```bash
-# Install packaging tools
-sudo apt install checkinstall
-
-# Build and create package
-cd build
-sudo checkinstall --pkgname=tr4qt \
-                  --pkgversion=2.40.2 \
-                  --pakdir=.. \
-                  make install
-```
-
-### Linux .rpm Package (Fedora/RHEL)
-
-```bash
-# Install packaging tools
-sudo dnf install rpm-build
-
-# Create package
-cd build
-sudo checkinstall --type=rpm make install
-```
-
-### Windows Installer
-
-Use **Inno Setup** or **WiX Toolset** to create an installer:
-
-1. Build in Release mode
-2. Copy exe and all Qt/Hamlib DLLs to installer directory
-3. Use `windeployqt` to gather Qt dependencies:
-   ```cmd
-   windeployqt tr4qt.exe
-   ```
-4. Create installer script and compile
 
 ## Getting Help
 
 - **GitHub Issues:** https://github.com/ny4i/TR4QT/issues
 - **Discussions:** https://github.com/ny4i/TR4QT/discussions
 - **Documentation:** https://github.com/ny4i/TR4QT/tree/master/docs
-
-## Quick Reference
-
-### One-Line Builds
-
-**macOS (Homebrew):**
-```bash
-brew install cmake qt@6 hamlib && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && export CMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@6:$CMAKE_PREFIX_PATH" && mkdir build && cd build && cmake .. && make -j$(sysctl -n hw.ncpu)
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt update && sudo apt install -y build-essential cmake git qt6-base-dev qt6-charts-dev libhamlib-dev && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && mkdir build && cd build && cmake .. && make -j$(nproc)
-```
-
-**Fedora:**
-```bash
-sudo dnf install -y cmake git qt6-qtbase-devel qt6-qtcharts-devel hamlib-devel && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && mkdir build && cd build && cmake .. && make -j$(nproc)
-```
-
-**Arch Linux:**
-```bash
-sudo pacman -S --needed base-devel cmake git qt6-base qt6-charts hamlib && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && mkdir build && cd build && cmake .. && make -j$(nproc)
-```
-
-**Windows (MSYS2):**
-```bash
-pacman -S --needed base-devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake git mingw-w64-x86_64-qt6-base mingw-w64-x86_64-qt6-charts mingw-w64-x86_64-hamlib && git clone https://github.com/ny4i/TR4QT.git && cd TR4QT && mkdir build && cd build && cmake -G "MinGW Makefiles" .. && mingw32-make -j$(nproc)
-```
