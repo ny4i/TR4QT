@@ -283,6 +283,14 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
     int viewportHeight = viewport()->height();
     int viewportWidth = viewport()->width();
 
+    // Compute column field positions from font metrics (matching updateScrollBars layout)
+    const int PAD = 5;
+    const int GAP = fm.horizontalAdvance(" ");
+    int freqFieldWidth = fm.horizontalAdvance("435.0000");
+    int mFieldX = PAD + freqFieldWidth + GAP;
+    int lFieldX = mFieldX + fm.horizontalAdvance("M") + GAP;
+    int callFieldX = lFieldX + fm.horizontalAdvance("L") + GAP;
+
     // Reserve space at bottom for status line
     const int FOOTER_HEIGHT = fm.height() + 10;
     int availableHeight = viewportHeight - FOOTER_HEIGHT;
@@ -324,24 +332,24 @@ void BandMapWidget::paintEvent(QPaintEvent* event) {
 
         // Draw frequency (left side of column)
         QString freqStr = formatFrequency(spot.frequency);
-        painter.drawText(x + 5, y + fm.ascent() + 2, freqStr);
+        painter.drawText(x + PAD, y + fm.ascent() + 2, freqStr);
 
         // Draw "M" marker for multipliers
         if (spot.isMultiplier) {
             painter.setPen(Qt::red);
-            painter.drawText(x + 50, y + fm.ascent() + 2, "M");
+            painter.drawText(x + mFieldX, y + fm.ascent() + 2, "M");
             painter.setPen(textColor);
         }
 
         // Draw "L" marker for LOTW users
         if (spot.isLotwUser) {
             painter.setPen(ThemeManager::instance().color(ColorRole::LotwUserText));
-            painter.drawText(x + 60, y + fm.ascent() + 2, "L");
+            painter.drawText(x + lFieldX, y + fm.ascent() + 2, "L");
             painter.setPen(textColor);
         }
 
         // Draw callsign (right side of column entry)
-        painter.drawText(x + 80, y + fm.ascent() + 2, spot.callsign);
+        painter.drawText(x + callFieldX, y + fm.ascent() + 2, spot.callsign);
 
         // Highlight selected spot with blue rectangle
         if (i == m_selectedIndex) {
@@ -714,6 +722,19 @@ void BandMapWidget::updateScrollBars() {
     const int SCROLLBAR_HEIGHT = horizontalScrollBar()->sizeHint().height();
     const int MIN_COLUMN_WIDTH = 150;
 
+    // Calculate column width from font metrics to prevent text overlap
+    QFont font = FontManager::instance().monospaceFont(9);
+    font.setBold(true);
+    QFontMetrics fmBold(font);
+    const int COL_PAD = 5;
+    const int COL_GAP = fmBold.horizontalAdvance(" ");
+    int freqFieldWidth = fmBold.horizontalAdvance("435.0000");
+    int mMarkerWidth = fmBold.horizontalAdvance("M") + COL_GAP;
+    int lMarkerWidth = fmBold.horizontalAdvance("L") + COL_GAP;
+    int callFieldWidth = fmBold.horizontalAdvance("WW4XXX/MM");  // ~10 char max callsign
+    int computedWidth = COL_PAD + freqFieldWidth + COL_GAP + mMarkerWidth + lMarkerWidth + callFieldWidth + COL_PAD;
+    int columnWidth = qMax(MIN_COLUMN_WIDTH, computedWidth);
+
     int viewportHeight = viewport()->height();
     int viewportWidth = viewport()->width();
 
@@ -721,7 +742,7 @@ void BandMapWidget::updateScrollBars() {
     int availableHeight1 = viewportHeight - FOOTER_HEIGHT;
     int rowsPerColumn1 = qMax(1, availableHeight1 / lineHeight);
     int columnCount1 = qMax(1, (m_displaySpots.size() + rowsPerColumn1 - 1) / rowsPerColumn1);
-    int totalWidth1 = columnCount1 * MIN_COLUMN_WIDTH;
+    int totalWidth1 = columnCount1 * columnWidth;
 
     // Determine if horizontal scrollbar will be needed
     bool needsHScrollBar = (totalWidth1 > viewportWidth);
@@ -736,11 +757,11 @@ void BandMapWidget::updateScrollBars() {
         availableHeight = viewportHeight - FOOTER_HEIGHT - SCROLLBAR_HEIGHT;
         rowsPerColumn = qMax(1, availableHeight / lineHeight);
         columnCount = qMax(1, (m_displaySpots.size() + rowsPerColumn - 1) / rowsPerColumn);
-        totalWidth = columnCount * MIN_COLUMN_WIDTH;
+        totalWidth = columnCount * columnWidth;
     }
 
     // Update member variables
-    m_columnWidth = MIN_COLUMN_WIDTH;
+    m_columnWidth = columnWidth;
     m_columnCount = columnCount;
 
     // Calculate actual number of spots in tallest column (column-first layout)

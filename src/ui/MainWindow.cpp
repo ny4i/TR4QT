@@ -2071,11 +2071,22 @@ void MainWindow::onRadioConnected(bool connected) {
 void MainWindow::onFastFrequencyUpdate(freq_t freq) {
     // Fast path: Update cached state and delegate to single display update function
     // This ensures consistent formatting regardless of update source
+    BandType newBand = frequencyToBand(freq);
+    bool bandChanged = (newBand != m_currentState.bandA);
+
     m_currentState.frequencyA = freq;
-    m_currentState.bandA = frequencyToBand(freq);
+    m_currentState.bandA = newBand;
 
     // Single source of truth for display updates
     updateRadioStatusGrid();
+
+    // Emit signals so BandMap and other listeners stay in sync.
+    // Without this, onRadioStateUpdated sees no band change (already set above)
+    // and never emits currentBandChanged, leaving BandMap filter stale.
+    emit currentFrequencyChanged(freq);
+    if (bandChanged) {
+        emit currentBandChanged(newBand);
+    }
 }
 
 void MainWindow::onRadioStateUpdated(const RadioState& state) {

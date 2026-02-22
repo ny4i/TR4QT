@@ -25,7 +25,7 @@ namespace TR4QT {
 
 // Application info
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.49.80";  // WinKeyer ESC stop, auto-reconnect, speed routing, mismatch indicator
+constexpr const char* APP_VERSION = "3.50.80";  // Fix BandMap column overlap + band filter not applied on connect
 constexpr const char* APP_ORG = "TR4QT";
 
 // Country file
