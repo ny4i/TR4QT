@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.50.80] - 2026-02-22
+
+### Fixed
+- **BandMap column text overlap**: Column width was hardcoded to 150px with hardcoded pixel offsets for frequency/markers/callsign fields. Longer callsigns bled into adjacent columns. Now computed dynamically from QFontMetrics
+- **BandMap band filter not applied on radio connect**: `onFastFrequencyUpdate()` silently set `m_currentState.bandA` without emitting `currentBandChanged`, so `onRadioStateUpdated()` saw no change and never signaled BandMap. Filter stayed at `BandType::None`, showing all bands regardless of checkbox state
+
 ## [3.47.80] - 2026-02-20
 
 ### Added
