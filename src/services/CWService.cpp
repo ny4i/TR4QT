@@ -38,16 +38,23 @@ CWService::CWService(const Config& config, QObject* parent)
     // Create keyer controller (owns worker thread for hardware I/O)
     m_keyerController = new KeyerController(this);
 
-    // Create iambic keyer engine (main thread, generates key-down/key-up from paddle events)
-    m_iambicKeyer = new IambicKeyer(this);
+    // Create iambic keyer engine with nullptr parent (required for moveToThread)
+    m_iambicKeyer = new IambicKeyer(nullptr);
 
-    // Initialize from settings
+    // Initialize from settings BEFORE moveToThread (direct calls are safe here)
     auto& settings = AppSettings::instance();
     m_iambicKeyer->setWpm(settings.getMorseWPM());
     m_iambicKeyer->setMode(settings.getKeyerIambicMode() == 0
                            ? IambicMode::IambicA : IambicMode::IambicB);
 
+    // Move IambicKeyer to dedicated thread (bypasses main thread for paddle→radio path)
+    m_keyerThread.setObjectName("IambicKeyer");
+    m_iambicKeyer->moveToThread(&m_keyerThread);
+    m_keyerThread.start();
+
     // Wire paddle state from keyer controller to iambic keyer
+    // Auto connection: KeyerController re-emits on RtMidi thread (DirectConnection),
+    // Qt auto-queues to m_keyerThread since IambicKeyer lives there
     connect(m_keyerController, &KeyerController::paddleStateChanged,
             m_iambicKeyer, &IambicKeyer::updatePaddleState);
 
@@ -99,6 +106,12 @@ CWService::CWService(const Config& config, QObject* parent)
 CWService::~CWService()
 {
     destroySender();
+
+    // Stop the keyer thread and clean up IambicKeyer (not parented, we own it)
+    m_keyerThread.quit();
+    m_keyerThread.wait();
+    delete m_iambicKeyer;
+    m_iambicKeyer = nullptr;
 }
 
 // --- CW Output Mode ---
@@ -654,13 +667,14 @@ void CWService::wireKeyerToOutput()
     switch (m_outputMode) {
     case OutputMode::CAT:
     case OutputMode::WinKeyer:
-        // WinKeyer handles text-sending in hardware but HaliKey paddle still
-        // routes via RadioController for key-down/key-up (same as CAT mode).
+        // IambicKeyer lives on m_keyerThread. DirectConnection means sendKeyDown/sendKeyUp
+        // execute on the keyer thread (they just emit requestSetPTT, which Qt auto-queues
+        // to the radio worker thread). This keeps main thread out of the critical keying path.
         if (m_config.radio) {
             connect(m_iambicKeyer, &IambicKeyer::keyDown,
-                    m_config.radio, &RadioController::sendKeyDown);
+                    m_config.radio, &RadioController::sendKeyDown, Qt::DirectConnection);
             connect(m_iambicKeyer, &IambicKeyer::keyUp,
-                    m_config.radio, &RadioController::sendKeyUp);
+                    m_config.radio, &RadioController::sendKeyUp, Qt::DirectConnection);
         }
         break;
 

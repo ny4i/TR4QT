@@ -23,10 +23,19 @@
 
 namespace TR4QT {
 
-// Application info
+// Application info — org/name can be overridden at compile time for test builds
+// to isolate QSettings into a separate plist domain (macOS cfprefsd ignores chmod).
+#ifndef TR4QT_APP_NAME
 constexpr const char* APP_NAME = "TR4QT";
-constexpr const char* APP_VERSION = "3.50.80";  // Fix BandMap column overlap + band filter not applied on connect
+#else
+constexpr const char* APP_NAME = TR4QT_APP_NAME;
+#endif
+constexpr const char* APP_VERSION = "3.50.81";  // Move IambicKeyer to dedicated thread + test plist isolation
+#ifndef TR4QT_APP_ORG
 constexpr const char* APP_ORG = "TR4QT";
+#else
+constexpr const char* APP_ORG = TR4QT_APP_ORG;
+#endif
 
 // Country file
 constexpr const char* COUNTRY_FILE_URL = "https://www.country-files.com/";

@@ -29,9 +29,14 @@ function(add_tr4qt_test test_name)
         ${qtkeychain_BINARY_DIR}
     )
 
-    # Define TESTS_SOURCE_DIR for test fixture paths
+    # Define TESTS_SOURCE_DIR for test fixture paths.
+    # Override APP_ORG/APP_NAME so ALL QSettings(APP_ORG, APP_NAME) calls in test
+    # binaries use a separate plist domain. macOS cfprefsd ignores filesystem
+    # permissions, so compile-time separation is the only reliable guard.
     target_compile_definitions(${test_name} PRIVATE
         TESTS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        TR4QT_APP_ORG=\"tr4qt-test\"
+        TR4QT_APP_NAME=\"TR4QT-Test\"
     )
 
     # Link against Hamlib (needed for types that reference hamlib)
@@ -781,6 +786,10 @@ target_include_directories(test_cw_service PRIVATE
 if(APPLE)
     target_link_libraries(test_cw_service PRIVATE "-framework SystemConfiguration")
 endif()
+
+# Isolate test QSettings into separate plist domain
+target_compile_definitions(test_cw_service PRIVATE
+    TR4QT_APP_ORG=\"tr4qt-test\" TR4QT_APP_NAME=\"TR4QT-Test\")
 
 # RtMidi needs CoreMIDI on macOS, ALSA on Linux
 if(APPLE)

@@ -21,6 +21,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QThread>
 #include "../core/Types.h"
 #include "../cw/CWOutputProfile.h"
 #include "../radio/RadioController.h"
@@ -308,6 +309,7 @@ private:
     // Owned keyer hardware
     KeyerController* m_keyerController = nullptr;
     IambicKeyer* m_iambicKeyer = nullptr;
+    QThread m_keyerThread;  // Dedicated thread for IambicKeyer (bypasses main thread)
 
     // Owned CW sender (created based on output mode)
     CWSender* m_sender = nullptr;

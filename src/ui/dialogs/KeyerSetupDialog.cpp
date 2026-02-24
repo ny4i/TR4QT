@@ -327,7 +327,10 @@ void KeyerSetupDialog::onPaddleStateChanged(bool dit, bool dah) {
 
 void KeyerSetupDialog::onWpmSliderChanged(int value) {
     m_wpmLabel->setText(QString("%1 WPM").arg(value));
-    m_iambicKeyer->setWpm(value);
+    // IambicKeyer lives on a dedicated thread — use QueuedConnection for cross-thread call
+    QMetaObject::invokeMethod(m_iambicKeyer, [iambicKeyer = m_iambicKeyer, value]() {
+        iambicKeyer->setWpm(value);
+    }, Qt::QueuedConnection);
     m_keyerController->setWpm(value);
 }
 

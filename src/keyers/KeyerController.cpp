@@ -118,8 +118,11 @@ void KeyerController::connectKeyer(const KeyerConfig& config) {
     connect(device, &ICWKeyerDevice::errorOccurred,
             this, &KeyerController::errorOccurred);
 
+    // DirectConnection: re-emit paddleStateChanged on the device's emitting thread
+    // (RtMidi callback thread for MIDI, worker thread for serial). This avoids queuing
+    // through the main thread, keeping the paddle→keyer→radio path off the UI thread.
     connect(device, &ICWKeyerDevice::paddleStateChanged,
-            this, &KeyerController::paddleStateChanged);
+            this, &KeyerController::paddleStateChanged, Qt::DirectConnection);
 
     connect(device, &ICWKeyerDevice::echoText,
             this, &KeyerController::echoText);
@@ -323,8 +326,9 @@ void KeyerController::attemptReconnect() {
 
     connect(device, &ICWKeyerDevice::errorOccurred,
             this, &KeyerController::errorOccurred);
+    // DirectConnection: same rationale as connectKeyer() — keep paddle events off main thread
     connect(device, &ICWKeyerDevice::paddleStateChanged,
-            this, &KeyerController::paddleStateChanged);
+            this, &KeyerController::paddleStateChanged, Qt::DirectConnection);
     connect(device, &ICWKeyerDevice::echoText,
             this, &KeyerController::echoText);
     connect(device, &ICWKeyerDevice::wpmChanged,
