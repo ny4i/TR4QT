@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.50.81] - 2026-02-23
+
+### Changed
+- **IambicKeyer moved to dedicated thread**: Paddle→iambic→radio keying path now bypasses the main thread entirely. IambicKeyer runs on its own QThread with DirectConnection wiring to RadioController, eliminating 1-2 queued hops through the UI event loop for lower CW keying latency
+- **HaliKeySerialDevice uses PlatformUtils**: Serial port enumeration now uses `PlatformUtils::availableSerialPorts()` for consistency across the codebase
+
+### Fixed
+- **Test runs nuking production preferences**: macOS `cfprefsd` ignores filesystem permissions entirely (`chmod a-w` has no effect). Replaced the chmod-based guard with compile-time plist domain separation — all test targets compile with `TR4QT_APP_ORG=tr4qt-test` so they write to a separate plist, never touching production settings
+- **Pre-commit hook false positive on signals/slots check**: Grep for `signals:` matched inside string literals (e.g., log messages). Tightened to only match actual Qt signal/slot declarations, and for `.cpp` files checks the corresponding `.h` for Q_OBJECT
+
 ## [3.50.80] - 2026-02-22
 
 ### Fixed
