@@ -158,4 +158,9 @@ int CWTiming::calculateDuration(const QString& text, int wpm) {
     return durationMs;
 }
 
+int CWTiming::estimatedDuration(const QString& text, int wpm)
+{
+    return static_cast<int>(calculateDuration(text, wpm) * DURATION_BUFFER_FACTOR);
+}
+
 } // namespace TR4QT

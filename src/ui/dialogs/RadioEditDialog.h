@@ -30,6 +30,7 @@
 #include <QGroupBox>
 #include <QTimer>
 #include "../../radio/RadioInterface.h"
+#include "../../radio/RadioFactory.h"
 #include "../../utils/K4Discovery.h"
 #include "../../utils/IcomDiscovery.h"
 #include "../widgets/CivAddressWidget.h"
@@ -103,7 +104,7 @@ private:
     void populateRadioList();
     void loadProfileIntoUI(const RadioProfile& profile);
     RadioConfig buildRadioConfigFromUI() const;
-    int getCurrentInterfaceType() const;  // 0=Hamlib, 1=K4 Direct, 2=Icom Direct
+    RadioFactory::RadioType getCurrentInterfaceType() const;
     void showK4SelectionDialog();
     void showIcomSelectionDialog();
     QSet<QString> getConfiguredRadioIPs() const;
@@ -125,6 +126,7 @@ private:
     QRadioButton* m_hamlibRadio;
     QRadioButton* m_k4DirectRadio;
     QRadioButton* m_icomDirectRadio;
+    QRadioButton* m_kenwoodDirectRadio;
     QWidget* m_interfaceTypeWidget;
 
     // Radio model section (context-dependent)
@@ -163,6 +165,11 @@ private:
     QLineEdit* m_icomUsernameEdit;
     QLineEdit* m_icomPasswordEdit;
     QLineEdit* m_icomClientNameEdit;
+
+    // Kenwood credentials (shown only for Kenwood Direct)
+    QWidget* m_kenwoodCredentialsWidget;
+    QLineEdit* m_kenwoodAdminIdEdit;
+    QLineEdit* m_kenwoodAdminPasswordEdit;
 
     // Discovery button
     QPushButton* m_findRadiosButton;

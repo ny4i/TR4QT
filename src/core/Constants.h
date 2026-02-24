@@ -30,7 +30,7 @@ constexpr const char* APP_NAME = "TR4QT";
 #else
 constexpr const char* APP_NAME = TR4QT_APP_NAME;
 #endif
-constexpr const char* APP_VERSION = "3.50.81";  // Move IambicKeyer to dedicated thread + test plist isolation
+constexpr const char* APP_VERSION = "3.51.81";  // Add Kenwood TS-890S Direct radio support
 #ifndef TR4QT_APP_ORG
 constexpr const char* APP_ORG = "TR4QT";
 #else

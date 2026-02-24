@@ -51,6 +51,10 @@ struct RadioConfig {
     QString icomUsername;       // Icom network username (can be blank)
     QString icomPassword;       // Icom network password (can be blank)
     QString icomClientName{"TR4QT"};  // Client identifier
+
+    // Kenwood LAN Support
+    QString kenwoodAdminId;        // Kenwood LAN admin ID
+    QString kenwoodAdminPassword;  // Kenwood LAN admin password
 };
 
 // Radio profile (named configuration set)

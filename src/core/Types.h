@@ -111,6 +111,7 @@ enum class RadioType {
     FT991A,
     FTDX10,
     FTDX101,
+    TS890S,
     HamlibGeneric  // For any hamlib-supported radio
 };
 

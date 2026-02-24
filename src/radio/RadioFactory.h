@@ -42,10 +42,10 @@ struct SupportedRadio {
 class RadioFactory {
 public:
     enum class RadioType {
-        HAMLIB,      // Hamlib library (universal, works with all radios)
-        K4_DIRECT,   // Direct K4 control via TCP (bypasses Hamlib for performance)
-        ICOM_DIRECT, // Direct Icom control via network (native Icom protocol)
-        // Future: K3_DIRECT, etc.
+        HAMLIB,         // Hamlib library (universal, works with all radios)
+        K4_DIRECT,      // Direct K4 control via TCP (bypasses Hamlib for performance)
+        ICOM_DIRECT,    // Direct Icom control via network (native Icom protocol)
+        KENWOOD_DIRECT, // Direct Kenwood control via TCP (native Kenwood protocol)
     };
 
     /**

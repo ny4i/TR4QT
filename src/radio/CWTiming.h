@@ -47,6 +47,9 @@ namespace TR4QT {
  */
 class CWTiming {
 public:
+    /// Buffer factor applied to calculated duration to account for radio processing overhead
+    static constexpr double DURATION_BUFFER_FACTOR = 1.1;
+
     /**
      * @brief Calculate accurate CW transmission duration
      * @param text Text to send (supports A-Z, 0-9, space, and common punctuation)
@@ -54,6 +57,16 @@ public:
      * @return Duration in milliseconds
      */
     static int calculateDuration(const QString& text, int wpm);
+
+    /**
+     * @brief Calculate CW duration with radio processing buffer
+     * @param text Text to send
+     * @param wpm Speed in words per minute
+     * @return Duration in milliseconds, including DURATION_BUFFER_FACTOR overhead
+     *
+     * Convenience wrapper: calculateDuration() * DURATION_BUFFER_FACTOR
+     */
+    static int estimatedDuration(const QString& text, int wpm);
 
     /**
      * @brief Get timing units for a single character

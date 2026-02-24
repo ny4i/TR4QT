@@ -181,14 +181,17 @@ void RadioEditDialog::setupUI()
     m_hamlibRadio = new QRadioButton("Hamlib", this);
     m_k4DirectRadio = new QRadioButton("K4 Direct", this);
     m_icomDirectRadio = new QRadioButton("Icom Direct", this);
+    m_kenwoodDirectRadio = new QRadioButton("Kenwood Direct", this);
     m_hamlibRadio->setChecked(true);
     m_hamlibRadio->setToolTip("Universal compatibility, works with all radios");
     m_k4DirectRadio->setToolTip("Direct TCP control for Elecraft K4 (5-10x faster)");
     m_icomDirectRadio->setToolTip("Native Icom network protocol for supported radios");
+    m_kenwoodDirectRadio->setToolTip("Direct TCP control for Kenwood TS-890S/TS-990S (LAN connection)");
     interfaceLayout->addWidget(interfaceLabel);
     interfaceLayout->addWidget(m_hamlibRadio);
     interfaceLayout->addWidget(m_k4DirectRadio);
     interfaceLayout->addWidget(m_icomDirectRadio);
+    interfaceLayout->addWidget(m_kenwoodDirectRadio);
     interfaceLayout->addStretch();
     networkMainLayout->addWidget(m_interfaceTypeWidget);
 
@@ -229,6 +232,22 @@ void RadioEditDialog::setupUI()
 
     networkMainLayout->addWidget(m_icomCredentialsWidget);
     m_icomCredentialsWidget->setVisible(false);
+
+    // Kenwood credentials (shown only for Kenwood Direct)
+    m_kenwoodCredentialsWidget = new QWidget(this);
+    QFormLayout* kenwoodCredsLayout = new QFormLayout(m_kenwoodCredentialsWidget);
+    kenwoodCredsLayout->setContentsMargins(0, 0, 0, 0);
+    m_kenwoodAdminIdEdit = new QLineEdit(this);
+    m_kenwoodAdminIdEdit->setPlaceholderText("Admin ID (from radio LAN settings)");
+    kenwoodCredsLayout->addRow("Admin ID:", m_kenwoodAdminIdEdit);
+
+    m_kenwoodAdminPasswordEdit = new QLineEdit(this);
+    m_kenwoodAdminPasswordEdit->setPlaceholderText("Admin Password");
+    m_kenwoodAdminPasswordEdit->setEchoMode(QLineEdit::Password);
+    kenwoodCredsLayout->addRow("Admin Password:", m_kenwoodAdminPasswordEdit);
+
+    networkMainLayout->addWidget(m_kenwoodCredentialsWidget);
+    m_kenwoodCredentialsWidget->setVisible(false);
 
     connectionLayout->addWidget(m_networkGroup);
     m_networkGroup->setVisible(false);
@@ -334,6 +353,8 @@ void RadioEditDialog::setupUI()
             this, &RadioEditDialog::onNetworkInterfaceChanged);
     connect(m_icomDirectRadio, &QRadioButton::toggled,
             this, &RadioEditDialog::onNetworkInterfaceChanged);
+    connect(m_kenwoodDirectRadio, &QRadioButton::toggled,
+            this, &RadioEditDialog::onNetworkInterfaceChanged);
 
     connect(m_showStableRadiosCheck, &QCheckBox::stateChanged,
             this, &RadioEditDialog::onRadioStatusFilterChanged);
@@ -367,22 +388,23 @@ void RadioEditDialog::setupUI()
     updateVisibility();
 }
 
-// Helper to get current interface type from radio buttons
-// Returns: 0 = Hamlib, 1 = K4 Direct, 2 = Icom Direct
-int RadioEditDialog::getCurrentInterfaceType() const
+RadioFactory::RadioType RadioEditDialog::getCurrentInterfaceType() const
 {
     // For serial, always Hamlib
     if (m_serialRadio->isChecked()) {
-        return 0;  // Hamlib
+        return RadioFactory::RadioType::HAMLIB;
     }
     // For network, check interface radio buttons
     if (m_k4DirectRadio->isChecked()) {
-        return 1;  // K4 Direct
+        return RadioFactory::RadioType::K4_DIRECT;
     }
     if (m_icomDirectRadio->isChecked()) {
-        return 2;  // Icom Direct
+        return RadioFactory::RadioType::ICOM_DIRECT;
     }
-    return 0;  // Default to Hamlib
+    if (m_kenwoodDirectRadio->isChecked()) {
+        return RadioFactory::RadioType::KENWOOD_DIRECT;
+    }
+    return RadioFactory::RadioType::HAMLIB;
 }
 
 void RadioEditDialog::populateRadioList()
@@ -390,18 +412,10 @@ void RadioEditDialog::populateRadioList()
     m_radioModelCombo->blockSignals(true);
     m_radioModelCombo->clear();
 
-    int radioType = getCurrentInterfaceType();
+    auto interfaceType = getCurrentInterfaceType();
 
-    // For direct interfaces, show only radios with actual implementations
-    RadioFactory::RadioType factoryType = RadioFactory::RadioType::HAMLIB;
-    if (radioType == 1) {
-        factoryType = RadioFactory::RadioType::K4_DIRECT;
-    } else if (radioType == 2) {
-        factoryType = RadioFactory::RadioType::ICOM_DIRECT;
-    }
-
-    if (radioType == 1 || radioType == 2) {  // K4 Direct or Icom Direct
-        QList<SupportedRadio> implementedRadios = RadioFactory::getImplementedRadios(factoryType);
+    if (interfaceType != RadioFactory::RadioType::HAMLIB) {
+        QList<SupportedRadio> implementedRadios = RadioFactory::getImplementedRadios(interfaceType);
         for (const SupportedRadio& radio : implementedRadios) {
             m_radioModelCombo->addItem(radio.displayName, radio.hamlibModelId);
         }
@@ -502,6 +516,9 @@ void RadioEditDialog::loadProfileIntoUI(const RadioProfile& profile)
             case 2:  // Icom Direct
                 m_icomDirectRadio->setChecked(true);
                 break;
+            case 3:  // Kenwood Direct
+                m_kenwoodDirectRadio->setChecked(true);
+                break;
             default:  // Hamlib or Auto
                 m_hamlibRadio->setChecked(true);
                 break;
@@ -520,8 +537,7 @@ void RadioEditDialog::loadProfileIntoUI(const RadioProfile& profile)
         m_radioModelCombo->setCurrentIndex(modelIndex);
     } else if (config.hamlibModelId > 0) {
         // Model not in current list - check if it's a custom model for Hamlib
-        int radioType = getCurrentInterfaceType();
-        if (radioType == 0) {  // Hamlib
+        if (getCurrentInterfaceType() == RadioFactory::RadioType::HAMLIB) {
             m_radioModelCombo->setCurrentIndex(m_radioModelCombo->count() - 1);
             m_customModelEdit->setText(QString::number(config.hamlibModelId));
             m_customModelEdit->setVisible(true);
@@ -567,10 +583,18 @@ void RadioEditDialog::loadProfileIntoUI(const RadioProfile& profile)
     m_icomUsernameEdit->setText(config.icomUsername);
     m_icomClientNameEdit->setText(config.icomClientName);
 
-    // Load password from secure storage
+    // Load Icom password from secure storage
     QString password = CredentialStore::instance().getPassword(
         CredentialKeys::icomRadioProfile(profile.name), config.icomUsername);
     m_icomPasswordEdit->setText(password);
+
+    // Kenwood settings
+    m_kenwoodAdminIdEdit->setText(config.kenwoodAdminId);
+
+    // Load Kenwood password from secure storage
+    QString kenwoodPassword = CredentialStore::instance().getPassword(
+        CredentialKeys::kenwoodRadioProfile(profile.name), config.kenwoodAdminId);
+    m_kenwoodAdminPasswordEdit->setText(kenwoodPassword);
 
     // Advanced settings
     if (config.civAddress > 0) {
@@ -592,8 +616,8 @@ RadioConfig RadioEditDialog::buildRadioConfigFromUI() const
     }
     config.hamlibModelId = modelId;
 
-    // Radio type (interface)
-    config.radioType = getCurrentInterfaceType();
+    // Radio type (interface) — RadioConfig stores as int for serialization
+    config.radioType = static_cast<int>(getCurrentInterfaceType());
 
     // Connection
     if (m_networkRadio->isChecked()) {
@@ -627,6 +651,10 @@ RadioConfig RadioEditDialog::buildRadioConfigFromUI() const
     config.icomUsername = m_icomUsernameEdit->text();
     config.icomPassword = m_icomPasswordEdit->text();
     config.icomClientName = m_icomClientNameEdit->text();
+
+    // Kenwood settings
+    config.kenwoodAdminId = m_kenwoodAdminIdEdit->text();
+    config.kenwoodAdminPassword = m_kenwoodAdminPasswordEdit->text();
 
     // Advanced
     config.civAddress = m_civAddressWidget->getCivAddress();
@@ -671,14 +699,16 @@ void RadioEditDialog::onConnectionTypeChanged()
 
 void RadioEditDialog::onNetworkInterfaceChanged()
 {
-    int interfaceType = getCurrentInterfaceType();
+    auto interfaceType = getCurrentInterfaceType();
 
     // Update default port based on interface type
-    if (interfaceType == 1) {  // K4 Direct
+    if (interfaceType == RadioFactory::RadioType::K4_DIRECT) {
         m_portSpin->setValue(9200);
-    } else if (interfaceType == 2) {  // Icom Direct
+    } else if (interfaceType == RadioFactory::RadioType::ICOM_DIRECT) {
         m_portSpin->setValue(50001);
-    } else {  // Hamlib
+    } else if (interfaceType == RadioFactory::RadioType::KENWOOD_DIRECT) {
+        m_portSpin->setValue(60000);
+    } else {
         m_portSpin->setValue(4532);  // Default rigctld
     }
 
@@ -689,19 +719,17 @@ void RadioEditDialog::onNetworkInterfaceChanged()
 void RadioEditDialog::updateVisibility()
 {
     bool isSerial = m_serialRadio->isChecked();
-    int interfaceType = getCurrentInterfaceType();
+    auto interfaceType = getCurrentInterfaceType();
 
     // Model selection: Hide for K4 Direct (auto-selected), show for others
-    bool showModelSelection = (interfaceType != 1);  // Not K4 Direct
-    m_modelSelectionWidget->setVisible(showModelSelection);
+    m_modelSelectionWidget->setVisible(interfaceType != RadioFactory::RadioType::K4_DIRECT);
 
     // Status filters: Only show for Hamlib
-    bool showFilters = (interfaceType == 0);  // Hamlib only
-    m_statusFilterWidget->setVisible(showFilters);
+    m_statusFilterWidget->setVisible(interfaceType == RadioFactory::RadioType::HAMLIB);
 
     // CI-V: Only for Hamlib with Icom radios
     bool showCiv = false;
-    if (interfaceType == 0) {  // Hamlib
+    if (interfaceType == RadioFactory::RadioType::HAMLIB) {
         int modelId = m_radioModelCombo->currentData().toInt();
         // Check if it's an Icom radio (model IDs 3xxx are typically Icom)
         QString modelName = m_radioModelCombo->currentText().toLower();
@@ -710,16 +738,21 @@ void RadioEditDialog::updateVisibility()
     m_civWidget->setVisible(showCiv);
 
     // Icom credentials: Only for Icom Direct
-    bool showIcomCreds = (interfaceType == 2);  // Icom Direct
-    m_icomCredentialsWidget->setVisible(showIcomCreds);
+    m_icomCredentialsWidget->setVisible(interfaceType == RadioFactory::RadioType::ICOM_DIRECT);
+
+    // Kenwood credentials: Only for Kenwood Direct
+    m_kenwoodCredentialsWidget->setVisible(interfaceType == RadioFactory::RadioType::KENWOOD_DIRECT);
 
     // Discovery button: K4 for K4 Direct, Icom for Icom Direct, both for Hamlib
-    if (interfaceType == 1) {
+    // Kenwood Direct: no discovery yet (manual IP entry)
+    if (interfaceType == RadioFactory::RadioType::K4_DIRECT) {
         m_findRadiosButton->setText("Find K4 on Network");
         m_findRadiosButton->setVisible(true);
-    } else if (interfaceType == 2) {
+    } else if (interfaceType == RadioFactory::RadioType::ICOM_DIRECT) {
         m_findRadiosButton->setText("Find Icom Radios");
         m_findRadiosButton->setVisible(true);
+    } else if (interfaceType == RadioFactory::RadioType::KENWOOD_DIRECT) {
+        m_findRadiosButton->setVisible(false);  // No Kenwood discovery yet
     } else {
         m_findRadiosButton->setText("Find Radios on Network");
         m_findRadiosButton->setVisible(!isSerial);  // Only for network
@@ -759,18 +792,8 @@ void RadioEditDialog::onTestConnection()
 
     RadioConfig config = buildRadioConfigFromUI();
 
-    // Determine the radio type for the factory
-    RadioFactory::RadioType radioType;
-    if (config.radioType == 1) {
-        radioType = RadioFactory::RadioType::K4_DIRECT;
-    } else if (config.radioType == 2) {
-        radioType = RadioFactory::RadioType::ICOM_DIRECT;
-    } else {
-        radioType = RadioFactory::RadioType::HAMLIB;
-    }
-
     // Create temporary radio interface for testing
-    auto radio = RadioFactory::createRadio(radioType, config, this);
+    auto radio = RadioFactory::createRadio(getCurrentInterfaceType(), config, this);
     if (!radio) {
         m_connectionStatusLabel->setText("Failed to create radio interface");
         m_connectionStatusLabel->setStyleSheet("color: red;");
@@ -796,16 +819,16 @@ void RadioEditDialog::onTestConnection()
 
 void RadioEditDialog::onFindNetworkRadios()
 {
-    int interfaceType = getCurrentInterfaceType();
+    auto interfaceType = getCurrentInterfaceType();
 
     m_findRadiosButton->setEnabled(false);
     m_findRadiosButton->setText("Searching...");
     m_foundK4Radios.clear();
     m_foundIcomRadios.clear();
 
-    if (interfaceType == 1) {  // K4 Direct
+    if (interfaceType == RadioFactory::RadioType::K4_DIRECT) {
         m_k4Discovery->startDiscovery();
-    } else if (interfaceType == 2) {  // Icom Direct
+    } else if (interfaceType == RadioFactory::RadioType::ICOM_DIRECT) {
         m_icomDiscovery->startDiscovery();
     } else {  // Hamlib - try both
         m_k4Discovery->startDiscovery();

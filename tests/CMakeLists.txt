@@ -653,6 +653,34 @@ add_test(NAME test_k4radio_simulator COMMAND test_k4radio_simulator)
 # Set longer timeout for simulator integration tests (startup overhead)
 set_tests_properties(test_k4radio_simulator PROPERTIES TIMEOUT 60)
 
+# TS-890 Radio Simulator Integration tests (Direct Kenwood protocol implementation)
+# Tests TS890Radio/KenwoodRadio's direct Kenwood CAT protocol using Hamlib's TS-890 simulator
+# Note: Requires Hamlib TS-890 simulator built at ../hamlib/build/simulators/simts890
+#       Test will SKIP gracefully if simulator not found (optional integration test)
+add_executable(test_ts890_simulator
+    test_ts890_simulator.cpp
+    TcpToPtyBridge.h  # Glue code: bridges TCP (TS890Radio) to PTY (simulator)
+)
+
+# Link against tr4qt_core object library (provides TS890Radio, KenwoodRadio, logging, types)
+target_link_libraries(test_ts890_simulator PRIVATE
+    tr4qt_core
+    Qt6::Test
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Network
+    Qt6::SerialPort
+    ${HAMLIB_LIBRARIES}
+)
+
+target_include_directories(test_ts890_simulator PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${HAMLIB_INCLUDE_DIRS}
+)
+
+add_test(NAME test_ts890_simulator COMMAND test_ts890_simulator)
+set_tests_properties(test_ts890_simulator PROPERTIES TIMEOUT 60)
+
 # FloatingDate calculation tests (contest date scheduling)
 add_tr4qt_test(test_floating_dates
     test_floating_dates.cpp

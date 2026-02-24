@@ -98,6 +98,11 @@ namespace CredentialKeys {
     inline QString icomRadioProfile(const QString& profileName) {
         return QString("IcomRadio/%1").arg(profileName);
     }
+
+    /// Build a profile-specific storage key for Kenwood: "KenwoodRadio/{profileName}"
+    inline QString kenwoodRadioProfile(const QString& profileName) {
+        return QString("KenwoodRadio/%1").arg(profileName);
+    }
 }
 
 } // namespace TR4QT

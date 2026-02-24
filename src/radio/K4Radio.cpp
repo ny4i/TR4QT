@@ -1097,15 +1097,13 @@ bool K4Radio::sendCW(const QString& text)
     // Send CW via KY command
     sendCommand(QString("KY %1").arg(text));
 
-    // Calculate accurate transmission duration using Morse code timing units
-    // Add 10% buffer for radio processing and any extra spacing
-    int accurateMs = CWTiming::calculateDuration(text, m_state.cwSpeed);
-    int estimatedMs = static_cast<int>(accurateMs * 1.1);
+    // Calculate transmission duration with radio processing buffer
+    int estimatedMs = CWTiming::estimatedDuration(text, m_state.cwSpeed);
     m_cwInProgress = true;
     m_cwTimer->start(estimatedMs);
 
-    LOG_DEBUG("K4Radio", QString("Sending CW: '%1' (accurate: %2ms, with buffer: %3ms)")
-              .arg(text).arg(accurateMs).arg(estimatedMs));
+    LOG_DEBUG("K4Radio", QString("Sending CW: '%1' (estimated: %2ms)")
+              .arg(text).arg(estimatedMs));
 
     return true;
 }

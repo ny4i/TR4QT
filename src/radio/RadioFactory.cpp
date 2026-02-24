@@ -22,10 +22,18 @@
 #include "IcomRadio.h"
 #include "IC7760Radio.h"
 #include "IC9700Radio.h"
+#include "TS890Radio.h"
 #include "../logging/LogMacros.h"
 #include <hamlib/rig.h>
 
 namespace TR4QT {
+
+// Hamlib model ID constants for Kenwood radios
+// (Icom model IDs are already inline; Kenwood added here for consistency)
+namespace {
+    constexpr int HAMLIB_MODEL_TS890S = 241;
+    constexpr int HAMLIB_MODEL_TS990S = 239;
+}
 
 RadioInterface* RadioFactory::createRadio(
     RadioType type,
@@ -74,6 +82,24 @@ RadioInterface* RadioFactory::createRadio(
             }
         }
 
+        case RadioType::KENWOOD_DIRECT: {
+            // Instantiate model-specific Kenwood radio class based on Hamlib model ID
+            if (config.hamlibModelId == HAMLIB_MODEL_TS890S) {
+                LOG_INFO("RadioFactory", "Creating TS-890S radio instance");
+                return new TS890Radio(parent);
+            } else {
+                // For other Kenwood radios without specific implementations, fall back to Hamlib
+                LOG_WARN("RadioFactory",
+                         QString("Kenwood Direct mode selected for Hamlib model %1, "
+                                 "but no model-specific implementation exists yet. "
+                                 "Falling back to Hamlib. "
+                                 "Supported models: TS-890S (%1)")
+                                 .arg(HAMLIB_MODEL_TS890S)
+                         .arg(config.hamlibModelId));
+                return new HamlibRadio(parent);
+            }
+        }
+
         default:
             LOG_ERROR("RadioFactory", QString("Unknown radio type: %1").arg(static_cast<int>(type)));
             // Fallback to Hamlib
@@ -90,6 +116,8 @@ QString RadioFactory::radioTypeName(RadioType type)
             return "K4 Direct";
         case RadioType::ICOM_DIRECT:
             return "Icom Direct";
+        case RadioType::KENWOOD_DIRECT:
+            return "Kenwood Direct";
         default:
             return "Unknown";
     }
@@ -109,6 +137,10 @@ QString RadioFactory::radioTypeDescription(RadioType type)
             return "Direct Icom network control (3-5x faster than Hamlib, "
                    "requires Icom radio with network capability: IC-905, IC-9700, "
                    "IC-7850, IC-7851, IC-7610, IC-7600, IC-7300MK2, IC-705, IC-R8600)";
+
+        case RadioType::KENWOOD_DIRECT:
+            return "Direct Kenwood control via TCP (native Kenwood protocol, "
+                   "requires TS-890S with LAN connection)";
 
         default:
             return "Unknown radio type";
@@ -151,6 +183,23 @@ bool RadioFactory::supportsRadioModel(RadioType type, int hamlibModelId)
             return false;
         }
 
+        case RadioType::KENWOOD_DIRECT: {
+            // Kenwood Direct supports TS-890S and TS-990S
+            int validKenwoodModels[] = {
+                HAMLIB_MODEL_TS890S,
+                HAMLIB_MODEL_TS990S
+            };
+
+            if (hamlibModelId == 0) return true;  // Allow unconfigured
+
+            for (int model : validKenwoodModels) {
+                if (hamlibModelId == model) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         default:
             return false;
     }
@@ -183,6 +232,11 @@ RadioFactory::RadioType RadioFactory::recommendedTypeForModel(int hamlibModelId)
         }
     }
 
+    // Recommend Kenwood Direct for supported Kenwood network radios
+    if (hamlibModelId == HAMLIB_MODEL_TS890S) {
+        return RadioType::KENWOOD_DIRECT;
+    }
+
     // Default to Hamlib for all other radios
     return RadioType::HAMLIB;
 }
@@ -206,6 +260,13 @@ QList<SupportedRadio> RadioFactory::getImplementedRadios(RadioType type)
             // radios.append({3078, "Icom IC-7610"});
             // radios.append({3087, "Icom IC-705"});
             // etc.
+            break;
+
+        case RadioType::KENWOOD_DIRECT:
+            // Only include radios with actual class implementations
+            radios.append({HAMLIB_MODEL_TS890S, "Kenwood TS-890S"});
+            // Future implementations:
+            // radios.append({HAMLIB_MODEL_TS990S, "Kenwood TS-990S"});
             break;
 
         case RadioType::HAMLIB:

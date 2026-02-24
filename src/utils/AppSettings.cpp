@@ -498,12 +498,17 @@ void AppSettings::saveRadioProfiles(const QList<RadioProfile>& profiles) {
             m_settings.setValue("radioType", profiles[i].config.radioType);
             m_settings.setValue("icomUsername", profiles[i].config.icomUsername);
             m_settings.setValue("icomClientName", profiles[i].config.icomClientName);
+            m_settings.setValue("kenwoodAdminId", profiles[i].config.kenwoodAdminId);
             m_settings.setValue("lastUsed", profiles[i].lastUsed);
             m_settings.setValue("notes", profiles[i].notes);
 
             savePasswordSecurely(CredentialKeys::icomRadioProfile(profiles[i].name),
                                  profiles[i].config.icomUsername,
                                  profiles[i].config.icomPassword, "icomPassword");
+
+            savePasswordSecurely(CredentialKeys::kenwoodRadioProfile(profiles[i].name),
+                                 profiles[i].config.kenwoodAdminId,
+                                 profiles[i].config.kenwoodAdminPassword, "kenwoodAdminPassword");
         }
         // Guards automatically call endArray() and endGroup() on scope exit
     }
@@ -539,12 +544,17 @@ QList<RadioProfile> AppSettings::loadRadioProfiles() const {
         profile.config.radioType = m_settings.value("radioType", -1).toInt();
         profile.config.icomUsername = m_settings.value("icomUsername", "").toString();
         profile.config.icomClientName = m_settings.value("icomClientName", "TR4QT").toString();
+        profile.config.kenwoodAdminId = m_settings.value("kenwoodAdminId", "").toString();
         profile.lastUsed = m_settings.value("lastUsed", QDateTime()).toDateTime();
         profile.notes = m_settings.value("notes", "").toString();
 
         profile.config.icomPassword = loadPasswordSecurely(
             CredentialKeys::icomRadioProfile(profile.name),
             profile.config.icomUsername, "icomPassword");
+
+        profile.config.kenwoodAdminPassword = loadPasswordSecurely(
+            CredentialKeys::kenwoodRadioProfile(profile.name),
+            profile.config.kenwoodAdminId, "kenwoodAdminPassword");
 
         profiles.append(profile);
     }

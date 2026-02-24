@@ -28,6 +28,10 @@ add_library(tr4qt_core OBJECT
     radio/IC7760Radio.h
     radio/IC9700Radio.cpp
     radio/IC9700Radio.h
+    radio/KenwoodRadio.cpp
+    radio/KenwoodRadio.h
+    radio/TS890Radio.cpp
+    radio/TS890Radio.h
     radio/CWTiming.cpp
     radio/RadioFactory.cpp
     radio/RadioController.cpp
@@ -457,8 +461,8 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "TR4QT"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tr4qt.TR4QT"
         MACOSX_BUNDLE_ICON_FILE "tr4qt.icns"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.50.81"
-        MACOSX_BUNDLE_BUNDLE_VERSION "3.50.81"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "3.51.81"
+        MACOSX_BUNDLE_BUNDLE_VERSION "3.51.81"
         RESOURCE "${MACOSX_ICON_FILE}"
     )
 elseif(WIN32)
