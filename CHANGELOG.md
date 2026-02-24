@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.51.81] - 2026-02-24
+
+### Added
+- **Kenwood TS-890S Direct radio support**: Native TCP control using the Kenwood CAT protocol, bypassing Hamlib for direct communication. Architecture follows the Icom pattern (base class + model-specific subclass)
+  - `KenwoodRadio` base class: TCP socket management, LAN authentication handshake (`##CN`/`##ID`), shared command parsing (FA/FB/OM/KS/TX/RX/TB/FT/RT/XT/SM), CW message chunking via KY command, metering poll timer
+  - `TS890Radio` subclass: Hex mode mapping (A-F for data modes), CW speed 4-60 WPM, AI2 auto-information mode, radio ID 024
+  - RadioEditDialog: "Kenwood Direct" interface button with Admin ID/Password credentials fields, default port 60000
+  - Credential persistence: Admin ID in QSettings, password in OS Keychain via CredentialStore
+  - `KENWOOD_DIRECT` enum in RadioFactory with model routing for Hamlib ID 241
+- **TS-890 simulator integration tests**: 12 test cases using Hamlib's `simts890` simulator via TcpToPtyBridge — frequency, mode (including hex data modes), CW speed, CW messaging, PTT, split, RIT/XIT, rapid commands, disconnect/reconnect
+- **Connection flow documentation**: `docs/kenwood-direct-connection-flow.md` traces the complete path from UI configuration through LAN authentication to radio initialization
+
+### Changed
+- **CW duration buffer factor centralized**: `CWTiming::estimatedDuration()` with `DURATION_BUFFER_FACTOR = 1.1` replaces duplicate inline `* 1.1` calculations in K4Radio and KenwoodRadio
+- **RadioEditDialog `getCurrentInterfaceType()` returns enum**: Changed from `int` to `RadioFactory::RadioType` for type safety; all 9 call sites updated to enum comparisons
+- **RadioFactory model ID constants**: `HAMLIB_MODEL_TS890S` (241) and `HAMLIB_MODEL_TS990S` (239) replace magic numbers
+
+### Fixed
+- **KenwoodRadio CW speed range validation**: `setCWSpeed()` now validates against model-specific range via `getCWSpeedRange()` before sending command
+- **KenwoodRadio LAN auth skip**: When no Admin ID is configured (simulator/serial use case), LAN authentication handshake is bypassed
+
 ## [3.50.81] - 2026-02-23
 
 ### Changed
