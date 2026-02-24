@@ -18,7 +18,7 @@
 
 #include "HaliKeySerialDevice.h"
 #include "../logging/LogMacros.h"
-#include <QSerialPortInfo>
+#include "../utils/PlatformUtils.h"
 
 namespace TR4QT {
 
@@ -91,9 +91,9 @@ bool HaliKeySerialDevice::isConnected() const {
 
 QStringList HaliKeySerialDevice::availablePorts() {
     QStringList ports;
-    const auto portInfos = QSerialPortInfo::availablePorts();
-    for (const QSerialPortInfo& info : portInfos) {
-        ports.append(info.portName());
+    for (const auto& [displayText, portName] : PlatformUtils::availableSerialPorts()) {
+        Q_UNUSED(displayText);
+        ports.append(portName);
     }
     return ports;
 }
