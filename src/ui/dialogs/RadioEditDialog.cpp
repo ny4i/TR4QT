@@ -178,20 +178,18 @@ void RadioEditDialog::setupUI()
     QHBoxLayout* interfaceLayout = new QHBoxLayout(m_interfaceTypeWidget);
     interfaceLayout->setContentsMargins(0, 0, 0, 0);
     QLabel* interfaceLabel = new QLabel("Interface:", this);
-    m_hamlibRadio = new QRadioButton("Hamlib", this);
-    m_k4DirectRadio = new QRadioButton("K4 Direct", this);
-    m_icomDirectRadio = new QRadioButton("Icom Direct", this);
-    m_kenwoodDirectRadio = new QRadioButton("Kenwood Direct", this);
-    m_hamlibRadio->setChecked(true);
-    m_hamlibRadio->setToolTip("Universal compatibility, works with all radios");
-    m_k4DirectRadio->setToolTip("Direct TCP control for Elecraft K4 (5-10x faster)");
-    m_icomDirectRadio->setToolTip("Native Icom network protocol for supported radios");
-    m_kenwoodDirectRadio->setToolTip("Direct TCP control for Kenwood TS-890S/TS-990S (LAN connection)");
+    m_interfaceTypeCombo = new QComboBox(this);
+    m_interfaceTypeCombo->addItem("Hamlib", static_cast<int>(RadioFactory::RadioType::HAMLIB));
+    m_interfaceTypeCombo->addItem("K4 Direct", static_cast<int>(RadioFactory::RadioType::K4_DIRECT));
+    m_interfaceTypeCombo->addItem("Icom Direct", static_cast<int>(RadioFactory::RadioType::ICOM_DIRECT));
+    m_interfaceTypeCombo->addItem("Kenwood Direct", static_cast<int>(RadioFactory::RadioType::KENWOOD_DIRECT));
+    m_interfaceTypeCombo->setToolTip(
+        "Hamlib: Universal compatibility, works with all radios\n"
+        "K4 Direct: Direct TCP control for Elecraft K4 (5-10x faster)\n"
+        "Icom Direct: Native Icom network protocol for supported radios\n"
+        "Kenwood Direct: Direct TCP control for Kenwood TS-890S/TS-990S (LAN connection)");
     interfaceLayout->addWidget(interfaceLabel);
-    interfaceLayout->addWidget(m_hamlibRadio);
-    interfaceLayout->addWidget(m_k4DirectRadio);
-    interfaceLayout->addWidget(m_icomDirectRadio);
-    interfaceLayout->addWidget(m_kenwoodDirectRadio);
+    interfaceLayout->addWidget(m_interfaceTypeCombo);
     interfaceLayout->addStretch();
     networkMainLayout->addWidget(m_interfaceTypeWidget);
 
@@ -347,14 +345,8 @@ void RadioEditDialog::setupUI()
     // ===== Connect Signals =====
     connect(m_serialRadio, &QRadioButton::toggled,
             this, &RadioEditDialog::onConnectionTypeChanged);
-    connect(m_hamlibRadio, &QRadioButton::toggled,
-            this, &RadioEditDialog::onNetworkInterfaceChanged);
-    connect(m_k4DirectRadio, &QRadioButton::toggled,
-            this, &RadioEditDialog::onNetworkInterfaceChanged);
-    connect(m_icomDirectRadio, &QRadioButton::toggled,
-            this, &RadioEditDialog::onNetworkInterfaceChanged);
-    connect(m_kenwoodDirectRadio, &QRadioButton::toggled,
-            this, &RadioEditDialog::onNetworkInterfaceChanged);
+    connect(m_interfaceTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int) { onNetworkInterfaceChanged(); });
 
     connect(m_showStableRadiosCheck, &QCheckBox::stateChanged,
             this, &RadioEditDialog::onRadioStatusFilterChanged);
@@ -394,17 +386,9 @@ RadioFactory::RadioType RadioEditDialog::getCurrentInterfaceType() const
     if (m_serialRadio->isChecked()) {
         return RadioFactory::RadioType::HAMLIB;
     }
-    // For network, check interface radio buttons
-    if (m_k4DirectRadio->isChecked()) {
-        return RadioFactory::RadioType::K4_DIRECT;
-    }
-    if (m_icomDirectRadio->isChecked()) {
-        return RadioFactory::RadioType::ICOM_DIRECT;
-    }
-    if (m_kenwoodDirectRadio->isChecked()) {
-        return RadioFactory::RadioType::KENWOOD_DIRECT;
-    }
-    return RadioFactory::RadioType::HAMLIB;
+    // For network, read from interface combo box
+    int typeValue = m_interfaceTypeCombo->currentData().toInt();
+    return static_cast<RadioFactory::RadioType>(typeValue);
 }
 
 void RadioEditDialog::populateRadioList()
@@ -509,22 +493,14 @@ void RadioEditDialog::loadProfileIntoUI(const RadioProfile& profile)
 
     // Set interface type (only relevant for network)
     if (isNetwork) {
-        switch (config.radioType) {
-            case 1:  // K4 Direct
-                m_k4DirectRadio->setChecked(true);
-                break;
-            case 2:  // Icom Direct
-                m_icomDirectRadio->setChecked(true);
-                break;
-            case 3:  // Kenwood Direct
-                m_kenwoodDirectRadio->setChecked(true);
-                break;
-            default:  // Hamlib or Auto
-                m_hamlibRadio->setChecked(true);
-                break;
+        int comboIndex = m_interfaceTypeCombo->findData(config.radioType);
+        if (comboIndex >= 0) {
+            m_interfaceTypeCombo->setCurrentIndex(comboIndex);
+        } else {
+            m_interfaceTypeCombo->setCurrentIndex(0);  // Default to Hamlib
         }
     } else {
-        m_hamlibRadio->setChecked(true);  // Serial is always Hamlib
+        m_interfaceTypeCombo->setCurrentIndex(0);  // Serial is always Hamlib
     }
 
     // Update visibility and populate model list based on selections
@@ -690,7 +666,7 @@ void RadioEditDialog::onConnectionTypeChanged()
 
     // When switching to serial, reset interface to Hamlib
     if (isSerial) {
-        m_hamlibRadio->setChecked(true);
+        m_interfaceTypeCombo->setCurrentIndex(0);  // Hamlib
     }
 
     updateVisibility();
@@ -929,7 +905,8 @@ void RadioEditDialog::showK4SelectionDialog()
         m_ipAddressEdit->setText(radio.ipAddress);
         m_portSpin->setValue(9200);
         m_networkRadio->setChecked(true);
-        m_k4DirectRadio->setChecked(true);
+        m_interfaceTypeCombo->setCurrentIndex(
+            m_interfaceTypeCombo->findData(static_cast<int>(RadioFactory::RadioType::K4_DIRECT)));
         onConnectionTypeChanged();
 
         DialogHelper::information(this, "K4 Found",
@@ -975,7 +952,8 @@ void RadioEditDialog::showK4SelectionDialog()
             m_ipAddressEdit->setText(radio.ipAddress);
             m_portSpin->setValue(9200);
             m_networkRadio->setChecked(true);
-            m_k4DirectRadio->setChecked(true);
+            m_interfaceTypeCombo->setCurrentIndex(
+                m_interfaceTypeCombo->findData(static_cast<int>(RadioFactory::RadioType::K4_DIRECT)));
             onConnectionTypeChanged();
         }
     }
@@ -993,7 +971,8 @@ void RadioEditDialog::showIcomSelectionDialog()
         m_ipAddressEdit->setText(radio.ipAddress);
         m_portSpin->setValue(50001);
         m_networkRadio->setChecked(true);
-        m_icomDirectRadio->setChecked(true);
+        m_interfaceTypeCombo->setCurrentIndex(
+            m_interfaceTypeCombo->findData(static_cast<int>(RadioFactory::RadioType::ICOM_DIRECT)));
         onConnectionTypeChanged();
 
         DialogHelper::information(this, "Icom Radio Found",
@@ -1040,7 +1019,8 @@ void RadioEditDialog::showIcomSelectionDialog()
             m_ipAddressEdit->setText(radio.ipAddress);
             m_portSpin->setValue(50001);
             m_networkRadio->setChecked(true);
-            m_icomDirectRadio->setChecked(true);
+            m_interfaceTypeCombo->setCurrentIndex(
+                m_interfaceTypeCombo->findData(static_cast<int>(RadioFactory::RadioType::ICOM_DIRECT)));
             onConnectionTypeChanged();
         }
     }

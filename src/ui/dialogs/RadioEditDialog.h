@@ -123,10 +123,7 @@ private:
     QGroupBox* m_networkGroup;
 
     // Network interface type (shown only when Network selected)
-    QRadioButton* m_hamlibRadio;
-    QRadioButton* m_k4DirectRadio;
-    QRadioButton* m_icomDirectRadio;
-    QRadioButton* m_kenwoodDirectRadio;
+    QComboBox* m_interfaceTypeCombo;
     QWidget* m_interfaceTypeWidget;
 
     // Radio model section (context-dependent)
