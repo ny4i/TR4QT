@@ -817,6 +817,23 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
         .arg(responseData.length()));
 
     switch (cmd) {
+        case 0x00:  // Unsolicited frequency (CI-V transceive push)
+            parseFrequencyResponse(responseData, VFO::VFO_A);
+            break;
+
+        case 0x01:  // Unsolicited mode (CI-V transceive push)
+            parseModeResponse(responseData, VFO::VFO_A);
+            // Radio doesn't push $1A $06 on data mode change — query it after USB/LSB
+            if (responseData.length() >= 1) {
+                ModeType m = icomToMode((quint8)responseData[0]);
+                if (m == ModeType::USB || m == ModeType::LSB) {
+                    QByteArray dataModeCmd;
+                    dataModeCmd.append(static_cast<char>(0x06));
+                    sendCommand(0x1A, dataModeCmd);
+                }
+            }
+            break;
+
         case 0x03:  // Frequency response VFO A
             parseFrequencyResponse(responseData, VFO::VFO_A);
             break;
@@ -1053,6 +1070,24 @@ void IcomRadio::parseCivResponse(const QByteArray& data)
                         .arg(bcdHigh, 2, 16, QChar('0'))
                         .arg(bcdLow, 2, 16, QChar('0')));
                 }
+            }
+            break;
+
+        case 0x1A:  // Settings responses — data mode overlay
+            if (responseData.length() >= 2 && (quint8)responseData[0] == 0x06) {
+                // $1A $06 [dm] — data mode on/off
+                // dm=0x00 → data off; dm=0x01/0x02/0x03 → D1/D2/D3
+                bool dataOn = ((quint8)responseData[1] != 0x00);
+                QMutexLocker lock(&m_stateMutex);
+                m_state.isDataModeA = dataOn;
+                if (dataOn) {
+                    m_state.modeA = ModeType::DATA;
+                    LOG_TRACE("IcomRadio", QString("Data mode ON (D%1)").arg((quint8)responseData[1]));
+                } else {
+                    // Data mode OFF — mode already set by the 0x01/0x04 handler
+                    LOG_TRACE("IcomRadio", "Data mode OFF");
+                }
+                emit modeChanged(m_state.modeA, VFO::VFO_A);
             }
             break;
 

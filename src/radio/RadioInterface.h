@@ -85,6 +85,7 @@ struct RadioState {
     freq_t frequencyB{0};
     ModeType modeA{ModeType::None};
     ModeType modeB{ModeType::None};
+    bool isDataModeA{false};        // Icom $1A $06 data mode overlay on VFO A
     BandType bandA{BandType::None};
     BandType bandB{BandType::None};
     bool isTransmitting{false};
