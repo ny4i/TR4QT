@@ -547,7 +547,10 @@ void IcomNetwork::sendTrackedPacket(QUdpSocket* socket, const QByteArray& data, 
 
 void IcomNetwork::onControlDataReceived()
 {
-    while (m_controlSocket->hasPendingDatagrams()) {
+    if (!m_controlSocket) {
+        return;
+    }
+    while (m_controlSocket && m_controlSocket->hasPendingDatagrams()) {
         QNetworkDatagram datagram = m_controlSocket->receiveDatagram();
         processControlPacket(datagram.data());
     }

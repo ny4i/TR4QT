@@ -89,7 +89,7 @@ set(BUILD_SHARED_LIBS ${_SAVED_BUILD_SHARED_LIBS})
 # HAMLIB_ROOT can be passed via -DHAMLIB_ROOT=path or will use platform defaults
 if (NOT DEFINED HAMLIB_ROOT)
     if (WIN32)
-        set(HAMLIB_ROOT "C:/projects/hamlib")
+        set(HAMLIB_ROOT "C:/projects/hamlib/hamlib-w64-4.7.0")
     elseif(APPLE)
         set(HAMLIB_ROOT "$ENV{HOME}/projects/hamlib")
     else()

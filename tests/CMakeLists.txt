@@ -77,6 +77,15 @@ add_tr4qt_test(test_types
     ../src/core/Types.cpp
 )
 
+add_tr4qt_test(test_credential_store
+    test_credential_store.cpp
+    ../src/utils/CredentialStore.cpp
+    ../src/logging/Logger.cpp
+    ../src/logging/LogLevel.cpp
+    ../src/logging/LogFormatter.cpp
+    ../src/logging/FileAppender.cpp
+)
+
 add_tr4qt_test(test_qso
     test_qso.cpp
     ../src/core/Types.cpp

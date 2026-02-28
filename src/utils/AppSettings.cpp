@@ -476,6 +476,9 @@ bool AppSettings::hasRadioConfig() const {
 
 // Radio profiles (multi-config system)
 void AppSettings::saveRadioProfiles(const QList<RadioProfile>& profiles) {
+    // Load existing profiles to detect username changes (for credential store cleanup)
+    QList<RadioProfile> oldProfiles = loadRadioProfiles();
+
     {
         QSettingsGroupGuard groupGuard(m_settings, "RadioProfiles");
         m_settings.remove("Profiles");  // Clear old entries
@@ -501,6 +504,35 @@ void AppSettings::saveRadioProfiles(const QList<RadioProfile>& profiles) {
             m_settings.setValue("kenwoodAdminId", profiles[i].config.kenwoodAdminId);
             m_settings.setValue("lastUsed", profiles[i].lastUsed);
             m_settings.setValue("notes", profiles[i].notes);
+
+            // Find the old profile by name to detect username changes
+            QString oldIcomUser;
+            QString oldKenwoodId;
+            for (const RadioProfile& old : oldProfiles) {
+                if (old.name == profiles[i].name) {
+                    oldIcomUser = old.config.icomUsername;
+                    oldKenwoodId = old.config.kenwoodAdminId;
+                    break;
+                }
+            }
+
+            // If username changed (including case-only changes), delete the old
+            // credential first. Windows Credential Manager is case-insensitive on
+            // target names, so a case change creates a shadow entry that prevents
+            // the new password from being read back correctly.
+            if (!oldIcomUser.isEmpty() && oldIcomUser != profiles[i].config.icomUsername) {
+                LOG_INFO("AppSettings", QString("Icom username changed from '%1' to '%2' for profile '%3', "
+                         "deleting old credential").arg(oldIcomUser, profiles[i].config.icomUsername, profiles[i].name));
+                CredentialStore::instance().deletePassword(
+                    CredentialKeys::icomRadioProfile(profiles[i].name), oldIcomUser);
+            }
+
+            if (!oldKenwoodId.isEmpty() && oldKenwoodId != profiles[i].config.kenwoodAdminId) {
+                LOG_INFO("AppSettings", QString("Kenwood admin ID changed from '%1' to '%2' for profile '%3', "
+                         "deleting old credential").arg(oldKenwoodId, profiles[i].config.kenwoodAdminId, profiles[i].name));
+                CredentialStore::instance().deletePassword(
+                    CredentialKeys::kenwoodRadioProfile(profiles[i].name), oldKenwoodId);
+            }
 
             savePasswordSecurely(CredentialKeys::icomRadioProfile(profiles[i].name),
                                  profiles[i].config.icomUsername,
@@ -679,9 +711,20 @@ bool AppSettings::savePasswordSecurely(const QString& storageKey, const QString&
 
     int rc = CredentialStore::instance().savePassword(storageKey, username, password);
     if (rc == 0) {
-        // Secure save succeeded — remove plain-text from QSettings
-        m_settings.remove(settingsKey);
-        return true;
+        // Round-trip verification: read back and confirm
+        QString readBack = CredentialStore::instance().getPassword(storageKey, username);
+        if (readBack != password) {
+            LOG_WARN("AppSettings",
+                     QString("Credential store round-trip FAILED for '%1' user='%2': "
+                             "saved %3 chars but read back %4 chars")
+                         .arg(storageKey, username)
+                         .arg(password.length()).arg(readBack.length()));
+            // Fall through to QSettings fallback
+        } else {
+            // Secure save verified — remove plain-text from QSettings
+            m_settings.remove(settingsKey);
+            return true;
+        }
     }
 
     // Fallback: keep password in QSettings so it isn't lost
